@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harness Console</title>
+<style>
+:root{--bg:#f6f6f4;--panel:#fff;--ink:#1c1c1a;--mute:#76766f;--line:#e4e4de;--me:#1c1c1a;--meink:#fff;--bot:#efefea;
+  --working:#d97706;--running:#2563eb;--active:#16a34a;--idle:#9a9a92;--bad:#dc2626;--chip:#f0f0ea;
+  --c-master:#7c3aed;--c-builder:#d97706;--c-researcher:#2563eb;--c-planner:#0d9488;--c-reviewer:#db2777;--c-pm:#6b7280}
+@media (prefers-color-scheme:dark){:root{--bg:#141413;--panel:#1c1c1a;--ink:#ecece6;--mute:#8d8d85;--line:#2e2e2a;--me:#ecece6;--meink:#141413;--bot:#262624;
+  --working:#f59e0b;--running:#60a5fa;--active:#4ade80;--idle:#6f6f68;--bad:#f87171;--chip:#262624;
+  --c-master:#a78bfa;--c-builder:#fbbf24;--c-researcher:#60a5fa;--c-planner:#2dd4bf;--c-reviewer:#f472b6;--c-pm:#9ca3af}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+header h1{font-size:14px;margin:0;font-weight:600}
+header .cfg{color:var(--mute);font-size:12px;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+main{flex:1;min-height:0;display:grid;grid-template-columns:230px minmax(0,1fr) 400px}
+@media (max-width:1100px){main{grid-template-columns:minmax(0,1fr) 400px}nav#sess{display:none;position:fixed;top:46px;left:0;bottom:0;width:260px;z-index:5;box-shadow:6px 0 24px rgba(0,0,0,.25)}nav#sess.show{display:block}.tgl{display:inline-block!important}}
+@media (max-width:860px){main{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) 42%}}
+.left{display:flex;flex-direction:column;min-height:0;min-width:0}
+.alert{background:color-mix(in srgb,var(--bad) 13%,var(--panel));border-bottom:2px solid var(--bad);padding:8px 16px;font-size:13px;display:flex;gap:10px;align-items:flex-start}.alert b{color:var(--bad);flex:none}.alert span{overflow-wrap:anywhere;flex:1}.alert a{color:var(--mute);cursor:pointer;flex:none}
+.phead{cursor:pointer;padding:8px 16px;border-bottom:1px solid var(--line);font:12px/1.4 ui-monospace,monospace;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.phead:hover{color:var(--ink)}.cp{cursor:pointer}.cp:hover{outline:1px solid var(--mute)}
+.tgl{display:none}nav#sess{border-right:1px solid var(--line);background:var(--panel);overflow:auto;min-height:0;padding:10px}
+.srow{display:block;width:100%;text-align:left;border:0;background:none;color:var(--ink);font:inherit;padding:8px 10px;border-radius:10px;cursor:pointer;margin:0 0 2px}
+.srow:hover{background:var(--chip)}.srow.on{background:var(--chip);box-shadow:inset 3px 0 0 var(--ink)}
+.srow .t1{display:flex;align-items:center;gap:7px}.srow .tt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:13px;min-width:0}
+.srw{position:relative}.smore{position:absolute;top:6px;right:6px;border:0;background:none;color:var(--mute);font-size:16px;line-height:1;padding:4px 7px;border-radius:8px;cursor:pointer;opacity:0}.srw:hover .smore,.smore:focus,.smore.open{opacity:1}.smore:hover{background:var(--chip);color:var(--ink)}
+.smenu{display:none;position:absolute;top:32px;right:6px;z-index:5;background:var(--bg,#fff);border:1px solid var(--chip);border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.18);padding:3px}.smenu.open{display:block}
+.sdel{border:0;background:none;color:var(--bad);font:inherit;font-size:13px;padding:6px 14px;border-radius:8px;cursor:pointer;width:100%;text-align:left}.sdel:hover{background:var(--chip)}
+@media(hover:none){.smore{opacity:1}}
+.srow .t2{color:var(--mute);font-size:11px;margin:2px 0 0 15px}
+.tabs{display:flex;gap:4px;padding:8px 16px 0;border-bottom:1px solid var(--line)}
+.tab{border:0;background:none;color:var(--mute);font:inherit;font-weight:600;padding:8px 12px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:var(--ink);border-bottom-color:var(--ink)}
+.pane{flex:1;min-height:0;display:none;flex-direction:column}
+.pane.on{display:flex}
+.scroll{flex:1;overflow:auto;padding:18px 16px 8px}
+.col{max-width:780px;margin:0 auto}
+.msg{display:flex;margin:0 0 14px}
+.msg.user,.m-me{justify-content:flex-end}
+.bubble{max-width:85%;padding:9px 13px;border-radius:16px;white-space:pre-wrap;overflow-wrap:anywhere}
+.user .bubble,.m-me .bubble{background:var(--me);color:var(--meink);border-bottom-right-radius:4px}
+.ts{font-size:11px;opacity:.65;margin-top:4px;font-variant-numeric:tabular-nums}
+.queued .bubble{background:transparent;color:var(--ink);border:1px dashed var(--mute)}.queued .lbl{color:var(--mute)}.queued .lbl a{color:var(--bad);margin-left:6px;text-transform:none;letter-spacing:0}
+.lead .bubble,.m-as .bubble{background:var(--bot);border-bottom-left-radius:4px}
+.empty{color:var(--mute);text-align:center;margin-top:9vh}
+.empty b{display:block;font-size:16px;color:var(--ink);margin-bottom:4px}
+.strip{color:var(--mute);font-size:13px;display:flex;align-items:center;gap:8px;margin:0 0 14px;flex-wrap:wrap}
+.dots span{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--mute);margin-right:3px;animation:b 1.1s infinite}
+.dots span:nth-child(2){animation-delay:.15s}.dots span:nth-child(3){animation-delay:.3s}
+@keyframes b{0%,60%,100%{opacity:.25}30%{opacity:1}}
+.note{font-size:12px;color:var(--mute);text-align:center;margin:0 0 12px}
+form{padding:8px 16px 14px}
+.try{max-width:780px;margin:0 auto 8px;display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.try button{flex:none;border:1px solid var(--line);background:var(--panel);color:var(--mute);border-radius:99px;padding:3px 11px;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.try button:hover{color:var(--ink);border-color:var(--mute)}
+.box{max-width:780px;margin:0 auto;display:flex;gap:8px;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:8px 8px 8px 14px}
+textarea{flex:1;border:0;outline:0;resize:none;background:transparent;color:var(--ink);font:inherit;max-height:180px;padding:6px 0}
+button.send{border:0;border-radius:10px;background:var(--me);color:var(--meink);padding:8px 14px;font:inherit;font-weight:600;cursor:pointer}
+button.send:disabled{opacity:.35;cursor:default}
+.hint{max-width:780px;margin:6px auto 0;color:var(--mute);font-size:12px;text-align:center;min-height:18px}
+aside{border-left:1px solid var(--line);background:var(--panel);overflow:auto;min-height:0;padding:14px}
+@media (max-width:860px){aside{border-left:0;border-top:1px solid var(--line)}}
+h2{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:18px 0 8px;font-weight:600}
+h2:first-child{margin-top:0}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 10px 2px 8px;border-radius:99px;font-size:12px;font-weight:600;background:var(--chip)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--idle);flex:none}
+.s-working{color:var(--working)}.s-working .dot,.dot.working,.dot.paused{background:var(--working)}
+.s-working .dot,.dot.working{animation:p 1.2s infinite}
+.s-running{color:var(--running)}.s-running .dot,.dot.running{background:var(--running);animation:p 1.2s infinite}
+.s-active{color:var(--active)}.s-active .dot,.dot.active{background:var(--active)}
+.dot.idle{background:var(--idle)}.dot.stalled,.dot.failed,.dot.stale{background:var(--bad)}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.35}}
+.tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.06em;padding:1px 7px;border-radius:5px;color:var(--c,var(--mute));background:color-mix(in srgb,var(--c,var(--mute)) 15%,transparent);flex:none;vertical-align:middle}
+.t-master,.t-lead{--c:var(--c-master)}.t-builder{--c:var(--c-builder)}.t-researcher{--c:var(--c-researcher)}.t-planner{--c:var(--c-planner)}.t-reviewer{--c:var(--c-reviewer)}.t-pm{--c:var(--c-pm)}
+.master{border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer}
+.master:hover{border-color:var(--mute)}
+.master .row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sub{color:var(--mute);font-size:12px;margin-top:6px;overflow-wrap:anywhere}
+.agent{border:1px solid var(--line);border-left:3px solid var(--c,var(--line));border-radius:10px;padding:8px 10px;margin:0 0 7px;cursor:pointer}
+.agent:hover{border-color:var(--mute);border-left-color:var(--c,var(--mute))}
+.agent .top{display:flex;align-items:center;gap:7px}
+.agent .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.agent .st{margin-left:auto;font-size:12px;color:var(--mute);flex:none}
+.agent .st.paused{color:var(--working)}.agent .st.running{color:var(--running)}.agent .st.failed,.agent .st.stalled{color:var(--bad)}
+.agent .ds{color:var(--mute);font-size:12px;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.agent .do{font:12px/1.4 ui-monospace,monospace;margin-top:4px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agent .lm{font-size:12.5px;margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;color:var(--ink);background:var(--chip);border-radius:8px;padding:3px 8px}
+.agent .mt{color:var(--mute);font-size:11px;margin-top:5px;font-family:ui-monospace,monospace;display:flex;flex-wrap:wrap;gap:4px 8px}
+.warn{margin-top:4px;font-size:12px;color:var(--bad);overflow-wrap:anywhere}
+.seen{font-family:ui-sans-serif,system-ui;font-weight:600}.seen.y{color:var(--active)}.seen.n{color:var(--working)}
+.none{color:var(--mute);font-size:13px}
+.ev{font:11px/1.5 ui-monospace,monospace;color:var(--mute);overflow-wrap:anywhere}
+.ev i{font-style:normal;color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--chip);border-radius:6px;padding:1px 7px;font:11px ui-monospace,monospace}
+/* transcript pieces (master tab and the popup) */
+.m-pr .bubble{background:var(--chip);border:1px dashed var(--line);border-radius:12px;max-width:92%;font-size:13px}
+.lbl{display:block;font-size:11px;color:var(--mute);margin-bottom:2px;text-transform:uppercase;letter-spacing:.06em}
+.tool{font:12px/1.5 ui-monospace,monospace;color:var(--mute);margin:0 0 6px 4px;overflow-wrap:anywhere;white-space:pre-wrap}
+.dl{margin:0 0 8px 4px;padding:7px 11px;border:1px solid var(--line);border-left:3px solid var(--c,var(--line));border-radius:8px;font-size:13px;background:var(--panel)}
+.dl .ob{color:var(--mute);font-size:12.5px;margin-top:2px;white-space:pre-wrap;overflow-wrap:anywhere}
+.rs{margin:0 0 8px 4px;font-size:12.5px}.rs.bad{color:var(--bad)}.rs.ok{color:var(--active)}
+details.res{margin:0 0 10px 4px;font-size:12px;color:var(--mute)}
+details.res pre{margin:4px 0 0;padding:8px;background:var(--chip);border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:220px;overflow:auto;font:12px/1.45 ui-monospace,monospace;color:var(--ink)}
+.who{margin:0 0 14px}.wrow{display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px}.wrow:hover{background:var(--chip)}.wrow .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.wrow .st{margin-left:auto;color:var(--mute);font-size:12px;flex:none}.wrow .seen{font-size:11px;flex:none}
+.sec{margin:14px 0 0}.sec summary{cursor:pointer;color:var(--mute);font-size:12px}
+.sec pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.45 ui-monospace,monospace;margin:6px 0 0}
+table.calls{width:100%;border-collapse:collapse;font-size:12.5px;margin:0 0 18px}
+table.calls td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+table.calls tr.cl{cursor:pointer}table.calls tr.cl:hover{background:var(--chip)}
+.cs{font-weight:600}.cs.denied,.cs.failed{color:var(--bad)}.cs.done{color:var(--active)}.cs.granted{color:var(--running)}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:3vh 3vw;z-index:10}
+.ov.on{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;width:min(940px,100%);height:min(90vh,100%);display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden}
+.mh{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.mh .ti{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46%}
+.mh .sp{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:5px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.btn:hover:not(:disabled){border-color:var(--ink)}.btn:disabled{opacity:.35;cursor:default}
+.btn.danger{color:var(--bad)}.btn.x{border:0;font-size:18px;line-height:1;padding:4px 8px}
+.mmeta{padding:6px 16px;color:var(--mute);font-size:12px;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.mb{flex:1;overflow:auto;padding:16px}
+.mb .col{max-width:none}
+.mf{border-top:1px solid var(--line);padding:10px 16px 14px}
+.mf .box,.mf .hint{max-width:none}.mf .hint{text-align:left}
+</style>
+</head>
+<body>
+<header><button class="btn tgl" id="tgl" type="button">☰</button><span id="mpill"></span><button class="btn" id="newsess" type="button" style="margin-left:auto">＋ New session</button></header>
+<main>
+  <nav id="sess"><h2>Master sessions</h2><div id="slist"></div></nav>
+  <section class="left">
+    <div class="pane on" id="p-chat">
+      <div class="phead" id="sid" data-copy=""></div>
+      <div id="alert"></div>
+      <div class="scroll" id="log"><div class="col" id="msgs"></div></div>
+      <form id="f">
+        <div class="try" id="try"></div>
+        <div class="box"><textarea id="t" rows="1" placeholder="Message the master agent…" autofocus></textarea><button class="send" id="b" type="submit">Send</button></div>
+        <div class="hint" id="hint"></div>
+      </form>
+    </div>
+  </section>
+  <aside>
+    <h2>Master agent</h2><div class="master" id="master"></div>
+    <h2>Sub-agent sessions <span id="cnt"></span></h2><div id="agents"></div>
+    <h2>Patches &amp; locks</h2><div id="pl"></div>
+    <h2>Recent events</h2><div id="ev"></div>
+  </aside>
+</main>
+
+<div class="ov" id="ov"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mti">
+  <div class="mh"><span id="mtag"></span><span class="pill" id="mst"></span><span class="ti" id="mti"></span><span class="sp"></span>
+    <button class="btn" id="bpause">Pause</button><button class="btn danger" id="bstop">Stop</button><button class="btn x" id="bx" aria-label="Close">✕</button></div>
+  <div class="mmeta" id="mmeta"></div>
+  <div class="mb" id="mb"><div class="col" id="mmsgs"></div></div>
+  <form class="mf" id="mform"><div class="box"><textarea id="mt" rows="1" placeholder="Message this agent directly…"></textarea><button class="send" id="mbs" type="submit">Send</button></div><div class="hint" id="mhint"></div></form>
+</div></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const LABEL={working:"working",running:"running · other agents are doing work",active:"active"};
+const ago=t=>{if(!t)return"-";const s=Math.max(0,Math.round((Date.now()-t)/1000));return s<60?s+"s ago":s<3600?Math.floor(s/60)+"m ago":Math.floor(s/3600)+"h ago"};
+const dur=ms=>{const s=Math.round(ms/1000);return s<60?s+"s":Math.floor(s/60)+"m "+(s%60)+"s"};
+const hm=t=>new Date(t).toTimeString().slice(0,8);
+const stamp=t=>{if(!t)return"";const d=new Date(t),n=new Date();return (d.toDateString()===n.toDateString()?"":d.toLocaleDateString(undefined,{month:"short",day:"numeric"})+" ")+hm(t)};
+const kindOf=k=>k==="lead"?"master":k;
+const tag=k=>`<span class="tag t-${esc(kindOf(k))}">${esc(kindOf(k).toUpperCase())}</span>`;
+let S=null, open=null, detail=null, curTask=null;
+let noticeUntil=0;
+const notice=m=>{$("hint").textContent=m;noticeUntil=Date.now()+10000;$("hint").style.color="var(--bad)"};   // curTask: THIS tab's session (never the server's)
+const F=(url,init={})=>fetch(url,{...init,headers:{...(init.headers||{}),...(curTask?{"x-session":curTask}:{})}});
+
+/* ---------- shared transcript renderer (master tab + popup) ---------- */
+function resultHtml(text,noRaw){
+  let j=null; try{j=JSON.parse(text.split("\n")[0])}catch(e){}
+  let head="";
+  if(j&&typeof j==="object"){
+    if(j.ok===false)head=`<div class="rs bad">✗ refused or failed: ${esc(j.reason||j.error||"")}</div>`;
+    else if(j.queued)head=`<div class="rs">⏳ queued behind ${esc((j.waiting_for||[]).join(", "))} (${esc(j.agent_id)})</div>`;
+    else if(j.async)head=`<div class="rs ok">✓ started ${esc(j.agent_id)} in the background</div>`;
+    else if(Array.isArray(j.agents))head=`<div class="rs ${j.timed_out?"bad":"ok"}">${j.timed_out?"⏱ timed out, still running: "+esc((j.still_running||[]).join(", ")):"✓ got answers from "+esc(j.agents.map(a=>a.agent_id+" ("+a.status+")").join(", "))}</div>`;
+    else if(j.agent_id&&"summary" in j)head=`<div class="rs ${j.ok?"ok":"bad"}">${j.ok?"✓":"✗"} ${esc(j.agent_id)} answered${j.error?": "+esc(j.error):""}</div>`;
+  }
+  return head+(noRaw?"":`<details class="res"><summary>result</summary><pre>${esc(text)}</pre></details>`);
+}
+function itemsHtml(items,compact){
+  let h="";
+  for(const m of items){
+    if(compact){   // the conversation and the calls only: no boilerplate prompt, no successful tool output
+      if(m.kind==="tool_result"){let j=null;try{j=JSON.parse(m.text.split("\n")[0])}catch(e){} if(j&&(j.ok===false||j.timed_out))h+=resultHtml(m.text,true);continue}
+      if(m.role==="user"&&m.kind==="text")continue;
+      if(m.kind==="tool_use"&&!(m.tool&&["delegate","wait","apply_patches"].includes(m.tool.cmd)))continue;
+    }
+    if(m.kind==="tool_use"){
+      const tl=m.tool;
+      if(tl&&tl.cmd==="delegate")h+=`<div class="dl t-${esc(tl.role)}">${m.t?`<span class="sub">${hm(m.t)}</span> `:""}${tag(tl.role||"?")} ${compact?"":`delegate · session <b>${esc(tl.session||"?")}</b>${tl.async?" · async":""}${tl.writes?" · writes "+esc(tl.writes):""}`}<div class="ob">${esc(tl.objective||"")}</div></div>`;
+      else if(tl)h+=`<div class="tool">▸ ${esc(tl.cmd)} ${esc(tl.agents||tl.agent||tl.to||"")} ${esc(tl.text||"")}</div>`;
+      else h+=`<div class="tool">${m.t?hm(m.t)+" ":""}▸ ${esc(m.label||m.text)}</div>`;
+    }
+    else if(m.kind==="tool_result")h+=resultHtml(m.text);
+    else if(m.role==="user")h+=`<div class="msg m-pr"><div class="bubble"><span class="lbl">input</span>${esc(m.text)}<div class="ts">received ${stamp(m.t)}</div></div></div>`;
+    else h+=`<div class="msg m-as"><div class="bubble">${esc(m.text)}<div class="ts">${stamp(m.t)}</div></div></div>`;
+  }
+  return h;
+}
+function stickyScroll(el){let st=true;el.addEventListener("scroll",()=>{st=el.scrollHeight-el.scrollTop-el.clientHeight<80});return{at:()=>st,set:v=>{st=v},down:()=>{if(st)el.scrollTop=el.scrollHeight}}}
+const logS=stickyScroll($("log")), mbS=stickyScroll($("mb"));
+
+/* ---------- chat ---------- */
+const TRY=[
+ ["Parallel research","Start two researchers in parallel (async): one summarises what README.md says, the other lists the files in the repo. Wait for both, then give me one combined answer."],
+ ["Build + review","Have a builder create hello.txt containing the word hi (it must declare its writes), then have a reviewer check the result, then apply the patch."],
+ ["Nested call","Ask a builder to create notes.md. While doing it, the builder should ask a researcher one question about the repo and a reviewer to check its work. Report who called whom."],
+ ["Forbidden call","Try to make a reviewer call a builder (not allowed). Tell me exactly what the harness answered."],
+ ["Status","What is every sub-agent doing right now? Check with board_status and tell me."]];
+$("try").innerHTML=TRY.map((x,i)=>`<button type="button" data-i="${i}">${esc(x[0])}</button>`).join("");
+$("try").onclick=e=>{const b=e.target.closest("button");if(!b)return;t.value=TRY[+b.dataset.i][1];t.dispatchEvent(new Event("input"));t.focus()};
+$("msgs").addEventListener("click",async e=>{const a=e.target.closest("[data-cancel]");if(!a)return;e.preventDefault();await F("/api/chat/cancel",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:a.dataset.cancel})});poll()});
+let lastChatKey="";
+function renderChat(s){
+  const busy=s.master==="working";
+  const Q=s.master_detail.queued||[], key=s.chat.map(m=>m.id).join(",")+"|"+busy+"|"+Q.map(q=>q.id).join(",")+"|"+s.master_doing+"|"+s.master_detail.other_running;
+  if(key===lastChatKey)return; lastChatKey=key;
+  let h="";
+  if(!s.chat.length)h='<div class="empty"><b>Talk to the master agent</b>It plans, delegates to sub-agents and reports back. You can keep chatting while they work. Pick a test below, or type your own.</div>';
+  let lastUser=null;
+  for(const m of s.chat){
+    let ts;
+    if(m.from==="user"){lastUser=m;ts=`sent ${stamp(m.t)}`}
+    else ts=`received ${stamp(m.t)}`+(lastUser?` · answered in ${dur(m.t-lastUser.t)}`:"");
+    h+=`<div class="msg ${m.from}"><div class="bubble">${esc(m.text)}<div class="ts">${ts}</div></div></div>`;
+  }
+  if(busy)h+=`<div class="strip"><span class="dots"><span></span><span></span><span></span></span>${tag("master")} ${esc(s.master_doing||"working")}</div>`;
+  else if(s.master==="running")h+=`<div class="note">${s.master_detail.other_running} sub-agent(s) still working — the master is free, you can message it now</div>`;
+  for(const q of Q)h+=`<div class="msg user queued"><div class="bubble"><span class="lbl">queued · waits for the master <a href="#" data-cancel="${esc(q.id)}">cancel</a></span>${esc(q.text)}<div class="ts">sent ${stamp(q.t)} · not read yet</div></div></div>`;   // below the conversation; moves up when the master picks it up
+  $("msgs").innerHTML=h; logS.down();
+}
+
+/* ---------- sessions (the list of master sessions) ---------- */
+function renderSessions(s){
+  $("slist").innerHTML=s.sessions.map(x=>`<div class="srw"><button class="srow ${x.task===curTask?"on":""}" data-task="${esc(x.task)}"><div class="t1"><span class="dot ${x.state==="working"?"working":x.state==="running"?"running":"active"}"></span><span class="tt">${esc(x.title)}</span></div><div class="t2">${ago(x.last)} · ${x.subs} sub-agent(s)</div></button><button class="smore" type="button" data-more="${esc(x.task)}" title="options" aria-label="session options">⋮</button><div class="smenu" data-menu="${esc(x.task)}"><button type="button" class="sdel" data-del="${esc(x.task)}" data-title="${esc(x.title)}">Delete</button></div></div>`).join("");
+}
+function goSession(task){curTask=task;closeModal();lastChatKey="";logS.set(true);$("sess").classList.remove("show");noticeUntil=0;return poll().then(()=>{syncHash();$("t").focus()})}
+const closeMenus=()=>document.querySelectorAll(".smenu.open,.smore.open").forEach(n=>n.classList.remove("open"));
+document.addEventListener("click",e=>{if(!e.target.closest(".smore,.smenu"))closeMenus()});
+$("slist").onclick=async e=>{
+  const m=e.target.closest(".smore");if(m){const o=m.classList.contains("open");closeMenus();if(!o){m.classList.add("open");m.parentNode.querySelector(".smenu").classList.add("open")}return}
+  const d=e.target.closest(".sdel");if(d){closeMenus();const task=d.dataset.del;
+    if(!confirm(`Delete session "${d.dataset.title}" (${task})?\n\nThis stops it and permanently removes the master, all its sub-agents, chat, notes, reports, archived logs and the Claude transcripts. It cannot be undone.`))return;
+    try{const r=await F("/api/session",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"delete",task})});const j=await r.json();if(!r.ok)throw new Error(j.error);
+      if(task===curTask){curTask=null;lastChatKey="";closeModal()}await poll();syncHash();notice(`session ${task} deleted`)}catch(err){notice("delete failed: "+err.message)}return}
+  const b=e.target.closest(".srow");if(b&&b.dataset.task!==curTask)goSession(b.dataset.task)};
+$("newsess").onclick=async()=>{try{const r=await F("/api/session",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"new"})});const j=await r.json();if(!r.ok)throw new Error(j.error);goSession(j.task)}catch(e){notice("new session failed: "+e.message)}};
+$("tgl").onclick=()=>$("sess").classList.toggle("show");
+
+/* ---------- right side ---------- */
+function renderMasterCard(s){
+  const m=s.master,d=s.master_detail,L=s.lead;
+  const full=L&&L.session||"";
+  $("sid").textContent=`session ${s.task} · master ${L?L.id:"(not started)"}${full?" · claude "+full:""}`;
+  $("sid").dataset.copy=full||s.task; $("sid").title=(full?`click to copy the master's Claude session id\nresume it yourself: claude --resume ${full}\n\n`:"click to copy the session id\n\n")+`runner ${s.config.runner} · depth ${s.config.max_depth} · writers ${s.config.writer_mode}\n${s.config.repo}`;
+  document.title="Harness · "+s.task;
+  $("mpill").innerHTML=`<span class="pill s-${m}"><span class="dot"></span>${m}</span>`;
+  $("master").innerHTML=`<div class="row"><span>${tag("master")} <span class="pill s-${m}"><span class="dot"></span>${esc(LABEL[m])}</span></span><span class="chip">${L?esc(L.id):"no session yet"}</span></div>
+   <div class="sub">${m==="working"?`in a turn for ${dur(d.working_for_ms)} · ${esc(s.master_doing||"")}`:m==="running"?`idle, waiting on ${d.other_running} sub-agent(s)`:"idle, ready for your message"}</div>
+   ${d.waiting_on_master?`<div class="sub" style="color:var(--bad)">⚠ ${d.waiting_on_master} sub-agent(s) are waiting for an answer from the master</div>`:""}
+   ${(s.problems||[]).filter(p=>L&&p.agent===L.id&&!dismissed.has(p.id)&&!/is waiting for an answer/.test(p.text)).map(p=>`<div class="warn">⚠ ${esc(p.text)}</div>`).join("")}
+   ${d.other_paused?`<div class="sub">${d.other_paused} sub-agent(s) paused by you</div>`:""}
+   ${L?`<div class="sub">session ${esc((L.session||"-").slice(0,8))} · ${L.runs} turn(s) · $${(L.cost||0).toFixed(4)} incl. sub-agents</div>`:""}
+   ${d.error?`<div class="sub" style="color:var(--bad)">last error: ${esc(d.error)}</div>`:""}`;
+}
+function tree(agents){
+  const by={}; for(const a of agents)(by[a.caller||""]??=[]).push(a);
+  const ids=new Set(agents.map(a=>a.id)), out=[];
+  const walk=(a,d)=>{out.push([a,d]);(by[a.id]||[]).forEach(c=>walk(c,d+1))};
+  agents.filter(a=>!a.caller||!ids.has(a.caller)||a.caller.startsWith("lead")).forEach(a=>walk(a,0));
+  return out;
+}
+function seenHtml(a){if(a.seen_by_master===true)return'<span class="seen y">✓ master has its result</span>';if(a.seen_by_master===false)return'<span class="seen n">⚠ master has not picked this up yet</span>';return""}
+function renderAgents(s){
+  $("cnt").textContent=s.agents.length?`(${s.agents.length})`:"";
+  if(!s.agents.length){$("agents").innerHTML=`<div class="none">${s.config.max_depth<=1?"Multi-agent is off (UI_MAX_DEPTH=1).":"No sub-agents yet. The master starts them when a task needs them."}</div>`;return}
+  $("agents").innerHTML=tree(s.agents).map(([a,d])=>{
+    const st=a.paused?"paused":a.needs_parent?"waiting for parent":a.status, nt=(S.problems||[]).filter(p=>p.agent===a.id&&!dismissed.has(p.id));
+    return `<div style="margin-left:${Math.min(d,3)*12}px"><div class="agent t-${esc(a.kind)}" data-id="${esc(a.id)}">
+     <div class="top"><span class="dot ${a.paused||a.needs_parent?"paused":esc(a.status)}"></span>${tag(a.kind)}<span class="nm">${esc(a.title||a.id)}</span><span class="st ${a.needs_parent?"paused":esc(a.status)}">${esc(st)}</span></div>
+     ${a.description?`<div class="ds">${esc(a.description)}</div>`:""}
+     <div class="do">▸ ${esc(a.doing||"")}</div>
+     ${nt.map(p=>`<div class="warn">⚠ ${esc(p.text)}</div>`).join("")}
+     ${a.last_msg?`<div class="lm">${esc(a.last_msg)}</div>`:""}
+     <div class="mt"><span>${esc(a.id)}</span><span>L${a.level}</span><span>${a.runs} run(s)</span><span>$${(a.cost||0).toFixed(4)}</span><span>${ago(a.last_event_at)}</span>${seenHtml(a)}</div>
+    </div></div>`}).join("");
+}
+function renderRest(s){
+  const pl=[...s.patches.map(p=>`<span class="chip">${esc(p.agent)} patch ${esc(p.state)} · ${p.files}f</span>`),...s.locks.map(l=>`<span class="chip">🔒 ${esc(l.path)} · ${esc(l.agent)}</span>`)];
+  $("pl").innerHTML=pl.length?`<div class="chips">${pl.join("")}</div>`:'<div class="none">none</div>';
+  $("ev").innerHTML=s.events.length?s.events.slice(-14).reverse().map(e=>`<div class="ev">${hm(e.t)} <i>${esc(e.kind)}</i> ${esc(e.agent)} ${esc(e.data)}</div>`).join(""):'<div class="none">no events yet</div>';
+}
+const dismissed=new Set();
+function renderAlert(s){
+  const ps=(s.problems||[]).filter(p=>!dismissed.has(p.id));
+  $("alert").innerHTML=ps.map(p=>`<div class="alert"><b>${/^Something went wrong/.test(p.text)?"ERROR":"WAITING"}</b><span>${hm(p.t)} · ${esc(p.text)}</span><a data-d="${esc(p.id)}">dismiss</a></div>`).join("");
+}
+$("alert").onclick=e=>{const a=e.target.closest("[data-d]");if(a){dismissed.add(a.dataset.d);renderAlert(S)}};
+function render(s){
+  if(!curTask)curTask=s.task;
+  S=s; renderAlert(s); syncHash(); renderSessions(s); renderChat(s); renderMasterCard(s); renderAgents(s); renderRest(s);
+  if(Date.now()>noticeUntil){$("hint").style.color="";$("hint").textContent=s.master==="working"?"The master is busy: what you send waits in the queue below and is read when it finishes.":""}
+}
+async function poll(){
+  try{
+    const s=await (await F("/api/state")).json(); render(s);
+    if(open)await loadDetail();
+  }catch(e){notice("server not reachable…")}
+}
+$("agents").addEventListener("click",e=>{const el=e.target.closest(".agent");if(el)openAgent(el.dataset.id)});
+
+/* ---------- copy ids, and the URL that says which session / agent this is ---------- */
+document.addEventListener("click",async e=>{
+  const c=e.target.closest("[data-copy]"); if(!c||!c.dataset.copy)return;
+  try{await navigator.clipboard.writeText(c.dataset.copy);const o=c.title;c.title="copied";c.style.outline="1px solid var(--active)";setTimeout(()=>{c.title=o;c.style.outline=""},900)}catch(err){notice("copy failed: "+err.message)}
+});
+let ready=false;
+function syncHash(){
+  if(!ready||!curTask)return;
+  const x="#/"+encodeURIComponent(curTask)+(open?"/agent/"+encodeURIComponent(open):"");
+  if(location.hash!==x)history.replaceState(null,"",x);
+}
+const parseHash=()=>{const m=location.hash.match(/^#\/([^/]+)(?:\/agent\/(.+))?$/);return m?{task:decodeURIComponent(m[1]),agent:m[2]?decodeURIComponent(m[2]):null}:null};
+async function applyHash(first){
+  const hs=parseHash(); if(!hs)return;
+  if(hs.task!==curTask){ curTask=hs.task; closeModal(); lastChatKey=""; logS.set(true); await poll(); }
+  if(S&&S.task===hs.task&&!S.known){   // a link to a session that has no history here: say so, never show an empty fake one
+    const was=hs.task; curTask=(S.sessions.find(x=>x.task!==was)||{}).task||null; lastChatKey="";
+    await poll(); notice(`session ${was} has no history here (wrong id?). Showing ${curTask||"a new session"} instead.`); return;   // after the poll: render() clears the hint line
+  }
+  if(hs.agent&&curTask===hs.task&&open!==hs.agent)openAgent(hs.agent);
+  else if(!hs.agent&&open)closeModal();
+}
+async function initFromHash(){ const hs=parseHash(); if(hs)curTask=hs.task; await poll(); ready=true; if(hs){ready=false; await applyHash(true); ready=true} syncHash(); }
+window.addEventListener("hashchange",()=>{ if(ready)applyHash(false) });
+
+/* ---------- popup for one sub-agent ---------- */
+let mKey="", busyAct=false;
+function openAgent(id){open=id;detail=null;mKey="";mbS.set(true);$("ov").classList.add("on");renderModal();loadDetail();$("mt").focus();syncHash()}
+async function loadDetail(){
+  if(!open)return; const id=open;
+  try{const v=detail&&detail.id===id&&detail.tv!=null?"&v="+detail.tv:"";const r=await F("/api/agent?id="+encodeURIComponent(id)+v); if(id!==open)return; if(r.ok){const j=await r.json(); if(j.transcript_same&&detail&&detail.id===id)j.transcript=detail.transcript; detail=j; renderModal()}}catch(e){}
+}
+function closeModal(){open=null;detail=null;$("ov").classList.remove("on");syncHash()}
+function renderModal(){
+  if(!open)return; const d=detail, a=d||(S&&S.agents.find(x=>x.id===open)); if(!a)return;
+  const st=a.paused?"paused":a.status, cls=a.paused?"working":st==="running"?"running":st==="idle"?"active":"working";
+  $("mtag").innerHTML=tag(a.kind||a.name);
+  $("mst").className="pill s-"+cls; $("mst").innerHTML=`<span class="dot ${a.paused?"paused":esc(a.status)}"></span>${esc(st)}`;
+  $("mti").textContent=(a.title||a.id)+" · "+a.id;
+  $("mmeta").innerHTML=`${a.description?esc(a.description)+"<br>":""}level ${a.level} · called by ${esc(a.caller||"user")} · ${a.runs} run(s) · $${((d&&d.cost)||a.cost||0).toFixed(4)}<br>agent <span class="chip cp" data-copy="${esc(a.id)}" title="click to copy">${esc(a.id)}</span> · claude session <span class="chip cp" data-copy="${esc(a.session||"")}" title="${a.session?"click to copy\nresume it yourself: claude --resume "+esc(a.session):"no session yet"}">${esc(a.session||"(not started)")}</span>${d&&(d.log||d.archive)?`<br>log file <span class="chip cp" data-copy="${esc(d.log||d.archive)}" title="click to copy the path">${esc(d.log||d.archive)}</span>${d.archive&&d.log!==d.archive?` · our copy <span class="chip cp" data-copy="${esc(d.archive)}" title="click to copy the path">${esc(d.archive)}</span>`:""}`:(d&&a.session&&S&&S.config.runner==="real"?`<br><b style="color:var(--bad)">no log file found for this session</b>`:"")}`;
+  const run=a.status==="running";
+  $("bpause").textContent=a.paused?"Continue":"Pause"; $("bpause").disabled=busyAct||!run;
+  $("bstop").disabled=busyAct||(!run&&a.status!=="stalled"); $("bstop").title=d&&d.descendants?`also stops its ${d.descendants} sub-agent(s)`:"";
+  $("mhint").textContent=a.paused?"Paused: a message is delivered after you press Continue."
+    :run?"It is working: your message reaches it after its next tool call, as a message from you."
+    :"It is idle: your message starts a new turn in its own session (a writer started this way has no file locks, so it can answer but not edit).";
+  if(!d)return;
+  const items=d.transcript, notes=d.notes||[];
+  const key=(d.needs_parent||"").length+"|"+(items?items.length+":"+((items[items.length-1]||{}).text||"").length:"x")+"|"+notes.length+notes.filter(n=>n.read).length+"|"+d.reports.length+"|"+(d.final_response||"").length;
+  if(key===mKey)return; mKey=key;
+  let h="";
+  if(d.needs_parent)h+=`<div class="alert" style="margin:0 0 14px;border:1px solid var(--bad);border-radius:10px"><b>WAITING</b><span><b style="color:var(--ink)">Asked its parent (${esc(d.caller||"?")}) and got no answer:</b><br>${esc(d.needs_parent)}</span></div>`;
+  if(items&&items.length)h+=itemsHtml(items);
+  else{
+    h+=`<div class="note">${S&&S.config.runner==="fake"?"Fake runner: there is no real session transcript. Showing the recorded calls and reports.":"No transcript yet: the session has not written anything."}</div>`;
+    for(const c of d.calls)if(c.objective&&c.to===d.id)h+=`<div class="msg m-pr"><div class="bubble"><span class="lbl">task from ${esc(c.from)}</span>${esc(c.objective)}<div class="ts">received ${stamp(c.t)}</div></div></div>`;
+    for(const r of d.reports)h+=`<div class="msg m-as"><div class="bubble">${esc(r.summary)}${r.t?`<div class="ts">sent ${stamp(r.t)}</div>`:""}</div></div>`;
+  }
+  if(notes.length)h+=`<details class="sec" open><summary>Messages you sent to this agent</summary>`+notes.map(n=>n.from==="user"?`<div class="msg m-me"><div class="bubble"><span class="lbl">you · ${n.read?"delivered":"waiting to be delivered"}</span>${esc(n.text)}<div class="ts">sent ${stamp(n.t)}</div></div></div>`:`<div class="msg m-as"><div class="bubble"><span class="lbl">reply</span>${esc(n.text)}<div class="ts">received ${stamp(n.t)}</div></div></div>`).join("")+`</details>`;
+  if(d.events.length)h+=`<details class="sec"><summary>Events</summary><pre>${esc(d.events.map(e=>hm(e.t)+" "+e.kind+" "+e.data).join("\n"))}</pre></details>`;
+  $("mmsgs").innerHTML=h; mbS.down();
+}
+async function act(path,body){
+  busyAct=true; renderModal();
+  try{const r=await F("/api/agent/"+path,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}); const j=await r.json(); if(!r.ok)$("mhint").textContent=j.error||"failed"; return r.ok}
+  catch(e){$("mhint").textContent="server not reachable"; return false}
+  finally{busyAct=false; await poll(); renderModal()}
+}
+$("bpause").onclick=()=>act(detail&&detail.paused?"continue":"pause",{id:open});
+$("bstop").onclick=()=>{ if(confirm(`Stop ${open}${detail&&detail.descendants?` and its ${detail.descendants} sub-agent(s)`:""}? The process is killed; its session is kept, so you can still message it.`))act("stop",{id:open}) };
+$("bx").onclick=closeModal;
+$("ov").addEventListener("mousedown",e=>{if(e.target===$("ov"))closeModal()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&open)closeModal()});
+const mt=$("mt");
+mt.addEventListener("input",()=>{mt.style.height="auto";mt.style.height=Math.min(mt.scrollHeight,140)+"px";$("mbs").disabled=!mt.value.trim()});
+mt.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();$("mform").requestSubmit()}});
+$("mform").addEventListener("submit",async e=>{
+  e.preventDefault(); const text=mt.value.trim(); if(!text||!open)return;
+  mt.value=""; mt.style.height="auto"; $("mbs").disabled=true; mbS.set(true);
+  const r=await F("/api/agent/message",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({id:open,text})}).then(r=>r.json().then(j=>({ok:r.ok,j})),()=>({ok:false,j:{error:"server not reachable"}}));
+  if(!r.ok){$("mhint").textContent=r.j.error||"failed"; mt.value=text} else $("mhint").textContent=r.j.detail||"sent";
+  await loadDetail(); poll();
+});
+$("mbs").disabled=true;
+
+/* ---------- main composer ---------- */
+const t=$("t");
+t.addEventListener("input",()=>{t.style.height="auto";t.style.height=Math.min(t.scrollHeight,180)+"px";$("b").disabled=!t.value.trim()});
+t.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing){e.preventDefault();$("f").requestSubmit()}});
+$("f").addEventListener("submit",async e=>{
+  e.preventDefault(); const text=t.value.trim(); if(!text)return;
+  t.value=""; t.style.height="auto"; $("b").disabled=true; logS.set(true);
+  try{const r=await F("/api/chat",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({text})}); if(!r.ok)throw new Error((await r.json()).error)}
+  catch(err){notice("send failed: "+err.message); t.value=text}
+  poll();
+});
+$("b").disabled=true; initFromHash().then(()=>setInterval(poll,1000));
+</script>
+</body>
+</html>

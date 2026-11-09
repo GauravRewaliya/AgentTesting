@@ -1,0 +1,7 @@
+{
+  "wf_2_followup_prior_answer": { "verdict": "PASS", "note": "hand-over named both findings (PBKDF2 iterations, secure-cookie flag) from the earlier answer; builder fixed both files" },
+  "wf_4_review_fix_loop": { "verdict": "PASS", "note": "builder -> fresh reviewer -> NEW builder#2 whose hand-over carried the findings (allowed instead of a follow-up). An earlier run also re-reviewed; the lead varies" },
+  "wf_5_failure_honesty": { "verdict": "PASS", "note": "lead reported the fetch failure plainly, invented no table, asked for pasted content" },
+  "wf_1_readonly_review": { "verdict": "PASS", "note": "reviewer called once, read-only; no files in run_test (hand-over said do not change code)" },
+  "wf_3_plan_approval_gate": { "verdict": "PASS", "note": "turn 1 planner only, asked the user to approve; turn 2 builder with plan.md and the approval handed over" }
+}

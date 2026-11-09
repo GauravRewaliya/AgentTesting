@@ -1,0 +1,2 @@
+{ "role": "researcher", "description": "Reads the repository and docs and answers one focused question with evidence (read-only)", "model": "haiku",
+  "session": "persistent", "writes": false, "max_children": 0, "agents": [], "tiers": ["T1", "T2", "T3", "T4"] }

@@ -1,0 +1,282 @@
+[
+ {
+  "id": "pd-slack-core",
+  "file": "results/08f11f63.ts",
+  "title": "How does the slack_v2 component work at its core: the app file, propDe",
+  "text": "How does the slack_v2 component work at its core: the app file, propDefinitions, methods, and how an action like Send Message to Channel uses them?"
+ },
+ {
+  "id": "pd-slack-layout",
+  "file": "results/2824bff4.ts",
+  "title": "In the Pipedream components repo, how is the slack_v2 component laid o",
+  "text": "In the Pipedream components repo, how is the slack_v2 component laid out: folders, app file, actions, sources, common?"
+ },
+ {
+  "id": "h1",
+  "file": "results/346b81a3.ts",
+  "title": "How does OpenClaw's Gateway route an incoming message to an agent sess",
+  "text": "How does OpenClaw's Gateway route an incoming message to an agent session and run the agent loop?"
+ },
+ {
+  "id": "h2",
+  "file": "results/490b2834.ts",
+  "title": "When does OpenClaw spawn a sub-agent with sessions_spawn and what stay",
+  "text": "When does OpenClaw spawn a sub-agent with sessions_spawn and what stays out of the parent's context?"
+ },
+ {
+  "id": "h3",
+  "file": "results/6f207f8b.ts",
+  "title": "How does Hermes Agent's delegate_task limit child agents' toolsets, co",
+  "text": "How does Hermes Agent's delegate_task limit child agents' toolsets, concurrency and budget?"
+ },
+ {
+  "id": "h5",
+  "file": "results/77230e94.ts",
+  "title": "OpenCode has a plan agent and a build agent: when should I use each",
+  "text": "OpenCode has a plan agent and a build agent: when should I use each?"
+ },
+ {
+  "id": "b2-writer-a",
+  "file": "results/b2-writer-a.ts",
+  "title": "Create a markdown file a.md that contains the word Alpha",
+  "agent": "writer",
+  "keywords": [
+   "a.md"
+  ],
+  "text": "Create a markdown file a.md that contains the word Alpha"
+ },
+ {
+  "id": "b2-writer-b",
+  "file": "results/b2-writer-b.ts",
+  "title": "Create a markdown file b.md that contains the word Beta",
+  "agent": "writer",
+  "keywords": [
+   "b.md"
+  ],
+  "text": "Create a markdown file b.md that contains the word Beta"
+ },
+ {
+  "id": "h8",
+  "file": "results/b9a858d0.ts",
+  "title": "Which harness fits an overnight batch of many parallel subagents",
+  "text": "Which harness fits an overnight batch of many parallel subagents?"
+ },
+ {
+  "id": "basic-reviewer-hi",
+  "file": "results/basic-reviewer-hi.ts",
+  "title": "Check the file hi.md",
+  "agent": "reviewer",
+  "keywords": [
+   "hi.md"
+  ],
+  "text": "Check the file hi.md"
+ },
+ {
+  "id": "basic-writer-hi",
+  "file": "results/basic-writer-hi.ts",
+  "title": "Create a markdown file hi.md with the message Hi",
+  "agent": "writer",
+  "keywords": [
+   "hi.md"
+  ],
+  "text": "Create a markdown file hi.md with the message Hi"
+ },
+ {
+  "id": "mod-search",
+  "file": "results/be41614e.ts",
+  "title": "How do I search for and install a Claude Code mod that someone else pu",
+  "text": "How do I search for and install a Claude Code mod that someone else published?"
+ },
+ {
+  "id": "mod-create",
+  "file": "results/c6fab630.ts",
+  "title": "How do I create a Claude Code mod, for example a status line entry or ",
+  "text": "How do I create a Claude Code mod, for example a status line entry or a pane beside the chat?"
+ },
+ {
+  "id": "h4",
+  "file": "results/ce1b1e8c.ts",
+  "title": "In Hermes Agent, what is the difference between MEMORY.md and the SQLi",
+  "text": "In Hermes Agent, what is the difference between MEMORY.md and the SQLite session history?"
+ },
+ {
+  "id": "pd-slack-source",
+  "file": "results/ceb108dc.ts",
+  "title": "How does a Slack source like new-message-in-channels work in the Piped",
+  "text": "How does a Slack source like new-message-in-channels work in the Pipedream components repo?"
+ },
+ {
+  "id": "h6",
+  "file": "results/d8544ba1.ts",
+  "title": "What does running each OpenHands agent session in a Docker container i",
+  "text": "What does running each OpenHands agent session in a Docker container isolate?"
+ },
+ {
+  "id": "mod-ship",
+  "file": "results/e149b2e2.ts",
+  "title": "How do I validate, test and share a Claude Code mod I wrote",
+  "text": "How do I validate, test and share a Claude Code mod I wrote?"
+ },
+ {
+  "id": "pd-lock-issue",
+  "file": "results/e3b1f50a.ts",
+  "title": "Create a GitHub action Lock Issue for the Pipedream components repo, f",
+  "keywords": [
+   "lock",
+   "issue",
+   "github"
+  ],
+  "text": "Create a GitHub action Lock Issue for the Pipedream components repo, following the existing create-issue action.",
+  "copies": [
+   "store/lock-issue"
+  ]
+ },
+ {
+  "id": "mod-block-tool",
+  "file": "results/f3e2108b.ts",
+  "title": "Write a Claude Code mod hook that blocks the Bash tool when the comman",
+  "text": "Write a Claude Code mod hook that blocks the Bash tool when the command contains rm -rf."
+ },
+ {
+  "id": "h7",
+  "file": "results/f43b6183.ts",
+  "title": "Which open-source harness uses an architect/editor split between two m",
+  "text": "Which open-source harness uses an architect/editor split between two models and how does it work?"
+ },
+ {
+  "id": "pd-create-component",
+  "file": "results/f6b21153.ts",
+  "title": "How do I create a new Pipedream component (an action) in the component",
+  "text": "How do I create a new Pipedream component (an action) in the components repo? What files and fields does it need?"
+ },
+ {
+  "id": "role-expo-builder",
+  "file": "results/role-expo-builder.ts",
+  "title": "builder: replaces the wireframe with the ORIGINAL example code",
+  "agent": "builder",
+  "keywords": [
+   "wireframe",
+   "with-drawer-navigation"
+  ],
+  "text": "Build the Expo app: replace the wireframe with the original code of with-drawer-navigation and with-zustand in run_test",
+  "copies": [
+   "store/expo_examples/with-drawer-navigation/App.js",
+   "store/expo_examples/with-zustand/store.js"
+  ]
+ },
+ {
+  "id": "role-expo-package-researcher",
+  "file": "results/role-expo-package-researcher.ts",
+  "title": "package-researcher: zustand syntax and a check of the builder's store.js",
+  "agent": "package-researcher",
+  "keywords": [
+   "zustand"
+  ],
+  "text": "Is the zustand code in run_test/notes-app/store.js valid for our version? Syntax to create a store and use shallow"
+ },
+ {
+  "id": "role-expo-planner",
+  "file": "results/role-expo-planner.ts",
+  "title": "planner: writes notes-app/plan.md",
+  "agent": "planner",
+  "keywords": [
+   "drawer",
+   "zustand"
+  ],
+  "text": "Plan the Expo app: drawer navigation plus a zustand store, based on expo/examples, in run_test"
+ },
+ {
+  "id": "role-expo-qa-reviewer",
+  "file": "results/role-expo-qa-reviewer.ts",
+  "title": "qa-reviewer: REAL checks on the built files (PASS/FAIL per check)",
+  "agent": "qa-reviewer",
+  "keywords": [
+   "run_test"
+  ],
+  "text": "QA the built Expo app in run_test/notes-app"
+ },
+ {
+  "id": "role-expo-ux-designer",
+  "file": "results/role-expo-ux-designer.ts",
+  "title": "ux-designer: writes the wireframe (pseudo code) at the real paths",
+  "agent": "ux-designer",
+  "keywords": [
+   "wireframe"
+  ],
+  "text": "Write the wireframe for the Expo notes app from plan.md: drawer navigation and a zustand list"
+ },
+ {
+  "id": "wf-build-csv",
+  "file": "results/wf-build-csv.ts",
+  "title": "Build CSV export from the approved plan",
+  "agent": "builder",
+  "keywords": [
+   "csv",
+   "plan.md"
+  ],
+  "text": "Implement the CSV export following the approved plan in plan.md."
+ },
+ {
+  "id": "wf-build-signup",
+  "file": "results/wf-build-signup.ts",
+  "title": "Add signup validation",
+  "agent": "builder",
+  "keywords": [
+   "signup",
+   "validation"
+  ],
+  "text": "Add input validation to the signup form (email format, password length 12+)."
+ },
+ {
+  "id": "wf-fetch-fail",
+  "file": "results/wf-fetch-fail.ts",
+  "title": "A fetch that cannot succeed (blocked network)",
+  "agent": "researcher",
+  "keywords": [
+   "pricing"
+  ],
+  "text": "Read https://example.com/docs/pricing and summarise the pricing table."
+ },
+ {
+  "id": "wf-fix-auth",
+  "file": "results/wf-fix-auth.ts",
+  "title": "Fix the first two auth weaknesses",
+  "agent": "builder",
+  "keywords": [
+   "pbkdf2",
+   "cookie"
+  ],
+  "text": "Fix these two weaknesses: PBKDF2 iterations too low, secure-cookie flag hard-coded to false."
+ },
+ {
+  "id": "wf-plan-csv",
+  "file": "results/wf-plan-csv.ts",
+  "title": "Plan CSV export for the orders page (plan only)",
+  "agent": "planner",
+  "keywords": [
+   "csv"
+  ],
+  "text": "Plan a CSV export for the orders page. Plan only, no code."
+ },
+ {
+  "id": "wf-review-auth",
+  "file": "results/wf-review-auth.ts",
+  "title": "Read-only review of the auth module: weaknesses list",
+  "agent": "reviewer",
+  "keywords": [
+   "auth",
+   "weakness"
+  ],
+  "text": "Review the auth module and list its weaknesses. Do not change any code."
+ },
+ {
+  "id": "wf-review-signup",
+  "file": "results/wf-review-signup.ts",
+  "title": "Review of the signup validation",
+  "agent": "reviewer",
+  "keywords": [
+   "signup"
+  ],
+  "text": "Review the signup validation change."
+ }
+]

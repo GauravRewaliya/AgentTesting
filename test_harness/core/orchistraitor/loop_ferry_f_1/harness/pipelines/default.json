@@ -1,0 +1,24 @@
+{
+ "stages": [
+  {
+   "role": "plan",
+   "when": "always"
+  },
+  {
+   "role": "build"
+  },
+  {
+   "role": "review"
+  }
+ ],
+ "on_issue": {
+  "from": "review",
+  "to": "plan",
+  "then": "build",
+  "max_rounds": 3
+ },
+ "approval": {
+  "after": "plan",
+  "when": "tier>=4"
+ }
+}

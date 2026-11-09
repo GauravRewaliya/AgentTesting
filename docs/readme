@@ -1,0 +1,38 @@
+# strucute
+    - test_cases
+        - results
+        - orchistrator/skills
+        - orchistrator/agents
+        - test1
+            main.ts
+            test_data
+                ...
+                ...
+
+        - test2
+            main.ts
+            test_data
+                ...
+                ...
+
+the issue of this i just ask to copy the .html file
+  why it taking taht much time and is we are not doing proepr testing??
+  look can you do like
+  an websocket based harness [ our is reciver ] -> connected with user
+  
+so we will can log what happening its sub call and all
+  can warn on us that harness flow going wrong and taking wrong actions ?
+
+
+ can you fetch waht things we need clean up ass seem we hvae too much '/home/gr/projects/loopferry/src/services/coding/stages'
+  i was planning small like new_harness main.ts -> all coding "/agents"  contain sperate agent... folder and its info and .claude so it have skills, plugin prompt, mods and all well defined like standard right without any issue.
+   so it even can call sub_agents more and all as if it reuqred so else not right hop its clear
+
+  also we need ot do command on BE about the sub_agent calling so we kwnow the which agnet call which sub_agent adn we will deny if it goo out of stack of deepth of more then 4 right
+  hop all clear even we remove sub_agent call after level 4
+  hop its all cear now check hwo can we do achive it and make an solid flow do plan and make sure it is best for develpler perspective with good pipeline procedure and distribution and corditiaon. no context lost can even check and ask sub agent to contine or do call another builder realted to different task
+  can do ask tor return the .pathc file instead of code chagnes the so main will get info in better way or can say like do create pathc fiel and put there so we can do check it well
+  as it may be multi agent we just plannign that phase now ok
+  so w ejust keep the scope for feature right
+  look as if it can call sub_agent it can be parallel can be write if it is wite we need to declare lock too
+  do use mods hooks so before file edit we can do like [ lock , and queue if another agnet requred it ok like that do share the context of working progress so sub_agent know that subagent xyz is woking on it etc can even chat and put context on it for xyz i need that funcitno and to taht as my pathc so the current chagnes will know can do change also about that chage right hop its clear

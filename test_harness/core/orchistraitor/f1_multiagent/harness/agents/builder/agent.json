@@ -1,0 +1,18 @@
+{
+ "role": "builder",
+ "description": "Implements the plan, fixes findings, reports what it changed",
+ "model": "haiku",
+ "session": "persistent",
+ "writes": true,
+ "max_children": 2,
+ "agents": [
+  "researcher",
+  "reviewer"
+ ],
+ "tiers": [
+  "T1",
+  "T2",
+  "T3",
+  "T4"
+ ]
+}

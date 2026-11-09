@@ -1,0 +1,128 @@
+
+== offline: agent.call authority
+PASS  M1 agents:check passes; lead declares four sub-agents in agent.json; .claude/agents is empty everywhere
+PASS  M1b declarations are built at run time from the callees' agent.json (names, one line, read-only vs can write)
+        - researcher (read-only): Reads the repository and docs and answers one focused question with evidence (read-only)
+        - planner (read-only): Turns the requests into a short plan and triages the reviewer's findings
+        - builder (can write; must declare --writes): Implements the plan, fixes findings, reports what it changed
+        - reviewer (read-only): Checks the work against the requests and the check command; raises findings
+PASS  M2a multi-agent OFF (default depth 1): the lead cannot call anyone; the reason says so
+        depth_exceeded: multi-agent is off (agent_max_depth=1); do the work in the pipeline instead
+PASS  M2a2 the default policy is off
+PASS  M2b ON: lead calls researcher with session new -> researcher#1 at level 2, call recorded as granted
+        {"id":"call_mw4w3hf01","task_id":"t","caller_agent_id":"lead#1","callee_agent_id":"researcher#1","role":"researcher","level":2,"session_arg":"new","status":"granted","reason":null,"t":1793964419820}
+PASS  M2c a callee not in the caller's agent.json agents[] is denied (researcher -> builder)
+        not_declared: researcher may call: []
+PASS  M2d missing objective/output/boundaries is denied with the field named
+PASS  M2e session is REQUIRED: none/blank -> session_required; an unknown id -> agent_not_in_task (and lists the known ones); never guessed into new
+        session_required: pass --session "new", "<agent_id>" (continue it) or "fork:<agent_id>" (start from a copy of its memory) | session_required: pass --session "new", "<agent_id>" (continue it) or "fork:<agent_id>" (start from a copy of its memory) | agent_not_in_task: "banana" is not an agent of this task. Known: []. Use "new" for a new one
+PASS  M2f an id of another role is refused (wrong_role)
+        wrong_role: researcher#1 is a researcher, not a planner
+PASS  M2h continuing a running instance is refused (agent_busy) and the reason points to say
+        agent_busy: researcher#1 is still working; leave it a note with say instead of calling it
+PASS  M2h2 continuing an idle instance is granted as a resume of the same row
+PASS  M2g a session id of another task is refused (R-10): ids resolve only inside their task
+        agent_not_in_task: "researcher#2" is not an agent of this task. Known: []. Use "new" for a new one
+PASS  M2i a cycle (a -> b -> a) is denied and shows the chain
+        cycle: a -> b -> a
+PASS  M2j depth: a policy of 9 is clipped to the hard limit 4: levels 2,3,4 are granted, the call that would be level 5 is denied
+        granted,granted,granted,depth_exceeded depth_exceeded: level 5 is deeper than the limit 4
+PASS  M2k fan-out: max_children 2 live sub-agents; the third is denied until one finishes
+        fan_out,granted
+PASS  M2l instance limit: the 4th NEW researcher is denied, continuing one still works
+        instance_limit,granted
+PASS  M2m fork: needs a source with a session; creates researcher#2 whose parent is researcher#1
+        fork_source_invalid researcher#2
+PASS  M2n kill switch, spend pause, a caller that is not running, an unknown caller: all denied
+        kill_switch,spend_paused,caller_not_live,caller_not_live
+PASS  M2p a writer must declare writes; a read-only agent may not; every call (granted or denied) leaves a call row with its reason
+        denied:writes_required: builder can write files: pass --writes with the paths or globs it may change | granted: | denied:readonly_declared_writes: researcher is read-only; it cannot hold write locks
+
+== offline: launch (tools per level, run-time declarations, native equivalents)
+PASS  M3 the delegate tool exists for the lead only when multi-agent is on, and is REMOVED at the last level and for leaves
+        {"on":true,"off":false,"leaf":false,"last":["Read"]}
+PASS  M3b the launch prompt = CLAUDE.md + the declarations when it may call; plain CLAUDE.md when it may not
+PASS  M3c backend N from the same files: --agents holds the four declared agents; the native depth wall is 3 below the lead and capped at the hard limit
+        {"CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH":"3","CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS":"4"}
+
+== offline: write locks and the queue
+PASS  M4a overlap/cover rules
+PASS  M4b all-or-none: B wants b.ts+c.ts, b.ts is held -> B queues at position 1 and holds NOTHING (c.ts stays free)
+        {"ok":false,"heldBy":["A"],"position":1}
+PASS  M4c no deadlock: two writers wanting {x,y} and {y,x}: one gets both, the other waits holding nothing
+PASS  M4d FIFO + fairness: B then C queue behind A; an unrelated file is granted at once
+PASS  M4e release hands the lock to the waiters in arrival order (B first, then C)
+        cb B cc C
+PASS  M4f a dead agent's lease expires: the waiter gets the lock on its next try, an event records it
+PASS  M4g the edit guard: inside my locks = allow; a file another agent holds = LOCKED (names the holder, says what to do); outside what I declared = NOT DECLARED
+        LOCKED: docs/x.md is held by B. Do not write it and do not retry in a loop. Edit only files you hold (src/**), or finish and report that you are blocked by B.
+PASS  M4i fairness: with the lock free but B already waiting, a later request C must queue behind B; B gets it on its next try
+        [{"ok":false,"heldBy":["B"],"position":2},{"ok":true}]
+PASS  M4h reap removes every expired lease
+
+== offline: worktrees, patches, the Bash-write audit (real git)
+PASS  M5a audit: a write outside the declared paths is detected from git status (the Bash gap's detective control)
+        c.txt
+PASS  M5b applying patches in queue order: non-overlapping ones apply (two edits far apart in one file both land); the one touching the same line is REJECTED with the git error and nothing half-applied
+        states=applied,superseded,rejected,applied,applied rejected=[{"id":"patch_mw4w3hgh3","agent":"builder#3","error":"error: patch failed: a.txt:1\nerror: a.txt: patch does not apply"}]
+PASS  M5c a newer patch from the same agent supersedes its older unapplied one
+        applied,superseded,rejected,applied,applied
+PASS  M5d worktrees and branches are cleaned up
+
+== offline: board, notes, instances, stop, stalled, cost
+PASS  M6a notes: delivered once, capped at 400 chars, 'all' reaches others but not the sender, labelled as not from the person
+        {"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"NOTE from agent researcher#2 (not from the per
+PASS  M6b board_status lists each agent with status, activity, held and queued paths, last note
+        {"agent_id":"researcher#1","title":"researcher","description":"Reads the repository and docs and answers one focused question with evidence (read-only)","status
+PASS  M7a two instances of one role run in parallel (both 'running' at once), each with its own session
+        running=2
+PASS  M7b continuing researcher#2: same session, resumed, the prompt is only the new instruction
+        OBJECTIVE: also check xyz | OUTPUT FORMAT: 3 bullets | BOUNDARIES: read only
+PASS  M7c fork: researcher#3 starts from a copy of #2's session (fork_from) under a NEW session id, with the full brief; #2 is unchanged
+        7393 f4c2
+PASS  M7d cost rolls up the call tree: the lead's total = its sub-agents' reports
+        0.004
+PASS  M7e agent_stop: the instance goes idle at once, its late result is discarded (stopped), its older session is kept, the call row says stopped
+        stopped idle
+PASS  M7f stop cascades down the call tree (builder -> its reviewer)
+PASS  M7g a running agent with no events for the stall time is marked stalled (the lead is told on its next resume)
+
+== offline: writers end to end (queue, worktree, patch, promote)
+PASS  M8a the second writer of the same file is granted but QUEUED (position 1, behind builder#1) and does not run
+        {"position":1,"heldBy":["builder#1"]}
+PASS  M8b builder#1 ran in its own worktree and returned a patch; its locks were released and the waiter promoted (event)
+        patch_mw4w3hxk4 locks=builder#2
+PASS  M8c serial queue with a commit between: the second writer branches from the new head, so its patch applies on top (final file has both edits)
+        A1|B1-B2-A2|A3|
+PASS  M8d no locks or waiters are left behind
+
+== offline: the lead's tools as a command (tools.ts, fake runner, separate process)
+PASS  M9a delegate via the command: new -> researcher#1, new -> researcher#2, then continue researcher#1 (session resume, same row)
+        [{"ok":true,"agent_id":"researcher#1","session":"new","mode":"new","report_id":"rep_t_1","summary":"FAKE REPLY from researcher#1: o","violations":[]},{"ok":true,"agent_id":"researcher#1","session":"resume","mode":"resumed","report_id":"rep_
+PASS  M9b a call without --session is refused with the reason; with multi-agent off it says so
+        session_required: pass --session "new", "<agent_id>" (continue it) or "fork:<agent_id>" (start from a copy of its memory) | depth_exceeded: multi-agent is off (agent_max_depth=1); do the work in the pipeline instead
+PASS  M9c agent_update edits title/description (title capped at 80); agents_list shows ids, status, resume counts; say to an unknown agent is refused
+        [["lead#1","running"],["researcher#1","idle"],["researcher#2","idle"]]
+PASS  M9d everything was written to the shared registry file by the child processes (rows, calls, reports, notes)
+        agents=3 calls=5
+
+== real: claude -p (a lead that delegates, a lock-guarded writer, a fork)
+PASS  MR1 real lead opens two researchers (new sessions), each with its own session id and transcript on disk
+        lead ok=true err= researchers=researcher#1:8bfdd,researcher#2:98db7 denied=
+PASS  MR1b the lead continued an existing researcher (a 'resumed' start), so the follow-up used the same session
+        researcher#1:new researcher#2:new researcher#2:resumed
+PASS  MR1c the lead's final answer holds both facts (4 degrees, 120 metres) and names agent ids
+        Both answers are in.  1. **docs/a.md:** Apples keep best at **4 °C** (with 90% humidity). The line is under the "## Storage" heading. 2. **docs/b.md:** The main span of the Harbor Bridge is **120 metres**. The line is under "## Span", which sits under "# Bridges".  The follow-up confirmed the headin
+PASS  MR1d every call is on record: call rows with caller, callee, level 2, status; denied ones carry a reason
+        calls=3 done,done,done
+  (MR1 cost ~ $0.0038, lead turns reported by the CLI)
+PASS  MR2 real writer: the allowed file is written, the file held by another agent is NOT (hook denied it), and the agent reported the reason instead of working around it
+        a.txt=true locked.txt=false denied=1 reply=REPORT: {"summary":"Wrote hello to src/a.txt; the write to src/locked.txt was denied by a PreToolUse hook with the reason: \"LOCKED: src/locked.txt is held by builder#1. Do not write it and do not ret
+PASS  MR2b live activity came from the PostToolUse hook (no output parsing): a tool.used event per tool call with the agent id
+        tool.used events=Write
+PASS  MR3 real fork: researcher#2 (parent researcher#1) answers MANGO-3 from the copied memory, has its own session id, and researcher#1 still resumes under its own id
+        fork reply=MANGO-3 src reply=MANGO-3 sessions 3b9d0 -> 20aff
+
+real suite cost ~ $0.0039 (+ lead); calls recorded=7
+
+59/59 passed -> /home/gr/projects/loopferry/.idea/Test_agent_3/core/f_1_withmulti_ag/test/test_report.md

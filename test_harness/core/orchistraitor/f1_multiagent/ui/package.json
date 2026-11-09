@@ -1,0 +1,10 @@
+{
+  "name": "f1-multiagent-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch server.ts",
+    "dev:fake": "UI_RUNNER=fake bun --watch server.ts",
+    "start": "bun server.ts"
+  }
+}

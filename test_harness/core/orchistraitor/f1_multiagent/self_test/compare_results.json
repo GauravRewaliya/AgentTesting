@@ -1,0 +1,146 @@
+[
+ {
+  "config": "C-solo-haiku",
+  "rep": 1,
+  "cost": 0.00253058,
+  "secs": 15.69,
+  "calls": 1,
+  "quality": 1,
+  "note": ""
+ },
+ {
+  "config": "C-solo-sonnet",
+  "rep": 1,
+  "cost": 0.02226,
+  "secs": 10.582,
+  "calls": 1,
+  "quality": 1,
+  "note": ""
+ },
+ {
+  "config": "C-pipe-haiku",
+  "rep": 1,
+  "cost": 0.0062505600000000005,
+  "secs": 36.654,
+  "calls": 3,
+  "quality": 1,
+  "note": "done, 1 round(s)"
+ },
+ {
+  "config": "C-pipe-mix",
+  "rep": 1,
+  "cost": 0.03668454,
+  "secs": 43.508,
+  "calls": 3,
+  "quality": 1,
+  "note": "done, 1 round(s)"
+ },
+ {
+  "config": "R-solo-haiku",
+  "rep": 1,
+  "cost": 0.0018810000000000003,
+  "secs": 8.658,
+  "calls": 1,
+  "quality": 1,
+  "note": ""
+ },
+ {
+  "config": "R-solo-sonnet",
+  "rep": 1,
+  "cost": 0.0307505,
+  "secs": 12.303,
+  "calls": 1,
+  "quality": 1,
+  "note": ""
+ },
+ {
+  "config": "R-multi-haiku",
+  "rep": 1,
+  "cost": 0.0054575100000000005,
+  "secs": 34.163,
+  "calls": 4,
+  "quality": 1,
+  "note": "3 delegations, 0 denied"
+ },
+ {
+  "config": "R-multi-mix",
+  "rep": 1,
+  "cost": 0.031769769999999996,
+  "secs": 26.823,
+  "calls": 4,
+  "quality": 1,
+  "note": "3 delegations, 0 denied"
+ },
+ {
+  "config": "C-solo-haiku",
+  "rep": 2,
+  "cost": 0.00262703,
+  "secs": 15.564,
+  "calls": 1,
+  "quality": 1,
+  "note": ""
+ },
+ {
+  "config": "C-solo-sonnet",
+  "rep": 2,
+  "cost": 0.031702999999999995,
+  "secs": 18.547,
+  "calls": 1,
+  "quality": 1,
+  "note": ""
+ },
+ {
+  "config": "C-pipe-haiku",
+  "rep": 2,
+  "cost": 0.00626624,
+  "secs": 36.267,
+  "calls": 3,
+  "quality": 1,
+  "note": "done, 1 round(s)"
+ },
+ {
+  "config": "C-pipe-mix",
+  "rep": 2,
+  "cost": 0.027510839999999998,
+  "secs": 27.981,
+  "calls": 3,
+  "quality": 1,
+  "note": "done, 1 round(s)"
+ },
+ {
+  "config": "R-solo-haiku",
+  "rep": 2,
+  "cost": 0.0018700900000000003,
+  "secs": 7.933,
+  "calls": 1,
+  "quality": 1,
+  "note": ""
+ },
+ {
+  "config": "R-solo-sonnet",
+  "rep": 2,
+  "cost": 0.0315289,
+  "secs": 9.086,
+  "calls": 1,
+  "quality": 1,
+  "note": ""
+ },
+ {
+  "config": "R-multi-haiku",
+  "rep": 2,
+  "cost": 0.005498360000000001,
+  "secs": 33.254,
+  "calls": 4,
+  "quality": 1,
+  "note": "3 delegations, 0 denied"
+ },
+ {
+  "config": "R-multi-mix",
+  "rep": 2,
+  "cost": 0.03609619,
+  "secs": 39.075,
+  "calls": 4,
+  "quality": 1,
+  "note": "3 delegations, 0 denied"
+ }
+]

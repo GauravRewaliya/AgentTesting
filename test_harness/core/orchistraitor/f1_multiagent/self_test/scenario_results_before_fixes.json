@@ -1,0 +1,72 @@
+{
+ "staged#1": {
+  "steps": [
+   {
+    "fetches": 0,
+    "msg": 1,
+    "secs": 12.292,
+    "cost": 0.00206039,
+    "calls": 2,
+    "ok": true,
+    "why": "index2.html is an exact copy; index.html untouched",
+    "note": "done; 1 round(s); stages: builder 6.2s, reviewer 6.1s"
+   },
+   {
+    "fetches": 10,
+    "msg": 2,
+    "secs": 72.722,
+    "cost": 0.021024499999999998,
+    "calls": 6,
+    "ok": true,
+    "why": "web1-3.html exist, are HTML and mention their site; index2.html still there; live web fetches: 10 (need >= 3)",
+    "note": "done; 2 round(s); stages: planner 4.4s, builder 27.1s, reviewer 12.2s, planner 5.1s, builder 17.9s, reviewer 5.9s"
+   },
+   {
+    "fetches": 8,
+    "msg": 3,
+    "secs": 24.848,
+    "cost": 0.014265200000000002,
+    "calls": 2,
+    "ok": true,
+    "why": "web3_detail.md (2304 chars) has the sections and mentions GNU; earlier files all still there",
+    "note": "done; 1 round(s); stages: builder 18.5s, reviewer 6.3s"
+   }
+  ],
+  "extra": "```\nbuilder#1 [build] L1 idle session=518f34 resumed=3x calls=4 1m10s $0.0246\nreviewer#1 [review] L1 idle session=890415 resumed=3x calls=4 30.5s $0.0105\nplanner#1 [plan] L1 idle session=61187e resumed=1x calls=2 9.5s $0.0022\n```"
+ },
+ "multi#1": {
+  "steps": [
+   {
+    "fetches": 0,
+    "msg": 1,
+    "secs": 51.023,
+    "cost": 0.007386230000000001,
+    "calls": 3,
+    "ok": true,
+    "why": "index2.html is an exact copy; index.html untouched",
+    "note": "lead + 0 researcher call(s) + 2 builder call(s); 0 denied; nested calls (level>=3): 0; sub-agent time 36s vs wall 51s, starts spread 16.3s; lead said: I made the safety copy: `index2.html` now exists alongside `index.html`, with the same 9 lines. The builder read it back and reported an exact match.  Two things to know:  - The first attempt failed because the builder's Bash access was denied, so it couldn't "
+   },
+   {
+    "fetches": 18,
+    "msg": 2,
+    "secs": 83.714,
+    "cost": 0.02139428,
+    "calls": 9,
+    "ok": true,
+    "why": "web1-3.html exist, are HTML and mention their site; index2.html still there; live web fetches: 18 (need >= 3)",
+    "note": "lead + 5 researcher call(s) + 3 builder call(s); 0 denied; nested calls (level>=3): 0; sub-agent time 75s vs wall 84s, starts spread 66.9s; lead said: All three pages are in the project: `web1.html` (example.com), `web2.html` (W3C) and `web3.html` (GNU). Each has a title, 3 to 5 bullet findings and the address, and was written as plain HTML with no scripts or external resources.  - **web1.html** (https://exa"
+   },
+   {
+    "fetches": 8,
+    "msg": 3,
+    "secs": 50.002,
+    "cost": 0.018710700000000004,
+    "calls": 4,
+    "ok": true,
+    "why": "web3_detail.md (943 chars) has the sections and mentions GNU; earlier files all still there",
+    "note": "lead + 2 researcher call(s) + 1 builder call(s); 0 denied; nested calls (level>=3): 0; sub-agent time 28s vs wall 50s, starts spread 32.3s; lead said: I wrote `web3_detail.md`, but it is based on the GNU homepage only. I could not get the deeper detail you asked for.  The GNU site kept returning HTTP 429 (Too Many Requests) on every attempt to read its section pages, including one-at-a-time requests. The hom"
+   }
+  ],
+  "extra": "Agent tree (task W):\n```\nlead#1 [lead] L1 idle session=1ae0e1 resumed=2x calls=3 3m05s $0.0221\n├─ builder#1 [build] L2 idle session=55b128 resumed=0x calls=2 35.9s $0.0049\n├─ researcher#1 [research] L2 idle session=26019b resumed=0x calls=1 9.1s $0.0012\n├─ researcher#2 [research] L2 idle session=6b3091 resumed=0x calls=1 11.3s $0.0020\n├─ researcher#3 [research] L2 idle session=7a3e41 resumed=0x calls=5 57.4s $0.0136\n├─ builder#2 [build] L2 idle session=695370 resumed=0x calls=1 5.9s $0.0008\n├─ builder#3 [build] L2 idle session=42d9fa resumed=0x calls=1 6.2s $0.0009\n├─ builder#4 [build] L2 idle session=760163 resumed=0x calls=1 6.3s $0.0010\n└─ builder#5 [build] L2 idle session=9eec76 resumed=0x calls=1 6.3s $0.0009\n```\n\nWho called whom:\n```\nlead#1 -> builder#1 role=builder L2 session=new done\nlead#1 -> builder#1 role=builder L2 session=builder#1 done\nlead#1 -> researcher#1 role=researcher L2 session=new done\nlead#1 -> researcher#2 role=researcher L2 session=new done\nlead#1 -> researcher#3 role=researcher L2 session=new done\nlead#1 -> builder#2 role=builder L2 session=new done\nlead#1 -> builder#3 role=builder L2 session=new done\nlead#1 -> researcher#3 role=researcher L2 session=researcher#3 done\nlead#1 -> researcher#3 role=researcher L2 session=researcher#3 done\nlead#1 -> builder#4 role=builder L2 session=new done\nlead#1 -> researcher#3 role=researcher L2 session=researcher#3 done\nlead#1 -> researcher#3 role=researcher L2 session=researcher#3 done\nlead#1 -> builder#5 role=builder L2 session=new done\n```\n\nTimeline (agent.* events):\n```\n+   0.0s  agent.start          lead#1        mode=new session=1ae0e1f2-405f-4415-9f7e-881a7780c8a0 prompt_chars=1316\n+   4.9s  agent.call.granted   lead#1        callee=builder#1 level=2 kind=new\n+   4.9s  agent.start          builder#1     mode=new session=fba2d01f-5711-406a-aa28-e917193c68cb prompt_chars=443\n+  16.7s  agent.done           builder#1     mode=new took=11.8s\n+  21.2s  agent.call.granted   lead#1        callee=builder#1 level=2 kind=resume\n+  21.2s  agent.start          builder#1     mode=rolled session=55b1286e-ec1f-47e8-9519-b331ed5102dd prompt_chars=660\n+  45.2s  agent.done           builder#1     mode=rolled took=24.0s\n+  51.0s  agent.done           lead#1        mode=new took=51.0s\n+  51.0s  agent.start          lead#1        mode=resumed session=1ae0e1f2-405f-4415-9f7e-881a7780c8a0 prompt_chars=1589\n+  55.2s  agent.call.granted   lead#1        callee=researcher#1 level=2 kind=new\n+  55.2s  agent.start          researcher#1  mode=new session=26019b3e-2d88-4e73-9c71-9fbde87628b6 prompt_chars=414\n+  55.6s  agent.call.granted   lead#1        callee=researcher#2 level=2 kind=new\n+  55.6s  agent.start          researcher#2  mode=new session=6b309149-c0c5-407d-8694-803065d1480e prompt_chars=389\n+  56.3s  agent.call.granted   lead#1        callee=researcher#3 level=2 kind=new\n+  56.4s  agent.start          researcher#3  mode=new session=dee5fbc5-6535-490f-8b99-2c0876fb99a4 prompt_chars=392\n+  64.3s  agent.done           researcher#1  mode=new took=9.1s\n+  66.9s  agent.done           researcher#2  mode=new took=11.3s\n+  67.8s  agent.done           researcher#3  mode=new took=11.5s\n+  74.4s  agent.call.granted   lead#1        callee=builder#2 level=2 kind=new\n+  74.5s  agent.start          builder#2     mode=new session=6953706e-d425-49ca-b594-f507a0adb9af prompt_chars=921\n+  80.3s  agent.done           builder#2     mode=new took=5.9s\n+  80.4s  agent.call.granted   lead#1        callee=builder#3 level=2 kind=new\n+  80.4s  agent.start          builder#3     mode=new session=42d9fa66-c26c-4591-946f-09d54cf0408f prompt_chars=1115\n+  86.6s  agent.done           builder#3     mode=new took=6.2s\n+  86.7s  agent.call.granted   lead#1        callee=researcher#3 level=2 kind=resume\n+  86.7s  agent.start          researcher#3  mode=resumed session=dee5fbc5-6535-490f-8b99-2c0876fb99a4 prompt_chars=469\n+  98.2s  agent.done           researcher#3  mode=resumed took=11.5s\n+ 105.1s  agent.call.granted   lead#1        callee=researcher#3 level=2 kind=resume\n+ 105.2s  agent.start          researcher#3  mode=resumed session=dee5fbc5-6535-490f-8b99-2c0876fb99a4 prompt_chars=372\n+ 118.3s  agent.done           researcher#3  mode=resumed took=13.2s\n+ 122.1s  agent.call.granted   lead#1        callee=builder#4 level=2 kind=new\n+ 122.2s  agent.start          builder#4     mode=new session=76016350-6341-43cb-8823-47a075de8f01 prompt_chars=1012\n+ 128.5s  agent.done           builder#4     mode=new took=6.3s\n+ 134.7s  agent.done           lead#1        mode=resumed took=1m24s\n+ 134.7s  agent.start          lead#1        mode=resumed session=1ae0e1f2-405f-4415-9f7e-881a7780c8a0 prompt_chars=1460\n+ 140.1s  agent.call.granted   lead#1        callee=researcher#3 level=2 kind=resume\n+ 140.1s  agent.start          researcher#3  mode=resumed session=dee5fbc5-6535-490f-8b99-2c0876fb99a4 prompt_chars=781\n+ 153.6s  agent.done           researcher#3  mode=resumed took=13.5s\n+ 158.1s  agent.call.granted   lead#1        callee=researcher#3 level=2 kind=resume\n+ 158.1s  agent.start          researcher#3  mode=rolled session=7a3e4188-53e3-4e24-ad30-997e4a85eed3 prompt_chars=874\n+ 166.0s  agent.done           researcher#3  mode=rolled took=7.8s\n+ 172.4s  agent.call.granted   lead#1        callee=builder#5 level=2 kind=new\n+ 172.4s  agent.start          builder#5     mode=new session=9eec7654-af0d-4ec5-b2f5-cd102fe0696f prompt_chars=1525\n+ 178.7s  agent.done           builder#5     mode=new took=6.3s\n+ 184.7s  agent.done           lead#1        mode=resumed took=50.0s\n```"
+ }
+}

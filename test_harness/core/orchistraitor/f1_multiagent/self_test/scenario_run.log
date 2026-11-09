@@ -1,0 +1,23 @@
+running staged ...
+[{"fetches":0,"msg":1,"secs":12.292,"cost":0.00206039,"calls":2,"ok":true,"why":"index2.html is an exact copy; index.html untouched"},{"fetches":10,"msg":2,"secs":72.722,"cost":0.021024499999999998,"calls":6,"ok":true,"why":"web1-3.html exist, are HTML and mention their site; index2.html still there; live web fetches: 10 (need >= 3)"},{"fetches":8,"msg":3,"secs":24.848,"cost":0.014265200000000002,"calls":2,"ok":true,"why":"web3_detail.md (2304 chars) has the sections and mentions GNU; earlier files all still there"}]
+running multi ...
+[{"fetches":0,"msg":1,"secs":51.023,"cost":0.007386230000000001,"calls":3,"ok":true,"why":"index2.html is an exact copy; index.html untouched"},{"fetches":18,"msg":2,"secs":83.714,"cost":0.02139428,"calls":9,"ok":true,"why":"web1-3.html exist, are HTML and mention their site; index2.html still there; live web fetches: 18 (need >= 3)"},{"fetches":8,"msg":3,"secs":50.002,"cost":0.018710700000000004,"calls":4,"ok":true,"why":"web3_detail.md (943 chars) has the sections and mentions GNU; earlier files all still there"}]
+| message | time | cost | agent calls | result | what was checked |
+|---|---|---|---|---|---|
+| 1 | 12 s | $0.0021 | 2 | PASS | index2.html is an exact copy; index.html untouched |
+| 2 | 73 s | $0.0210 | 6 | PASS | web1-3.html exist, are HTML and mention their site; index2.html still there; live web fetches: 10 (need >= 3) |
+| 3 | 25 s | $0.0143 | 2 | PASS | web3_detail.md (2304 chars) has the sections and mentions GNU; earlier files all still there |
+| total | 110 s | $0.0374 | 10 | ALL PASS | |
+- message 1: done; 1 round(s); stages: builder 6.2s, reviewer 6.1s
+- message 2: done; 2 round(s); stages: planner 4.4s, builder 27.1s, reviewer 12.2s, planner 5.1s, builder 17.9s, reviewer 5.9s
+- message 3: done; 1 round(s); stages: builder 18.5s, reviewer 6.3s
+| message | time | cost | agent calls | result | what was checked |
+|---|---|---|---|---|---|
+| 1 | 51 s | $0.0074 | 3 | PASS | index2.html is an exact copy; index.html untouched |
+| 2 | 84 s | $0.0214 | 9 | PASS | web1-3.html exist, are HTML and mention their site; index2.html still there; live web fetches: 18 (need >= 3) |
+| 3 | 50 s | $0.0187 | 4 | PASS | web3_detail.md (943 chars) has the sections and mentions GNU; earlier files all still there |
+| total | 185 s | $0.0475 | 16 | ALL PASS | |
+- message 1: lead + 0 researcher call(s) + 2 builder call(s); 0 denied; nested calls (level>=3): 0; sub-agent time 36s vs wall 51s, starts spread 16.3s; lead said: I made the safety copy: `index2.html` now exists alongside `index.html`, with the same 9 lines. The builder read it back and reported an exact match.  Two things to know:  - The first attempt failed because the builder's Bash access was denied, so it couldn't 
+- message 2: lead + 5 researcher call(s) + 3 builder call(s); 0 denied; nested calls (level>=3): 0; sub-agent time 75s vs wall 84s, starts spread 66.9s; lead said: All three pages are in the project: `web1.html` (example.com), `web2.html` (W3C) and `web3.html` (GNU). Each has a title, 3 to 5 bullet findings and the address, and was written as plain HTML with no scripts or external resources.  - **web1.html** (https://exa
+- message 3: lead + 2 researcher call(s) + 1 builder call(s); 0 denied; nested calls (level>=3): 0; sub-agent time 28s vs wall 50s, starts spread 32.3s; lead said: I wrote `web3_detail.md`, but it is based on the GNU homepage only. I could not get the deeper detail you asked for.  The GNU site kept returning HTTP 429 (Too Many Requests) on every attempt to read its section pages, including one-at-a-time requests. The hom
+SCENARIO DONE

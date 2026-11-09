@@ -1,0 +1,339 @@
+# Team Operating Procedure: how a request becomes shipped code
+
+Goal: many specialised sub-agent teams work in parallel on one project **without** client/developer
+misunderstandings, cross-team conflicts, or rework. Everything is decided on paper (docs, wireframes,
+contracts) and **approved by a person before code is written**. This file is the single source of terms.
+
+> Rule zero: **no code starts until the Planning Gate (G3) is signed.** Every later change that is not in the
+> signed docs goes back through a Change Request (CR), never "just do it".
+
+---
+
+## 0. Glossary (use only these words, so nobody means two things)
+
+| Term | Exactly means |
+|---|---|
+| **Client** | The person who owns the requirement and signs the gates. |
+| **Lead** | The main agent. Talks to the Client, dispatches teams, owns the task map. Never writes feature code. |
+| **Team** | A named group of sub-agents with one job and one set of files (section 3). A team never edits another team's files. |
+| **Sub-agent** | One agent definition (`.claude/agents/<name>.md`) inside a team. Has its own session, tools, skills. |
+| **Slug** | Short kebab-case id of one request, e.g. `agent-settings`. All its docs live in `docs/team/plans/<slug>/`. |
+| **Phase** | A big stage of the procedure (P0..P6). Ends at a Gate. |
+| **Gate (G0..G6)** | A stop point where a person says APPROVE or CHANGES. Nothing crosses a gate unsigned. |
+| **Goal** | An outcome the Client can see ("settings page works"). Has 2-6 tasks. |
+| **Task (T1..)** | The smallest unit one sub-agent does in one worktree. Has owner, files, depends-on, acceptance. |
+| **Wave** | Tasks with no dependency between them, run in parallel. Wave 2 starts when wave 1 is merged. |
+| **Contract** | Shared, signed shape between teams: types, API request/response, DB columns, events. FE and BE both code against it. |
+| **Wireframe** | Layout drawing with **named components** (section 6). Not a mood board. |
+| **Component ID** | Stable name of a UI piece, `PageName.Region.Component` (e.g. `Settings.Header.SaveButton`). Used in every doc and ticket. |
+| **Mock** | Fake data/store that lets FE work before BE is ready; removed at the integration phase. |
+| **Lock** | A claim on a file or resource (section 8) so two agents never edit it at once. |
+| **Loophole / Hustle / Conflict** | Plan defects the Detector must find (section 5): a gap, an overlap/duplicate effort, a contradiction. |
+| **CR (Change Request)** | Written change to a signed doc. Needs the same gate the doc passed. |
+| **Done** | Acceptance criteria met, QA = APPROVE, screenshot attached, committed on its branch. Not "it compiles". |
+
+---
+
+## 1. The procedure at a glance
+
+```
+Client request
+   |
+P0 INTAKE ──G0──> P1 DISCOVERY ──G1──> P2 UX & WIREFRAME ──G2──> P3 ARCHITECTURE & TASK SPLIT
+                                                                        |
+                                              P3b DETECTOR (loophole / conflict / hustle) ──G3 PLAN SIGNED──┐
+                                                                                                          |
+        P4 BUILD (waves, per goal)  <──────────────────────────────────────────────────────────────────────┘
+          BE ║ FE ║ Design ║ Docs/Blog   (parallel, own worktrees)
+          each task: build -> QA -> screenshot -> commit            ──G4 per goal (Client sees it)
+                |
+        P5 INTEGRATE & TEST (remove mocks, e2e, browser QA)          ──G5
+                |
+        P6 RELEASE & DOCS (changelog, user docs, handoff to a person)──G6
+```
+
+Why it avoids conflict: **one owner per file**, **contracts before code**, **wireframes before UI**,
+**detector before split**, **screenshot before "done"**, **a person commits and deploys** (see project CLAUDE.md).
+
+---
+
+## 2. Phases in detail
+
+### P0 Intake (Client <-> Lead)
+- Lead restates the request as: *goal, who is the user, in-scope, **out-of-scope**, success check*.
+- Asks only what changes the plan (max 5 questions). Records answers, does not assume.
+- Output: `00_brief.md`. **G0**: Client says "yes, that is what I mean".
+
+### P1 Discovery (Planning Team: Explorer)
+- Read-only. Map existing code, reusable components, in-flight work, constraints (stack, cost, security rules).
+- Stack lookup: what we can use, what is already installed, licences, limits.
+- Output: `01_discovery.md` (files `path:line`, reuse list, risks). **G1**: Lead checks nothing already exists that we are about to rebuild.
+
+### P2 UX and wireframe (Design Team + Planning/UX)
+- Flows, wireframes, states, component inventory, theme sample (section 6).
+- **Clickable prototype is shown to the Client before any real code** (artifact page with CDN components).
+- Output: `02_ux.md`, `02_wireframes/`, `02_prototype.html`. **G2**: Client clicks through and says "this is it".
+
+### P3 Architecture and task split (Planning Team: Architect, Planner)
+- Architect writes `03_design.md`: DB relations, code flow, API shapes, pseudo code, module ownership, optimisation notes, rejected alternatives.
+- Planner writes `03_tasks.md`: goals -> tasks (T1..), owner, files (exhaustive), depends-on, acceptance, tests, size S/M/L, wave number.
+
+### P3b Detector (Planning Team: Plan-Auditor) -> **G3 Plan signed**
+Runs **before** the split is approved. Checks, and must output PASS or a list:
+1. **Loophole**: requirement with no task; task with no acceptance; state in wireframe with no API; API with no UI.
+2. **Conflict**: two tasks list the same file; two contracts disagree; wireframe names a component the design does not have.
+3. **Hustle**: duplicate effort, task that reuses nothing from discovery, too-big task (L without split), dependency cycle, serial work that could be parallel.
+4. **Risk**: cost loops, secrets, auth/permission gaps, migration that is not expand-only.
+- Output: `03b_audit.md`. G3 needs: audit = PASS, Client signs scope, Lead signs task map.
+
+### P4 Build (Build Team + Design + Docs, in waves)
+- Work per **goal**, per **wave**. Each task in its own worktree branch (`wt-<slug>-<Tn>`).
+- Every task loop: `build -> self-check -> QA-reviewer -> screenshot -> commit -> report`.
+- **G4 per goal**: Client sees the screenshots/prototype of that goal and says OK before the next goal begins.
+- Build order inside a goal (waterfall by layer, parallel across teams):
+  1. **BE**: project setup, DB schema + migration, commit. Then API + DB linking. (Auth/permission after core works, but its seat is already in the contract.)
+  2. **FE**: structure, store, component split, API client against the **mock** -> UI library generation, Admin checks -> main pages -> screenshot -> Client OK -> remaining pages -> settings/agent/builder panels -> index pages -> commit.
+  3. Keep mocks and stores until the phase is accepted; then swap to real API in P5.
+  4. Behaviour pass: loading, empty, error, click, condition states, checked against the wireframe state list.
+
+### P5 Integrate and test
+- Merge wave by wave (QA first). Remove mocks. Run unit, e2e, browser QA (real clicks and screenshots).
+- Compare the live page against the **signed wireframe** component by component (Component IDs).
+- **G5**: QA-lead APPROVE + zero open CHANGES.
+
+### P6 Release and docs
+- Changelog, user docs, API docs, blog/announcement, handoff note. A **person** commits, pushes and deploys.
+- **G6**: Client acceptance. Close the slug; lessons go to `handbook/`.
+
+---
+
+## 3. Teams (each is a "# subAgent" group: separate unit, separate owner, separate files)
+
+| Team | Members (sub-agents) | Owns (only these) | Phase |
+|---|---|---|---|
+| **Planning Team** | explorer, ux-lead, architect, planner, plan-auditor | `docs/team/plans/<slug>/*` | P1-P3b |
+| **Design / UI Team** | ux-designer, ui-designer, design-system-keeper | wireframes, theme tokens, `components/ui` look only | P2, P4 |
+| **Build Team: BE** | backend-dev (+ db-migrator) | API, DB schema, jobs, services | P4 |
+| **Build Team: FE** | frontend-dev (+ state-store dev) | pages, components, store, API client | P4 |
+| **QA Team** | qa-reviewer, browser-tester, a11y-checker | tests, screenshots, review reports | P4-P5 |
+| **Docs Team** | user-docs-writer (Main page, User/API docs), api-doc-writer | `content/docs`, OpenAPI text, README | P4, P6 |
+| **Blog / Content Team** | blogger | blog posts, release notes, landing copy | P6 |
+| **Game-Assets Team** (only for game projects) | sprite, animation, engine agents (section 7) | `assets/`, game scripts | on demand |
+| **Lead (main agent)** | the lead | task map, merges, gates, Client talk | all |
+
+Team rules:
+- A team **reads** everything, **writes** only what it owns. Need a change elsewhere? Post an **ESCALATE** (to Architect, one-way, written).
+- Teams talk through documents and contracts, not through each other's code.
+- Teams of one gate run in **parallel**; the Lead merges.
+
+---
+
+## 4. Documents and standard names (one file name = one purpose)
+
+All in `docs/team/plans/<slug>/`, numbered by phase so order is obvious:
+
+```
+00_brief.md            request, scope, out-of-scope, success check      (Lead)
+01_discovery.md        reuse list, risks, constraints                   (Explorer)
+02_ux.md               flows, states, component inventory               (UX)
+02_wireframes/         <Page>.<n>-<state>.md|svg|html  e.g. Settings.1-empty.md
+02_prototype.html      clickable artifact (CDN React/Tailwind), Client signs
+03_design.md           architecture, pseudo code, ownership             (Architect)
+03_contracts/          types.ts, api.md (OpenAPI), events.md
+03_db.md               ER diagram + migration notes
+03_tasks.md            goals -> tasks DAG                               (Planner)
+03b_audit.md           loophole / conflict / hustle report              (Plan-Auditor)
+04_reports/Tn.md       per task: what changed, files, screenshot link   (Dev)
+05_qa.md               test results, wireframe-vs-live diff              (QA)
+06_release.md          changelog, docs links, handoff                   (Docs)
+CR_<n>.md              change requests
+```
+
+Diagram standards (use text-first so they diff in git):
+| Need | Format | File |
+|---|---|---|
+| DB relations | Mermaid `erDiagram` | `03_db.md` |
+| UX flow | Mermaid `flowchart` (screen -> action -> screen) | `02_ux.md` |
+| Code / call flow | Mermaid `sequenceDiagram` | `03_design.md` |
+| State of a component | Mermaid `stateDiagram-v2` | `02_ux.md` |
+| Layout | ASCII wireframe or HTML artifact | `02_wireframes/` |
+
+Naming: files `snake_case` with phase number; Component IDs `PascalCase.Dotted`; task ids `T1..`; branches `wt-<slug>-T<n>`;
+data `snake_case` (project rule); commits Conventional Commits.
+
+---
+
+## 5. The Detector checklist (copy into `03b_audit.md`)
+
+```
+[ ] Every requirement in 00_brief maps to >= 1 task          (loophole)
+[ ] Every task has acceptance criteria + a test               (loophole)
+[ ] Every wireframe state has data/API behind it              (loophole)
+[ ] Every API/contract is used by some UI or job              (hustle: dead work)
+[ ] No file appears in two tasks of the same wave             (conflict)
+[ ] Contracts agree between BE and FE                         (conflict)
+[ ] Every task reuses 01_discovery items where possible       (hustle)
+[ ] No L-size task, no dependency cycle                       (hustle)
+[ ] Auth / permission / secrets / cost loops reviewed         (risk)
+[ ] Migrations are new files, never edit applied ones         (risk)
+VERDICT: PASS | CHANGES (list)
+```
+
+---
+
+## 6. Wireframe-first confirmation (avoid "you changed the wrong page")
+
+Problem: the Client says "change the button" and the agent edits the wrong page/component.
+Fix: **never describe a UI change in words; point at a Component ID on a wireframe.**
+
+1. Every page has a wireframe with named components and a numbered click map:
+   ```
+   Settings (route /settings)                       state: default
+   +--------------------------------------------------+
+   | [Settings.Header.Title]      [Settings.Header.SaveButton] |
+   | [Settings.Tabs.General | Agents | Builder]                |
+   | [Settings.Form.NameInput]                                |
+   +--------------------------------------------------+
+   Click map: Settings.Header.SaveButton -> PUT /api/v1/settings -> toast "Saved" -> stay on page
+   States: default, loading, empty, error, saving, success
+   ```
+2. **Locate before edit**: the dev agent must print `Component ID -> file:line` and the current screenshot, and the Client (or Lead) confirms "yes, that one".
+3. **Prototype first**: build the screen as an artifact page (CDN React + Tailwind, mock data). Client clicks it. Expected behaviour is written next to each click. Only then does real FE work start.
+4. **Verify after**: browser-tester opens the real page, clicks each item in the click map, screenshots each state, diffs against the wireframe. Any mismatch = CHANGES.
+5. Anything the Client mentions that is **not in the wireframe** (a related page or layout) triggers a CR and a wireframe update first.
+
+---
+
+## 7. Agent list (name -> tools, skills, plugins)
+
+Tools are Claude Code tools. Plugins/skills below exist in this setup today; extend by adding a row, not by giving agents more power.
+Principle: **least tools**. Read-only agents get no Edit/Write. Only dev agents get Edit and Bash.
+
+```yaml
+agentList:
+  # ---------- Planning Team ----------
+  explorer:      { tools: [Read, Grep, Glob, Bash, Write, LSP], model: haiku,
+                   skills: [], plugins: [typescript-lsp, context7],
+                   job: "map code, reuse list, risks -> 01_discovery.md" }
+  ux_lead:       { tools: [Read, Grep, Glob, Write], model: sonnet,
+                   skills: [design:user-research, design:research-synthesis], plugins: [design],
+                   job: "flows, personas, user journeys -> 02_ux.md" }
+  architect:     { tools: [Read, Grep, Glob, Bash, Write, LSP], model: sonnet,
+                   skills: [], plugins: [typescript-lsp, context7],
+                   job: "design, contracts, DB, pseudo code, optimisation -> 03_*" }
+  planner:       { tools: [Read, Grep, Glob, Write, LSP], model: sonnet,
+                   job: "goals -> tasks DAG, waves, owners, files -> 03_tasks.md" }
+  plan_auditor:  { tools: [Read, Grep, Glob, Write], model: opus,
+                   skills: [security-review], plugins: [security-guidance],
+                   job: "loophole/conflict/hustle detector -> 03b_audit.md (verdict only, never fixes)" }
+
+  # ---------- Design / UI Team ----------
+  ux_designer:   { tools: [Read, Grep, Glob, Write], model: sonnet,
+                   skills: [design:design-system, design:ux-copy, design:accessibility-review],
+                   job: "wireframes with Component IDs, states, click map" }
+  ui_designer:   { tools: [Read, Grep, Glob, Write], model: sonnet,
+                   skills: [frontend-design:frontend-design, artifact-design, design:design-critique],
+                   plugins: [frontend-design, design],
+                   job: "theme/tokens, clickable prototype artifact (CDN) for Client sign-off" }
+  design_handoff:{ tools: [Read, Write], skills: [design:design-handoff],
+                   job: "spec sheet: tokens, props, breakpoints, states for FE" }
+
+  # ---------- Build Team ----------
+  backend_dev:   { tools: [Read, Grep, Glob, Edit, Write, Bash, LSP], model: sonnet, isolation: worktree,
+                   skills: [new-table, new-api-route, new-job, new-email], plugins: [typescript-lsp],
+                   job: "ONE task id; DB, API, jobs; own branch" }
+  frontend_dev:  { tools: [Read, Grep, Glob, Edit, Write, Bash, LSP], model: sonnet, isolation: worktree,
+                   skills: [frontend-design:frontend-design], plugins: [typescript-lsp, frontend-design],
+                   job: "ONE task id; pages/components/store against contract + wireframe; own branch" }
+
+  # ---------- QA Team ----------
+  qa_reviewer:   { tools: [Read, Grep, Glob, Bash, Write, LSP], model: sonnet,
+                   skills: [code-review, simplify], plugins: [pr-review-toolkit, code-simplifier],
+                   job: "fresh-eyes diff vs contract + acceptance -> APPROVE | CHANGES" }
+  browser_tester:{ tools: [Read, Write, Bash, "mcp__claude-in-chrome__*"],
+                   skills: [claude-in-chrome, run], plugins: [claude_browser (claude-in-chrome), playwright (bun run test:e2e)],
+                   job: "click every item of the click map, screenshot each state, diff vs wireframe, read console + network errors" }
+  a11y_checker:  { tools: [Read, Write], skills: [design:accessibility-review], job: "WCAG 2.1 AA pass" }
+
+  # ---------- Docs / Blog Team ----------
+  user_docs_writer: { tools: [Read, Grep, Glob, Write], skills: [new-docs-page, design:ux-copy],
+                      job: "Main page + end-user help in content/docs" }
+  api_doc_writer:   { tools: [Read, Grep, Glob, Write], skills: [new-api-route], plugins: [context7],
+                      job: "user-facing API docs from OpenAPI + contracts" }
+  blogger:          { tools: [Read, Grep, Write, WebSearch], skills: [design:ux-copy],
+                      job: "release notes, blog posts, landing copy" }
+
+  # ---------- Game-Assets Team (only when the project is a game) ----------
+  game_assets_builder:
+    bit_sprite_agent:   { tools: [Read, Write, Bash], skills: [], plugins: [],
+                          job: "pixel sprites/tilesets (e.g. Aseprite CLI, or generated PNG sheets), palette + size spec" }
+    animation_agent:    { tools: [Read, Write, Bash], job: "frame lists, sprite-sheet JSON, easing; previews as GIF" }
+    godot_agent:        { tools: [Read, Grep, Edit, Write, Bash], job: "GDScript/scenes, headless export + tests" }
+    unity_agent:        { tools: [Read, Grep, Edit, Write, Bash], job: "C# scripts/scenes, batchmode build + tests" }
+```
+
+Rules for the list:
+- Browser: **claude-in-chrome** for real clicks and screenshots on a visible page; **playwright** (`bun run test:e2e`) for repeatable scripted tests. Never trigger alert/confirm dialogs.
+- Web search (WebSearch / context7) is for the Planning Team and Blogger only; Dev agents work from the signed docs.
+- Project rules always apply: no `git commit`/push/deploy by agents unless the Client asks, never print secrets, `bun` not `bunx`.
+- To pick better agents: ask `explorer` + a web search for "best practice agent teams" and add the finding to `handbook/`.
+
+---
+
+## 8. Parallel work on workspace (split task)
+
+Used in P3 (to split) and P4 (to run). Two modes:
+
+### 8.1 Separate files or patch (R&D, refactor) -> md planner proposal (file based or task based)
+Proposal about the architecture, using LSP where possible:
+- **rename**: `rename X -> Y` (list every use, found by LSP references, e.g. "used in ...")
+- **signature change**: `funcxx(a, b, +newVar)` find all callers with LSP; list the ones hard to reach (dynamic, string-built, config)
+- **cp / mv** of files: list imports that break
+- **rename task**, **restructure schema/DB**: expand-only migration plan first
+- Output: one md proposal listing tasks; each task = disjoint file set -> safe to run in parallel.
+
+### 8.2 Work on the same file -> shared lock
+```
+locks.json   { "<resource>": { holder: "agent2", queue: ["agent1"], since: "...", reason: "..." } }
+```
+Lockable resources: a source file, `db_migration_generation` (one at a time), the test database, `git` commands (commit / stash),
+the dev server port. Rule: take the lock, do the work, release; the queue is FIFO; a lock older than N minutes is reported to the Lead.
+Prefer avoiding locks: split so each file has one owner (section 3).
+
+---
+
+## 9. Conflict-prevention rules (the short list)
+
+1. One owner per file per wave. Two tasks needing one file are merged or serialised by the Planner.
+2. Contract first: change a contract = CR + both sides notified; code never "adapts quietly".
+3. Client words become Component IDs and acceptance criteria before work starts.
+4. Scope creep goes to a CR. The Lead answers "later / next goal / CR", never silently adds.
+5. Escalation path: Dev -> Architect (design question) -> Lead -> Client (scope question). Never skip upward.
+6. Every task ends with evidence (screenshot or test output) in `04_reports/Tn.md`.
+7. Mocks are labelled `MOCK:` and listed in `04_reports`; P5 fails while any remain.
+8. Small commits per task; a person decides what goes to the shared branch.
+
+## 10. Roles of the Client (what we need from you, and when)
+
+| Gate | You decide | You see |
+|---|---|---|
+| G0 | scope, out-of-scope | brief |
+| G2 | the look and the click behaviour | clickable prototype |
+| G3 | goals and their order | task map + audit result |
+| G4 | each goal OK / changes | screenshots per goal |
+| G6 | accept | release note + docs |
+
+Goal template (what the Planner fills):
+```
+goals:
+  goal1: { outcome: "...", tasks: [T1, T2, T3], gate: G4, wave: 1 }
+  goal2: { outcome: "...", tasks: [T4, T5, T6], gate: G4, wave: 2 }
+```
+
+---
+
+# R&D look self
+How LSP does rename and refactor testing, adds args, and checks dependent usage and errors:
+- `LSP references` before any rename/signature change -> list all callers -> put them in the task's file list.
+- After the change: LSP diagnostics + typecheck must be clean; failures become the next task, not a silent fix.
+- Open: how far LSP sees string-built names and config keys (hard-to-fetch variables) -> test per language server and note in `handbook/`.

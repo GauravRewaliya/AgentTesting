@@ -1,0 +1,102 @@
+[
+ {
+  "id": 1,
+  "task": "Single factual question about a public harness; router must delegate, answer is new.",
+  "user_message": "How does OpenClaw's Gateway route an incoming message to an agent session and run the agent loop?",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: Gateway. The lead passes the sub-agent's answer on and all the work is done. Case: Single factual question about a public harness; router must delegate, answer is new.",
+   "expected_agents_res": [
+    "h1"
+   ]
+  }
+ },
+ {
+  "id": 2,
+  "task": "Sub-agent spawning in OpenClaw; new answer.",
+  "user_message": "When does OpenClaw spawn a sub-agent with sessions_spawn and what stays out of the parent's context?",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: sessions_spawn. The lead passes the sub-agent's answer on and all the work is done. Case: Sub-agent spawning in OpenClaw; new answer.",
+   "expected_agents_res": [
+    "h2"
+   ]
+  }
+ },
+ {
+  "id": 3,
+  "task": "Delegation limits in Hermes Agent; new answer.",
+  "user_message": "How does Hermes Agent's delegate_task limit child agents' toolsets, concurrency and budget?",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: delegate_task. The lead passes the sub-agent's answer on and all the work is done. Case: Delegation limits in Hermes Agent; new answer.",
+   "expected_agents_res": [
+    "h3"
+   ]
+  }
+ },
+ {
+  "id": 4,
+  "task": "Memory design question; new answer.",
+  "user_message": "In Hermes Agent, what is the difference between MEMORY.md and the SQLite session history?",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: MEMORY.md. The lead passes the sub-agent's answer on and all the work is done. Case: Memory design question; new answer.",
+   "expected_agents_res": [
+    "h4"
+   ]
+  }
+ },
+ {
+  "id": 5,
+  "task": "Pick-the-mode question for OpenCode; new answer.",
+  "user_message": "OpenCode has a plan agent and a build agent: when should I use each?",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: OpenCode. The lead passes the sub-agent's answer on and all the work is done. Case: Pick-the-mode question for OpenCode; new answer.",
+   "expected_agents_res": [
+    "h5"
+   ]
+  }
+ },
+ {
+  "id": 6,
+  "task": "Sandbox question; new answer.",
+  "user_message": "What does running each OpenHands agent session in a Docker container isolate?",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: OpenHands. The lead passes the sub-agent's answer on and all the work is done. Case: Sandbox question; new answer.",
+   "expected_agents_res": [
+    "h6"
+   ]
+  }
+ },
+ {
+  "id": 7,
+  "task": "Rephrase of case 2: the embedding index must return the stored answer, no new result file.",
+  "user_message": "With OpenClaw, if I use sessions_spawn to start a sub-agent, what happens to its intermediate work, does it stay out of the parent context?",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: sessions_spawn. This is a rephrase of case 2: the SAME recorded result must answer. The lead passes the sub-agent's answer on and all the work is done. Case: Rephrase of case 2: the embedding index must return the stored answer, no new result file.",
+   "expected_agents_res": [
+    "h2"
+   ]
+  }
+ },
+ {
+  "id": 8,
+  "task": "Two independent questions in one message; router should make two calls (parallel is fine), two paths back.",
+  "user_message": "Two things: (a) which open-source harness uses an architect/editor split between two models and how does it work? (b) which harness fits an overnight batch of many parallel subagents?",
+  "expected": {
+   "context": "The lead makes 2 sub-agent calls (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: architect, parallel. The lead passes the sub-agent's answer on and all the work is done. Case: Two independent questions in one message; router should make two calls (parallel is fine), two paths back.",
+   "expected_agents_res": [
+    "h7",
+    "h8"
+   ]
+  }
+ },
+ {
+  "id": 9,
+  "task": "Context pass: the question is phrased about the user's own setup; the handover prompt must still name Hermes Agent and delegate_task so the sub-agent can answer.",
+  "user_message": "I run Hermes Agent and I need 5 research tasks done in parallel with delegate_task. How many children run at once and how do I raise the cap, and what budget does each child get?",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: Hermes, delegate_task. The lead passes the sub-agent's answer on and all the work is done. Case: Context pass: the question is phrased about the user's own setup; the handover prompt must still name Hermes Agent and delegate_task so the sub-agent can answer.",
+   "expected_agents_res": [
+    "h3"
+   ]
+  }
+ }
+]

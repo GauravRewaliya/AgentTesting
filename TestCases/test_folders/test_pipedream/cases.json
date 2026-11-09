@@ -1,0 +1,219 @@
+[
+ {
+  "id": 1,
+  "group": "pipedream",
+  "task": "Structure of the slack_v2 component",
+  "router": "neutral",
+  "user_message": "In the Pipedream components repo (PipedreamHQ/pipedream), how is the Slack component laid out? Folders, app file, actions, sources, common.",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: slack. The lead passes the sub-agent's answer on and all the work is done. Case: Structure of the slack_v2 component",
+   "expected_agents_res": [
+    "pd-slack-layout"
+   ]
+  },
+  "subagent": {
+   "name": "ans-mock",
+   "fixture": "pd-slack-layout",
+   "expected_question": "In the Pipedream components repo, how is the slack_v2 component laid out: folders, app file, actions, sources, common?"
+  }
+ },
+ {
+  "id": 2,
+  "group": "pipedream",
+  "task": "Core: app file + action relation",
+  "router": "neutral",
+  "user_message": "How does the Slack component in Pipedream work at its core? Explain the app file, propDefinitions, methods and how the Send Message to Channel action uses them.",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: propDefinition, app file. The lead passes the sub-agent's answer on and all the work is done. Case: Core: app file + action relation",
+   "expected_agents_res": [
+    "pd-slack-core"
+   ]
+  },
+  "subagent": {
+   "name": "ans-mock",
+   "fixture": "pd-slack-core",
+   "expected_question": "How does the slack_v2 component work at its core: the app file, propDefinitions, methods, and how an action like Send Message to Channel uses them?"
+  }
+ },
+ {
+  "id": 3,
+  "group": "pipedream",
+  "task": "Core: sources",
+  "router": "neutral",
+  "user_message": "How does a Slack source such as new-message-in-channels work in Pipedream components (dedupe, emit, base file)?",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: source. The lead passes the sub-agent's answer on and all the work is done. Case: Core: sources",
+   "expected_agents_res": [
+    "pd-slack-source"
+   ]
+  },
+  "subagent": {
+   "name": "ans-mock",
+   "fixture": "pd-slack-source",
+   "expected_question": "How does a Slack source like new-message-in-channels work in the Pipedream components repo?"
+  }
+ },
+ {
+  "id": 4,
+  "group": "pipedream",
+  "task": "How to create a component",
+  "router": "neutral",
+  "user_message": "I want to add a new action to the Pipedream components repo. What files and fields do I need to create?",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: action. The lead passes the sub-agent's answer on and all the work is done. Case: How to create a component",
+   "expected_agents_res": [
+    "pd-create-component"
+   ]
+  },
+  "subagent": {
+   "name": "ans-mock",
+   "fixture": "pd-create-component",
+   "expected_question": "How do I create a new Pipedream component (an action) in the components repo? What files and fields does it need?"
+  }
+ },
+ {
+  "id": 5,
+  "group": "pipedream",
+  "task": "Rephrase of 4: must HIT",
+  "router": "neutral",
+  "user_message": "What's the process to build a new Pipedream component action: which files, what must the exported object contain?",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: Pipedream. This is a rephrase of case 4: the SAME recorded result must answer. The lead passes the sub-agent's answer on and all the work is done. Case: Rephrase of 4: must HIT",
+   "expected_agents_res": [
+    "pd-create-component"
+   ]
+  },
+  "subagent": {
+   "name": "ans-mock",
+   "fixture": "pd-create-component",
+   "expected_question": "(same as case 4)"
+  }
+ },
+ {
+  "id": 6,
+  "group": "pipedream",
+  "task": "Create an action, old action + guidance pasted: main must forward them; mock writes the new files",
+  "router": "neutral",
+  "user_message": "Create a new GitHub action 'Lock Issue' for the Pipedream components repo (components/github). Follow the guidance below and copy the style of the existing action.\n\nGuidance: one folder per action, file <name>/<name>.mjs, key = github-<name>, version 0.0.1 for new, props use propDefinition refs to the app file, API calls go in an app-file method, run() ends with $.export(\"$summary\", ...) and returns the response. Endpoint: PUT /repos/{owner}/{repo}/issues/{n}/lock with optional lock_reason.\n\nExisting action (components/github/actions/create-issue/create-issue.mjs):\n```js\nimport github from \"../../github.app.mjs\";\n\nexport default {\n  key: \"github-create-issue\",\n  name: \"Create Issue\",\n  description: \"Create a new issue in a repository, optionally with labels, assignees, and a milestone. Provide the repository as an `owner/repo` string. Labels and assignees are passed by name/login (e.g. `bug`, `octocat`) — setting them requires push access to the repo. To comment on an existing issue instead, use **Create Issue Comment**; to change an existing issue, use **Update Issue**. [See the documentation](https://docs.github.com/en/rest/issues/issues#create-an-issue)\",\n  version: \"0.4.3\",\n  annotations: {\n    destructiveHint: false,\n    openWorldHint: true,\n    readOnlyHint: false,\n  },\n  type: \"action\",\n  ai: \"optimized\",\n  props: {\n    github,\n    repoFullname: {\n      propDefinition: [\n        github,\n        \"repoFullnameStatic\",\n      ],\n    },\n    title: {\n      label: \"Title\",\n      description: \"The title of the issue.\",\n      type: \"string\",\n    },\n    body: {\n      label: \"Body\",\n      description: \"The text body of the issue. Supports GitHub-flavored Markdown.\",\n      type: \"string\",\n      optional: true,\n    },\n    labels: {\n      label: \"Labels\",\n      description: \"Label names to add to the issue, e.g. `[\\\"bug\\\", \\\"enhancement\\\"]`. Labels must already exist in the repository. Requires push access.\",\n      type: \"string[]\",\n      optional: true,\n    },\n    assignees: {\n      label: \"Assignees\",\n      description: \"GitHub logins to assign to the issue, e.g. `[\\\"octocat\\\"]`. Requires push access.\",\n      type: \"string[]\",\n      optional: true,\n    },\n    milestoneNumber: {\n      label: \"Milestone Number\",\n      description: \"The number of an existing milestone to associate with the issue.\",\n      type: \"integer\",\n      optional: true,\n    },\n  },\n  async run({ $ }) {\n    const data = {\n      title: this.title,\n      body: this.body,\n      labels: this.labels,\n      assignees: this.assignees,\n      milestone: this.milestoneNumber,\n    };\n\n    const repoFullname = await this.github._resolveRepoFullname(this.repoFullname);\n    const response = await this.github.createIssue({\n      repoFullname,\n      data,\n    });\n\n    $.export(\"$summary\", `Successfully created issue #${response.number}: ${response.title}`);\n\n    return response;\n  },\n};\n```\n",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: github-create-issue, repoFullnameStatic, propDefinition, lock. The sub-agent's work writes components/github/actions/lock-issue/lock-issue.mjs and components/github/github.app.lockIssue.patch.mjs into run_test. The lead passes the sub-agent's answer on and all the work is done. Case: Create an action, old action + guidance pasted: main must forward them; mock writes the new files",
+   "expected_agents_res": [
+    "pd-lock-issue"
+   ]
+  },
+  "subagent": {
+   "name": "ans-mock",
+   "fixture": "pd-lock-issue",
+   "expected_question": "Create a GitHub action Lock Issue ... following the existing create-issue action (+ the pasted guidance and create-issue.mjs)"
+  }
+ },
+ {
+  "id": 7,
+  "group": "pipedream",
+  "task": "Same create-action request again: HIT, no new files",
+  "router": "neutral",
+  "user_message": "Create a new GitHub action 'Lock Issue' for the Pipedream components repo (components/github). Follow the guidance below and copy the style of the existing action.\n\nGuidance: one folder per action, file <name>/<name>.mjs, key = github-<name>, version 0.0.1 for new, props use propDefinition refs to the app file, API calls go in an app-file method, run() ends with $.export(\"$summary\", ...) and returns the response. Endpoint: PUT /repos/{owner}/{repo}/issues/{n}/lock with optional lock_reason.\n\nExisting action (components/github/actions/create-issue/create-issue.mjs):\n```js\nimport github from \"../../github.app.mjs\";\n\nexport default {\n  key: \"github-create-issue\",\n  name: \"Create Issue\",\n  description: \"Create a new issue in a repository, optionally with labels, assignees, and a milestone. Provide the repository as an `owner/repo` string. Labels and assignees are passed by name/login (e.g. `bug`, `octocat`) — setting them requires push access to the repo. To comment on an existing issue instead, use **Create Issue Comment**; to change an existing issue, use **Update Issue**. [See the documentation](https://docs.github.com/en/rest/issues/issues#create-an-issue)\",\n  version: \"0.4.3\",\n  annotations: {\n    destructiveHint: false,\n    openWorldHint: true,\n    readOnlyHint: false,\n  },\n  type: \"action\",\n  ai: \"optimized\",\n  props: {\n    github,\n    repoFullname: {\n      propDefinition: [\n        github,\n        \"repoFullnameStatic\",\n      ],\n    },\n    title: {\n      label: \"Title\",\n      description: \"The title of the issue.\",\n      type: \"string\",\n    },\n    body: {\n      label: \"Body\",\n      description: \"The text body of the issue. Supports GitHub-flavored Markdown.\",\n      type: \"string\",\n      optional: true,\n    },\n    labels: {\n      label: \"Labels\",\n      description: \"Label names to add to the issue, e.g. `[\\\"bug\\\", \\\"enhancement\\\"]`. Labels must already exist in the repository. Requires push access.\",\n      type: \"string[]\",\n      optional: true,\n    },\n    assignees: {\n      label: \"Assignees\",\n      description: \"GitHub logins to assign to the issue, e.g. `[\\\"octocat\\\"]`. Requires push access.\",\n      type: \"string[]\",\n      optional: true,\n    },\n    milestoneNumber: {\n      label: \"Milestone Number\",\n      description: \"The number of an existing milestone to associate with the issue.\",\n      type: \"integer\",\n      optional: true,\n    },\n  },\n  async run({ $ }) {\n    const data = {\n      title: this.title,\n      body: this.body,\n      labels: this.labels,\n      assignees: this.assignees,\n      milestone: this.milestoneNumber,\n    };\n\n    const repoFullname = await this.github._resolveRepoFullname(this.repoFullname);\n    const response = await this.github.createIssue({\n      repoFullname,\n      data,\n    });\n\n    $.export(\"$summary\", `Successfully created issue #${response.number}: ${response.title}`);\n\n    return response;\n  },\n};\n```\n",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: github-create-issue. This is a rephrase of case 6: the SAME recorded result must answer. The lead passes the sub-agent's answer on and all the work is done. Case: Same create-action request again: HIT, no new files",
+   "expected_agents_res": [
+    "pd-lock-issue"
+   ]
+  },
+  "subagent": {
+   "name": "ans-mock",
+   "fixture": "pd-lock-issue",
+   "expected_question": "(same as case 6)"
+  }
+ },
+ {
+  "id": 8,
+  "group": "pipedream",
+  "task": "Two tasks in one message (cache result left open: a rephrased layout question scores ~0.27, under the 0.33 HIT threshold)",
+  "router": "neutral",
+  "user_message": "Two things about the Pipedream components repo: (a) how does the Slack component lay out its folders? (b) how do I create a new component action?",
+  "expected": {
+   "context": "The lead makes 2 sub-agent calls (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: slack, action. The lead passes the sub-agent's answer on and all the work is done. Case: Two tasks in one message (cache result left open: a rephrased layout question scores ~0.27, under the 0.33 HIT threshold)",
+   "expected_agents_res": [
+    "pd-slack-layout",
+    "pd-create-component"
+   ]
+  },
+  "subagent": {
+   "name": "ans-mock",
+   "fixture": "pd-slack-layout + pd-create-component",
+   "expected_question": "(a) layout question and (b) create-component question, one call each"
+  }
+ },
+ {
+  "id": 9,
+  "group": "mods",
+  "task": "Create a mod",
+  "router": "neutral",
+  "user_message": "How do I create a Claude Code mod? I want a status line entry and a pane beside the chat.",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: mod. The lead passes the sub-agent's answer on and all the work is done. Case: Create a mod",
+   "expected_agents_res": [
+    "mod-create"
+   ]
+  },
+  "subagent": {
+   "name": "ans-mock",
+   "fixture": "mod-create",
+   "expected_question": "How do I create a Claude Code mod, for example a status line entry or a pane beside the chat?"
+  }
+ },
+ {
+  "id": 10,
+  "group": "mods",
+  "task": "Search / install a mod",
+  "router": "neutral",
+  "user_message": "How do I search for a Claude Code mod that someone published and install it?",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: mod. The lead passes the sub-agent's answer on and all the work is done. Case: Search / install a mod",
+   "expected_agents_res": [
+    "mod-search"
+   ]
+  },
+  "subagent": {
+   "name": "ans-mock",
+   "fixture": "mod-search",
+   "expected_question": "How do I search for and install a Claude Code mod that someone else published?"
+  }
+ },
+ {
+  "id": 11,
+  "group": "mods",
+  "task": "Write a hook mod",
+  "router": "neutral",
+  "user_message": "Write a Claude Code mod that blocks the Bash tool when the command contains rm -rf.",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: Bash, rm -rf. The lead passes the sub-agent's answer on and all the work is done. Case: Write a hook mod",
+   "expected_agents_res": [
+    "mod-block-tool"
+   ]
+  },
+  "subagent": {
+   "name": "ans-mock",
+   "fixture": "mod-block-tool",
+   "expected_question": "Write a Claude Code mod hook that blocks the Bash tool when the command contains rm -rf."
+  }
+ },
+ {
+  "id": 12,
+  "group": "mods",
+  "task": "Validate, test, share",
+  "router": "neutral",
+  "user_message": "I wrote a Claude Code mod. How do I validate it, test it and share it with others?",
+  "expected": {
+   "context": "The lead makes 1 sub-agent call (a researcher) and does no work itself (no other tools, no follow-up message). The hand-over passed to the sub-agent must carry: mod. The lead passes the sub-agent's answer on and all the work is done. Case: Validate, test, share",
+   "expected_agents_res": [
+    "mod-ship"
+   ]
+  },
+  "subagent": {
+   "name": "ans-mock",
+   "fixture": "mod-ship",
+   "expected_question": "How do I validate, test and share a Claude Code mod I wrote?"
+  }
+ }
+]

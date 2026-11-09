@@ -1,0 +1,2 @@
+{ "role": "plan", "description": "Turns the requests into a short plan and triages the reviewer's findings", "model": "haiku",
+  "session": "persistent", "writes": false, "max_children": 0, "agents": [], "tiers": ["T3", "T4"] }

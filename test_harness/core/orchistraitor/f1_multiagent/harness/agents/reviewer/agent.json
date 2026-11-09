@@ -1,0 +1,2 @@
+{ "role": "reviewer", "description": "Checks the work against the requests and the check command; raises findings", "model": "haiku",
+  "session": "persistent", "writes": false, "max_children": 0, "agents": [], "tiers": ["T2", "T3", "T4"] }

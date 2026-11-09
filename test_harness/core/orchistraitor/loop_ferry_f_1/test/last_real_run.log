@@ -1,0 +1,77 @@
+
+== offline (scripted agents, real harness code)
+PASS  F1 happy path: plan,build,review once, done
+        done satisfied: reviewer passed, checks passed, no open findings plan,build,review
+PASS  F1b three agent rows, each with its own session id, all idle
+        [["planner#1","e64149","idle"],["builder#1","2678e9","idle"],["reviewer#1","bfcc59","idle"]]
+PASS  F1c reports and events are recorded for every call
+        reports=3
+PASS  F2 issue loop: plan,build,review,plan,build,review then done in 2 rounds
+        done plan,build,review,plan,build,review
+PASS  F2b round 2 resumes the SAME session of each role (no new session)
+        e198n ca98n 0382n e198r ca98r 0382r
+PASS  F2c the resumed planner gets only the new finding, not the request again
+        resumed prompt: TASK t (continuing your session)  FINDINGS TO TRIAGE: F1 [major] trim is missing
+PASS  F2d the builder is told which finding to fix; the reviewer is told what it raised before
+PASS  F2e resume counters: 1 each; finding F1 ends fixed
+        [["F1","fixed"]]
+PASS  F3 the same finding twice stops the loop and asks the person (stuck)
+        waiting_person stuck: the same finding came back (F1) rounds=2
+PASS  F4 max rounds reached with new findings each time -> waiting_person
+        waiting_person max_rounds (2)
+PASS  F5 planner triages a finding as conflicting -> person, builder NOT called again
+        waiting_person conflicts_with_request: remove the trim plan,build,review,plan
+PASS  F6 reviewer says pass but the check fails -> another round; done once the check passes
+        done rounds=2 [["F1","checks","fixed"]]
+PASS  F7 second task gets its own rows and sessions; ids resolve only inside their task
+PASS  F8 resume cap 1: round 3 rolls each role to a NEW session with a visible event and a full brief
+        done rolled=3
+PASS  F9 follow-up request: all three roles resume; prompts hold R2 only
+        90,198,206
+PASS  F12 a failing agent halts the task and marks the agent failed
+        halted agent_failed: planner#1 (Error: boom)
+PASS  F12b spend cap halts the loop
+        halted spend_cap (2.0000 > 1.5)
+PASS  F13 a review without a verdict line counts as a failed review, never as a pass
+        waiting_person max_rounds (1)
+PASS  F14 a minor note on a pass is recorded but does not block
+        done
+PASS  F11 pure pipeline: T2 skips plan; later rounds follow on_issue
+PASS  F11b T4: the plan waits for a person; after approval the run continues
+        waiting_person approval_needed: the plan awaits a person
+PASS  F11c approved run finishes
+        done satisfied: reviewer passed, checks passed, no open findings
+PASS  F11d decide(): pass+checks+no findings = done; failed checks = again
+PASS  F10 agents:check passes on the real agent folders
+PASS  F10b agents:check catches a missing callee, a cycle and a write tool on a read-only agent
+PASS  F17 planner marks a failing-check finding out_of_scope: ignored (event), the builder still gets it, done only when the check passes
+        done satisfied: reviewer passed, checks passed, no open findings ignored=1
+PASS  F15 lastJson: nested braces, braces inside strings, last marker wins, bad json -> null
+PASS  F16 an agent folder is the standard .claude layout and has no prompt.md
+        agents,plugins,settings.json,skills,CLAUDE.md
+
+== real (claude -p, persistent sessions, haiku)
+PASS  R1 request 1: the loop ends done (or asks a person) and the deterministic check passes on the real files
+        done satisfied: reviewer passed, checks passed, no open findings rounds=1 cost=$0.0037 check=0
+PASS  R1b each role has a persistent session and its transcript file exists on disk
+        planner#1:81c0a3:true builder#1:79c78b:true reviewer#1:915e8c:true
+PASS  R1c the CLI used exactly the session id the harness chose (no id mismatch)
+PASS  R2 request 2 (follow-up): done and the stricter check passes
+        done satisfied: reviewer passed, checks passed, no open findings rounds=1 cost=$0.0053 check=0
+PASS  R2b the builder and planner kept their sessions (resumed, same id)
+        builder modes: new>resumed; planner: new>resumed
+PASS  R2c the follow-up prompt to the planner is shorter than its first brief (delta only)
+        first=200 resumed=114
+PASS  R2d context kept: the builder recalls request 1 from its own session
+        "Create slug.js (CommonJS) exporting slugify(s): lowercase"
+PASS  R4 issue loop with real agents (the loop ran 2 rounds, ended waiting_person: conflicts_with_request: Checks failed: F)
+        waiting_person conflicts_with_request: Checks failed: FAIL (exit 1) | FAIL norm("A   B") = "a   b" expected "a b" rounds=2 check=1 builder modes=new findings=[["F1","checks","open"]]
+PASS  R3 task B runs on its own and finishes
+        done satisfied: reviewer passed, checks passed, no open findings cost=$0.0032
+PASS  R3b task B sessions differ from task A's
+PASS  R3c no leak: task B's builder knows add and has never heard of slugify
+        add
+
+real suite cost ~ $0.0184; calls=15
+
+39/39 passed -> /home/gr/projects/loopferry/.idea/Test_agent_3/core/loop_ferry_f_1/test/test_report.md

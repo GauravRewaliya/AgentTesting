@@ -1,0 +1,91 @@
+
+== offline (scripted agents, real harness code)
+PASS  F1 happy path: plan,build,review once, done
+        done satisfied: reviewer passed, checks passed, no open findings plan,build,review
+PASS  F1b three agent rows, each with its own session id, all idle
+        [["planner#1","e81caf","idle"],["builder#1","2861d4","idle"],["reviewer#1","985d06","idle"]]
+PASS  F1c reports and events are recorded for every call
+        reports=3
+PASS  F2 issue loop: plan,build,review,plan,build,review then done in 2 rounds
+        done plan,build,review,plan,build,review
+PASS  F2b round 2 resumes the SAME session of each role (no new session)
+        6628n 9709n b526n 6628r 9709r b526r
+PASS  F2c the resumed planner gets only the new finding, not the request again
+        resumed prompt: TASK t (continuing your session)  FINDINGS TO TRIAGE: F1 [major] trim is missing
+PASS  F2d the builder is told which finding to fix; the reviewer is told what it raised before
+PASS  F2e resume counters: 1 each; finding F1 ends fixed
+        [["F1","fixed"]]
+PASS  F3 the same finding twice stops the loop and asks the person (stuck)
+        waiting_person stuck: the same finding came back (F1) rounds=2
+PASS  F4 max rounds reached with new findings each time -> waiting_person
+        waiting_person max_rounds (2)
+PASS  F5 planner triages a finding as conflicting -> person, builder NOT called again
+        waiting_person conflicts_with_request: remove the trim plan,build,review,plan
+PASS  F6 reviewer says pass but the check fails -> another round; done once the check passes
+        done rounds=2 [["F1","checks","fixed"]]
+PASS  F7 second task gets its own rows and sessions; ids resolve only inside their task
+PASS  F8 resume cap 1: round 3 rolls each role to a NEW session with a visible event and a full brief
+        done rolled=3
+PASS  F9 follow-up request: all three roles resume; prompts hold R2 only
+        90,198,206
+PASS  F12 a failing agent halts the task and marks the agent failed
+        halted agent_failed: planner#1 (Error: boom)
+PASS  F12b spend cap halts the loop
+        halted spend_cap (2.0000 > 1.5)
+PASS  F13 a review without a verdict line counts as a failed review, never as a pass
+        waiting_person max_rounds (1)
+PASS  F14 a minor note on a pass is recorded but does not block
+        done
+PASS  F11 pure pipeline: T2 skips plan; later rounds follow on_issue
+PASS  F11b T4: the plan waits for a person; after approval the run continues
+        waiting_person approval_needed: the plan awaits a person
+PASS  F11c approved run finishes
+        done satisfied: reviewer passed, checks passed, no open findings
+PASS  F11d decide(): pass+checks+no findings = done; failed checks = again
+PASS  F10 agents:check passes on the real agent folders
+PASS  F10b agents:check catches a missing callee, a cycle and a write tool on a read-only agent
+PASS  F17 planner marks a failing-check finding out_of_scope: ignored (event), the builder still gets it, done only when the check passes
+        done satisfied: reviewer passed, checks passed, no open findings ignored=1
+PASS  F18 trace helpers: 6 call spans each >= 20 ms with cost, a tree of the 3 agents, a timeline in order, a one-line summary
+        planner#1 [plan] L1 idle session=1ff030 resumed=1x calls=2 0.1s $0.0040
+        builder#1 [build] L1 idle session=0c1a31 resumed=1x calls=2 0.1s $0.0040
+        reviewer#1 [review] L1 idle session=e6eb3d resumed=1x calls=2 0.1s $0.0040
+        wall 0.2s | agent time 0.2s | 6 calls | 2 round(s) | $0.0120 | denied calls 0 | failed 0 | rolled sessions 0 | denied edits 0
+PASS  F18b search: events of one agent, events by kind prefix, the review decisions per round
+PASS  F18c the same views from the command line on the store file (tree, log --agent, summary): works on a finished OR a live store
+        wall 0.2s | agent time 0.2s | 6 calls | 2 round(s) | $0.0120 | denied calls 0 | failed 0 | rolled sessions 0 | denied edits 0
+        
+PASS  F19 a finished request is marked satisfied; a fresh session gets it under ALREADY DONE (do not redo/undo) and only the new request as work
+        TASK t
+        
+        PLAN:
+        1. do it
+        
+        
+        ALREADY DONE EARLIER (context only: do not redo it, undo it, or report it as missing; the work for it is in the directory):
+        R1: R1 original home page
+        
+        REQUESTS TO DO NOW:
+        R2: R2 copy index.html to index2.html
+        
+        Implement now in the current directory. End with: REPORT: {"summary":"one sentence","files":["changed files"]}
+PASS  F15 lastJson: nested braces, braces inside strings, last marker wins, bad json -> null
+PASS  F16 an agent folder is the standard .claude layout and has no prompt.md
+        agents,plugins,settings.json,skills,CLAUDE.md
+
+== real: the index2.html incident (follow-up copy request; the old review undid it)
+PASS  I1 natural run: index2.html is an exact copy, index.html untouched, the loop ends done, the REVIEWER was told the follow-up request
+        {"done":true,"copy":true,"idxUntouched":true,"reviewerTold":true} done satisfied: reviewer passed, checks passed, no open findings rounds=1 cost=$0.0021 wall 12.4s | agent time 12.4s | 2 calls | 1 round(s) | $0.0021 | denied calls 0 | failed 0 | rolled sessions 0 | denied edits 0 findings=[]
+PASS  I1b a later message continues the SAME builder (same session id, resumed): it edited only index2.html and still remembers the copy request
+        done resume_count=2 probe="The follow-up didn't ask for a copy. It asked me to change the `<title>` of `index2.html` to "Backup"
+FAIL  I1c the agent status and work can be read back at any time (registry rows + reports)
+        builder#1 status=idle session=47ea79 resumed=2x last_report=rep_I_3 | reviewer#1 status=idle session=fa4059 resumed=1x last_report=rep_I_4
+PASS  I2 replay of the bad review ('drop index2.html' + edit index.html) against real planner/builder: the work is NOT undone and a person is asked (3 tries)
+        safe 3/3
+        #1: waiting_person (conflicts_with_request: index2.html was added but the task never asked) index2 kept=true index.html untouched=true builder calls=1 files=[index.html,index2.html] builder said: I copied `index.html` to `index2.html` in `/tmp/lf-OWQwgP`. The two files are byte-identical (305 bytes each), and `index.html` is unchanged.  REPORT: {"summary
+        #2: waiting_person (conflicts_with_request: index2.html was added but the task never asked) index2 kept=true index.html untouched=true builder calls=1 files=[index.html,index2.html] builder said: I copied `index.html` to `index2.html` in `/tmp/lf-uQJxoc`. The two files are byte-identical (305 bytes each), and `index.html` is unchanged.  REPORT: {"summary
+        #3: waiting_person (conflicts_with_request: index2.html was added but the task never asked) index2 kept=true index.html untouched=true builder calls=1 files=[index.html,index2.html] builder said: I copied `index.html` to `index2.html` in `/tmp/lf-9y3glm`, and the two files are byte-identical. `index.html` is unchanged.  REPORT: {"summary":"Copied index.h
+
+(real suite skipped; add --real, or --index2 for the incident case only)
+
+35/36 passed -> /home/gr/projects/loopferry/.idea/Test_agent_3/core/loop_ferry_f_1/test/test_report.md

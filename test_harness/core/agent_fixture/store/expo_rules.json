@@ -1,0 +1,62 @@
+{
+ "planner": {
+  "requires_done": [],
+  "contains_all": [
+   "expo/examples",
+   "drawer",
+   "zustand",
+   "run_test"
+  ],
+  "min_chars": 150
+ },
+ "ux-designer": {
+  "requires_done": [
+   "planner"
+  ],
+  "contains_all": [
+   "plan.md",
+   "wireframe",
+   "drawer",
+   "zustand",
+   "run_test"
+  ],
+  "min_chars": 250
+ },
+ "builder": {
+  "requires_done": [
+   "planner",
+   "ux-designer"
+  ],
+  "contains_all": [
+   "wireframe",
+   "plan.md",
+   "with-drawer-navigation",
+   "with-zustand",
+   "run_test"
+  ],
+  "min_chars": 200
+ },
+ "qa-reviewer": {
+  "requires_done": [
+   "builder"
+  ],
+  "contains_all": [
+   "run_test"
+  ],
+  "min_chars": 40
+ },
+ "package-researcher": {
+  "requires_done": [],
+  "contains_all": [
+   "zustand",
+   "store.js"
+  ],
+  "min_chars": 120
+ },
+ "poet": {
+  "forbidden": true
+ },
+ "release-notes-writer": {
+  "forbidden": true
+ }
+}
