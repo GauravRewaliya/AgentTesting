@@ -19,7 +19,7 @@ export function transcriptExistsAnywhere(id: string, root = projectsRoot()): boo
 }
 
 export class RealRunner implements Runner {
-  calls: RunCall[] = []; private live = new Set<import("node:child_process").ChildProcess>();
+  calls: RunCall[] = []; protected live = new Set<import("node:child_process").ChildProcess>();
   /** Stop every claude process this runner started (the fail-fast watchdog uses it). */
   killAll() { for (const p of this.live) p.kill("SIGKILL"); }
   constructor(public timeoutMs = 240_000) {}
@@ -27,10 +27,10 @@ export class RealRunner implements Runner {
     this.calls.push(c);
     // At most HARNESS_MAX_PROCS WORKERS at once. The project manager and the lead each have a slot of their own: they spend most of their turn waiting
     // for others, and a waiting parent must never take a worker's place (this cost a researcher 9 s in the first strict multi-agent run).
-    const t0 = Date.now(), release = c.agent.role === "pm" ? await acquireSlot("pm", 1) : c.agent.role === "lead" ? await acquireSlot("lead", 1) : await acquireSlot("claude", maxProcs()), waited = Date.now() - t0;
+    const t0 = Date.now(), release = c.agent.role === "pm" ? await acquireSlot("pm", 1) : c.agent.role === "lead" ? await acquireSlot("lead", Math.max(1, Number(process.env.HARNESS_MAX_LEADS ?? 1)))   /* HARNESS_MAX_LEADS: how many leads may run at once machine-wide (default 1; testrun/par.ts raises it) */ : await acquireSlot("claude", maxProcs()), waited = Date.now() - t0;
     try { const r = await this.spawnOne(c); return { ...r, waited_ms: waited }; } finally { release(); }
   }
-  private spawnOne(c: RunCall): Promise<RunResult> {
+  protected spawnOne(c: RunCall): Promise<RunResult> {   // protected: DockerRunner (docker_runner.ts) starts the same claude call inside a container
     const args = ["-p", c.prompt, "--output-format", "json", "--model", c.agent.model,
       "--setting-sources", "", "--strict-mcp-config", "--append-system-prompt-file", c.agent.prompt_file,
       "--tools", c.agent.tools.join(","), "--permission-mode", "dontAsk",

@@ -1,0 +1,9 @@
+{
+ "web-setup": {
+  "requires_done": [],
+  "contains_all": [
+   "run_test"
+  ],
+  "min_chars": 40
+ }
+}

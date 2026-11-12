@@ -27,6 +27,7 @@ import { findSession, historyDigest, historyForReal, isVerifyAsk, recordTurn, se
 import type { Runner, RunCall, RunResult } from "./base/types.ts";
 
 export const GATE_LIMIT = 2;
+export const MAX_VERIFY = 3;   // verify asks answered from the session table that do not count toward max_agent_calls
 export type GateVerdict = "served" | "corrected" | "extra" | "real" | "notfound";
 export interface GateCall { role: string; n: number; call: string | null; verdict: GateVerdict; result?: string; why?: string[]; reply?: string; observed?: string }
 
@@ -86,17 +87,22 @@ export class FixtureGate implements Runner {
     const n = mine.length + 1, ret = (reply: string, ok = true, error?: string): RunResult => ({ reply, session_id: c.session.id, cost: 0, ok, error });
     const log = (d: Omit<GateCall, "role" | "n" | "call">) => st.tx(() => st.ev("fixture.call", task, c.row.agent_id, { role, n, call: c.row.last_call_id ?? null, ...d }));
 
-    if (n > limit) {   // 4. LIMIT
-      const reason = `call ${n} to '${role}' (limit ${limit}): the lead ${mine.some((m) => m.verdict === "served") ? "kept going back to the sub-agent after it was served" : "never made a valid request to it"}`;
+    // 5. LIMIT: `max_agent_calls` counts calls that DO something (served / corrected / real). A verify ask answered from the session table is free but capped (MAX_VERIFY) so a lead cannot loop on it for ever.
+    const used = mine.filter((m) => m.verdict !== "extra").length;
+    const refuse = (why: string): RunResult => {
+      const reason = `call ${n} to '${role}' (${why}): the lead ${mine.some((m) => m.verdict === "served") ? "kept going back to the sub-agent after it was served" : "never made a valid request to it"}`;
       st.tx(() => st.ev("fixture.fail", task, c.row.agent_id, { role, n, call: c.row.last_call_id ?? null, reason }));
       return ret(`REFUSED: ${reason}. The case is marked FAILED.`, false, reason);
-    }
+    };
+    const charge = (): RunResult | null => (used + 1 > limit ? refuse(`limit ${limit}`) : null);   // call before anything that is NOT a free verify answer
+    if (mine.length + 1 > limit + MAX_VERIFY) return refuse(`limit ${limit} + ${MAX_VERIFY} verify asks`);
     this.results ??= await loadResults(join(FIXTURES, "results"));
     const ws = join(c.cwd, "run_test"), allowReal = st.evs("fixture.allow_real", task).length > 0;
     // ── FLOW ── 1. session  2. prompt + fixture  3. no fixture: allow_real_subAg ? real call (--session-id) : error "FIXTURE NOT FOUND"
     // 1. SESSION: did the master pass a session id we know (the DB table fixture_sessions)? Then this call continues THAT session.
     const session = findSession(st, c, task);
     const real = async (): Promise<RunResult> => {   // the REAL sub-agent: ONE-SHOT claude call (no --session-id, nothing kept by the CLI). Its memory = the fixture_sessions history, put in the prompt.
+      const over = charge(); if (over) return over;
       const hist = historyForReal(st, task, role), files = [...snap(ws).keys()].slice(0, 60);
       const prompt = hist ? `CONTEXT (kept by the test harness; you have no memory of earlier calls; the workspace run_test/ is shared and already holds these files):\n${files.map((p) => "  " + p).join("\n")}\n\nWHAT HAS HAPPENED SO FAR with this sub-agent in this task (oldest first):\n${hist}\n\nYOUR TASK NOW:\n${c.prompt}` : c.prompt;
       const r = await this.real.run({ ...c, prompt, stateless: true });
@@ -107,17 +113,17 @@ export class FixtureGate implements Runner {
     if (session?.state === "real") return real();   // a follow-up of a session that was a real call: it is real, no fixture involved
     const followUp = !!session && session.served.length > 0;
     // 2. PROMPT + FIXTURE
-    const rules = allRules(), why = checkHandover({ rules, agent: role, prompt: c.prompt, done: [] }), rec = pickRecorded(this.results, role, c.prompt, servedInTask(st, task, role));
+    const rules = allRules(), why = checkHandover({ rules, agent: role, prompt: c.prompt, done: [] }), rec = pickRecorded(this.results, role, c.prompt, servedInTask(st, task), true);   // `after` may name a result of ANOTHER agent (stage chains): task-wide   // strict: never a result of another agent/suite
     const verify = (): RunResult => {   // a "check / what did you do" ask: answered from the session table (history + files on disk now). No new work, no model, no claude -p.
       const row = session ?? st.fixtureSessions.find((x) => x.task_id === task && x.role === role && x.served.length)!;
       const files = [...snap(ws).keys()].slice(0, 80);
-      const reply = `SESSION ${row.session_id} (fixture, state ${row.state}, version ${row.version}; nothing new was run). History:\n${historyDigest(row)}\n\nFILES ON DISK NOW (${files.length}, shared workspace run_test/):\n${files.map((p) => "  " + p).join("\n")}`;
+      const reply = `SESSION of ${row.agent_id} (fixture, state ${row.state}, version ${row.version}; nothing new was run). History:\n${historyDigest(row)}\n\nFILES ON DISK NOW (${files.length}, shared workspace run_test/):\n${files.map((p) => "  " + p).join("\n")}`;
       st.tx(() => recordTurn(st, c, task, role, ws, { kind: "verify", result: rec?.id, reply }));
       log({ verdict: "extra", result: rec?.id });
       return ret(reply);
     };
-    if (followUp && rec && servedInTask(st, task, role).includes(rec.id)) return verify();   // known session, this result was already served: nothing NEW to run, add to the same session
-    if (followUp && !rec && isVerifyAsk(c.prompt)) return verify();                           // known session, a check ask: answered from the table (NEW work with no fixture goes on to step 3)
+    if (followUp && rec && servedInTask(st, task, role).includes(rec.id) && !(rec.repeatable && !isVerifyAsk(c.prompt))) return verify();   // known session, this result was already served: nothing NEW to run, add to the same session
+    if (!rec && isVerifyAsk(c.prompt) && (followUp || servedInTask(st, task, role).length > 0)) return verify();   // a check ask to an agent that has history in this task (its own session or an earlier one of the same role): answered from the table (NEW work with no fixture goes on to step 3)
     if (!rec) {   // 3. NO FIXTURE for this prompt
       if (allowReal) return real();
       const reason = `FIXTURE NOT FOUND for '${role}': no recorded result matches this request (name the folder run_test/<dir> and the key words of the task exactly as the user wrote them) and the case does not set allow_real_subAg, so no real call is made`;
@@ -125,16 +131,25 @@ export class FixtureGate implements Runner {
       log({ verdict: "notfound", why: [reason] });
       return ret(`ERROR: ${reason}. The case is marked FAILED.`, false, reason);
     }
-    if (why.length) {   // a fixture exists but the hand-over is too thin: the lead may correct it and retry (guard rules)
+    // a pure CHECK ask (check words, no work verb anywhere) FROM AN AGENT THAT ALREADY DID WORK (followUp) must not serve the NEXT step (the fix) just because its keywords match: it is answered from the table. A first request to a stage agent ("Review it ... report") is not affected
+    if (followUp && rec.after && isVerifyAsk(c.prompt) && !/\b(fix|add|create|build|write|implement|redo|remove|install|update|change|repair|rewrite)\b/i.test(c.prompt) && servedInTask(st, task, role).length > 0) return verify();
+    if (why.length) {   // a fixture exists but the hand-over is too thin
+      const over = charge(); if (over) return over;   // (the lead may correct it and retry: guard rules)
       const reply = `NOT ACCEPTED (request check): ${why.join("; ")}. Send ONE complete request again.`;
       st.tx(() => recordTurn(st, c, task, role, ws, { kind: "corrected", reply }));
       log({ verdict: "corrected", why });
       return ret(reply);
     }
     const earlier = mine.find((m) => m.verdict === "served" && m.result === rec.id);
-    if (earlier) return verify();   // same result asked again from a NEW session: answered from the table too
+    if (earlier && !(rec.repeatable && !isVerifyAsk(c.prompt))) return verify();   // a REPEATABLE result (a generator called with other parameters) is run again unless the ask is only a check   // same result asked again from a NEW session: answered from the table too
+    const over = charge(); if (over) return over;
     const before = snap(ws);
     const raw = rec.run({ agent: role, task: c.prompt, ws, root: "" });   // 4. SERVE
+    if (/^\s*NEEDS_PARENT:/.test(raw)) {   // the sub-agent ASKS its parent (missing name / options): that is a question, NOT served work: the same result must be servable again once the parent answered
+      st.tx(() => recordTurn(st, c, task, role, ws, { kind: "corrected", reply: raw }));
+      log({ verdict: "corrected", why: [raw.slice(0, 200)] });
+      return ret(raw);
+    }
     const afterSnap = snap(ws), observed = observe(ws, before, afterSnap), reply = `${observeHead(before, afterSnap)}\n\n${raw}\n\n${observed}`;   // short observer line FIRST: the lead's wait() only shows the first 600 chars
     st.tx(() => recordTurn(st, c, task, role, ws, { kind: "served", result: rec.id, reply }));
     log({ verdict: "served", result: rec.id, reply: reply.slice(0, 4000), observed });

@@ -1,5 +1,6 @@
 // The agents' tools as one command (plan 5.2 / 23.3):
-//   bun tools.ts <delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop> --flag value ...
+//   bun tools.ts <delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop|ls|read_file|grep> --flag value ...
+//   ls / read_file / grep = READ-ONLY look at the shared workspace run_test/ (core/workspace_read.ts): the lead can check a result itself instead of asking a sub-agent to run commands.
 // A stand-in for the mod's registered tools: same rules (agent.call), same registry, one line of JSON out.
 // Identity comes from the environment set for THIS agent: HARNESS_STORE, HARNESS_TASK, HARNESS_AGENT, HARNESS_CWD, HARNESS_MAX_DEPTH, HARNESS_RUNNER.
 // `delegate --async` returns at once and runs the callee in a detached process (`_run`), so one agent can start several callees in parallel and `wait` for them.
@@ -8,6 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { agentCall, defaultPolicy, stopAgent, type CallReq, type CallRes } from "./core/agent_call.ts";
+import { DockerRunner } from "./core/base/docker_runner.ts";
 import { loadAgents, RealRunner, ScriptRunner, transcriptExistsAnywhere, type Runner } from "./core/base.ts";
 import { MStore, boardStatus, inbox, say, sessionStats } from "./core/board.ts";
 import { SESSION_CAP } from "./core/session_run.ts";
@@ -20,6 +22,7 @@ import { depsBlock, replan, validatePlan, type PlanRow, type PlanTask } from "./
 import { locksFromEnv } from "./core/lockapi.ts";
 import { customDef } from "./core/custom.ts";
 import { FixtureGate } from "./core/fixture_gate.ts";
+import { wsGrep, wsLs, wsRead } from "./core/workspace_read.ts";
 
 const MAX_WAVE = 4;
 const HDIR = dirname(fileURLToPath(import.meta.url)), TOOLS = `bun ${join(HDIR, "tools.ts")}`;
@@ -50,7 +53,7 @@ async function runCall(call_id: string) {
   const kind = s === "new" ? "new" : s.startsWith("fork:") ? "fork" : "resume";
   const res: Extract<CallRes, { ok: true }> = { ok: true, call_id, agent, level: call.level, kind, forkFrom: kind === "fork" ? store.agent(call.task_id, s.slice(5)) : undefined };
   const real = E.HARNESS_RUNNER === "real";
-  const inner: Runner = real ? new RealRunner(600_000) : new ScriptRunner(async (c) => { await sleep(Number(E.HARNESS_FAKE_DELAY_MS ?? 0)); if (c.prompt.includes("FAILME")) throw new Error("fake failure"); if (c.prompt.includes("ASKPARENT") && !c.prompt.includes("ANSWER FROM YOUR PARENT")) return "NEEDS_PARENT: which address should I use? I read the brief and found two."; return `FAKE REPLY from ${c.row.agent_id}: ${req.objective?.slice(0, 60)}`; });
+  const inner: Runner = real ? (E.HARNESS_SANDBOX === "docker" ? new DockerRunner(600_000) : new RealRunner(600_000)) : new ScriptRunner(async (c) => { await sleep(Number(E.HARNESS_FAKE_DELAY_MS ?? 0)); if (c.prompt.includes("FAILME")) throw new Error("fake failure"); if (c.prompt.includes("ASKPARENT") && !c.prompt.includes("ANSWER FROM YOUR PARENT")) return "NEEDS_PARENT: which address should I use? I read the brief and found two."; return `FAKE REPLY from ${c.row.agent_id}: ${req.objective?.slice(0, 60)}`; });
   const runner: Runner = new FixtureGate(inner, () => store);   // agents with "fixtures": true are answered by recorded results (check_and_correction); every other agent runs as before
   if (!defs.has(req.role)) defs.set(req.role, customDef(req.role, req.title ?? req.role, !!req.writes?.length));   // a custom agent: rebuilt here from the call record
   const def = launchDef(defs.get(req.role)!, defs, res.level, policy.agentMaxDepth, join(tmpdir(), "lf-launch"), TOOLS);
@@ -250,4 +253,7 @@ if (cmd === "delegate") {
   store.tx(() => { rows = stopAgent(store, task, flag("agent") ?? ""); stopped = store.calls.filter((x) => x.status === "failed" && x.reason === "stopped").map((x) => x.id); });
   for (const c of stopped) await locks.release(task, c, policy.lockTtlMs);
   out({ ok: true, stopped: rows.map((r) => r.agent_id) });
+} else if (cmd === "ls") { out(wsLs(join(cwd, "run_test"), flag("path")));
+} else if (cmd === "read_file") { out(wsRead(join(cwd, "run_test"), flag("path") ?? "", Number(flag("offset") ?? 1), Number(flag("limit") ?? 200)));
+} else if (cmd === "grep") { out(wsGrep(join(cwd, "run_test"), flag("pattern") ?? "", flag("path")));
 } else out({ ok: false, reason: `unknown command ${cmd}` });

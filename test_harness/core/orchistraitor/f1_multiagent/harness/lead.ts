@@ -22,6 +22,9 @@ export async function runLead(ctx: CallCtx & { store: MStore }, o: { task_id: st
   ${tools} delegate --role <role> --session new|<agent_id>|fork:<agent_id> --objective "<what>" --output "<format>" --boundaries "<limits>" [--async] [--mode ask] [--writes a,b] [--title "<what this agent is for>"]
   ${tools} wait --agents <id>,<id> [--timeout 90]     (after --async: waits and returns the answers)
   ${tools} ledger_get --report <report_id>              (the FULL answer of an agent; use it when wait shows truncated:true)
+  ${tools} ls [--path <dir>]                            (READ-ONLY: files in the shared workspace run_test/)
+  ${tools} read_file --path <file> [--offset N --limit N]   (READ-ONLY: numbered lines of a file in run_test/)
+  ${tools} grep --pattern <regex> [--path <dir>]        (READ-ONLY: matching lines in run_test/)
   ${tools} apply_patches                                (puts finished writers' files into the project)
   ${tools} plan_answer --plan <id> --item <plan task id> --text "<answer>"   (an agent replied NEEDS_PARENT: you are its parent; answer it, the same agent continues)
   ${tools} agents_list

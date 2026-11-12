@@ -18,6 +18,7 @@ export async function callAgent(ctx: CallCtx, row0: AgentRow, cwd: string, makeP
   const { store } = ctx, task = row0.task_id, id = row0.agent_id;
   const def = ctx.defs.get(row0.name);
   if (!def) throw new Error(`no definition for ${row0.name}`);
+  const tExists = def.fixtures ? undefined : ctx.transcriptExists;   // a MOCKED agent (fixtures) never has a claude transcript: its session is the fixture_sessions row, so it must not be "rolled" or flagged as lost
   const canary = ctx.canary ?? process.env.HARNESS_CANARY === "1", code = canaryFor(task, id);
   let sel!: Selection, mode: Mode = "new", prompt = "", busy = false, epoch0 = 0;
   const stopWhy = store.aborted();
@@ -25,12 +26,12 @@ export async function callAgent(ctx: CallCtx, row0: AgentRow, cwd: string, makeP
   store.tx(() => {   // phase 1: claim the agent
     const row = store.agent(task, id)!;
     if (row.status === "running" && row.activity !== "starting") { busy = true; return; }   // "starting" = a driver already claimed it for this call
-    if (ctx.transcriptExists && row.session_id && store.file) {   // Claude's copy of the log is gone but ours is not: put it back BEFORE the session is chosen, so the agent resumes instead of starting blank
+    if (tExists && row.session_id && store.file) {   // Claude's copy of the log is gone but ours is not: put it back BEFORE the session is chosen, so the agent resumes instead of starting blank
       try { if (restoreFromArchive(store.file, task, id, row.session_id, row.created_cwd ?? row.cwd ?? cwd)) store.ev("log.restored", task, id, { session: row.session_id }); }
       catch (e) { store.ev("log.restore_failed", task, id, { session: row.session_id, error: String(e) }); }
     }
     sel = forceSel ?? (def.session === "persistent"
-      ? chooseSession(row, def.session_cap ?? ctx.sessionCap, ctx.transcriptExists ? (sid) => ctx.transcriptExists!(row.created_cwd ?? row.cwd ?? cwd, sid) : undefined)
+      ? chooseSession(row, def.session_cap ?? ctx.sessionCap, tExists ? (sid) => tExists!(row.created_cwd ?? row.cwd ?? cwd, sid) : undefined)
       : { id: randomUUID(), resume: false });
     mode = sel.fork_from ? "forked" : sel.rolled ? "rolled" : sel.resume ? "resumed" : "new";
     if (sel.rolled) store.ev("session.rolled", task, id, { reason: sel.rolled, old: row.session_id });
@@ -54,7 +55,7 @@ export async function callAgent(ctx: CallCtx, row0: AgentRow, cwd: string, makeP
   const r = await ctx.runner.run({ agent: def, row: store.agent(task, id) ?? row0, cwd, prompt, session: sel, ...(extra ?? {}) });
 
   let archived: string | null = null, archiveErr = "";   // a real run must leave a log; keep our own copy of it, and SAY SO if there is none
-  if (ctx.transcriptExists && store.file) {
+  if (tExists && store.file) {
     try { archived = archiveTranscript(store.file, task, id, r.session_id || sel.id, cwd); if (!archived && r.ok) archiveErr = `no log file found for session ${r.session_id || sel.id}`; }
     catch (e) { archiveErr = String(e); }
   }

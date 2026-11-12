@@ -1,5 +1,16 @@
 # f1_multiagent
 
+## Whose is what (read this first)
+
+f1_multiagent is its **own** harness. agent_testing only uses it to run the shared cases (`TestCases/test_folders`). So:
+
+| | what | who looks after it |
+|---|---|---|
+| **f1's own** | `harness/` (lead, tools, registry, locks, worktrees, patches, board, hooks, the other agents), `self_test/` (its own regression suite, `bun self_test/multi.ts`, 169/169), `ui/` (its console and its `.ui-data/`), `testrun/chat.ts` (the console's chat), `dependency.md`, `docs/` | f1. agent_testing does not test or change it, except where listed in the next row. Run `self_test/multi.ts` once if you touch `harness/`. |
+| **ours** (added for agent_testing) | `testrun/run.ts` + `testrun/cases.ts` (run and judge shared cases), `harness/core/fixture_gate.ts`, `fixture_sessions.ts`, `workspace_read.ts` (mocked sub-agents, session table, observer, read-only lead tools), the `ls / read_file / grep` commands in `harness/tools.ts` and `harness/lead.ts`, the agents `expo-go` and `stage-*`, one line in `harness/core/base/call.ts` (a mocked agent has no claude transcript), and the infra in `test_harness/infra/` (S3, QA video container) | agent_testing. Keep tidy; documented in `user_read.md` and `PROGRESS.md`. |
+
+Nothing was moved, on purpose: f1's files import each other by relative path. Our runner does not read or write `ui/.ui-data/`; it keeps its files in `test_harness/.state/v1/<master session>/{store,workspace}`.
+
 The f1 multi-agent harness: a lead agent that delegates to sub-agents, with a registry (store), locks, worktrees + patches and a board.
 
 * `harness/`  the harness itself (`lead.ts`, `tools.ts`, `core/`, `hooks/`, `agents/<name>/` = `agent.json` + `.claude/CLAUDE.md` + `settings.json` [+ `.claude/skills/`]).
@@ -13,8 +24,19 @@ The f1 multi-agent harness: a lead agent that delegates to sub-agents, with a re
 | shared cases | `TestCases/test_folders/<suite>/` | global: any harness can run them | `bun testrun/run.ts <suite> [case ...] [--list] [--fake] [--rerun]` |
 | harness tests | `self_test/` | **local to f1**: not global, they test f1's own machinery | see below |
 
-### testrun/ (needed by the dashboard's ExperimentRun page)
-* `run.ts`   a suite, case by case, on the f1 lead. Real `claude` (haiku, cents per turn) by default; `--fake` = scripted agents, no model calls. State goes to `ui/.ui-data/`.
+### Extra flags (passed from OUTSIDE the harness)
+Some harnesses do these things internally; f1 does not, so the runner takes a flag and calls a helper in `test_harness/core/orchistraitor/helper/`:
+| flag | what | helper |
+|---|---|---|
+| `--video` | after each case, record a QA video into `<session>/store/qa/` (Docker, no network, read-only app folder). A web page is recorded as is. An **Expo app with web support** (`react-native-web` in package.json) is first exported in a throwaway container (`infra/qa/web_export.ts`: `pnpm install` + `expo export --platform web` inside Docker, network on for that step only, nothing on the host; the export goes to `<session>/store/web/<app>/dist`), then recorded. An Expo app without web support, or a failed export, records nothing and `store/qa/NO_VIDEO.txt` says why. `QA_EXPO_EXPORT=0` skips the export. Off by default. Needs the image once: `bun test_harness/infra/qa/run_qa.ts --build`. Env `QA_SANDBOX=docker\|off\|e2b` (e2b not implemented) | `helper/video.ts` (`videoAfterRun`, `findWebApps`) |
+| `--video-route=/screen` | with `--video`: which screen of the app to open (an Expo Router route, e.g. `/3d-rotate`) | `helper/video.ts` |
+| env `HARNESS_SANDBOX=docker` | real sub-agents (not the lead, not agents that delegate) run `claude -p` in a Docker container: compose service `sandbox`, image `agent-testing-claude:1`, 2 GB / 1 CPU, your claude-personal profile mounted | `harness/core/base/docker_runner.ts` |
+| `bun testrun/par.ts <suite> --jobs=4` | run the independent chains of a suite in parallel (all other flags go to run.ts). A case costs 20 to 70 s because the LEAD is a real model; sub-agents are fixtures. Env `HARNESS_MAX_LEADS` (default 1) is how many leads may run at once machine-wide; par.ts sets it | `testrun/par.ts` |
+| `--fake` | scripted lead, no model calls | built in |
+| `--rerun` | run a case again in a new task | built in |
+
+### testrun/ (runs the shared cases; OURS, see the table above)
+* `run.ts`   a suite, case by case, on the f1 lead. Real `claude` (haiku, cents per turn) by default; `--fake` = scripted agents, no model calls. State goes to `test_harness/.state/v1/<task>/{store,workspace}` (one folder per master session; it no longer touches `ui/.ui-data/`).
 * `chat.ts`  one chat turn with the lead (what the console and the dashboard's "Start/Send" use).
 * `cases.ts` loads the suites and judges a turn by WHO the lead called against `expected_agents_res` (nothing is asserted from the model's words).
 

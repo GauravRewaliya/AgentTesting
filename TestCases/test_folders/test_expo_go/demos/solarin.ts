@@ -4,9 +4,13 @@
 import type { Case } from "@core/types.ts";
 import { expoGo } from "../lib/shared.ts";
 
+// QA video: the web build of this app renders a BLANK page ("Couldn't find a drawer", docs/QA_ISSUES.md #12, TODO T-22), so a video would show nothing: declared not testable for now.
+// The recipe to switch on once that is fixed: { enabled: true, kind: "expo-web", app: "my-app", route: "/3d-rotate", viewport: "390x844" } (its own web dev server in a container, then the recording).
+const solarinQa: Case["qa"] = () => ({ enabled: false, why: "web build renders a blank page: Couldn't find a drawer (docs/QA_ISSUES.md #12, TODO T-22)" });
 export const cases: Case[] = [
   {
     ...expoGo,
+    qa: solarinQa,
     id: "eg_solarin_01_754eb25",
     title: "[ref expo.dev/demos/solarin-johnson -> Solarin-Johnson/my-app] phase 1/3 · commit 754eb25 (2025-10-11) \"feat: add 3D Rotate feature; implement Rotate3d component with flip an\"",
     turns: [{
@@ -20,6 +24,7 @@ export const cases: Case[] = [
   },
   {
     ...expoGo,
+    qa: solarinQa,
     id: "eg_solarin_02_7371b88",
     after: "eg_solarin_01_754eb25",
     title: "[ref expo.dev/demos/solarin-johnson -> Solarin-Johnson/my-app] phase 2/3 · commit 7371b88 (2025-10-12) \"feat: enhance Rotate3d component; add support for dynamic front and ba\"",
@@ -34,6 +39,7 @@ export const cases: Case[] = [
   },
   {
     ...expoGo,
+    qa: solarinQa,
     id: "eg_solarin_03_08b0cce",
     after: "eg_solarin_02_7371b88",
     title: "[ref expo.dev/demos/solarin-johnson -> Solarin-Johnson/my-app] phase 3/3 · commit 08b0cce (2025-10-12) \"feat: integrate DrawPad component for signature capture in BackContent\"",

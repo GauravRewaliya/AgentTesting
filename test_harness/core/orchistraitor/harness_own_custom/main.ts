@@ -14,13 +14,13 @@ import type { Decision, Event, IHarness, Interceptor, Msg, Session } from "./int
 export type { Decision, Event, IHarness, Interceptor, Msg, Session } from "./interface.ts";
 
 // Recorded results (TestCases/test_folders/agent_fixture/results/<id>.ts): each is ONLY run(req). See ResultModule / Req in core/types.ts.
-export type Recorded = { id: string; text: string; agent?: string; keywords?: string[]; after?: string; run: (o: { agent: string; task: string; ws: string; root: string }) => string };
+export type Recorded = { id: string; text: string; agent?: string; keywords?: string[]; after?: string; repeatable?: boolean; run: (o: { agent: string; task: string; ws: string; root: string }) => string };
 export async function loadResults(dir: string): Promise<Recorded[]> {
   const out: Recorded[] = [];
   for (const { path } of resultFiles(dir)) {   // results/<suite>/<file>.ts
     const m = (await import(pathToFileURL(path).href)).default as ResultModule;
     out.push({
-      id: m.id, text: m.expected_input?.text ?? "", agent: m.match?.agent, keywords: m.match?.keywords, after: m.match?.after,
+      id: m.id, text: m.expected_input?.text ?? "", agent: m.match?.agent, keywords: m.match?.keywords, after: m.match?.after, repeatable: m.match?.repeatable,
       run: ({ agent, task, ws, root }) => {
         const store = join(FIXTURES, "store");
         const req: Req = {
@@ -47,14 +47,14 @@ export const HIT_MIN = 0.15;   // Test_agent_2's FIX_MIN: below this the lookup 
 
 
 /** Which recorded result answers this hand-over: ALL its keywords in the task (and the agent) win; otherwise the best similarity (>= HIT_MIN) among results without keywords. Exported so a tool can look up WITHOUT running. */
-export function pickRecorded(results: Recorded[], agent: string, task: string, served: string[] = []): Recorded | undefined {
+export function pickRecorded(results: Recorded[], agent: string, task: string, served: string[] = [], strict = false): Recorded | undefined {   // strict = the similarity fallback may only use results that declare THIS agent (f1 gate: an agent-less result of another suite must never answer)
   // a result with `after` (a rework "fix") is only eligible once that result was already served in this task (`served` = ids served so far)
   const rs = results.filter((r) => (!r.agent || r.agent === agent) && (!r.after || served.includes(r.after))); const low = task.toLowerCase();
-  // most specific wins (more keywords); on a tie the one with `after` wins (the next step of a rework)
-  const kw = rs.filter((r) => r.keywords?.length && r.keywords.every((k) => low.includes(k.toLowerCase()))).sort((a, b) => b.keywords!.length - a.keywords!.length || Number(!!b.after) - Number(!!a.after))[0];
+  // a result NOT served yet beats one already served (the next step of a chain / rework); then the most specific (more keywords); then the one with `after`
+  const kw = rs.filter((r) => r.keywords?.length && r.keywords.every((k) => low.includes(k.toLowerCase()))).sort((a, b) => Number(!served.includes(b.id)) - Number(!served.includes(a.id)) || b.keywords!.length - a.keywords!.length || Number(!!b.after) - Number(!!a.after))[0];
   if (kw) return kw;
   const q = embed(task.slice(0, 400)); let best: [number, Recorded?] = [0];
-  for (const r of rs.filter((x) => !x.keywords?.length)) { const sc = cos(q, embed(r.text)); if (sc > best[0]) best = [sc, r]; }
+  for (const r of rs.filter((x) => !x.keywords?.length && (!strict || x.agent === agent))) { const sc = cos(q, embed(r.text)); if (sc > best[0]) best = [sc, r]; }
   return best[0] >= HIT_MIN ? best[1] : undefined;
 }
 

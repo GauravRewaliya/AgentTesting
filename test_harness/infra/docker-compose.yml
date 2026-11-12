@@ -1,0 +1,48 @@
+# Local infrastructure for the test harness:  docker compose -f test_harness/infra/docker-compose.yml up -d
+# Same S3 emulator loopferry uses (~/projects/loopferry/.idea/docker/docker-compose.yml): Adobe S3Mock, no credentials checked (any key works),
+# bucket created at startup, data kept in the container only (`down` forgets it).
+#
+#   service   host port   what for
+#   s3        55442       S3 API for RECORDED SESSIONS (test_harness/infra/s3.ts): run events, fixture_sessions table, final reply of a case
+#
+# 55441 is loopferry's own S3 port; we use 55442 so both can run side by side. Override: AT_S3_PORT, AT_S3_BUCKET, AT_S3_CONTAINER.
+name: agent-testing
+
+services:
+  s3:
+    image: adobe/s3mock:latest
+    container_name: ${AT_S3_CONTAINER:-agent-testing-s3}
+    environment:
+      COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS: ${AT_S3_BUCKET:-agent-testing-qa}
+    ports:
+      - "${AT_S3_PORT:-55442}:9090"
+
+  # REAL agents (HARNESS_SANDBOX=docker, harness/core/base/docker_runner.ts): Claude Code is BUILT INTO the image, nothing is installed at run time.
+  # Not started by `up` (profile): each agent call is ONE throwaway container,  docker compose -f test_harness/infra/docker-compose.yml run --rm -T sandbox claude ...
+  # (we never restart a container: a job mounts the volumes, ends, and the next job mounts them again).   Build once:  docker compose -f test_harness/infra/docker-compose.yml build sandbox
+  # Your claude-personal profile (CLAUDE_CONFIG_DIR, default ~/.claude) is mounted at /claude: no new login. KNOWN RISK: an agent with Bash can read it (docs/SANDBOX.md).
+  sandbox:
+    profiles: ["sandbox"]
+    image: agent-testing-claude:1
+    build:
+      context: ./claude
+    entrypoint: []
+    working_dir: /workspace
+    mem_limit: 2g
+    cpus: 1
+    pids_limit: 512
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      HOME: /tmp
+      CLAUDE_CONFIG_DIR: /claude
+      CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1"
+      npm_config_store_dir: /pnpm/store
+      COREPACK_HOME: /pnpm/corepack
+    volumes:
+      - ${CLAUDE_CONFIG_DIR:-${HOME}/.claude}:/claude
+      - pnpm-store:/pnpm
+
+volumes:
+  pnpm-store:
+    name: agent-testing-pnpm-store

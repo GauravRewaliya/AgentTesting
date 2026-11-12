@@ -1,0 +1,16 @@
+{
+ "role": "stage-planner",
+ "description": "Stage 1 (plan): turns a request into a PLAN.md (goal, files, steps, acceptance checks). Writes only PLAN.md, never code.",
+ "model": "haiku",
+ "session": "persistent",
+ "writes": true,
+ "max_children": 0,
+ "agents": [],
+ "tiers": [
+  "T1",
+  "T2",
+  "T3",
+  "T4"
+ ],
+ "fixtures": true
+}

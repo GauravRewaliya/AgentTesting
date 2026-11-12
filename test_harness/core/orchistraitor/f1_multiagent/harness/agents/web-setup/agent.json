@@ -1,0 +1,16 @@
+{
+ "role": "web-setup",
+ "description": "Creates a NEW web project (Vue, React) by running the official generator in a shell. Needs the project name and the options from its parent; asks (NEEDS_PARENT) when they are missing.",
+ "model": "haiku",
+ "session": "persistent",
+ "writes": true,
+ "max_children": 0,
+ "agents": [],
+ "tiers": [
+  "T1",
+  "T2",
+  "T3",
+  "T4"
+ ],
+ "fixtures": true
+}

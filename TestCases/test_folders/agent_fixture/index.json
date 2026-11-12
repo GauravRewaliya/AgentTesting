@@ -223,6 +223,28 @@
   "text": "Write the wireframe for the Expo notes app from plan.md: drawer navigation and a zustand list"
  },
  {
+  "id": "web-react-setup",
+  "suite": "test_web_setup",
+  "file": "results/test_web_setup/web-react-setup.ts",
+  "title": "web-setup: runs `bun create vite@latest <name> --template react-ts`",
+  "agent": "web-setup",
+  "keywords": [
+   "react"
+  ],
+  "text": "Create the React project dash-ui in run_test with TypeScript."
+ },
+ {
+  "id": "web-vue-setup",
+  "suite": "test_web_setup",
+  "file": "results/test_web_setup/web-vue-setup.ts",
+  "title": "web-setup: runs `bun create vue@latest <name> <flags>`",
+  "agent": "web-setup",
+  "keywords": [
+   "vue"
+  ],
+  "text": "Create the Vue project shop-ui in run_test with TypeScript, Vue Router, Pinia and Vitest."
+ },
+ {
   "id": "role-expo-planner",
   "suite": "test_expo_proj_planning",
   "file": "results/test_expo_proj_planning/role-expo-planner.ts",
@@ -233,6 +255,139 @@
    "zustand"
   ],
   "text": "Plan the Expo app: drawer navigation plus a zustand store, based on expo/examples, in run_test"
+ },
+ {
+  "id": "adv-ctx-build",
+  "suite": "advance_test",
+  "file": "results/advance_test/adv-ctx-build.ts",
+  "title": "stage-builder: copy-demo (plain copy of index.html)",
+  "agent": "stage-builder",
+  "keywords": [
+   "copy-demo"
+  ],
+  "text": "Make a backup copy of run_test/copy-demo/index.html as index2.html."
+ },
+ {
+  "id": "adv-ctx-review-aware",
+  "suite": "advance_test",
+  "file": "results/advance_test/adv-ctx-review-aware.ts",
+  "title": "stage-reviewer: copy-demo review WITH the request (approves)",
+  "agent": "stage-reviewer",
+  "keywords": [
+   "copy-demo",
+   "backup"
+  ],
+  "text": "Review run_test/copy-demo: index2.html is the backup the user asked for."
+ },
+ {
+  "id": "adv-ctx-review-blind",
+  "suite": "advance_test",
+  "file": "results/advance_test/adv-ctx-review-blind.ts",
+  "title": "stage-reviewer: copy-demo review WITHOUT the request (harmful finding)",
+  "agent": "stage-reviewer",
+  "keywords": [
+   "copy-demo"
+  ],
+  "text": "Review run_test/copy-demo."
+ },
+ {
+  "id": "adv-gap-build",
+  "suite": "advance_test",
+  "file": "results/advance_test/adv-gap-build.ts",
+  "title": "stage-builder: slugify-gap build (GAPPY first build: no trim, no accents, 1 test)",
+  "agent": "stage-builder",
+  "keywords": [
+   "slugify-gap"
+  ],
+  "text": "Build run_test/slugify-gap exactly as its PLAN.md says."
+ },
+ {
+  "id": "adv-gap-fix",
+  "suite": "advance_test",
+  "file": "results/advance_test/adv-gap-fix.ts",
+  "title": "stage-builder: slugify-gap FIX (closes the review findings)",
+  "agent": "stage-builder",
+  "keywords": [
+   "slugify-gap"
+  ],
+  "text": "Fix the findings F1 F2 F3 of the review in run_test/slugify-gap."
+ },
+ {
+  "id": "adv-gap-plan",
+  "suite": "advance_test",
+  "file": "results/advance_test/adv-gap-plan.ts",
+  "title": "stage-planner: slugify-gap plan",
+  "agent": "stage-planner",
+  "keywords": [
+   "slugify-gap"
+  ],
+  "text": "Plan a slugify function in run_test/slugify-gap (src/slugify.ts + tests)."
+ },
+ {
+  "id": "adv-gap-review",
+  "suite": "advance_test",
+  "file": "results/advance_test/adv-gap-review.ts",
+  "title": "stage-reviewer: slugify-gap review (finds 3 findings)",
+  "agent": "stage-reviewer",
+  "keywords": [
+   "slugify-gap"
+  ],
+  "text": "Review run_test/slugify-gap against its PLAN.md."
+ },
+ {
+  "id": "adv-ok-build",
+  "suite": "advance_test",
+  "file": "results/advance_test/adv-ok-build.ts",
+  "title": "stage-builder: slugify-ok build (complete build)",
+  "agent": "stage-builder",
+  "keywords": [
+   "slugify-ok"
+  ],
+  "text": "Build run_test/slugify-ok exactly as its PLAN.md says."
+ },
+ {
+  "id": "adv-ok-plan",
+  "suite": "advance_test",
+  "file": "results/advance_test/adv-ok-plan.ts",
+  "title": "stage-planner: slugify-ok plan",
+  "agent": "stage-planner",
+  "keywords": [
+   "slugify-ok"
+  ],
+  "text": "Plan a slugify function in run_test/slugify-ok (src/slugify.ts + tests)."
+ },
+ {
+  "id": "adv-ok-review",
+  "suite": "advance_test",
+  "file": "results/advance_test/adv-ok-review.ts",
+  "title": "stage-reviewer: slugify-ok review (approves)",
+  "agent": "stage-reviewer",
+  "keywords": [
+   "slugify-ok"
+  ],
+  "text": "Review run_test/slugify-ok against its PLAN.md."
+ },
+ {
+  "id": "adv-qa-build",
+  "suite": "advance_test",
+  "file": "results/advance_test/adv-qa-build.ts",
+  "title": "stage-builder: qa-demo page",
+  "agent": "stage-builder",
+  "keywords": [
+   "qa-demo"
+  ],
+  "text": "Build the slug demo page in run_test/qa-demo."
+ },
+ {
+  "id": "adv-qa-video",
+  "suite": "advance_test",
+  "file": "results/advance_test/adv-qa-video.ts",
+  "title": "stage-qa: records a REAL video of qa-demo in a Docker container",
+  "agent": "stage-qa",
+  "keywords": [
+   "qa-demo"
+  ],
+  "text": "QA the page in run_test/qa-demo in a browser and record a video."
  },
  {
   "id": "b2-writer-a",

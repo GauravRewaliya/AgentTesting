@@ -37,6 +37,7 @@ In a case: **name** = `title` (+ `id`), **description** = `turns[i].expected.con
 | test_workflows | 5 | multi-step workflows | recorded |
 | test_expo_sub_agent / test_expo_proj_planning | 3 / 1 | expo roles (planner, builder, ...) | recorded |
 | test_expo_go | 32 | `expo-go` sub-agent redoing real projects phase by phase (+ 1 rework case: bad answer then fix) | recorded (real patches; `eg_lintab_02_rework` = negative + `_fix` positive) |
+| advance_test | 4 | staged job: plan, build, fresh reviewer, fix; context loss between stages; follow-up to the reviewer (recorded session); browser QA with a recorded video (Docker) | recorded (`adv-*`, stage-* agents) |
 | test_expo_direct_build | 2 | lead must NOT call a sub-agent | `allow_real_subAg` |
 | test_solowork | 4 | lead works alone (`router: false`) | `allow_real_subAg` |
 | test_artifact | 5 | Claude artifact links (needs the `Artifact` tool) | `allow_real_subAg` |

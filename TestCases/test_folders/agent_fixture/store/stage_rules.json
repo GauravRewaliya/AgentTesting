@@ -1,0 +1,31 @@
+{
+ "stage-planner": {
+  "requires_done": [],
+  "contains_all": [
+   "run_test"
+  ],
+  "min_chars": 80
+ },
+ "stage-builder": {
+  "requires_done": [],
+  "contains_all": [
+   "run_test",
+   "plan.md"
+  ],
+  "min_chars": 120
+ },
+ "stage-reviewer": {
+  "requires_done": [],
+  "contains_all": [
+   "run_test"
+  ],
+  "min_chars": 60
+ },
+ "stage-qa": {
+  "requires_done": [],
+  "contains_all": [
+   "run_test"
+  ],
+  "min_chars": 60
+ }
+}

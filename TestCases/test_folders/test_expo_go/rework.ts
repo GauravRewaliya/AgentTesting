@@ -57,6 +57,7 @@ export const cases: Case[] = [
           + "The lead compares that with its list, does NOT report success, and calls expo-go AGAIN (new call, no memory)"
           + "Call 2: POSITIVE answer: 'You are right, sorry...' + the full Tailwind setup (11 files). Judge: exactly two calls, the second names the concrete gaps, the final reply tells the user it was redone.",
         expected_agents_res: ["role-expo-go-eg_tw_rework_notailwind", "role-expo-go-eg_tw_rework_notailwind_fix"],
+        reply_must: ["nativewind"], reply_forbid: ["not finished", "not done", "not complete"],   // the wrong pass of 2026-11-12: right calls, final answer "not done"
       },
     }],
   },
@@ -73,6 +74,7 @@ export const cases: Case[] = [
           + "The lead spots the mismatch and calls expo-go AGAIN"
           + "Call 2: POSITIVE answer: 'You are right, sorry...' + removes DragPill.tsx and builds hooks/usePillGestures.ts, hooks/useSearchGestures.ts, constants/theme.ts and the wiring. Judge: exactly two calls, second names the gaps, final reply says it was redone.",
         expected_agents_res: ["role-expo-go-eg_lintab_02_rework", "role-expo-go-eg_lintab_02_rework_fix"],
+        reply_forbid: ["not finished", "not done", "not complete"],
       },
     }],
   },

@@ -1,0 +1,12 @@
+{
+ "writer": {
+  "requires_done": [],
+  "contains_all": [],
+  "min_chars": 15
+ },
+ "reviewer": {
+  "requires_done": [],
+  "contains_all": [],
+  "min_chars": 15
+ }
+}

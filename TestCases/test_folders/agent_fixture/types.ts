@@ -38,7 +38,9 @@ export type ResultModule = {
   title: string;
   description: string;
   /** How the harness finds it. `keywords` (ALL in the task, lowercase) wins; otherwise similarity of the task to `expected_input.text`. */
-  match?: { agent?: string; keywords?: string[]; /** only eligible once THIS result id was already served in the same task (rework: the `_fix` answer follows the incomplete one, whatever words the lead uses) */ after?: string };
+  match?: { agent?: string; keywords?: string[]; /** only eligible once THIS result id was already served in the same task (rework: the `_fix` answer follows the incomplete one, whatever words the lead uses) */ after?: string;
+  /** true = this result may be served MANY times (a generator command called with a different name / options each time). Without it, a result is served once per task and a repeat is answered "already done" from the session table. A check question is still answered from the table. */
+  repeatable?: boolean };
   expected_input: {
     /** The question this answer was recorded for. */
     text: string;

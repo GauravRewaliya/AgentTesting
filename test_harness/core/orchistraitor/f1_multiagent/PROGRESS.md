@@ -20,6 +20,23 @@ A verify ask to the same sub-agent (`--session <agent_id>`, what the lead's CLAU
 ## DONE
 | date | what | where |
 |---|---|---|
+| 2026-11-12 | `testrun/par.ts`: independent chains of a suite run in parallel (own process, task, store, workspace); `HARNESS_MAX_LEADS` (default 1) lifts the machine-wide lead slot; the case-to-task index is one file per case (`.state/v1/f1_exp/`), no lost updates. Verified with `--fake`: 33 cases in 7 chains, 33 index files, no container left. NOT run live yet | `testrun/par.ts`, `testrun/run.ts`, `harness/core/base/runner.ts` |
+| 2026-11-12 | `Case.qa(req)` declaration and `--video` obeying it; DockerRunner + compose service `sandbox` + image with Claude Code (see docs/SANDBOX.md) | `TestCases/types.ts`, `helper/video.ts`, `docker_runner.ts`, `infra/docker-compose.yml` |
+| 2026-11-12 | extra flag `--video` (external helper `orchistraitor/helper/video.ts`): QA video after a case; web page only, native Expo says so | `testrun/run.ts`, `helper/video.ts` |
+| 2026-11-12 | the runner SEEDS the starting state (`bases/<name>` -> `run_test/<dir>`) for cases that promise it, before the lead starts | `testrun/run.ts seedStart` |
+| 2026-11-12 | layout per master session: `.state/v1/<task>/store/` (store.json, .board, record/, qa/) and `.state/v1/<task>/workspace/` (git workspace); old shared `ui/.ui-data` store/repo only with `UI_STORE`/`UI_REPO`; session record always written locally, S3 opt-in; QA video goes to the session's store/qa | `testrun/run.ts`, `infra/record_session.ts`, `store/advance/stages.ts` |
+| 2026-11-12 | browser QA with a REAL video: sub-agent `stage-qa`, fixture `adv-qa-video`, case `adv_4_qa_video`; recorder in a throwaway Docker container (no network, read-only app mount, only `.state/qa/` writable); `QA_SANDBOX=docker\|off\|e2b` (e2b not implemented on purpose) | `test_harness/infra/qa/*`, `agents/stage-qa`, `store/advance/stages.ts`, `advance_test/verify.ts` |
+| 2026-11-12 | session recording to S3 is OFF by default (`AT_RECORD=1` to turn on) | `infra/record_session.ts` |
+| 2026-11-12 | lead got READ-ONLY `ls` / `read_file` / `grep` jailed to run_test/ (T-04): real run `eg_tw_rework_notailwind` PASS with 0 verify asks, lead reply confident | `harness/core/workspace_read.ts`, `harness/tools.ts`, lead CLAUDE.md/settings.json, `harness/lead.ts` |
+| 2026-11-12 | S3Mock (loopferry's emulator) + record session upload after every case (summary, events with seq, fixture_sessions, calls, workspace) | `test_harness/infra/*`, `testrun/run.ts` |
+| 2026-11-12 | `advance_test` suite: stage-planner/builder/reviewer fixtures, `match.after` across agents, deterministic reviewer that reads the real files; adv_1 + adv_2 PASS live, adv_3 (context loss, loopferry 5.20) fixture-verified only | `TestCases/test_folders/advance_test/`, `agent_fixture/store/advance/stages.ts` |
+| 2026-11-12 | isolation: a case without `after` starts with an empty run_test/ | `testrun/run.ts` |
+| 2026-11-12 | mocked agents are not "rolled / lost session" any more; judge counts an expected `session:` follow-up answered from the table; pickRecorded prefers a not-yet-served result | `base/call.ts`, `testrun/cases.ts`, `harness_own_custom/main.ts` |
+| 2026-11-12 | NP3 (every agent prompt has the stuck rule) fixed for expo-go + new stage agents: self_test/multi 169/169 | `harness/agents/*/.claude/CLAUDE.md` |
+| 2026-11-12 | `fixture_sessions` keyed by (task, AGENT id) not claude session id: a mocked agent has no transcript, so the harness rolled a new claude id on every call and each call became its own row | `fixture_sessions.ts findSession` |
+| 2026-11-12 | verify asks answered from the table are free (separate budget `MAX_VERIFY` = 3), `max_agent_calls` counts only served/corrected/real calls | `fixture_gate.ts charge()` |
+| 2026-11-12 | `isVerifyAsk`: NEW work only when the ask STARTS with a work verb; any other ask with a check word is a check | `fixture_sessions.ts` |
+| 2026-11-12 | `pickRecorded(..., strict)`: the gate's similarity fallback only uses results that declare the agent | `harness_own_custom/main.ts`, `fixture_gate.ts` |
 | 2026-11-12 | `no_fixture` renamed `allow_real_subAg` everywhere (types, validate, policy, suites, docs); meaning: a call with NO fixture may go to the REAL sub-agent (with --session-id), otherwise the gate raises "FIXTURE NOT FOUND" and the case fails | `TestCases/types.ts`, `fixture_gate.ts`, `testrun/cases.ts declareGateLimit` (writes event `fixture.allow_real`) |
 | 2026-11-12 | REAL calls are ONE-SHOT: `RunCall.stateless` -> `claude -p ... --no-session-persistence` (no --session-id, no --resume, no session file wasted). The real agent's memory is the `fixture_sessions` history (earlier fixture AND real turns + files on disk) put into its prompt (`historyForReal`) | `base/types.ts`, `base/runner.ts`, `fixture_sessions.ts`, `fixture_gate.ts` |
 | 2026-11-12 | a known session + an ask with no fixture: a CHECK ask (`isVerifyAsk`) is answered from the table, NEW work goes to step 3 (real call if allowed, else FIXTURE NOT FOUND) | `fixture_sessions.ts`, `fixture_gate.ts` |
@@ -47,6 +64,14 @@ A verify ask to the same sub-agent (`--session <agent_id>`, what the lead's CLAU
 | B-11 | a verify/"what did you do" follow-up had to repeat the case keywords + PLAN.md or it was refused (wasted call) | wasted calls | FIXED (known session + nothing new to run -> answered from the table) |
 | B-12 | no fixture used to be "NOT ACCEPTED, retry" (wasted calls, hidden brittle keywords); now a hard error unless allow_real_subAg | FIXED (stricter: a lead that rephrases and misses the keywords now fails at once, see TODO T-07) |
 | B-13 | a known session + unmatched ask was always "verify" even for NEW work (hid FIXTURE NOT FOUND, never reached the real call) | FIXED (isVerifyAsk heuristic; word lists, no model) |
+| B-14 | table was keyed by claude session id, which is rolled every call for a mocked agent -> "same session" never happened in real runs | FIXED (key = agent id) |
+| B-15 | similarity fallback offered 15 agent-less results of other suites to `expo-go`: a lead retry was served `pd-slack-source` (Pipedream) | FIXED (strict agent match in the gate) |
+| B-16 | the lead asks the sub-agent to RUN commands (`grep -rn ...`, `tsc`) and paste output; a mock cannot, so FIXTURE NOT FOUND (correct) and the case fails | OPEN: T-04 (lead read tool) or `allow_real_subAg` on the case |
+| B-17 | cases shared one workspace; once the lead could `ls`, adv_1's files misled adv_2 (fixtures of the other case were served inside it) | FIXED (empty run_test/ per non-chained case) |
+| B-18 | `match.after` only saw results of the SAME agent; a stage chain needs the planner's result for the builder | FIXED (task-wide) |
+| B-19 | a check question to a second agent of the same role got FIXTURE NOT FOUND | FIXED (history of the role counts) |
+| B-20 | cases said "the fixture is set up in run_test/<dir> for you" but only the sub-agent's run created it; with the new `ls` tool the lead checked, found nothing and called no sub-agent (eg_solarin_01 FAIL, 13 s) | FIXED (runner seeds it); a real PASS follows |
+| B-21 | the runner prints `cost so far=$0.0000` for every real run (the lead's cost is not read) | OPEN, see TODO T-20; real tokens come from the lead's transcript |
 | B-10 | lead CLAUDE.md: "check with <agent>" must continue the agent; with a fixture agent that returns canned text | encourages repeated asks | MITIGATED by observer |
 
 ## How to make it stronger (ideas, in order of value)
@@ -61,4 +86,8 @@ A verify ask to the same sub-agent (`--session <agent_id>`, what the lead's CLAU
 | date | case | result | note |
 |---|---|---|---|
 | 2026-11-12 | `eg_tw_rework_notailwind` x6 | 1 PASS (wrong-pass flavour), 3 FAIL (lead over-verified / contaminated store), 2 no-run (Bash denied) | before the observer |
+| 2026-11-12 | after the table/budget/strict fixes: `eg_tw_rework_notailwind` PASS (bad, fix, 2 free verifies; table row v4), `eg_lintab_01_4da28ef` PASS, `eg_lintab_02_rework` PASS once and FAIL once (bad, fix, 2 verifies, then the lead asked the agent to run grep/tsc -> FIXTURE NOT FOUND). 2 more runs never started (lead's Bash denied, B-08) | |
 | 2026-11-12 | `eg_tw_rework_notailwind` x1 (with observer) | FAIL | order right (bad -> fix served), but the lead asked for "quote the export lines of src/tw/*.tsx" 2 more times (verify asks it can only send to the sub-agent), 5th call over the limit of 4. Its final reply DID cite the harness observer ("the harness saw these files change") = grounded, but hesitant. Conclusion: the observer helps, the real fix is T-04 (lead gets a read-only observe/read command). |
+| 2026-11-12 | `test_basic_2` (4 cases, parallel runner) | **4/4 PASS in 37 s** | mocked `writer` (fixtures: true on writer/reviewer), lead cost about $0.002 per case |
+| 2026-11-12 | `advance_test` (4 cases, parallel, `--video`) | **3/4 PASS in 58 s**; adv_3 FAILS by design (first review hand-over lacks the intent) | adv_4 took a real video |
+| 2026-11-12 | first attempt of those two suites | 2/4 + 3/4, then 0/4 + 2/4 | three harness bugs found and fixed: final reply judged before it was filled in; cases promising a file that nothing created (`Case.seed`); a branch case started from an empty session; a "fresh" run reused an old session folder |

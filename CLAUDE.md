@@ -29,3 +29,11 @@ Not solo: lead (router on) delegates to ONE sub-agent `expo-go`, so it is a dele
 3. Real run = haiku lead only, by case id (chains use cached `after` checkpoints; `--rerun` re-spends credits).
 4. Never use `--real` (real sub-agents) in routine runs; only for `allow_real_subAg` cases.
 5. New expo_go cases: take real patches via `store/expo_go/make_patches.py`, not hand-written results.
+
+## Sandbox: real agents and QA run in Docker
+Anything that installs packages, builds or records runs in a throwaway container (2 GB RAM, 1 CPU, caps dropped), never on the host: `HARNESS_SANDBOX=docker` for real sub-agents (compose service `sandbox`, image with Claude Code built in), `infra/qa/*` for QA videos. We do not restart containers, we remount volumes. Details: `docs/SANDBOX.md`. A test case says whether it can be recorded with `qa: (req) => QaSpec` (`TestCases/types.ts`). Default: NO video and NO session record; only a case whose `qa` is enabled gets them (`--video` runs that function, every other case does nothing; `--record` writes the record for any case).
+
+## Package manager: pnpm only (never npm)
+Use **pnpm** for every install and every package binary in this project, and in everything we build, run or generate: `pnpm install`, `pnpm add <pkg>`, `pnpm exec <bin>` (instead of `npx`), `pnpm dlx <bin>` (one-off, instead of `npx`/`npm exec`). Never `npm`, `npx` or `yarn`: not in scripts, Dockerfiles, agent prompts, fixtures or docs.
+Why: pnpm keeps ONE copy of each package in a shared store and links it, so repeated and parallel installs (a throwaway container per app, many demos) do not pile up duplicate `node_modules`; it is also faster and stricter about undeclared dependencies.
+In throwaway containers pnpm comes from corepack (`corepack pnpm ...`, no global install) and its store is the docker volume `agent-testing-pnpm-store`. Expo/Metro needs `node-linker=hoisted` (written into the app copy's `.npmrc` by the web export).

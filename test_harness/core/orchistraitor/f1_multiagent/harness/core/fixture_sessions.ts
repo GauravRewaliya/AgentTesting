@@ -8,7 +8,7 @@ import type { RunCall } from "./base/types.ts";
 export type FixtureTurnKind = "served" | "verify" | "corrected" | "real";
 export interface FixtureTurn { v: number; at: number; kind: FixtureTurnKind; result?: string; prompt: string; reply: string }
 export interface FixtureSessionRow {
-  /** the session id the master used for this sub-agent (a resume sends the same id) */
+  /** the LAST claude session id of this call. NOT the key: a mocked agent has no claude transcript, so the harness rolls a new id on every call; the stable identity is agent_id (what the master passes as `--session <agent_id>`) */
   session_id: string;
   /** the master's task (= the shared workspace owner) */
   task_id: string;
@@ -33,10 +33,11 @@ export interface FixtureSessionRow {
 const cut = (s: string, n: number) => (s.length > n ? s.slice(0, n) + "..." : s);
 
 /** The session row of this call, or undefined for a brand-new session (nothing recorded yet). */
-export const findSession = (st: MStore, c: RunCall, task: string): FixtureSessionRow | undefined => st.fixtureSessions.find((x) => x.task_id === task && x.session_id === c.session.id);
+/** Keyed by (task, agent_id): `expo-go#1` is the same fixture session for every call the master makes to it, whatever claude session id the harness rolled. */
+export const findSession = (st: MStore, c: RunCall, task: string): FixtureSessionRow | undefined => st.fixtureSessions.find((x) => x.task_id === task && x.agent_id === c.row.agent_id);
 
-/** Every recorded result served so far for this role in this master task, over ALL its fixture sessions (the workspace is shared, so a `fix` may follow in another session). */
-export const servedInTask = (st: MStore, task: string, role: string): string[] => st.fixtureSessions.filter((x) => x.task_id === task && x.role === role).flatMap((x) => x.served);
+/** Every recorded result served so far in this master task (only this role's when `role` is given), over ALL fixture sessions (the workspace is shared: a `fix` may follow in another session, and a stage may require a result another AGENT served: `match.after`). */
+export const servedInTask = (st: MStore, task: string, role?: string): string[] => st.fixtureSessions.filter((x) => x.task_id === task && (!role || x.role === role)).flatMap((x) => x.served);
 
 /** Record one turn (creates the session row on its first turn). Call inside st.tx(). */
 export function recordTurn(st: MStore, c: RunCall, task: string, role: string, workspace: string, t: { kind: FixtureTurnKind; result?: string; reply: string }): FixtureSessionRow {
@@ -47,7 +48,7 @@ export function recordTurn(st: MStore, c: RunCall, task: string, role: string, w
       workspace, version: 0, state: "open", served: [], history: [], created: now, updated: now };
     st.fixtureSessions.push(row);
   }
-  row.version += 1; row.updated = now;
+  row.version += 1; row.updated = now; row.session_id = c.session.id;
   row.history.push({ v: row.version, at: now, kind: t.kind, result: t.result, prompt: cut(c.prompt, 600), reply: cut(t.reply, 4000) });
   if (t.kind === "served" && t.result) { row.served.push(t.result); row.state = "served"; }
   if (t.kind === "verify") row.state = "verified";
@@ -55,10 +56,11 @@ export function recordTurn(st: MStore, c: RunCall, task: string, role: string, w
   return row;
 }
 
-/** A "check / what did you do" ask (answered from the table) versus a request for NEW work. A check word and no work verb = check. Cheap heuristic on purpose, no model. */
+/** A "check / what did you do" ask (answered from the table) versus a request for NEW work. NEW work = the ask STARTS with a work verb ("Now add ...", "Create ..."); anything with a check word that does not start like that is a check
+ *  (a real lead mixes verbs into its verification questions: "Verify ... Report which file App.tsx imports ... did you run git commit?"). Cheap heuristic on purpose, no model. */
 export const isVerifyAsk = (prompt: string): boolean => {
-  const asked = prompt.replace(/\b(did|have|had|do) you \w+/gi, " ");   // "what did you change" is a question about the past, not a request to change
-  return /\b(verify|check|confirm|what (did|have|exactly)|which files|list (the )?(files|changes)|show me|quote|status|did you|summar(y|ise|ize))\b/i.test(prompt) && !/\b(add|create|build|write|implement|fix|change|update|make|install|remove|delete|redo|refactor)\b/i.test(asked);
+  const newWork = /^\W*(now |also |then |please |next )*(add|create|build|write|implement|make|install|remove|delete|refactor|update|change|redo|fix|set up|put)\b/i.test(prompt.trim());
+  return !newWork && /\b(verify|check|confirm|answer|report|what (did|have|exactly|is|are)|which|list|show me|quote|status|did you|have you|is the|are there|summar(y|ise|ize)|tell me|describe|explain|what you|what was|what were|are you done|is it done|finished|how did|how many|recap)\b/i.test(prompt);
 };
 
 /** The whole history of the task's sessions of this role, as text for a REAL call that has no memory of its own (stateless claude call): what was asked, what each answer said, newest last. */
@@ -71,5 +73,7 @@ export function historyForReal(st: MStore, task: string, role: string, maxChars 
 }
 
 /** The session's history as the sub-agent would remember it: one line per turn. */
+/** The sub-agent's own words of a served reply: without the observer line in front and the observer block at the end (those are the harness's, not the agent's). */
+export const rawOf = (reply: string): string => reply.replace(/^OBSERVER\(harness saw\)[^\n]*\n\n/, "").replace(/\n\nOBSERVER \(the harness compared[\s\S]*$/, "");
 export const historyDigest = (row: FixtureSessionRow): string =>
-  row.history.map((h) => `  v${h.v} ${h.kind}${h.result ? " " + h.result : ""}${h.kind === "verify" ? " (asked again, nothing new run)" : ": " + cut(h.reply.replace(/\s+/g, " "), 160)}`).join("\n");
+  row.history.map((h) => h.kind === "verify" ? `  v${h.v} verify (asked again, nothing new run)` : h.kind === "corrected" ? `  v${h.v} corrected (hand-over refused)` : `  v${h.v} ${h.kind}${h.result ? " " + h.result : ""}: ${cut(rawOf(h.reply), 700)}`).join("\n");

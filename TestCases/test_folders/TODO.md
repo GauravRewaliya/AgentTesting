@@ -1,36 +1,26 @@
-# TODO: failed cases and remaining work (test_folders)
+# TODO: open work (test_folders)
 
-Keep this list current: add a row when a case fails or a weakness is found, move it to DONE (with the date) when fixed. The architecture progress and the bug catalog live in
-`test_harness/core/orchistraitor/f1_multiagent/PROGRESS.md`.
+Only OPEN items live here. When one is done it is removed (the history is in git and in `test_harness/core/orchistraitor/f1_multiagent/PROGRESS.md`, which also has the bug catalog and the run log).
+Last full check: 2026-11-12 (every item below was compared with the code and with the live runs of that day).
 
-## OPEN
-
-| id | case / area | what is wrong | next step |
+| id | area | what is open | next step |
 |---|---|---|---|
-| T-01 | every case (judge) | WRONG PASS: the judge only checks WHO was called (`testrun/cases.ts judgeTurn`). A right call list with a wrong or confused final answer to the user still shows PASS (`eg_tw_rework_notailwind`, 2026-11-12: lead said "not finished" after the fix was applied). | add an optional `Expected.reply_must` / `reply_forbid` (word lists, cheap, no model) and fill it for rework cases; later an LLM-judge pass on the final reply. |
-| T-02 | `eg_tw_rework_notailwind` | the haiku lead keeps re-verifying after the fix (up to 2 extra asks) and sometimes ends with a hesitant reply. Observer block run 2026-11-12: order right, still FAILED (lead asked 2 more verify asks, wanted quoted export lines the observer does not carry). | re-run 3x with a fresh store each, count passes; if flaky, tell the lead in its prompt: "the harness OBSERVER block is the evidence, one check is enough". |
-| T-03 | `eg_lintab_02_rework` | never run for real (only fixtures checked locally). Its fix reply has no on-disk proof lines like the tailwind one. | run it; add "VERIFIED ON DISK" lines to its `_fix` result. |
-| T-04 | lead prompt (`harness/agents/lead`) | **most valuable next step.** The lead has no file tools: it can only judge a sub-agent by text. Verify asks go back to the fixture agent and eat the call budget. | do it: give the lead a read-only `tools.ts observe <dir>` (list + excerpts) so it never has to ask. |
-| T-05 | f1 runs | 2 of 6 real runs never reached the sub-agent: the lead's Bash call was DENIED ("don't ask" permission mode). Run is wasted money. | find which permission rule / mode makes `tools.ts` calls ask; pass the allowlist in the runner settings. |
-| T-06 | `testrun/run.ts --rerun` | rerun with the default store re-used the old task id for gate counting, so earlier calls counted against `max_agent_calls` (a clean run failed with "call 4 over limit"). Workaround: `UI_STORE=<dir>/store.json UI_REPO=<dir>/repo`. | make `--rerun` always create a new task id AND a fresh `fixture.*` event scope. |
-| T-07 | fixtures keywords | keyword lookup is brittle: a lead that rephrases misses it (NOTFOUND -> corrected -> wasted call). `tailwind app` did. | prefer one distinctive folder name per case (`tw-rework`); consider also matching on the case id passed by the harness. |
-| T-08 | older chains (31 cases) | still `after`-chained workspace dependence; fixtures only work in order. | optional: standalone start-state fixtures. |
-| T-09 | `max_agent_calls` | counts extra (verify) calls, so a careful lead is punished. | separate budget: real calls vs verify asks (1-2 allowed). |
+| T-01 | judge: the FINAL answer | The mechanism exists (`Expected.reply_must` / `reply_forbid`, plain word lists, checked in `testrun/run.ts`) and is set on 3 cases (`eg_tw_rework_notailwind`, `eg_lintab_02_rework`, `adv_2`). The word lists are untested against many live runs: too strict = false FAIL, too loose = wrong pass. | tune the lists from the first full live baseline (T-08), add them to build cases that must say "done". |
+| T-02 | cases that said "there is a file in run_test/x" | `Case.seed` (files) and the Expo `seedStart` (fixture base) now create the starting state. Other suites may make the same promise silently. | grep the cases for "there is", "already has", "fixture ... set up" and seed what they promise. |
+| T-03 | `adv_3_context_reaches_reviewer` | Live result 2026-11-12: the call list FAILS on purpose: the lead's FIRST review hand-over lacked the intent ("it is the backup"), so the blind reviewer served the harmful finding and only the second hand-over got the right review. This is the loopferry incident (TESTING_REPORT 5.20), reproduced. | watch the pass rate; if a haiku lead never passes, consider a lead prompt rule "tell every fresh agent WHY (the user's intent), not only WHAT". |
+| T-04 | lead Bash sometimes denied ("don't ask" mode) | 2 of the first 6 live runs never reached a sub-agent; not seen in the last 25 runs. Cause never proven (literal allow patterns in `agents/lead/.claude/settings.json`, shell constructs in long quoted arguments). | keep watching; if it returns, log the exact denied command. |
+| T-05 | fixture lookup is keyword-based | A lead that rephrases the task so that no keyword matches gets "FIXTURE NOT FOUND" at once (no retry). Mitigated by distinctive folder names and `match.after`. | consider matching by the case id passed from the harness instead of free text. |
+| T-06 | `isVerifyAsk` is a word list | A check phrased without the listed words counts as new work (-> real call or FIXTURE NOT FOUND); a hand-over to a stage agent that says "report" must not count as a check (it only applies to a follow-up of an agent that already did work). | extend the lists when a live run misjudges; tests: `advance_test/verify.ts`. |
+| T-07 | `allow_real_subAg` real path | Tested with a stub runner and one real `claude -p` in Docker; no case uses a fixture agent plus `allow_real_subAg` yet. | add one case (an expo-go task with no recorded result) and run it once. |
+| T-08 | per-suite baseline + cost | Live so far (2026-11-12, haiku lead, parallel): `test_basic_2` 4/4 PASS in 37 s; `advance_test` 3/4 PASS in 58 s (adv_3 = T-03). Not run live in this round: `test_basic` (3), `test_artifact` (5, all `router:false`: f1 refuses them), `test_expo_go` (33). The lead costs about $0.002 to $0.15 per case (turns 3 to 19). | when wanted: `bun testrun/par.ts <suite> --jobs=4`, then one baseline table in PROGRESS.md (suite, cases, PASS, FAIL, wall time, cost). |
+| T-09 | fewer lead turns | Build cases do not need `ledger_get`, a second verify or a long final answer; the lead takes 5 to 19 turns per case and the lead is the whole cost and time of a suite (sub-agents are fixtures). | lead prompt rule: one `ls` + one `read_file`/`grep`, then answer; compare turns per case before and after. |
+| T-10 | older chains rely on `after` | Fixtures of the 31 chained Expo cases only work in order (a branch now starts from a copy of its parent's session). | optional: standalone start-state fixtures. |
+| T-11 | missing loopferry cases | cancel mid-run, stalled agent, cost cap, secrets never in a hand-over, steer (say/inbox), the fixer must not delete what was asked, trivial task = no agents. Sources in `user_read.md` section 5. | add as fixture cases one by one; first: the fixer-deletes case. |
+| T-12 | path-scoped write permission | planner/reviewer "must not write code" is only a prompt rule. | enforce with `--writes` scopes for the stage agents. |
+| T-13 | **claude profile mounted in the Docker sandbox** | `DockerRunner` mounts `claude-personal` (credentials + sessions) READ-WRITE at /claude: an agent with Bash can read it. | second user / deny rules like loopferry, or a scoped token. Until then only for trusted agents. |
+| T-14 | QA of an Expo app: solarin renders a BLANK page | `Couldn't find a drawer` (two copies of the drawer hook in the bundle, cause not proven; details `docs/QA_ISSUES.md` section 3). The dev-server QA (`infra/qa/web_dev_qa.ts`) is built but has not been run on solarin, and not under the 2 GB / 1 CPU limits. | one run of `web_dev_qa.ts` on solarin; if it renders, switch its `qa` on in `demos/solarin.ts` (recipe in the comment). |
 
-| T-10 | `fixture_sessions` | only tested with a direct script (4 calls), NOT yet with a real lead run; the `ui/` console does not show the table yet; a verify ask while the bad answer is the latest still matches the `after` fix (keywords equal) and serves it. | real run of both rework cases; add a table view to the console; maybe a `verify` intent word list so "check" never serves the fix. |
+Not ours (left on purpose): f1's console `ui/` reads its own `ui/.ui-data` and does not list our runs (they are in `.state/v1/<task>/store/`).
 
-| T-11 | `allow_real_subAg` real path | tested only with a stub runner; no case actually uses a fixture agent + allow_real_subAg yet (the 3 suites that carry the flag have no fixture agents). | add one real example (expo-go, a task with no recorded result) and run it once; check the table row is `real` and the session id reaches `claude --session-id`. |
-| T-13 | `isVerifyAsk` | word-list heuristic: a mixed ask ("check and also add X") counts as new work; a check phrased without the listed words counts as new work too (-> real call / FIXTURE NOT FOUND). | watch real runs; extend the lists or let the lead mark it (`--intent check`). |
-| T-12 | "FIXTURE NOT FOUND" strictness | keywords the lead rephrases = instant fail (before: one retry). | consider matching by case id passed from the harness instead of free text. |
-
-## DONE
-
-| date | what |
-|---|---|
-| 2026-11-12 | `test_expo_go` rewritten as plain cases (no `phased/followUp/byModule` generators); shared base `lib/shared.ts`. |
-| 2026-11-12 | rework cases `eg_tw_rework_notailwind`, `eg_lintab_02_rework` with a bad + `_fix` fixture each (`test_expo_go/rework.ts`). |
-| 2026-11-12 | `match.after` on a fixture: served only after another result was served (deterministic bad -> fix order). |
-| 2026-11-12 | judge counts each served result once; resume vs new does not matter for served fixtures. |
-| 2026-11-12 | `no_fixture` -> `allow_real_subAg` (real call only when the case allows it, else "FIXTURE NOT FOUND"); gate flow session -> fixture -> real/error |
-| 2026-11-12 | `fixture_sessions` table: fixture session state/version/history per master task, follow-ups continue the session (tested directly, no real run yet) |
-| 2026-11-12 | gate OBSERVER: every served reply and every verify ask carries the real change list + first lines of changed files. |
+## Done and removed on 2026-11-12 (one line each; details in PROGRESS.md)
+Lead read tools (`ls`/`read_file`/`grep`) · rework cases with bad + fix fixtures and `match.after` · fixture session table, observer, verify budget, strict agent match · `allow_real_subAg` · judge counts served results once · per-session `.state/v1/<task>/{store,workspace}` layout and fresh-folder rule · branch cases start from a copy of the parent · parallel suites (`par.ts`, `HARNESS_MAX_LEADS`, one index file per case) · cost per turn is real now · `Case.qa` (opt-in video and session record, `guide`, `--video`, `--record`) · Docker sandbox (compose service, image with Claude Code, `DockerRunner`) · pnpm-only rule · QA issues documented (`docs/`).

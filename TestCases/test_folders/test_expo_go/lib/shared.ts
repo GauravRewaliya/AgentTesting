@@ -9,4 +9,6 @@ export const expoGo = {
   tools: ["Agent"],
   max_agent_calls: 2,
   tags: ["multi_prompt"],
+  // QA video: not set up for the Expo demos yet; a demo that is ready overrides `qa` in its own cases (see demos/solarin.ts for the shape and docs/QA_ISSUES.md for why)
+  qa: (() => ({ enabled: false, why: "QA video is not set up for this Expo demo yet (docs/QA_ISSUES.md)" })) as Case["qa"],
 } as const satisfies Partial<Case>;

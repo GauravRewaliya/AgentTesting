@@ -17,6 +17,10 @@ export type Expected = {
   context: string;
   /** Ids planned to respond, in order: the recorded result id for a spawn (e.g. "pd-slack-layout"), or `session:<agent>#<n>` for a follow-up to an earlier session. */
   expected_agents_res: (RecordedId | SessionRef)[];
+  /** Words the lead's FINAL reply to the user must contain (all of them, case-insensitive). Without this the judge only sees WHO was called, so a right call list with a wrong or confused answer still passes ("wrong pass"). Few, plain words. */
+  reply_must?: string[];
+  /** Words the final reply must NOT contain (any one fails the turn), e.g. "not finished" after a fix was served. */
+  reply_forbid?: string[];
 };
 
 /** One user message to the lead and what is expected. A case with several turns keeps ONE lead conversation. */
@@ -28,6 +32,27 @@ export type Turn = {
 };
 
 /** A test case: an entry of `cases` in test_case/<suite>/main.ts. */
+/** What `--video` hands to a case's `qa` function: where the work is. */
+export interface QaReq {
+  /** the git workspace of the master session (<session>/workspace) */
+  workspace: string;
+  /** <workspace>/run_test: every app the agents built is a folder in here */
+  run_test: string;
+  /** the master session (= task id) */
+  session: string;
+  /** the folders found in run_test (the function can pick one) */
+  apps: string[];
+}
+/** How to record a QA video of a case, or why it cannot be recorded. Returned by `Case.qa(req)`.
+ *  static    a plain web page: `app/index.html`, served by the recorder (no network).
+ *  expo-web  an Expo app with web support: its own dev server in a container, then the recording (docs/QA_ISSUES.md).
+ *  dev-server any other app with its own dev command (`start`, `port`), same flow. */
+export type QaSpec =
+  | { enabled: false; why: string }
+  | { enabled: true; kind: "static" | "expo-web" | "dev-server"; app: string; route?: string; viewport?: string; start?: string; port?: number; type?: string; note?: string;
+      /** extra GUIDANCE and COMMANDS about testing, appended to the first user message of the case when `--video` is on (e.g. "start the app with `pnpm exec expo start --web`, then open /3d-rotate"). Only a case that opts in gets it. */
+      guide?: string };
+
 export type Case = {
   /** Unique id; also the name of its session folder (sessions/fx_<id>) in .state. Pass it to the CLI to run only this case. */
   id: string;
@@ -53,6 +78,10 @@ export type Case = {
   max_agent_calls?: number;
   /** true = a call to a mocked sub-agent that finds NO recorded fixture may go to the REAL sub-agent (a real `claude` call, with its --session-id). Without it, no fixture = the gate raises "FIXTURE NOT FOUND" and the case FAILS. Also marks cases that run without any recorded result (lead alone, real sub-agents, "must NOT call a sub-agent"). Flow: harness/core/fixture_gate.ts. */
   allow_real_subAg?: true;
+  /** QA video (`--video` in testrun/run.ts, helper `orchistraitor/helper/video.ts`). A function of the request so it can look at what was built: `qa: (req) => ({ enabled: true, kind: "static", app: "qa-demo" })` says HOW to start and record; `({ enabled: false, why })` says why not. Absent = not declared: `--video` skips the case and says so. */
+  qa?: (req: QaReq) => QaSpec;
+  /** Files created in the workspace before the case starts (path under run_test -> content), for a case that says "there is an index.html in run_test/x". Not used for a case that continues another (`after`). */
+  seed?: Record<string, string>;
   /** Role-order guard rules: a JSON file in TestCases/test_folders/agent_fixture/store (e.g. "expo_rules.json"): requires_done, contains_all, min_chars per role. */
   guard?: string;
   /** Lead protocol appended to the system prompt: a file in core/harness_own_custom/core/prompts (without .md), e.g. "lead_team". */
