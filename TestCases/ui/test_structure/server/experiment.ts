@@ -15,7 +15,29 @@ const EXP = join(DATA, "exp.json"), RUNS = join(DATA, "web_runs");
 const SESS = join(DATA, "web_sessions");
 mkdirSync(RUNS, { recursive: true }); mkdirSync(SESS, { recursive: true });
 
-const store = () => new MStore(STORE);   // a fresh read each time: run.ts is another process writing the same file
+// f1's testrun now keeps ONE store per master session (.state/<version>/<task>/store/store.json, workspace in .state/<version>/<task>/workspace) and one exp file per case
+// (.state/<version>/f1_exp/<case>.json). The old shared ui/.ui-data store is still read (UI_STORE / older runs); everything is MERGED here so no run is invisible.
+const STATE_DIR = join(F1, "..", "..", "..", ".state", process.env.STATE_VERSION ?? "v1"), EXP_DIR = join(STATE_DIR, "f1_exp");
+const taskHomes = (): string[] => {   // every session folder: <task>/ and its branches <task>/branches/<branch>/ (a branch has its own store and workspace)
+  const has = (d: string) => existsSync(join(d, "store", "store.json")), out: string[] = [];
+  try { for (const d of readdirSync(STATE_DIR, { withFileTypes: true })) if (d.isDirectory()) { const h = join(STATE_DIR, d.name); if (has(h)) out.push(h);
+    try { for (const b of readdirSync(join(h, "branches"))) if (has(join(h, "branches", b))) out.push(join(h, "branches", b)); } catch { /* no branches */ } } } catch { /* no state yet */ }
+  return out;
+};
+const legacyStore = () => new MStore(STORE);   // a fresh read each time: run.ts is another process writing the same file
+const MERGE = ["agents", "reports", "findings", "requests", "events", "calls", "locks", "waiters", "patches", "notes", "plans", "runs", "fixtureSessions"] as const;
+/** READ-ONLY merged view (never call tx/save on it: it would write the merged rows into the legacy file). */
+const store = (): MStore => {
+  const m = legacyStore() as unknown as Record<string, unknown[]>;
+  for (const h of taskHomes()) { const o = new MStore(join(h, "store", "store.json")) as unknown as Record<string, unknown[]>; for (const k of MERGE) if (Array.isArray(o[k]) && Array.isArray(m[k])) m[k] = [...m[k]!, ...o[k]!]; }
+  return m as unknown as MStore;
+};
+const expAll = (): Record<string, ExpEntry> => {
+  const o = readExp(EXP);
+  try { for (const f of readdirSync(EXP_DIR)) if (f.endsWith(".json")) { const j = readExp(join(EXP_DIR, f)) as unknown as ExpEntry; if (j?.case) o[j.case] = j; } } catch { /* none yet */ }
+  return o;
+};
+const repoFor = (task: string, home?: string) => { const w = join(STATE_DIR, home ?? task, "workspace"); return existsSync(w) ? w : REPO; };
 const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
 
 // ---- runs started from the page (kept on disk so a restart of the API does not lose them)
@@ -63,12 +85,13 @@ function stateOf(c: SuiteCase, e: ExpEntry | undefined, st: MStore, running: Set
 }
 const known = () => { try { return new Set(readdirSync(join(F1, "harness", "agents"), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)); } catch { return new Set<string>(); } };
 function judgeAll(st: MStore, c: SuiteCase, e: ExpEntry) {
-  const files = existsSync(REPO) ? readdirSync(REPO).filter((f) => f !== ".git") : [], k = known();
-  return Array.from({ length: Math.min(e.done, c.turns.length) }, (_, i) => judgeTurn(st, e.task, c, i, e.marks[i] ?? 0, e.marks[i + 1], files, k));
+  const repo = repoFor(e.task, (e as { home?: string }).home), files = existsSync(repo) ? readdirSync(repo).filter((f) => f !== ".git") : [], k = known();
+  const home = (e as { home?: string }).home, own = home && home !== e.task && existsSync(join(STATE_DIR, home, "store", "store.json")) ? new MStore(join(STATE_DIR, home, "store", "store.json")) : st;   // a BRANCH is judged on its OWN store (the merged view also holds a copy of the parent's rows)
+  return Array.from({ length: Math.min(e.done, c.turns.length) }, (_, i) => judgeTurn(own, e.task, c, i, e.marks[i] ?? 0, e.marks[i + 1], files, k));
 }
 
 export async function overview(): Promise<ExperimentOverview> {
-  const all = await loadSuites(), exp = readExp(EXP), st = store(), runs = listRuns();
+  const all = await loadSuites(), exp = expAll(), st = store(), runs = listRuns();
   const running = new Set(st.agents.filter((a) => a.name === "lead" && a.status === "running").map((a) => a.task_id));
   if (runs.some((r) => r.status === "running")) for (const e of Object.values(exp)) if (e.at > Date.now() - 600_000) running.add(e.task);   // a turn between two lead calls still counts as running
   const suites = new Map<string, ExpSuite>();
@@ -80,7 +103,7 @@ export async function overview(): Promise<ExperimentOverview> {
 }
 
 export async function caseResult(id: string): Promise<CaseResultOut | null> {
-  const all = await loadSuites(), c = all.find((x) => x.id === id), e = readExp(EXP)[id];
+  const all = await loadSuites(), c = all.find((x) => x.id === id), e = expAll()[id];
   if (!c || !e) return null;
   const st = store(), judged = judgeAll(st, c, e);
   const turns = judged.map((j, i) => ({ ...j, finished: i < e.done }));
@@ -111,7 +134,7 @@ export function send(b: SendIn): { task: string; queued: boolean } {
   const names = new Set(availableAgents().map((a) => a.name));
   let task = b.task;
   if (!task) {
-    const taken = !!(b.caseId && readExp(EXP)[b.caseId]);
+    const taken = !!(b.caseId && expAll()[b.caseId]);
     task = b.caseId ? "t_" + b.caseId + (taken ? "_" + Date.now().toString(36) : "") : "s" + Date.now().toString(36);
     writeFileSync(sideFile(task), JSON.stringify({ task, agents: b.agents.filter((a) => names.has(a)), fake: !!b.fake, case: b.caseId, suite: b.suite, createdAt: Date.now() } satisfies Side));
   } else if (!/^[\w-]+$/.test(task)) throw new Error("bad session id");
@@ -126,7 +149,7 @@ async function pump(task: string) {
     while (Qt.queue.length) {
       const m = Qt.queue.shift()!, side = readSide(task), tf = join(SESS, task + "." + m.id + ".txt");
       writeFileSync(tf, m.text);
-      const exp = readExp(EXP), linked = side?.case, turn = linked && exp[linked]?.task === task ? exp[linked]!.done : 0;
+      const exp = expAll(), linked = side?.case, turn = linked && exp[linked]?.task === task ? exp[linked]!.done : 0;
       const args = ["testrun/chat.ts", "--task", task, "--text-file", tf];
       if (side) args.push("--agents", side.agents.length ? side.agents.join(",") : "-");   // "-" = no sub-agents
       if (side?.fake) args.push("--fake");
@@ -144,13 +167,13 @@ async function pump(task: string) {
 export function cancelQueued(task: string, id: string) { const Qt = q(task), i = Qt.queue.findIndex((m) => m.id === id); if (i >= 0) Qt.queue.splice(i, 1); return { ok: i >= 0 }; }
 export function chat(task: string): ChatOut {
   if (!/^[\w-]+$/.test(task)) throw new Error("bad session id");
-  const st = store(), Qt = q(task), side = readSide(task), e = side?.case ? readExp(EXP)[side.case] : undefined;
+  const st = store(), Qt = q(task), side = readSide(task), e = side?.case ? expAll()[side.case] : undefined;
   const messages = st.notes.filter((n) => n.task_id === task && (n.from === "user" || n.to === "user")).map((n) => ({ id: n.id, from: (n.from === "user" ? "user" : "lead") as "user" | "lead", text: n.text, t: n.t }));
   return { task, messages, queued: Qt.queue.map((m) => ({ id: m.id, text: m.text, t: m.t })), busy: Qt.busy, error: Qt.error, nextTurn: side?.case ? (e && e.task === task ? e.done : 0) : null };
 }
 
 export function live(): LiveSession[] {
-  const st = store(), exp = Object.values(readExp(EXP)), byTask = new Map(exp.map((e) => [e.task, e]));
+  const st = store(), exp = Object.values(expAll()), byTask = new Map(exp.map((e) => [e.task, e]));
   const row = (a: ReturnType<MStore["agentsOf"]>[number], task: string): LiveAgent => ({ id: a.agent_id, name: a.name, level: a.level, caller: a.caller_agent_id ?? null, status: a.status, title: a.title || a.name, activity: a.activity ?? "", needsParent: a.needs_parent ?? null, runs: a.runs ?? 0, cost: costOf(st, task, a.agent_id), lastEventAt: a.last_event_at, session: a.session_id ?? undefined, fixture: st.events.some((ev) => ev.task_id === task && ev.agent_id === a.agent_id && ev.kind === "fixture.call") });
   const tasks = new Map<string, number>(st.runs.map((r) => [r.task_id, r.last_active_at]));
   for (const f of readdirSync(SESS).filter((x) => x.endsWith(".json"))) { const sd = readSide(f.slice(0, -5)); if (sd && !tasks.has(sd.task)) tasks.set(sd.task, sd.createdAt); }
@@ -159,8 +182,28 @@ export function live(): LiveSession[] {
     const ag = st.agentsOf(task), lead = ag.find((a) => a.name === "lead"), subs = ag.filter((a) => a.name !== "lead"), e = byTask.get(task), sd = readSide(task), Qt = q(task);
     const dead = lead?.status === "running" && !Qt.busy && !alive(task);   // marked running, but nothing is running it: it ended without writing back
     const state = dead ? "stalled" : Qt.busy || lead?.status === "running" ? "working" : subs.some((a) => a.status === "running" || a.status === "stalled") ? "running" : "active";
-    return { task, agentsAllowed: sd?.agents ?? e?.agents ?? [], fake: sd?.fake ?? false, queued: Qt.queue.length, busy: Qt.busy, case: sd?.case ?? e?.case, suite: sd?.suite ?? e?.suite, title: (st.notes.find((n) => n.task_id === task && n.from === "user")?.text ?? Qt.queue[0]?.text ?? "(empty)").replace(/\s+/g, " ").slice(0, 90), last, state, cost: lead ? costOf(st, task, lead.agent_id) : 0, master: lead ? { ...row(lead, task), ...(dead ? { status: "stalled", activity: "process is gone: the master ended without finishing the turn (see its log)" } : {}) } : null, agents: subs.map((a) => row(a, task)) } as LiveSession;
-  }).sort((a, b) => b.last - a.last).slice(0, 25);
+    const userText = st.notes.find((n) => n.task_id === task && n.from === "user")?.text ?? Qt.queue[0]?.text;
+    const guess = /^t_/.test(task) ? task.replace(/^t_/, "").replace(/_[a-z0-9]{4}$/, "") : undefined;   // a test run's task is t_<case>[_<suffix>]: its name is the title when nobody typed a message
+    const fixtures = st.evs("fixture.call", task).filter((x) => (x.data as { verdict?: string }).verdict === "served").length;   // sub-agent answers served from a recorded fixture (no model call)
+    const hide = !userText && !subs.length && !e && !sd;   // nothing typed, no sub-agent, no test case behind it: an empty shell (listed nowhere; the folder stays on disk)
+    return { hide, fixtures, kind: /^t_/.test(task) ? "test" : "experiment", tags: ["test_run"], task, agentsAllowed: sd?.agents ?? e?.agents ?? [], fake: sd?.fake ?? false, queued: Qt.queue.length, busy: Qt.busy, case: sd?.case ?? e?.case, suite: sd?.suite ?? e?.suite, title: (userText ?? e?.case ?? guess ?? "(empty)").replace(/\s+/g, " ").slice(0, 90), last, state, cost: lead ? costOf(st, task, lead.agent_id) : 0, master: lead ? { ...row(lead, task), ...(dead ? { status: "stalled", activity: "process is gone: the master ended without finishing the turn (see its log)" } : {}) } : null, agents: subs.map((a) => row(a, task)) } as LiveSession;
+  }).filter((x) => !(x as { hide?: boolean }).hide).sort((a, b) => b.last - a.last).slice(0, 60).map((x) => { const { hide: _h, ...rest } = x as LiveSession & { hide?: boolean }; return rest as LiveSession; });
+}
+
+/** Things that look like leftovers, found while scanning .state at start (`bun run dev`). It only REPORTS: nothing is moved or deleted; you decide. */
+export function cleanupHints(): string[] {
+  const out: string[] = [], exp = Object.values(expAll());
+  const ids = (file: string) => { const o = new Set<string>(); try { const d = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown[]>; for (const k of ["agents", "events", "runs", "notes"]) for (const r of d[k] ?? []) { const t = (r as { task_id?: string }).task_id; if (t) o.add(t); } } catch { /* unreadable */ } return o; };
+  for (const h of taskHomes()) {
+    const key = h.slice(STATE_DIR.length + 1), top = key.split("/")[0]!, found = new Set([...ids(join(h, "store", "store.json")), ...ids(join(h, "store", "store.json.board"))]);
+    const other = [...found].filter((t) => t !== top);
+    if (other.length && !key.includes("/branches/")) out.push(`session folder ${key} also holds rows of other task id(s): ${other.join(", ")} (an older run id; the list shows it as a separate master session)`);
+    if (!existsSync(join(h, "workspace"))) out.push(`session folder ${key} has no workspace/ (a session must have one)`);
+  }
+  for (const e of exp) { const home = (e as { home?: string }).home ?? e.task; if (!existsSync(join(STATE_DIR, home))) out.push(`exp entry ${e.case} points at ${home}, which is not on disk`); }
+  const haveExp = new Set(exp.map((e) => (e as { home?: string }).home ?? e.task));
+  for (const h of taskHomes()) { const key = h.slice(STATE_DIR.length + 1); if (/^t_/.test(key) && !key.includes("/branches/") && !haveExp.has(key) && !exp.some((e) => e.task === key)) out.push(`session folder ${key} has no exp entry (invisible on the Experiment page; \`bun testrun/rebuild_exp.ts\` rebuilds it)`); }
+  return out;
 }
 
 // ---- delete a master session and everything under it (the same cleanup as the f1 console)
@@ -176,7 +219,8 @@ export function deleteSession(task: string) {
   const st = store();
   if (!st.runs.some((r) => r.task_id === task) && !st.agents.some((a) => a.task_id === task) && !readSide(task)) throw new Error("no such session");
   if (q(task).busy) throw new Error("the master is answering right now: wait for it to finish (or stop the run) before deleting");
-  const logDir = join(dirname(STORE), "logs", task);
+  const home = join(STATE_DIR, task), perTask = existsSync(join(home, "store", "store.json"));
+  const logDir = join(perTask ? join(home, "store") : dirname(STORE), "logs", task);
   const archived = existsSync(logDir) ? readdirSync(logDir).map((f) => f.match(/\.([0-9a-f-]{36})\.jsonl$/)?.[1]).filter((x): x is string => !!x) : [];
   const sids = [...new Set([...st.agents.filter((a) => a.task_id === task).map((a) => a.session_id).filter((x): x is string => !!x), ...archived])];
   const callIds = st.calls.filter((c) => c.task_id === task).map((c) => c.id), all = psList();
@@ -185,7 +229,9 @@ export function deleteSession(task: string) {
   let transcripts = 0;
   try { const root = projectsRoot(); for (const d of readdirSync(root)) for (const sid of sids) { const f = join(root, d, sid + ".jsonl"); if (existsSync(f)) { rmSync(f, { force: true }); transcripts++; } } } catch { /* none */ }
   rmSync(logDir, { recursive: true, force: true }); rmSync(sideFile(task), { force: true }); queues.delete(task);
-  st.tx(() => { const m = st as unknown as Record<string, { task_id?: string }[]>; for (const k of ["agents", "reports", "findings", "requests", "events", "calls", "locks", "waiters", "patches", "notes", "plans", "runs"]) if (Array.isArray(m[k])) m[k] = m[k]!.filter((x) => x.task_id !== task); });
+  if (perTask) { rmSync(home, { recursive: true, force: true }); try { for (const f of readdirSync(EXP_DIR)) if (readExp(join(EXP_DIR, f)) && (readExp(join(EXP_DIR, f)) as unknown as ExpEntry).task === task) rmSync(join(EXP_DIR, f), { force: true }); } catch { /* none */ } }
+  const st0 = perTask ? null : legacyStore();
+  if (st0) st0.tx(() => { const m = st0 as unknown as Record<string, { task_id?: string }[]>; for (const k of ["agents", "reports", "findings", "requests", "events", "calls", "locks", "waiters", "patches", "notes", "plans", "runs"]) if (Array.isArray(m[k])) m[k] = m[k]!.filter((x) => x.task_id !== task); });
   const e = readExp(EXP); let changed = false; for (const [k, v] of Object.entries(e)) if (v.task === task) { delete e[k]; changed = true; }
   if (changed) writeExp(EXP, e);
   return { ok: true, deleted: task, killed, transcripts };

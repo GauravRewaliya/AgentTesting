@@ -17,7 +17,8 @@ export interface LiveAgent {
   needsParent: string | null; runs: number; cost: number; lastEventAt: number; session?: string; fixture?: boolean;   // fixture = its answer was served from agent_fixture, not a real model run
 }
 export interface LiveSession {
-  task: string; agentsAllowed: string[]; fake: boolean; queued: number; busy: boolean; case?: string; suite?: string; title: string; last: number;
+  /** "experiment" = made on this page (＋ New session, free chat); "test" = made by a test run (testrun/run.ts, a case) */ kind: "experiment" | "test"; /** sub-agent answers served from a recorded fixture */ fixtures: number;
+  tags: string[]; task: string; agentsAllowed: string[]; fake: boolean; queued: number; busy: boolean; case?: string; suite?: string; title: string; last: number;
   state: "working" | "running" | "active" | "stalled"; cost: number;   // stalled = the master is marked running but no process is alive any more
   master: LiveAgent | null; agents: LiveAgent[];
 }

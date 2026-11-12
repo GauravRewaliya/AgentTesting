@@ -22,7 +22,7 @@ export const cases: Case[] = [
     }],
   },
   {
-    id: "expo_s3_research_syntax", title: "[expo_sub_agent] package question about the builder's code: package-researcher IS required", after: "expo_s2_build", agents: ["package-researcher"], ...base,
+    id: "expo_s3_research_syntax", title: "[expo_sub_agent] package question about the builder's code: package-researcher IS required", branch_from: "expo_s2_build", agents: ["package-researcher"], ...base,
     turns: [{
       user: "Before we go on: is the zustand code the builder wrote in run_test/notes-app/store.js valid for the zustand version we depend on? Also tell me the syntax to create a store and to use shallow.", allowed: ["package-researcher"],
       expected: { context: "The lead calls the package-researcher ONCE (not the builder), with a hand-over that names zustand and store.js. The answer gives the create/shallow syntax and checks store.js against the dependency range (3.6.7). store.js is not changed by anyone.", expected_agents_res: ["role-expo-package-researcher"] },

@@ -1,5 +1,5 @@
 // The agents' tools as one command (plan 5.2 / 23.3):
-//   bun tools.ts <delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop|ls|read_file|grep> --flag value ...
+//   bun tools.ts <delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop|ls|read_file|grep|qa_check> --flag value ...
 //   ls / read_file / grep = READ-ONLY look at the shared workspace run_test/ (core/workspace_read.ts): the lead can check a result itself instead of asking a sub-agent to run commands.
 // A stand-in for the mod's registered tools: same rules (agent.call), same registry, one line of JSON out.
 // Identity comes from the environment set for THIS agent: HARNESS_STORE, HARNESS_TASK, HARNESS_AGENT, HARNESS_CWD, HARNESS_MAX_DEPTH, HARNESS_RUNNER.
@@ -23,6 +23,8 @@ import { locksFromEnv } from "./core/lockapi.ts";
 import { customDef } from "./core/custom.ts";
 import { FixtureGate } from "./core/fixture_gate.ts";
 import { wsGrep, wsLs, wsRead } from "./core/workspace_read.ts";
+import { existsSync, readFileSync } from "node:fs";
+import { recordDevServer } from "../../../../infra/qa/web_dev_qa.ts";
 
 const MAX_WAVE = 4;
 const HDIR = dirname(fileURLToPath(import.meta.url)), TOOLS = `bun ${join(HDIR, "tools.ts")}`;
@@ -256,4 +258,14 @@ if (cmd === "delegate") {
 } else if (cmd === "ls") { out(wsLs(join(cwd, "run_test"), flag("path")));
 } else if (cmd === "read_file") { out(wsRead(join(cwd, "run_test"), flag("path") ?? "", Number(flag("offset") ?? 1), Number(flag("limit") ?? 200)));
 } else if (cmd === "grep") { out(wsGrep(join(cwd, "run_test"), flag("pattern") ?? "", flag("path")));
+} else if (cmd === "qa_check") {   // EARLY CHECK while developing (no video): type check + dev server + page errors/overlay/blank page, in a throwaway Docker container (2 GB, 1 CPU). Same check the QA video runs first.
+  const dir = flag("dir") ?? "", pj = join(cwd, "run_test", dir.replace(/^run_test[\\/]?/, ""), "package.json");
+  if (!dir || dir.startsWith("/") || dir.includes("..") || !existsSync(pj)) out({ ok: false, reason: `--dir must be an app folder inside run_test/ with a package.json (got "${dir}")` });
+  else {
+    const pk = JSON.parse(readFileSync(pj, "utf8")), deps = { ...pk.dependencies, ...pk.devDependencies };
+    const kind = deps.expo ? { start: undefined, port: undefined } : deps.next ? { start: "corepack pnpm exec next dev -p 3000", port: 3000 } : deps.vite ? { start: "corepack pnpm exec vite --host 0.0.0.0 --port 5173", port: 5173 } : { start: pk.scripts?.dev ? "corepack pnpm run dev" : "corepack pnpm start", port: 3000 };
+    const o = join(dirname(file), "qa", "check-" + Date.now());
+    const r = recordDevServer({ appDir: dirname(pj), out: o, mode: "check", route: flag("route") ?? "/", ...kind });
+    out({ ok: r.ok, stage: r.stage, reasons: (r.reasons ?? []).slice(0, 8), seconds: r.seconds, screenshot: r.screenshot ? "qa.png in " + o : undefined, next: r.ok ? "healthy: report done" : "NOT healthy: hand these exact reasons to the sub-agent to fix, then run qa_check again" });
+  }
 } else out({ ok: false, reason: `unknown command ${cmd}` });

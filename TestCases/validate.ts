@@ -4,6 +4,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { isTag } from "./tags.ts";
+import { branchWarnings, normalizeBranches } from "./branch.ts";
 import type { Case } from "./types.ts";
 import { check as capCheck } from "../test_harness/core/orchistraitor/harness_own_custom/capabilities.ts";
 
@@ -22,6 +23,8 @@ export async function loadAll(): Promise<{ suite: string; cases: Case[]; tags: u
     const f = join(SUITES, d.name, "main.ts"); if (!existsSync(f)) continue;
     const m = await import(pathToFileURL(f).href); out.push({ suite: d.name, cases: m.cases as Case[], tags: m.tags });
   }
+  const flat = normalizeBranches(out.flatMap((s) => s.cases.map((c) => ({ ...c, suite: s.suite }))));
+  for (const s of out) s.cases = flat.filter((c) => c.suite === s.suite) as Case[];
   return out;
 }
 
@@ -65,7 +68,8 @@ export function validate(all: { suite: string; cases: Case[]; tags: unknown }[],
 
 if (import.meta.main) {
   const { recordedSuites } = await import("../test_harness/core/fixture_policy.ts");
-  const bad = validate(await loadAll(), recordedSuites());
+  const all = await loadAll(), bad = validate(all, recordedSuites());
+  for (const w of branchWarnings(all.flatMap((s) => s.cases.map((c) => ({ ...c, suite: s.suite }))))) console.log("WARNING " + w);
   for (const p of bad) console.log(`${p.suite} / ${p.case}: ${p.what}`);
   console.log(bad.length ? `\n${bad.length} problem(s)` : "ok: every case matches TestCases/types.ts");
   process.exit(bad.length ? 1 : 0);

@@ -76,3 +76,25 @@ export function qaRecord(req: Req, dir: string): string {
   return `QA PASS (${r.backend} container: no network, read-only app folder). Page "${s.title}" opened; I typed "${s.typed}" and clicked the button. Saw: ${(s.texts ?? []).join(" | ")}. Console errors: ${(s.console_errors ?? []).length}, page errors: ${(s.page_errors ?? []).length}.\n`
     + `VIDEO: ${r.video}\nSCREENSHOT: ${r.screenshot}\nOpen it with: xdg-open ${r.video}\n` + rep({ stage: "qa", ok: true, video: r.video, screenshot: r.screenshot, console_errors: s.console_errors ?? [] });
 }
+
+// ---- broken-app scenario (adv_5): a tiny Vite + React + TS counter. The first build has a TYPE ERROR (TS2345) and says "Done"; only `tools.ts qa_check` shows it. The fix repairs exactly that.
+const VITE_FILES: Record<string, string> = {
+  "package.json": JSON.stringify({ name: "counter", private: true, type: "module", scripts: { dev: "vite", build: "tsc --noEmit && vite build" },
+    dependencies: { react: "^18.3.1", "react-dom": "^18.3.1" }, devDependencies: { "@types/react": "^18.3.3", "@types/react-dom": "^18.3.0", "@vitejs/plugin-react": "^4.3.1", typescript: "^5.5.4", vite: "^5.4.2" } }, null, 2) + "\n",
+  "index.html": `<!doctype html>\n<html><head><meta charset="utf-8"><title>Counter</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>\n`,
+  "vite.config.ts": `import { defineConfig } from "vite";\nimport react from "@vitejs/plugin-react";\nexport default defineConfig({ plugins: [react()] });\n`,
+  "tsconfig.json": JSON.stringify({ compilerOptions: { target: "ES2020", module: "ESNext", moduleResolution: "bundler", jsx: "react-jsx", strict: true, noEmit: true, skipLibCheck: true, lib: ["ES2020", "DOM"] }, include: ["src", "vite.config.ts"] }, null, 2) + "\n",
+  "src/main.tsx": `import { createRoot } from "react-dom/client";\nimport { App } from "./App";\ncreateRoot(document.getElementById("root")!).render(<App />);\n`,
+};
+const APP_BAD = `import { useState } from "react";\nexport function App() {\n  const [count, setCount] = useState<number>("0");   // wrong: a string where a number is declared\n  return <main><h1>Counter</h1><p>Count: {count}</p><button onClick={() => setCount(count + 1)}>Add one</button></main>;\n}\n`;
+const APP_GOOD = `import { useState } from "react";\nexport function App() {\n  const [count, setCount] = useState<number>(0);\n  return <main><h1>Counter</h1><p>Count: {count}</p><button onClick={() => setCount(count + 1)}>Add one</button></main>;\n}\n`;
+export function brokenBuild(req: Req, dir: string): string {
+  req.write(`${dir}/PLAN.md`, "# Plan\n1. Vite + React + TypeScript counter.\n2. Show the count, a button adds one.\n3. It must type-check and render.\n");
+  for (const [p, t] of Object.entries(VITE_FILES)) req.write(`${dir}/${p}`, t);
+  req.write(`${dir}/src/App.tsx`, APP_BAD);
+  return `Done. Built run_test/${dir}: a Vite + React + TypeScript counter (6 files). It shows the count and a button that adds one.\n` + rep({ stage: "implement", summary: "counter app", files: Object.keys(VITE_FILES).concat("src/App.tsx", "PLAN.md").map((p) => `${dir}/${p}`) });
+}
+export function brokenFix(req: Req, dir: string): string {
+  req.write(`${dir}/src/App.tsx`, APP_GOOD);
+  return `You are right, sorry: the type error was mine (useState<number>("0")). Fixed src/App.tsx: the state starts at the number 0. Nothing else changed.\n` + rep({ stage: "fix", summary: "fixed TS2345 in src/App.tsx", files: [`${dir}/src/App.tsx`] });
+}

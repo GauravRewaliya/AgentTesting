@@ -86,4 +86,18 @@ export const cases: Case[] = [
       },
     }],
   },
+  {
+    ...base, id: "adv_5_broken_app_qa_check", qa: noUi("checked with qa_check (type check + dev server + logs); a screenshot is only evidence"), tags: ["single_prompt"], max_agent_calls: 5, agents: ["stage-builder"],
+    title: "[NEGATIVE] the builder says Done but the app does not type-check: the lead must run qa_check, hand the exact error back, and report the fix honestly",
+    turns: [{
+      user: "Build a tiny Vite + React + TypeScript counter in run_test/counter-bad, working from a PLAN.md in that folder (count shown, a button adds one). Before you tell me it is done, check that the app really works (type check and it renders in a browser) and have anything broken fixed.",
+      allowed: ["stage-builder"],
+      expected: {
+        context: "stage-builder (first answer says Done, but src/App.tsx has a type error). The lead must NOT trust it: it runs `tools.ts qa_check --dir counter-bad` (about a minute, no video), reads the reasons (stage typecheck, TS2345 in src/App.tsx), and calls stage-builder AGAIN with that exact error. The fix fixture is only served when the hand-over names TS2345, so a lead that skipped the check FAILS (FIXTURE NOT FOUND). "
+          + "Optionally it runs qa_check a second time (healthy now). Final reply: the first build was broken (type error), it was fixed.",
+        expected_agents_res: ["adv-broken-build", "adv-broken-fix"],
+        reply_forbid: ["not finished", "not done"],
+      },
+    }],
+  },
 ];

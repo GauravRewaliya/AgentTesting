@@ -8,13 +8,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import type { MStore } from "../harness/core/board.ts";
 import { FIXTURES } from "@core/paths.ts";
+import { normalizeBranches } from "../../../../../TestCases/branch.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const AGENT_TESTING = resolve(HERE, "../../../../..");
 export const CASES_DIR = join(AGENT_TESTING, "TestCases", "test_folders");
 const FIXTURE_INDEX = join(FIXTURES, "index.json");   // the ONE fixture place (paths.ts)
 
-export interface RawCase { max_agent_calls?: number; allow_real_subAg?: boolean; id: string; title: string; after?: string; agents: string[]; distractors?: string[]; router?: boolean; tags?: string[]; turns: { user: string; expected: { context: string; expected_agents_res: string[] } }[] }
+export interface RawCase { max_agent_calls?: number; allow_real_subAg?: boolean; id: string; title: string; after?: string; branch_from?: string; branch_auto?: boolean; agents: string[]; distractors?: string[]; router?: boolean; tags?: string[]; turns: { user: string; expected: { context: string; expected_agents_res: string[] } }[] }
 export interface SuiteCase extends RawCase { suite: string; suiteTags: string[] }
 
 export async function loadSuites(): Promise<SuiteCase[]> {
@@ -25,7 +26,7 @@ export async function loadSuites(): Promise<SuiteCase[]> {
     const m = await import(pathToFileURL(f).href);
     for (const c of m.cases as RawCase[]) out.push({ ...c, suite: d.name, suiteTags: m.tags ?? [] });
   }
-  return out;
+  return normalizeBranches(out);   // across all suites (see TestCases/branch.ts): extra `after` siblings become branches automatically
 }
 
 const fixtureAgent = (() => { try { return new Map((JSON.parse(readFileSync(FIXTURE_INDEX, "utf8")) as { id: string; agent?: string }[]).map((f) => [f.id, f.agent])); } catch { return new Map<string, string | undefined>(); } })();
@@ -38,7 +39,7 @@ export const unsupported = (c: RawCase) => (c.router === false ? "router:false m
 
 /** The task id a case runs in, given the chain. */
 export function taskFor(c: SuiteCase, all: SuiteCase[], exp: Record<string, ExpEntry> = {}): string {
-  if (!c.after) return "t_" + c.id;
+  if (!c.after || c.branch_from) return "t_" + c.id;   // a `branch` case always has a task (and a folder) of its own
   const first = all.filter((x) => x.after === c.after)[0]?.id === c.id;   // the first child continues the parent's task; further children are branches with a task of their own
   return first ? exp[c.after]?.task ?? taskFor(all.find((x) => x.id === c.after) ?? c, all, exp) : "t_" + c.id;
 }
@@ -72,7 +73,7 @@ export function judgeTurn(store: MStore, task: string, c: RawCase, i: number, ma
   const exp = expectedCalls(c.turns[i]!.expected.expected_agents_res), key = (x: { kind: string; role: string }) => `${x.kind === "fork" ? "new" : x.kind}:${x.role}`;
   const a = calls.map(key).sort(), b = exp.map(key).sort();
   const forbidden = new Set(c.distractors ?? []);
-  const lead = store.notes.filter((n) => n.task_id === task && n.from === "lead" && n.to === "user");
+  const lead = store.notes.filter((n) => n.task_id === task && n.from === "lead" && n.to === "user" && !n.refs.includes("testrun"));   // not the copy the runner writes for the UI chat
   const reply_problem = replyProblem(c.turns[i]!.expected as { reply_must?: string[]; reply_forbid?: string[] }, lead[lead.length - 1]?.text ?? "");   // re-checked in run.ts when the reply comes from the lead's last answer instead of a note
   return { reply_problem, gate, turn: i + 1, user: c.turns[i]!.user, expectedContext: c.turns[i]!.expected.context, expected: exp, calls, denied,
     match: a.length === b.length && a.every((x, k) => x === b[k]), guard: mapped.some((x) => forbidden.has(x.role)), reply: lead[lead.length - 1]?.text ?? "", files: repoFiles };
@@ -102,6 +103,6 @@ export function declareGateLimit(store: MStore, task: string, c: { max_agent_cal
 export const statusOf = (turns: TurnJudge[]) => (turns.length && turns.every((t) => t.match && !t.guard && !t.gate && !t.reply_problem) ? "pass" : "fail");
 
 /** exp.json (keyed by case id): which task the case ran in, and where each turn began. Shared by the CLI and the console. */
-export interface ExpEntry { case: string; task: string; suite: string; agents: string[]; marks: number[]; started: number[]; done: number; at: number }
+export interface ExpEntry { case: string; task: string; home?: string; suite: string; agents: string[]; marks: number[]; started: number[]; done: number; at: number }
 export const readExp = (file: string): Record<string, ExpEntry> => { try { return JSON.parse(readFileSync(file, "utf8")); } catch { return {}; } };
 export const writeExp = (file: string, o: Record<string, ExpEntry>) => { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, JSON.stringify(o, null, 1)); };

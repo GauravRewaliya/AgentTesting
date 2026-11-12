@@ -40,6 +40,8 @@ export interface TurnRec {
 }
 export interface SessionRec {
   version: typeof STATE2_VERSION;
+  /** labels shown in the UI; every session a test run (fixture runner or f1 testrun) makes carries `test_run` */
+  tags?: string[];
   task: string;                // main session id: "fx_<case>" for the fixture runner, "t_<case>_<suffix>" / "s<id>" for the experiment runner
   workspace: string;
   runner: Runner;

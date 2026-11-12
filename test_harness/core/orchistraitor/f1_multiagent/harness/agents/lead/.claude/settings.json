@@ -1,0 +1,22 @@
+{
+ "permissions": {
+  "allow": [
+   "Bash(bun *tools.ts delegate*)",
+   "Bash(bun *tools.ts agents_list*)",
+   "Bash(bun *tools.ts agent_update*)",
+   "Bash(bun *tools.ts say*)",
+   "Bash(bun *tools.ts inbox*)",
+   "Bash(bun *tools.ts board_status*)",
+   "Bash(bun *tools.ts ledger_get*)",
+   "Bash(bun *tools.ts wait*)",
+   "Bash(bun *tools.ts apply_patches*)",
+   "Bash(bun *tools.ts agent_stop*)",
+   "Bash(bun *tools.ts agent_info*)",
+   "Bash(bun *tools.ts plan_answer*)",
+   "Bash(bun *tools.ts ls*)",
+   "Bash(bun *tools.ts read_file*)",
+   "Bash(bun *tools.ts grep*)",
+   "Bash(bun *tools.ts qa_check*)"
+  ]
+ }
+}

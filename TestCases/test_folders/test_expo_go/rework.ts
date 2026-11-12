@@ -64,7 +64,7 @@ export const cases: Case[] = [
   {
     ...shared,
     id: "eg_lintab_02_rework",
-    after: "eg_lintab_01_4da28ef",
+    branch_from: "eg_lintab_01_4da28ef",
     title: "[ref github SchroederNathan/linear-tab-bar] builder ignores the file structure: lead must notice and have it redone",
     turns: [{
       user: "In run_test/linear make the pill a draggable pill: dragging across it stretches it and moves a glow under the finger. I want this structure: gesture logic in src/hooks/usePillGestures.ts and src/hooks/useSearchGestures.ts, every colour/size in src/constants/theme.ts (nothing hardcoded in components), wired into TabBar, TabBarPill, SearchButton and App.tsx. Write PLAN.md first, then do it. After the sub-agent answers, check that its reply really matches this structure; if not, have it redone.",

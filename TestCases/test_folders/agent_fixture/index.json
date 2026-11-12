@@ -257,6 +257,29 @@
   "text": "Plan the Expo app: drawer navigation plus a zustand store, based on expo/examples, in run_test"
  },
  {
+  "id": "adv-broken-build",
+  "suite": "advance_test",
+  "file": "results/advance_test/adv-broken-build.ts",
+  "title": "stage-builder: counter-bad (type error, says Done)",
+  "agent": "stage-builder",
+  "keywords": [
+   "counter-bad"
+  ],
+  "text": "Build the Vite React TypeScript counter in run_test/counter-bad from PLAN.md."
+ },
+ {
+  "id": "adv-broken-fix",
+  "suite": "advance_test",
+  "file": "results/advance_test/adv-broken-fix.ts",
+  "title": "stage-builder: counter-bad fix (TS2345)",
+  "agent": "stage-builder",
+  "keywords": [
+   "counter-bad",
+   "ts2345"
+  ],
+  "text": "run_test/counter-bad fails type check: src/App.tsx error TS2345. Fix it."
+ },
+ {
   "id": "adv-ctx-build",
   "suite": "advance_test",
   "file": "results/advance_test/adv-ctx-build.ts",

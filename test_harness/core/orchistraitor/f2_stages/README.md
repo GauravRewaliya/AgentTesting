@@ -1,4 +1,13 @@
-# f2_stages: the new harness WITHOUT multi-agent (test 1)
+# f2_stages: f1 stages + an E2B runner (`--e2b`)
+
+Copy of `loop_ferry_f_1`. The loop/sessions/ledger stay here; `harness/core/e2b_runner.ts` runs `claude -p` inside an E2B sandbox, reusing loopferry (`~/projects/loopferry`, or `LOOPFERRY_DIR`): `claude-coding.ts` helpers, the `e2b` SDK, `E2B_API_KEY`/`E2B_TEMPLATE` from its `.env`.
+```
+bun harness/main.ts run --e2b --repo <dir> --request "..." [--check "cmd"]   needs CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY)
+bun test/e2b.ts            free wiring checks      bun test/e2b.ts --real     one task in a real sandbox (spends credits)
+```
+One sandbox per task; the repo is uploaded to /workspace and write-role changes are copied back after each call. `E2B_KEEP=1` keeps the sandbox.
+
+# (below: the original f1 README)
 
 Prototype + test of the architecture in `handbook/PLANS/20261105_ARCHITECTURE_PLAN.md`, the flow every task uses by default:
 **plan -> build -> review**, a reviewer issue goes back to the planner then the builder, until satisfied or a person is needed.

@@ -1,6 +1,6 @@
 # Test 1: f2_stages (no multi-agent)
 
-Generated 2026-11-12T13:16:28.787Z. 38/38 passed.
+Generated 2026-11-12T16:08:32.728Z. 38/38 passed.
 
 Harness under test: `harness/` (agents/, pipelines/, core/). Offline = scripted agents through the real harness code; real = `claude -p` haiku, persistent sessions. Real suite NOT run.
 

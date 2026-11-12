@@ -7,7 +7,7 @@ const base = { needs: ["multiagent.spawn", "guard.roles"], guard: "expo_rules.js
 export const tags: TestTag[] = ["single_ag", "single_prompt", "coding"];
 export const cases: Case[] = [
   {
-    id: "expo_d1_small_question", title: "[expo_direct_build] minor question after the build: must NOT call any sub-agent (the planner and the package-researcher are available)", after: "expo_s2_build",
+    id: "expo_d1_small_question", title: "[expo_direct_build] minor question after the build: must NOT call any sub-agent (the planner and the package-researcher are available)", branch_from: "expo_s2_build",
     agents: ["planner", "package-researcher"], ...base,
     turns: [{
       user: "Quick one: which two expo example projects did we base the app on? One line, no new work please.", allowed: [],

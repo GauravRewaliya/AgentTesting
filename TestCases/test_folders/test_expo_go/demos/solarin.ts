@@ -4,9 +4,12 @@
 import type { Case } from "@core/types.ts";
 import { expoGo } from "../lib/shared.ts";
 
-// QA video: the web build of this app renders a BLANK page ("Couldn't find a drawer", docs/QA_ISSUES.md #12, TODO T-22), so a video would show nothing: declared not testable for now.
-// The recipe to switch on once that is fixed: { enabled: true, kind: "expo-web", app: "my-app", route: "/3d-rotate", viewport: "390x844" } (its own web dev server in a container, then the recording).
-const solarinQa: Case["qa"] = () => ({ enabled: false, why: "web build renders a blank page: Couldn't find a drawer (docs/QA_ISSUES.md #12, TODO T-22)" });
+// QA video: NOT possible on web yet, and now we know why (2026-11-12, dev server in a container, 166 s, screenshot + video taken): the page crashes with
+//   ReferenceError: Cannot access 'abandonBoundaryMeasurement' before initialization   in react-native-screen-transitions@3.13.0 (lib/module/.../coordinator.js:167)
+// a circular import inside that THIRD-PARTY package that works on native (Hermes) and throws on web. The screenshot shows Expo's red error overlay, not the app. (The earlier "Couldn't find a drawer" error only came from the minified production export.)
+// Recipe to switch on once the package works on web (or is stubbed on web): { enabled: true, kind: "expo-web", app: "my-app", route: "/", viewport: "390x844" }. Working example of the same flow: examples/tailwind_reanimated.ts (eg_tw_01).
+// KNOWN-NEGATIVE app: as recorded it fails `tools.ts qa_check` (4+ type errors; web crash). The detection is proven by advance_test/adv_5_broken_app_qa_check (small app, with a fix fixture); solarin has NO fix fixture, so here the lead can only report honestly.
+const solarinQa: Case["qa"] = () => ({ enabled: false, why: "web crash in react-native-screen-transitions@3.13.0 (circular import, ReferenceError ... before initialization); docs/QA_ISSUES.md #12, TODO T-14" });
 export const cases: Case[] = [
   {
     ...expoGo,

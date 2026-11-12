@@ -62,6 +62,8 @@ export type Case = {
    * its saved sub-agent ids (labels) and its run_test workspace. Several cases with the same `after` = branches.
    */
   after?: string;
+  /** Fork instead of continue: the case runs in its own branch folder (workspace copy + a clone of the lead session made on the fly). Use it when 2+ cases share one parent; see TestCases/branch.ts. */
+  branch_from?: string;
   /** helper/agents/<name>.ts passed to the lead (only these exist for it). */
   /**
    * Harness capabilities this case relies on, as dotted paths into the tree in core/harness_own_custom/test/capabilities.ts

@@ -10,7 +10,7 @@ import { ensureRun, touchRun } from "./core/session_run.ts";
 import { conversationBlock, digest } from "./core/pm.ts";
 
 const HDIR = dirname(fileURLToPath(import.meta.url));
-export async function runLead(ctx: CallCtx & { store: MStore }, o: { task_id: string; repo: string; request: string; maxDepth: number; runner: "real" | "fake"; writerMode?: "shared" | "worktree"; models?: Record<string, string>; agents?: string[] }) {
+export async function runLead(ctx: CallCtx & { store: MStore }, o: { task_id: string; repo: string; request: string; maxDepth: number; runner: "real" | "fake"; writerMode?: "shared" | "worktree"; models?: Record<string, string>; agents?: string[]; forceSel?: { id: string; resume: boolean; fork_from?: string } }) {
   const { store, defs } = ctx, def = defs.get("lead") as AgentDef;
   store.tx(() => ensureRun(store, { task_id: o.task_id, repo: o.repo, config: { maxDepth: o.maxDepth, runner: o.runner, locks: process.env.HARNESS_LOCKS_URL ? "redis" : "store", locks_url: process.env.HARNESS_LOCKS_URL, models: o.models, strict: store.strict, canary: process.env.HARNESS_CANARY === "1", sessionCap: ctx.sessionCap } }));   // the id to come back to
   const row = store.agentsOf(o.task_id).find((a) => a.name === "lead") ?? store.addAgent(o.task_id, def, { level: 1, cwd: o.repo });
@@ -25,13 +25,14 @@ export async function runLead(ctx: CallCtx & { store: MStore }, o: { task_id: st
   ${tools} ls [--path <dir>]                            (READ-ONLY: files in the shared workspace run_test/)
   ${tools} read_file --path <file> [--offset N --limit N]   (READ-ONLY: numbered lines of a file in run_test/)
   ${tools} grep --pattern <regex> [--path <dir>]        (READ-ONLY: matching lines in run_test/)
+  ${tools} qa_check --dir <app folder in run_test/>      (EARLY CHECK of a web/Expo app: type check + dev server + page errors, ~1 min, no video; run it before you report done, hand its reasons to the sub-agent)
   ${tools} apply_patches                                (puts finished writers' files into the project)
   ${tools} plan_answer --plan <id> --item <plan task id> --text "<answer>"   (an agent replied NEEDS_PARENT: you are its parent; answer it, the same agent continues)
   ${tools} agents_list
   ${tools} agent_update --agent <agent_id> --title "<short>" --description "<what it is for>"
   ${tools} say --to <agent_id> --text "<fact or question>"
   ${tools} board_status` : "You have no delegate command: multi-agent is off for this task. Answer without sub-agents."].join("\n\n");
-  const out = await callAgent({ ...ctx, defs: new Map(defs).set("lead", ld) }, row, o.repo, prompt, undefined, {}, { env });   // the launch copy: prompt = CLAUDE.md + the roles it may call
+  const out = await callAgent({ ...ctx, defs: new Map(defs).set("lead", ld) }, row, o.repo, prompt, o.forceSel, {}, { env });   // the launch copy: prompt = CLAUDE.md + the roles it may call
   store.tx(() => touchRun(store, o.task_id));   // the main agent's Claude session id is now on the run record
   return { row, ...out };
 }

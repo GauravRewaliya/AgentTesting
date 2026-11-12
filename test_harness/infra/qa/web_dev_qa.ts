@@ -2,26 +2,35 @@
 // Same container rules as web_export.ts (volume `agent-testing-pnpm-store`, app mounted read-only, only <out> writable, 1 cpu / 2 GB, caps dropped, --rm); network ON (package registries are needed).
 //   bun test_harness/infra/qa/web_dev_qa.ts <app folder> <out folder> [route] [viewport]
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { QA_IMAGE, type QaResult } from "./run_qa.ts";
 import { PNPM_STORE_VOLUME } from "./web_export.ts";
 
-export function recordExpoDev(o: { appDir: string; out: string; route?: string; viewport?: string; start?: string; port?: number; type?: string; timeoutMs?: number }): QaResult & { seconds: number } {
+export function recordExpoDev(o: { appDir: string; out: string; route?: string; viewport?: string; start?: string; port?: number; type?: string; timeoutMs?: number; mode?: "check" | "record" }): QaResult & { seconds: number; stage?: string; reasons?: string[] } {
   const app = resolve(o.appDir), out = resolve(o.out), t0 = Date.now(), uid = `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`;
   if (!existsSync(join(app, "package.json"))) return { ok: false, backend: "docker-dev", error: `no package.json in ${app}`, seconds: 0 };
   mkdirSync(out, { recursive: true });
   spawnSync("docker", ["run", "--rm", "--user", "0", "-v", `${PNPM_STORE_VOLUME}:/pnpm`, "node:22-bookworm-slim", "chown", uid, "/pnpm"], { encoding: "utf8", timeout: 60_000 });   // a new volume is root-owned
   const NAME = `qa-dev-${Date.now()}`;   // named, so a timeout or an interrupted caller can KILL it (a stopped host script leaves the container running)
   const r = spawnSync("docker", ["run", "--rm", "--name", NAME, "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--pids-limit", "512", "--memory", "2g", "--cpus", "1", "--user", uid,
-    "-e", "HOME=/tmp", "-e", "npm_config_store_dir=/pnpm/store", "-e", `QA_ROUTE=${o.route ?? "/"}`, "-e", `QA_VIEWPORT=${o.viewport ?? "390x844"}`, ...(o.start ? ["-e", `QA_START=${o.start}`] : []), ...(o.port ? ["-e", `QA_PORT=${o.port}`] : []), ...(o.type ? ["-e", `QA_TYPE=${o.type}`] : []),
+    "-e", "HOME=/tmp", "-e", "npm_config_store_dir=/pnpm/store", "-e", `QA_TYPECHECK=${process.env.QA_TYPECHECK ?? "strict"}`, "-e", `QA_ROUTE=${o.route ?? "/"}`, "-e", `QA_VIEWPORT=${o.viewport ?? "390x844"}`, ...(o.start ? ["-e", `QA_START=${o.start}`] : []), ...(o.port ? ["-e", `QA_PORT=${o.port}`] : []), ...(o.type ? ["-e", `QA_TYPE=${o.type}`] : []), ...(o.mode === "check" ? ["-e", "QA_MODE=check"] : []),
     "-v", `${PNPM_STORE_VOLUME}:/pnpm`, "-v", `${app}:/src:ro`, "-v", `${out}:/out`, "-v", `${import.meta.dir}:/qa:ro`, "-w", "/tmp", "--entrypoint", "sh", QA_IMAGE, "/qa/dev_qa.sh"],
     { encoding: "utf8", timeout: o.timeoutMs ?? 300_000, maxBuffer: 64 * 1024 * 1024 });
   if (r.error || r.signal) spawnSync("docker", ["kill", NAME], { timeout: 20_000 });   // timeout: do not leave it running
   const json = join(out, "qa.json"), video = join(out, "qa.webm"), summary = existsSync(json) ? JSON.parse(readFileSync(json, "utf8")) : undefined;
-  const text = `${r.stdout ?? ""}\n${r.stderr ?? ""}`, seconds = Math.round((Date.now() - t0) / 1000);
-  return { ok: r.status === 0 && existsSync(video) && summary?.rendered === true, backend: "docker-dev", video: existsSync(video) ? video : undefined, screenshot: existsSync(join(out, "qa.png")) ? join(out, "qa.png") : undefined, json: summary ? json : undefined, summary, seconds,
-    error: r.status === 0 && summary?.rendered ? undefined : (summary?.page_errors?.[0] ?? text.split("\n").filter(Boolean).slice(-4).join(" | ")).slice(-400) };
+  const text = `${r.stdout ?? ""}\n${r.stderr ?? ""}`, seconds = Math.round((Date.now() - t0) / 1000), healthy = !!summary?.ok && r.status === 0;
+  // END REPORT (one small text file, any outcome): was it working, at which stage, why not, what evidence exists. The master reads this instead of looking at a picture.
+  const setupFail = !summary ? text.split("\n").map((l) => l.trim()).filter((l) => /error|ERR_|×|failed|Unable|not found/i.test(l)).slice(0, 5) : [];   // the container died before the check wrote anything (install failed ...): say so, never "unknown"
+  const stageName = summary?.stage ?? (setupFail.length || r.status ? "install/setup" : "?");
+  const okNow = healthy && (o.mode === "check" || existsSync(video));
+  const lines = [`QA REPORT: ${okNow ? "WORKING" : "NOT WORKING"}`, `mode: ${o.mode ?? "record"}   stage: ${stageName}   took: ${seconds} s`,
+    ...(((summary?.reasons as string[] | undefined) ?? setupFail)).slice(0, 8).map((x) => "reason: " + x.replace(/\s+/g, " ").slice(0, 300)),
+    `evidence: ${[existsSync(join(out, "typecheck.txt")) && "typecheck.txt", existsSync(join(out, "dev.log")) && "dev.log", existsSync(join(out, "qa.png")) && "qa.png (only needed when the logs say nothing)", existsSync(video) && "qa.webm"].filter(Boolean).join(", ") || "none"}`];
+  try { writeFileSync(join(out, "REPORT.txt"), lines.join("\n") + "\n"); } catch { /* the report is a convenience */ }
+  return { ok: o.mode === "check" ? healthy : healthy && existsSync(video), backend: "docker-dev", video: existsSync(video) ? video : undefined, screenshot: existsSync(join(out, "qa.png")) ? join(out, "qa.png") : undefined, json: summary ? json : undefined, summary, seconds,
+    stage: stageName, reasons: (summary?.reasons as string[] | undefined) ?? setupFail,
+    error: healthy ? undefined : ((summary?.reasons as string[] | undefined)?.[0] ?? text.split("\n").filter(Boolean).slice(-4).join(" | ")).slice(0, 400) };
 }
 if (import.meta.main) {
   const [a, b, route, viewport] = process.argv.slice(2); if (!a || !b) { console.log("usage: bun test_harness/infra/qa/web_dev_qa.ts <app folder> <out folder> [route] [viewport]"); process.exit(1); }

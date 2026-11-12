@@ -1,5 +1,6 @@
 // API for the dashboard. Run: bun server/index.ts  (port 5189; Vite proxies /api here). Reads the real files; no database.
-import { agentDefs } from "./data.ts";
+import { agentDefs, loadSuites } from "./data.ts";
+import { branchWarnings } from "../../../branch.ts";
 import { buildCards, caseOut } from "./chains.ts";
 import { buildModel } from "./model.ts";
 import { casesForResponse, health, guardCases, listAgents, listResponses, tryCall } from "./subagents.ts";
@@ -65,3 +66,7 @@ Bun.serve({
   },
 });
 console.log("api on http://127.0.0.1:" + (process.env.API_PORT ?? 5189));
+// at start (`bun run dev`): 2+ cases under one parent must use the branch syntax (TestCases/branch.ts)
+try { for (const w of branchWarnings((await loadSuites()).flatMap((x) => x.cases.map((c) => ({ ...c, suite: x.suite }))))) console.warn("\x1b[33mWARNING\x1b[0m " + w); } catch (e) { console.warn("branch check skipped: " + String(e).slice(0, 100)); }
+// at start: leftovers worth a look. Reported only; nothing is cleaned up automatically.
+try { const hints = exp.cleanupHints(); if (hints.length) { console.warn(`\x1b[33mWARNING\x1b[0m ${hints.length} possible leftover(s) in .state (cleanup candidates, NOT cleaned automatically):`); for (const h of hints) console.warn("  - " + h); } } catch (e) { console.warn("cleanup scan skipped: " + String(e).slice(0, 100)); }

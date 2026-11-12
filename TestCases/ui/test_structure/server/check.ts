@@ -5,6 +5,7 @@ import { buildModel } from "./model.ts";
 import { casesForResponse, guardCases } from "./subagents.ts";
 import { layout } from "../src/components/flow/layout.ts";
 import { agentDefs } from "./data.ts";
+import { branchWarnings } from "../../../branch.ts";
 
 const m = await buildModel(), cards = buildCards(m);
 let fails = 0; const warns: string[] = [];
@@ -36,6 +37,8 @@ const count = (f: (p: (typeof prof)[number]["p"]) => boolean) => prof.filter((x)
 console.log(`      ${count((p) => p.agentMode === "multi")} multi-agent · ${count((p) => p.agentMode === "solo")} solo (${count((p) => p.noDelegate)} of them multi-agent setups that must NOT delegate) · ${count((p) => p.multiPrompt)} multi-prompt · ${count((p) => p.multiSession)} multi-session`);
 
 // 3. sessions and fixtures
+const bw = branchWarnings([...m.cases].map(([id, c]) => ({ id, after: c.raw.after, branch_from: (c.raw as { branch_from?: string }).branch_from, branch_auto: (c.raw as { branch_auto?: boolean }).branch_auto })));
+for (const w of bw) warns.push(w);
 const noOwner = [...m.cases.keys()].flatMap((id) => m.sessionsOf(id)).filter(([, sid]) => !m.owner.has(sid)).map(([l]) => l);
 ok("every sub-agent session has one creator case", !noOwner.length, noOwner.join(", "));
 const ids = new Set(m.fixtures.map((f) => f.id)), agents = new Set((await agentDefs()).map((a) => a.name));

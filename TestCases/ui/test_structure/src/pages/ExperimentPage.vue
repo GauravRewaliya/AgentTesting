@@ -47,6 +47,12 @@ async function loadResult() {
   try { result.value = await api.expResult(c); resultErr.value = ""; } catch (e) { result.value = null; resultErr.value = (e as Error).message; }
 }
 const msgsEl = ref<HTMLElement>();
+// sidebar filter: sessions made on this page (experiment) or by a test run (test); the choice is remembered per browser
+type Kind = "experiment" | "test";
+const kind = ref<Kind>((() => { try { return localStorage.getItem("exp_kind") === "test" ? "test" : "experiment"; } catch { return "experiment"; } })());
+const setKind = (k: Kind) => { kind.value = k; try { localStorage.setItem("exp_kind", k); } catch { /* private mode */ } };
+const countOf = (k: Kind) => sessions.value.filter((s) => s.kind === k).length;
+const shown = computed(() => sessions.value.filter((s) => s.kind === kind.value));
 const scrollDown = () => nextTick(() => { const el = msgsEl.value; if (el) el.scrollTop = el.scrollHeight; });
 let timer: ReturnType<typeof setInterval>;
 const closeMenu = () => (menu.value = null);
@@ -59,7 +65,7 @@ watch(caseId, (id) => {   // optional: a test case fills the message and ticks t
 });
 
 const open = (t: string) => { sel.value = t; creating.value = false; navOpen.value = false; };
-const newSession = () => { sel.value = null; creating.value = true; navOpen.value = false; };
+const newSession = () => { sel.value = null; creating.value = true; setKind("experiment"); navOpen.value = false; };
 async function del(s: LiveSession) {
   menu.value = null;
   if (!confirm(`Delete session "${s.case ?? s.task}" (${s.task})?\n\nThis stops it and permanently removes the master, all ${s.agents.length} sub-agent(s), chat, reports, archived logs and the Claude transcripts. It cannot be undone.`)) return;
@@ -97,16 +103,19 @@ const tree = (s: LiveSession): Node[] => {
     <div v-if="err" class="alert">API: {{ err }}</div>
     <div v-if="notice" class="alert info">{{ notice }}</div>
     <div class="shell">
-      <button class="navtgl" @click="navOpen = !navOpen">☰ Sessions ({{ sessions.length }})</button>
+      <button class="navtgl" @click="navOpen = !navOpen">☰ Sessions ({{ shown.length }})</button>
       <!-- master sessions -->
       <nav class="nav" :class="{ show: navOpen }">
         <button class="newbtn" :class="{ on: creating }" @click="newSession">＋ New session</button>
         <h4>Master sessions</h4>
-        <p v-if="!sessions.length" class="muted small">None yet. Use ＋ New session to run a case.</p>
-        <div v-for="s in sessions" :key="s.task" class="srw">
+        <div class="seg" role="tablist" aria-label="session kind">
+          <button v-for="k in (['experiment', 'test'] as const)" :key="k" role="tab" :aria-selected="kind === k" :class="{ on: kind === k }" @click="setKind(k)">{{ k === "experiment" ? "Experiment" : "Test" }} <span class="n">{{ countOf(k) }}</span></button>
+        </div>
+        <p v-if="!shown.length" class="muted small">{{ kind === "experiment" ? "None yet. Use ＋ New session." : "No test runs yet (bun testrun/run.ts <suite>)." }}</p>
+        <div v-for="s in shown" :key="s.task" class="srw">
           <button class="srow" :class="{ on: s.task === sel && !creating }" @click="open(s.task)">
             <div class="t1"><span class="dot" :class="s.state" /><span class="tt">{{ s.case ?? s.title }}</span></div>
-            <div class="t2">{{ ago(s.last) }} · {{ s.agents.length }} sub-agent(s)</div>
+            <div class="t2">{{ ago(s.last) }} · {{ s.agents.length }} sub-agent(s)<template v-if="s.fixtures"> · fixture ×{{ s.fixtures }}</template></div>
           </button>
           <button class="more" aria-label="session options" @click.stop="menu = menu === s.task ? null : s.task">⋮</button>
           <div v-if="menu === s.task" class="menu" @click.stop><button class="del" @click="del(s)">Delete session + sub-agents</button></div>
@@ -199,10 +208,11 @@ const tree = (s: LiveSession): Node[] => {
 </template>
 
 <style scoped>
-.shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: calc(100vh - 49px); }
+.shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); height: calc(100vh - 49px); overflow: hidden; }
 .navtgl { display: none; margin: 8px 12px; }
-@media (max-width: 800px) { .shell { grid-template-columns: 1fr; } .navtgl { display: inline-block; justify-self: start; } .nav { display: none; border-right: 0; border-bottom: 1px solid var(--line); } .nav.show { display: block; } }
+@media (max-width: 800px) { .shell { grid-template-columns: 1fr; height: auto; overflow: visible; } .main, .work, .chatcol, .side { overflow: visible; } .msgs { max-height: 56vh; } .navtgl { display: inline-block; justify-self: start; } .nav { display: none; border-right: 0; border-bottom: 1px solid var(--line); } .nav.show { display: block; } }
 .nav { border-right: 1px solid var(--line); background: var(--card); padding: 10px; overflow: auto; }
+.seg { display: flex; gap: 4px; margin: 0 0 8px; } .seg button { flex: 1; font-size: 12px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 7px; background: none; color: var(--mute); } .seg button.on { color: var(--text, inherit); border-color: var(--text, #888); font-weight: 600; } .seg .n { opacity: .6; font-weight: 400; }
 .newbtn { width: 100%; font-weight: 600; padding: 7px; margin-bottom: 6px; } .newbtn.on { border-color: var(--accent); }
 h3 { margin: 0 0 10px; font-size: 15px; } h4 { margin: 18px 0 8px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); } .nav h4 { margin-top: 12px; } .clk { cursor: pointer; }
 .small { font-size: 12px; } .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -212,7 +222,7 @@ h3 { margin: 0 0 10px; font-size: 15px; } h4 { margin: 18px 0 8px; font-size: 11
 .t2 { color: var(--mute); font-size: 11px; margin: 2px 0 0 15px; }
 .more { position: absolute; top: 5px; right: 4px; border: 0; background: none; color: var(--mute); font-size: 16px; line-height: 1; padding: 4px 7px; opacity: 0; } .srw:hover .more, .more:focus { opacity: 1; } @media (hover: none) { .more { opacity: 1; } }
 .menu { position: absolute; top: 30px; right: 4px; z-index: 5; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 4px 14px rgba(0, 0, 0, .25); padding: 3px; } .del { border: 0; background: none; color: var(--fail); white-space: nowrap; padding: 6px 12px; }
-.main { padding: 14px 16px; min-width: 0; }
+.main { padding: 14px 16px; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 select { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
 .nm { font-weight: 600; overflow-wrap: anywhere; } .st { font-size: 12px; font-weight: 600; white-space: nowrap; margin-left: auto; color: var(--mute); }
 .opt { display: flex; gap: 6px; align-items: center; } .opt input { width: auto; }
@@ -235,16 +245,16 @@ select { font: inherit; color: inherit; background: var(--card); border: 1px sol
 .turn { border: 1px solid var(--line); border-left: 3px solid var(--pass); border-radius: 8px; padding: 8px 10px; display: grid; gap: 2px; margin-bottom: 8px; background: var(--card); } .turn.bad { border-left-color: var(--fail); }
 .th { display: flex; gap: 10px; align-items: baseline; } .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); margin-top: 6px; }
 .txt { white-space: pre-wrap; overflow-wrap: anywhere; } .txt.clip { max-height: 6.5em; overflow: hidden; cursor: pointer; } .call { margin-left: 8px; }
-.work { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: start; margin-top: 8px; } @media (max-width: 1000px) { .work { grid-template-columns: 1fr; } }
-.chatcol { display: flex; flex-direction: column; min-width: 0; } .setup { display: grid; gap: 8px; margin-bottom: 10px; }
+.work { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; align-items: stretch; margin-top: 8px; flex: 1; min-height: 0; overflow: hidden; } @media (max-width: 1000px) { .work { grid-template-columns: 1fr; } }
+.chatcol { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; } .setup { display: grid; gap: 8px; margin-bottom: 10px; max-height: 45%; overflow-y: auto; flex: none; }
 .agents { display: flex; flex-wrap: wrap; gap: 6px; } .ag { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 99px; padding: 3px 10px 3px 8px; cursor: pointer; background: var(--card); } .ag.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--card)); } .ag input { width: auto; }
 .casesel { max-width: 260px; } .casebox { border: 1px dashed var(--line); border-radius: 8px; padding: 6px 10px; }
-.msgs { max-height: 56vh; min-height: 120px; overflow: auto; padding: 4px 2px; }
+.msgs { flex: 1 1 auto; min-height: 120px; overflow-y: auto; padding: 4px 2px; }
 .msg { display: flex; margin: 0 0 12px; } .msg.user { justify-content: flex-end; } .bubble { max-width: 88%; padding: 8px 12px; border-radius: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .msg.user .bubble { background: var(--ink); color: var(--bg); border-bottom-right-radius: 4px; } .msg.lead .bubble { background: color-mix(in srgb, var(--ink) 8%, var(--card)); border-bottom-left-radius: 4px; }
 .ts { font-size: 11px; opacity: .65; margin-top: 3px; } .queued .bubble { background: transparent !important; color: var(--ink) !important; border: 1px dashed var(--mute); } .queued .lbl a { color: var(--fail); margin-left: 6px; }
 .strip { display: flex; gap: 8px; align-items: center; color: var(--mute); font-size: 13px; margin-bottom: 10px; } .note { text-align: center; margin-bottom: 10px; }
 .composer { margin-top: 8px; display: grid; gap: 6px; } .try button { border-radius: 99px; font-size: 12px; color: var(--mute); }
 .box { display: flex; gap: 8px; align-items: flex-end; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 8px 8px 8px 12px; } .box textarea { border: 0; outline: 0; background: transparent; resize: none; padding: 4px 0; }
-.side { min-width: 0; } .side h4:first-child { margin-top: 0; }
+.side { min-width: 0; min-height: 0; overflow-y: auto; } .side h4:first-child { margin-top: 0; }
 </style>

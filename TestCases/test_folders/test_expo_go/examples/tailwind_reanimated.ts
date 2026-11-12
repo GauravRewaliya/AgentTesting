@@ -4,10 +4,15 @@
 import type { Case } from "@core/types.ts";
 import { expoGo } from "../lib/shared.ts";
 
+// QA ON for the build case: this Expo app (NativeWind + Tailwind) is made for the web as well as native, so its own web dev server is started in a container (pnpm, shared store) and recorded at phone size.
+// `guide` = how to test, appended to the first message when --video is on.
+const twQa: Case["qa"] = (req) => ({ enabled: true, kind: "expo-web", app: req.apps.includes("tw-app") ? "tw-app" : (req.apps[0] ?? "tw-app"), route: "/", viewport: "390x844",
+  guide: "To test: this Expo app must also run in the browser (Expo web): `pnpm install`, then `pnpm exec expo start --web`. Do not install packages in the workspace yourself: the QA step does it in a container with the shared pnpm store." });
 export const cases: Case[] = [
   {
     ...expoGo,
     id: "eg_tw_01_0073f46",
+    qa: twQa,
     title: "[ref expo/examples/with-tailwindcss] phase 1/1 · snapshot of the latest 0073f46 (2026-07-02) \"with-tailwindcss at the latest Expo SDK (state of 0073f46: Upgraded Ex\"",
     turns: [{
       user: "Starting point: fixture with-tailwindcss (the state the developer started this step from; it is set up in run_test/tw-app for you). Phase 1 of 1. Create an Expo Router app styled with Tailwind through NativeWind (latest versions): a root layout, an index screen styled only with className, tw wrapper components for View/Text/Link/Image so className works, the Tailwind CSS entry file and the Metro/PostCSS setup. Write/extend PLAN.md for this phase first, then do it, then tell me what changed. Work only in run_test/tw-app.",

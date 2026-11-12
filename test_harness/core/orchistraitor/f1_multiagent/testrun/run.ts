@@ -3,12 +3,14 @@
 //   --video  after each case THAT OPTS IN (Case.qa enabled; all others: nothing), record a QA video of the web page it built (helper/video.ts, Docker; native Expo apps cannot be recorded: it says so). Off by default.
 // Runs a TestCases/test_folders suite on the f1 multi-agent harness (real claude by default, haiku: cents per turn; --fake = scripted agents, no model calls).
 // State goes to test_harness/.state/<version>/<task>/{store,workspace} (one folder per master session, see LAYOUT below). Nothing here reads or writes f1's own ui/.ui-data any more.
+import { branchRun, cloneIfPending } from "./branch.ts";
+import { branchWarnings } from "../../../../../TestCases/branch.ts";
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { RealRunner, ScriptRunner, loadAgents, transcriptExistsAnywhere } from "../harness/core/base.ts";
-import { MStore } from "../harness/core/board.ts";
+import { MStore, say } from "../harness/core/board.ts";
 import { SESSION_CAP } from "../harness/core/session_run.ts";
 import { costOf } from "../harness/core/agent_call.ts";
 import { runLead } from "../harness/lead.ts";
@@ -30,6 +32,7 @@ const perTask = !E.UI_STORE && !E.UI_REPO, homeOf = (task: string) => join(STATE
 const storeOf = (task: string) => (perTask ? join(homeOf(task), "store", "store.json") : STORE), repoOf = (task: string) => (perTask ? join(homeOf(task), "workspace") : REPO);
 if (!suite) { console.log("usage: bun testrun/run.ts <suite> [case_id ...] [--list] [--fake] [--rerun] [--video] [--record] [--video-route=/screen]"); process.exit(1); }
 const all = await loadSuites(), mine = all.filter((c) => c.suite === suite);
+for (const w of branchWarnings(all)) console.log("WARNING " + w);   // extra `after` siblings were turned into branches automatically; fix the file when convenient
 if (!mine.length) { console.log(`no suite "${suite}". Suites: ${[...new Set(all.map((c) => c.suite))].join(", ")}`); process.exit(1); }
 // which case ran in which task: ONE FILE PER CASE (parallel runs of different chains must not overwrite each other's entries)
 const readExpDir = (): Record<string, ReturnType<typeof readExp>[string]> => { const o: Record<string, ReturnType<typeof readExp>[string]> = {}; if (existsSync(EXP_DIR)) for (const f of readdirSync(EXP_DIR)) { try { const j = JSON.parse(readFileSync(join(EXP_DIR, f), "utf8")); o[j.case] = j; } catch { /* half-written */ } } return o; };
@@ -72,8 +75,10 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   // a FRESH run (a root case or a branch) never reuses a session folder (it holds the agents, sessions and served results of an earlier run): the previous run is MOVED to old_data_bkp/v1_runs/ and the clean name (t_<case>) is used again
   const archive = (k: string) => { if (perTask && existsSync(homeOf(k))) { const to = join(STATE_DIR, "..", "..", "..", "old_data_bkp", "v1_runs", `${k}-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}`); mkdirSync(dirname(to), { recursive: true }); renameSync(homeOf(k), to); } return k; };
   const fresh = archive;
-  const runTask = isBranch ? parentEnt!.task : parentEnt ? task : fresh(task), homeKey = isBranch ? fresh(planned + sfx) : parentEnt ? (parentEnt.home ?? parentEnt.task) : runTask;
-  if (perTask && isBranch && !existsSync(homeOf(homeKey))) cpSync(homeOf(parentEnt!.home ?? parentEnt!.task), homeOf(homeKey), { recursive: true });
+  const runTask = isBranch ? parentEnt!.task : parentEnt ? task : fresh(task); let homeKey: string =  isBranch ? (perTask ? "" : fresh(planned + sfx)) : parentEnt ? (parentEnt.home ?? parentEnt.task) : runTask;
+  // BRANCH (testrun/branch.ts): <parent home>/branches/branch_<hex>/ = workspace + store copy (no record/); its row in the MAIN session's index_session.json starts `pending`
+  let branchInfo: { branch: string; parentDir: string } | undefined;
+  if (perTask && isBranch) { const pk = parentEnt!.home ?? parentEnt!.task, b = branchRun({ parentDir: homeOf(pk), alias: c.id }); homeKey = pk + "/branches/" + b.branch; branchInfo = { branch: b.branch, parentDir: homeOf(pk) }; }
   const ent = (exp[c.id] = { case: c.id, task: runTask, home: homeKey, suite, agents: agentsFor(c), marks: [] as number[], started: [] as number[], done: 0, at: Date.now() } as { case: string; task: string; suite: string; agents: string[]; marks: number[]; started: number[]; done: number; at: number });
   console.log(`\n## ${c.id}: ${c.title}   [task ${runTask}${homeKey !== runTask ? ", home " + homeKey : ""}, agents: ${ent.agents.join(", ")}]`);
   const store = perTask ? new MStore(storeOf(homeKey)) : gstore, REPO = repoOf(homeKey);   // this master session's own store and workspace (see LAYOUT)
@@ -88,7 +93,11 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   for (let i = 0; i < c.turns.length; i++) {
     store.reload(); ent.marks[i] = store.calls.filter((x) => x.task_id === runTask).length; ent.started[i] = Date.now(); saveExp(ent);
     declareGateLimit(store, runTask, c);
-    const out = await runLead({ ...ctx, store } as never, { task_id: runTask, repo: REPO, request: c.turns[i]!.user + (i === 0 && qaGuide ? `\n\n[Testing guidance for this task]\n${qaGuide}` : ""), maxDepth: 4, runner: fake ? "fake" : "real", writerMode: "shared", agents: ent.agents });
+    store.tx(() => { const n = say(store, runTask, "user", "lead", c.turns[i]!.user, ["testrun"], Infinity); n.read_by.push("lead"); });   // the chat of the UI (Experiment page) shows these notes: a test run has a conversation too
+    // a branch's lead is a clone of the parent's lead session, made NOW (status pending -> cloned), not when the branch folder was made
+    const forceSel = branchInfo && i === 0 ? cloneIfPending({ parentDir: branchInfo.parentDir, branch: branchInfo.branch, parentClaudeId: store.agentsOf(runTask).find((a) => a.name === "lead")?.session_id }) : undefined;
+    if (forceSel) console.log(`   branch ${branchInfo!.branch}: lead session cloned from ${forceSel.fork_from!.slice(0, 8)} (index_session.json: pending -> cloned)`);
+    const out = await runLead({ ...ctx, store } as never, { forceSel, task_id: runTask, repo: REPO, request: c.turns[i]!.user + (i === 0 && qaGuide ? `\n\n[Testing guidance for this task]\n${qaGuide}` : ""), maxDepth: 4, runner: fake ? "fake" : "real", writerMode: "shared", agents: ent.agents });
     store.reload();
     // let the sub-agents the lead left running (--async) finish before judging
     for (let w = 0; w < 600 && store.agentsOf(runTask).some((a) => a.status === "running" && a.name !== "lead"); w++) { await sleep(1000); store.reload(); }
@@ -97,6 +106,7 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
     if (!j.reply && out.ok) j.reply = out.reply;
     j.reply_problem = replyProblem(c.turns[i]!.expected as { reply_must?: string[]; reply_forbid?: string[] }, j.reply);   // judge the FINAL reply (the fallback above fills it when the lead sent no note)
     judged.push(j); ent.done = i + 1; saveExp(ent);
+    if (j.reply) store.tx(() => { const n = say(store, runTask, "lead", "user", j.reply, ["testrun"], Infinity); n.read_by.push("user"); });   // the lead's final answer of this turn (the chat shows it)
     leadCost += (out as { cost?: number }).cost ?? 0; cost = leadCost + costOf(store, runTask, out.row.agent_id);   // the lead's own cost (claude total_cost_usd) + real sub-agents (fixtures cost 0)
     console.log(`-- turn ${i + 1}  ${j.match && !j.guard && !j.gate && !j.reply_problem ? "MATCH" : "DIFFERS"}${j.guard ? "  GUARD: a distractor was called" : ""}${j.gate ? "  GATE FAILED: " + j.gate : ""}   lead_ok=${out.ok}   cost so far=$${cost.toFixed(4)} (lead $${leadCost.toFixed(4)})${j.reply_problem ? "   REPLY: " + j.reply_problem : ""}`);
     console.log("   EXPECTED context : " + j.expectedContext);

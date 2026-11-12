@@ -4,11 +4,12 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { CASES, FIXTURES, HELPER_AGENTS, ROOT, currentWorkspace } from "@core/paths.ts";
+import { normalizeBranches } from "../../../branch.ts";
 import { readSession, sessionDir, wsPath } from "@core/state2/store.ts";
 export { ROOT };
 const json = <T>(p: string): T | undefined => (existsSync(p) ? (JSON.parse(readFileSync(p, "utf8")) as T) : undefined);
 
-export type RawCase = { allow_real_subAg?: boolean; id: string; title: string; after?: string; agents: string[]; distractors?: string[]; tags?: string[]; guard?: string; router?: boolean; turns: { user: string; expected: { context: string; expected_agents_res: string[] } }[] };
+export type RawCase = { allow_real_subAg?: boolean; id: string; title: string; after?: string; branch_from?: string; branch_auto?: boolean; agents: string[]; distractors?: string[]; tags?: string[]; guard?: string; router?: boolean; turns: { user: string; expected: { context: string; expected_agents_res: string[] } }[] };
 type Last = { at: string; status: string; warnings?: string[]; turns: { actual: string[]; expected: string[]; match: boolean; guard: boolean; notfound: boolean; calls: number; cost: number; reply?: string }[] };
 type Ckpt = { sessionId: string; ids: Record<string, string> };
 
@@ -18,8 +19,10 @@ export async function loadSuites() {
     const f = join(CASES, d.name, "main.ts");
     if (!existsSync(f)) continue;
     const m = await import(pathToFileURL(f).href + `?m=${statSync(f).mtimeMs}`); // re-imported only when the file changes
-    out.push({ suite: d.name, tags: m.tags ?? [], cases: m.cases });
+    out.push({ suite: d.name, tags: m.tags ?? [], cases: m.cases as RawCase[] });
   }
+  const flat = normalizeBranches(out.flatMap((s) => s.cases.map((c) => ({ ...c, suite: s.suite }))));   // across ALL suites: a parent's children may live in different suites
+  for (const s of out) s.cases = flat.filter((c) => c.suite === s.suite).map(({ suite: _s, ...c }) => c) as RawCase[];
   return out;
 }
 

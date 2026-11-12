@@ -1,6 +1,6 @@
 # Test 2: f_1_withmulti_ag (multi-agent on demand)
 
-Generated 2026-11-12T15:02:41.002Z. 169/169 passed.
+Generated 2026-11-12T16:07:20.553Z. 169/169 passed.
 
 Harness under test: `harness/` = the base harness (harness/core/base/) + agent.call, instances, locks, worktrees/patches, board, tools. Real suite NOT run.
 

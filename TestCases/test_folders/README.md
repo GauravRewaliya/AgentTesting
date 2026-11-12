@@ -37,7 +37,7 @@ In a case: **name** = `title` (+ `id`), **description** = `turns[i].expected.con
 | test_workflows | 5 | multi-step workflows | recorded |
 | test_expo_sub_agent / test_expo_proj_planning | 3 / 1 | expo roles (planner, builder, ...) | recorded |
 | test_expo_go | 32 | `expo-go` sub-agent redoing real projects phase by phase (+ 1 rework case: bad answer then fix) | recorded (real patches; `eg_lintab_02_rework` = negative + `_fix` positive) |
-| advance_test | 4 | staged job: plan, build, fresh reviewer, fix; context loss between stages; follow-up to the reviewer (recorded session); browser QA with a recorded video (Docker) | recorded (`adv-*`, stage-* agents) |
+| advance_test | 5 | staged job: plan, build, fresh reviewer, fix; context loss between stages; follow-up to the reviewer (recorded session); browser QA with a recorded video (Docker); a NEGATIVE broken app the lead must catch with `qa_check` | recorded (`adv-*`, stage-* agents) |
 | test_expo_direct_build | 2 | lead must NOT call a sub-agent | `allow_real_subAg` |
 | test_solowork | 4 | lead works alone (`router: false`) | `allow_real_subAg` |
 | test_artifact | 5 | Claude artifact links (needs the `Artifact` tool) | `allow_real_subAg` |
@@ -50,7 +50,9 @@ Turn  { user, allowed?: string[], expected: Expected }          // one user mess
 Expected { context: string,                                      // plain words a human/judge reads; nothing is asserted from it
            expected_agents_res: string[] }                       // recorded-result ids, in order, or "session:<agent>#n" (follow-up)
 ```
-- `after: "<case id>"` chains: restores the parent's lead session, sub-agent sessions and `run_test` workspace. Several cases with the same `after` are branches.
+- `after: "<case id>"` continues the parent: its lead session, sub-agent sessions and `run_test` workspace. Only ONE case may continue a parent.
+- `branch_from: "<case id>"` forks the parent: runs in `<parent session>/branches/branch_<hex>/` (workspace + store copy without record/); the main session's `store/index_session.json` lists `{branch, alias, original_claude_id, status}` (pending -> cloned when it runs: the lead's Claude session is forked on the fly). Code: `TestCases/branch.ts`, `f1_multiagent/testrun/branch.ts`.
+- 2+ cases under one parent that still say `after` are corrected AUTOMATICALLY to branches (nothing crashes) and a `WARNING found a branch but not the branch syntax ... write branch_from` is printed by `bun run dev` (ui), `validate.ts`, `check.ts` and `testrun/run.ts`.
 - `agents` = sub-agents the lead may call; `distractors` = useless ones it must NOT call; `allowed` limits per turn.
 - `guard: "<x>_rules.json"` = hand-over rules in `agent_fixture/store/` (e.g. must name `run_test` and `PLAN.md`, min length).
 - `router: false` / `lead: "solo"` = the lead works alone. f1 refuses these cases.

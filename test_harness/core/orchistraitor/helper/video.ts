@@ -41,7 +41,7 @@ export async function videoAfterRun(o: { workspace: string; storeDir: string; ro
     const spec = o.qa, app = join(o.workspace, "run_test", spec.app), out = join(o.storeDir, "qa", `${spec.app}-${Date.now()}`);
     if (!existsSync(app)) return noVideo(o.storeDir, `qa spec names run_test/${spec.app} but it does not exist (the agents did not build it)`, o.workspace);
     const r = spec.kind === "static" ? recordQa({ appDir: app, out, route: spec.route ?? o.route, viewport: spec.viewport }) : recordExpoDev({ appDir: app, out, route: spec.route ?? o.route, viewport: spec.viewport, start: spec.start, port: spec.port, type: spec.type });
-    return r.ok && r.video ? { ok: true, videos: [r.video], notes: [] } : { ...noVideo(o.storeDir, `${spec.kind} QA of run_test/${spec.app} failed: ${r.error ?? "no video"}`, o.workspace), notes: [r.error ?? ""] };
+    return r.ok && r.video ? { ok: true, videos: [r.video], notes: [] } : { ...noVideo(o.storeDir, `${spec.kind} QA of run_test/${spec.app} failed: ${r.error ?? "no video"}`, o.workspace), notes: [`stage ${(r as { stage?: string }).stage ?? "?"} (broken app caught BEFORE any video time)`, ...(((r as { reasons?: string[] }).reasons ?? [r.error ?? ""]).slice(0, 4))] };
   }
   const apps = findWebApps(o.workspace), notes: string[] = [];
   if (!apps.length && process.env.QA_EXPO_EXPORT !== "0") {   // an Expo app with web support: export it first
