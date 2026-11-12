@@ -1,0 +1,15 @@
+{
+ "role": "qa-reviewer",
+ "description": "Checks finished work against the request and the design: runs the checks it is given and lists what is wrong or missing",
+ "model": "haiku",
+ "session": "persistent",
+ "writes": false,
+ "max_children": 0,
+ "agents": [],
+ "tiers": [
+  "T1",
+  "T2",
+  "T3",
+  "T4"
+ ]
+}

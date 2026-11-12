@@ -1,0 +1,15 @@
+{
+ "role": "writer",
+ "description": "Creates and writes files (markdown notes, text) when asked",
+ "model": "haiku",
+ "session": "persistent",
+ "writes": true,
+ "max_children": 0,
+ "agents": [],
+ "tiers": [
+  "T1",
+  "T2",
+  "T3",
+  "T4"
+ ]
+}

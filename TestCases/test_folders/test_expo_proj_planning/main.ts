@@ -1,13 +1,14 @@
+import type { TestTag } from "../../tags.ts";
 import type { Case } from "@core/types.ts";
 
 // expo_proj_planning: a LONG Expo project. The lead classifies it, calls ONLY the planner, returns the plan and waits for approval.
-// Ported from Test_agent_2 t1_plan. The role guard (agent_fixture/store/expo_rules.json) stops a wrong call. Judged from the report.
-export const tags = ["expo","planning","approval-gate","guard"];
+// Ported from Test_agent_2 t1_plan. The role guard (TestCases/test_folders/agent_fixture/store/expo_rules.json) stops a wrong call. Judged from the report.
+export const tags: TestTag[] = ["multi_ag", "single_prompt", "split_task"];
 export const cases: Case[] = [
   {
     id: "expo_p1_plan", title: "[expo_proj_planning] long task: classify, call ONLY the planner, return the plan, wait for approval",
     needs: ["multiagent.spawn", "guard.roles", "sandbox.files"], guard: "expo_rules.json", lead: "lead_team", tools: ["Agent"],
-    agents: ["planner", "ux-designer", "builder", "qa-reviewer"], distractors: ["poet"],
+    agents: ["planner", "ux-designer", "builder", "qa-reviewer"],
     turns: [{
       user: "I am new to Expo Go. Using https://github.com/expo/examples as the base, recreate for me a small app in our workspace folder run_test: a drawer navigation (like their drawer-navigation example) whose screens share one list through a zustand store (like their zustand example).",
       allowed: ["planner"],

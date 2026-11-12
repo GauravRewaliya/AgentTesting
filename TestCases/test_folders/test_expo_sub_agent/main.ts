@@ -1,10 +1,11 @@
+import type { TestTag } from "../../tags.ts";
 import type { Case } from "@core/types.ts";
 
 // expo_sub_agent: the sub-agent chain after the plan is approved: ux-designer (wireframe), builder + qa-reviewer, then a package question.
 // Ported from Test_agent_2 t2_wireframe, t3_build, t3b_research_syntax. Role order and hand-over facts are enforced by the guard.
 const team = ["planner", "ux-designer", "builder", "qa-reviewer"];
-const base = { needs: ["multiagent.spawn", "guard.roles", "sandbox.files"], guard: "expo_rules.json", lead: "lead_team", tools: ["Agent"], distractors: ["poet"] };
-export const tags = ["expo","sub-agent","guard","build"];
+const base = { needs: ["multiagent.spawn", "guard.roles", "sandbox.files"], guard: "expo_rules.json", lead: "lead_team", tools: ["Agent"] };
+export const tags: TestTag[] = ["multi_ag", "single_prompt", "coding", "split_task"];
 export const cases: Case[] = [
   {
     id: "expo_s1_wireframe", title: "[expo_sub_agent] plan approved: ONLY the ux-designer, with requirements + plan.md + examples in the hand-over", after: "expo_p1_plan", agents: team, ...base,
@@ -24,7 +25,7 @@ export const cases: Case[] = [
     id: "expo_s3_research_syntax", title: "[expo_sub_agent] package question about the builder's code: package-researcher IS required", after: "expo_s2_build", agents: ["package-researcher"], ...base,
     turns: [{
       user: "Before we go on: is the zustand code the builder wrote in run_test/notes-app/store.js valid for the zustand version we depend on? Also tell me the syntax to create a store and to use shallow.", allowed: ["package-researcher"],
-      expected: { context: "The lead calls the package-researcher ONCE (not the poet, not the builder), with a hand-over that names zustand and store.js. The answer gives the create/shallow syntax and checks store.js against the dependency range (3.6.7). store.js is not changed by anyone.", expected_agents_res: ["role-expo-package-researcher"] },
+      expected: { context: "The lead calls the package-researcher ONCE (not the builder), with a hand-over that names zustand and store.js. The answer gives the create/shallow syntax and checks store.js against the dependency range (3.6.7). store.js is not changed by anyone.", expected_agents_res: ["role-expo-package-researcher"] },
     }],
   },
 ];

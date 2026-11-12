@@ -1,6 +1,7 @@
 // Test 2: f_1_withmulti_ag = the harness WITH multi-agent (on demand): many instances per role, agent.call, locks, worktrees + patches, board.
-//   bun test/multi.ts            offline suite (scripted agents, real harness code, real git)
-//   bun test/multi.ts --real     also the real suite (real claude -p: a lead that delegates, a lock-guarded writer, a fork; ~12 haiku calls)
+//   bun self_test/multi.ts            offline suite (scripted agents, real harness code, real git)
+//   bun self_test/multi.ts --real     also the real suite (real claude -p: a lead that delegates, a lock-guarded writer, a fork; ~12 haiku calls)
+import { customDef } from "../harness/core/custom.ts";
 import { spawnSync } from "node:child_process";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -51,7 +52,7 @@ const code = (r: CallRes) => (r.ok ? "granted" : r.code);
 async function offline() {
   setSuite("offline: agent.call authority");
   { const bad = checkAgents(defs);
-    t("M1", "agents:check passes; lead declares four sub-agents in agent.json; .claude/agents is empty everywhere", bad.length === 0 && defs.get("lead")!.agents.length === 4, bad.join("; "));
+    t("M1", "agents:check passes; lead declares eight sub-agents in agent.json (and may call custom ones); .claude/agents is empty everywhere", bad.length === 0 && defs.get("lead")!.agents.length === 8 && defs.get("lead")!.custom === true, bad.join("; "));
     const d = declarations(defs.get("lead")!, defs);
     t("M1b", "declarations are built at run time from the callees' agent.json and tell the lead their REAL tools: researcher has web access, builder can write but has NO web access", /researcher \(read-only; has web access; tools: [^)]*WebFetch/.test(d) && /builder \(can write; must declare --writes; NO web access; tools:/.test(d), d); }
   { const w = world({ agentMaxDepth: 1 });
@@ -124,7 +125,7 @@ async function offline() {
     const l1 = launchDef(lead, defs, 1, 4, dir), l0 = launchDef(lead, defs, 1, 1, dir);
     t("M3b", "the launch prompt = CLAUDE.md + the declarations when it may call; plain CLAUDE.md when it may not", readFileSync(l1.prompt_file, "utf8").includes("Sub-agents you may call") && !readFileSync(l0.prompt_file, "utf8").includes("Sub-agents you may call"), "");
     const nat = nativeAgentsJson(lead, defs), env = nativeEnv(9);
-    t("M3c", "backend N from the same files: --agents holds the four declared agents; the native depth wall is 3 below the lead and capped at the hard limit", Object.keys(nat).length === 4 && env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH === "3" && nativeEnv(1).CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH === "0", JSON.stringify(env)); }
+    t("M3c", "backend N from the same files: --agents holds the eight declared agents; the native depth wall is 3 below the lead and capped at the hard limit", Object.keys(nat).length === 8 && env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH === "3" && nativeEnv(1).CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH === "0", JSON.stringify(env)); }
 
   setSuite("offline: write locks and the queue");
   { const s = new MStore(), N = 1000, T = (agent: string, call_id: string, paths: string[], now = N) => acquire(s, { task_id: "t", agent_id: agent, call_id, paths, ttlMs: 500, now });
@@ -804,11 +805,27 @@ async function mastersSuite() {
     t("MS3", "if a master IS reset (or is new in a store that already has a chat), its brief carries the conversation from the record (not the message being answered), so it does not start blank", /THE CONVERSATION SO FAR/.test(blk) && /person: can you build a hello world page/.test(blk) && /you: I made index.html/.test(blk) && !/how many lines/.test(blk), blk); }
   { // the shipped definitions now use the same word for an agent's name and its role (another session made them equal after a real "unknown_role: build" refusal);
     // the alias stays as a safety net for any definition where they differ, so build the case with role words that differ from the names
-    const split = new Map([...defs].map(([k, d]) => [k, { ...d, role: ({ researcher: "research", builder: "build", planner: "plan", reviewer: "review" } as Record<string, string>)[k] ?? d.role }]));
+    const split = new Map([...defs].map(([k, d]) => [k, { ...d, ...(k === "lead" ? { custom: false } : {}), role: ({ researcher: "research", builder: "build", planner: "plan", reviewer: "review" } as Record<string, string>)[k] ?? d.role }]));
     const w = world({}, split); w.lead.status = "running";
     const byRole = agentCall(w.store, w.d, w.policy, { ...base, role: "research" }), byName = agentCall(w.store, w.d, w.policy, { ...base, role: "researcher" }), wrong = agentCall(w.store, w.d, w.policy, { ...base, role: "wizard" });
     t("MS4", "a call by ROLE word (\"research\") works like a call by agent NAME (\"researcher\") where the two differ, and a truly wrong name is refused and told the valid names; the shipped definitions use one word for both",
       byRole.ok && byRole.agent.name === "researcher" && byName.ok && !wrong.ok && /Use one of: researcher, planner, builder, reviewer/.test(wrong.reason) && [...defs.values()].every((d) => d.role === d.name || d.name === "lead" || d.name === "pm"), `${byRole.ok ? byRole.agent.name : byRole.reason} | ${wrong.ok ? "" : wrong.reason} | roles=${[...defs.values()].map((d) => d.name + ":" + d.role)}`); }
+  { // custom sub-agents: a role with no folder, called with a title
+    const w = world({}); w.lead.status = "running";
+    const noTitle = agentCall(w.store, w.d, w.policy, { ...base, role: "market-researcher" });
+    const withTitle = agentCall(w.store, w.d, w.policy, { ...base, role: "market-researcher", title: "compares three bundlers" });
+    const again = agentCall(w.store, w.d, w.policy, { ...base, role: "market-researcher", title: "compares three bundlers", session_arg: "market-researcher#1" });
+    const badName = agentCall(w.store, w.d, w.policy, { ...base, role: "Bad Name!", title: "x" });
+    const decoyW = world({}, new Map([...defs, ["decoy", { ...defs.get("researcher")!, name: "decoy", role: "decoy", forbidden: true }]])); decoyW.lead.status = "running";   // a distractor agent, made here: no such folder ships any more
+    const poet = agentCall(decoyW.store, decoyW.d, decoyW.policy, { ...base, role: "decoy" });
+    const plain = world({}, new Map([...defs].filter(([, d]) => !d.ad_hoc).map(([k, d]) => [k, k === "lead" ? { ...d, custom: false } : d]))); plain.lead.status = "running";
+    const refused = agentCall(plain.store, plain.d, plain.policy, { ...base, role: "market-researcher", title: "x" });
+    t("CU1", "a lead marked custom can call a role with no folder: without --title it is refused and told to give one; with a title the agent is made, named and titled, read-only; continuing it works; a bad name is refused; a lead not marked custom still gets unknown_role",
+      !noTitle.ok && /title_required/.test(noTitle.reason) && withTitle.ok && withTitle.agent.name === "market-researcher" && withTitle.agent.title === "compares three bundlers" && w.d.get("market-researcher")?.ad_hoc === true && w.d.get("market-researcher")?.writes === false
+      && again.ok && again.kind === "resume" && !badName.ok && /bad_custom_name/.test(badName.reason) && !refused.ok && /unknown_role/.test(refused.reason),
+      [noTitle, withTitle, again, badName, refused].map((x) => (x.ok ? "ok" : x.reason.slice(0, 60))).join(" | "));
+    t("CU2", "a distractor agent (agent.json forbidden) is refused with code forbidden and an event is logged; a custom agent given --writes becomes a writer with write tools",
+      !poet.ok && /forbidden/.test(poet.reason) && decoyW.store.events.some((e) => e.kind === "guard.forbidden") && customDef("scribe", "writes notes", true).writes === true && customDef("scribe", "writes notes", true).tools.includes("Write") && !customDef("scribe", "x", false).tools.includes("Write"), poet.ok ? "poet was accepted" : poet.reason); }
   { const txt = readFileSync(join(import.meta.dirname, "..", "harness", "agents", "lead", ".claude", "CLAUDE.md"), "utf8");
     t("MS5", "the lead's prompt carries the rules the real sessions called for: count what the person lists (one agent per item, cover each plausible reading), 'ask <agent>' means continue THAT agent, role value is the exact name, keep internals out of the answer", /COUNT what the person lists/.test(txt) && /MUST continue that agent/.test(txt) && /exact name/.test(txt) && /keep internal detail/.test(txt), ""); }
 }

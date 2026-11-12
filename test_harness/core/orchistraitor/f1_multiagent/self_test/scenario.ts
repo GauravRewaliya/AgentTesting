@@ -2,7 +2,7 @@
 //   1. "copy index.html -> index2.html"                              (the 9-minute incident)
 //   2. analyse three websites IN PARALLEL, one HTML page each        (web1.html web2.html web3.html)
 //   3. go deeper on website 3 and write web3_detail.md               (continue the agent that already knows it)
-//   bun test/scenario.ts [--only staged|multi]     writes test/scenario_report.md + scenario_results.json
+//   bun self_test/scenario.ts [--only staged|multi]     writes self_test/scenario_report.md + scenario_results.json
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";

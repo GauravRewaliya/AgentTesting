@@ -19,6 +19,7 @@ export const state = reactive({
   selectedCaseId: null as string | null,
   // sub-agent workbench (shared by the right panel and the full page)
   panelOpen: true,
+  rightTab: "agents" as "agents" | "runs", // Flow page right side: the sub-agent workbench or the session runs
   agent: null as string | null, // sidebar selection; null = all
   responseId: null as string | null, // null = show the index, set = show that response's page
 });

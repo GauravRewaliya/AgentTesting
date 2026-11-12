@@ -9,7 +9,11 @@
   "researcher",
   "planner",
   "builder",
-  "reviewer"
+  "reviewer",
+  "writer",
+  "package-researcher",
+  "ux-designer",
+  "qa-reviewer"
  ],
  "tiers": [
   "T0",
@@ -18,5 +22,6 @@
   "T3",
   "T4"
  ],
- "session_cap": 60
+ "session_cap": 60,
+ "custom": true
 }

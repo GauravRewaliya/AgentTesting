@@ -1,0 +1,416 @@
+diff --git a/App.tsx b/App.tsx
+index d538410..1e681d2 100644
+--- a/App.tsx
++++ b/App.tsx
+@@ -41,11 +41,13 @@ export default function App() {
+     touchX,
+     touchY,
+     glowProgress,
++    hoveredTab,
+     panGesture,
+   } = usePillGestures(
+     activeTab,
+     setActiveTab,
+     searchProgress,
++    toggleMenu,
+   );
+ 
+   const {
+@@ -90,6 +92,7 @@ export default function App() {
+             touchX={touchX}
+             touchY={touchY}
+             glowProgress={glowProgress}
++            hoveredTab={hoveredTab}
+             panGesture={panGesture}
+             searchPressed={searchPressed}
+             searchOverflowX={searchOverflowX}
+diff --git a/src/components/TabBar/GlassMaterial.tsx b/src/components/TabBar/GlassMaterial.tsx
+index fc8754e..ff9a998 100644
+--- a/src/components/TabBar/GlassMaterial.tsx
++++ b/src/components/TabBar/GlassMaterial.tsx
+@@ -1,7 +1,7 @@
+ import { BlurView } from "expo-blur";
+ import { LinearGradient } from "expo-linear-gradient";
+ import { StyleSheet, View, type ViewStyle } from "react-native";
+-import Animated, { type AnimatedStyle } from "react-native-reanimated";
++import Animated, { type AnimatedStyle, type SharedValue, useAnimatedStyle } from "react-native-reanimated";
+ import { COLORS } from "../../constants/theme";
+ import { type ReactNode, useMemo } from "react";
+ 
+@@ -11,18 +11,31 @@ const FILL_GRADIENT_END = { x: 0.5, y: 1 };
+ interface GlassMaterialProps {
+   children: ReactNode;
+   style?: ViewStyle | AnimatedStyle | (ViewStyle | AnimatedStyle)[];
+-  borderRadius?: number;
++  borderRadius?: number | SharedValue<number>;
+ }
+ 
+ export default function GlassMaterial({ children, style, borderRadius = 32 }: GlassMaterialProps) {
++  const isAnimated = typeof borderRadius === 'object' && 'get' in borderRadius;
++  const staticRadius = isAnimated ? undefined : borderRadius;
++
+   const fill = useMemo(
+-    () => [StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" as const }],
+-    [borderRadius]
++    () => [StyleSheet.absoluteFill, { borderRadius: staticRadius, overflow: "hidden" as const }],
++    [staticRadius]
+   );
+ 
++  const animatedOuter = useAnimatedStyle(() => {
++    if (!isAnimated) return {};
++    return { borderRadius: (borderRadius as SharedValue<number>).get(), overflow: "hidden" as const };
++  });
++
++  const animatedSheen = useAnimatedStyle(() => {
++    if (!isAnimated) return {};
++    return { borderRadius: (borderRadius as SharedValue<number>).get() };
++  });
++
+   return (
+     <Animated.View
+-      style={[{ borderRadius, overflow: "hidden" }, style]}
++      style={[{ borderRadius: staticRadius, overflow: "hidden" }, isAnimated && animatedOuter, style]}
+       collapsable={false}
+     >
+       <BlurView tint="dark" intensity={40} style={fill} />
+@@ -33,16 +46,17 @@ export default function GlassMaterial({ children, style, borderRadius = 32 }: Gl
+         style={fill}
+       />
+       {/* Border sheen using a View border — GPU-accelerated, no SVG lag */}
+-      <View
++      <Animated.View
+         style={[
+           StyleSheet.absoluteFill,
+           {
+-            borderRadius,
++            borderRadius: staticRadius,
+             borderWidth: 1,
+             borderColor: 'rgba(255, 255, 255, 0.12)',
+             borderTopColor: 'rgba(255, 255, 255, 0.25)',
+             borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+           },
++          isAnimated && animatedSheen,
+         ]}
+         pointerEvents="none"
+       />
+diff --git a/src/components/TabBar/TabBar.tsx b/src/components/TabBar/TabBar.tsx
+index 393202a..c2f86f9 100644
+--- a/src/components/TabBar/TabBar.tsx
++++ b/src/components/TabBar/TabBar.tsx
+@@ -30,6 +30,7 @@ interface TabBarProps {
+   touchX: SharedValue<number>;
+   touchY: SharedValue<number>;
+   glowProgress: SharedValue<number>;
++  hoveredTab: SharedValue<number>;
+   panGesture: GestureType;
+   searchPressed: SharedValue<number>;
+   searchOverflowX: SharedValue<number>;
+@@ -62,6 +63,7 @@ export default function TabBar({
+   touchX,
+   touchY,
+   glowProgress,
++  hoveredTab,
+   panGesture,
+   searchPressed,
+   searchOverflowX,
+@@ -100,6 +102,7 @@ export default function TabBar({
+           touchX={touchX}
+           touchY={touchY}
+           glowProgress={glowProgress}
++          hoveredTab={hoveredTab}
+           panGesture={panGesture}
+         />
+         <SearchButton
+diff --git a/src/components/TabBar/TabBarPill.tsx b/src/components/TabBar/TabBarPill.tsx
+index 5cca71b..ff1de70 100644
+--- a/src/components/TabBar/TabBarPill.tsx
++++ b/src/components/TabBar/TabBarPill.tsx
+@@ -10,6 +10,7 @@ import { GestureDetector, type GestureType } from "react-native-gesture-handler"
+ import Animated, {
+   interpolate,
+   useAnimatedStyle,
++  useDerivedValue,
+   type AnimatedStyle,
+   type SharedValue,
+ } from "react-native-reanimated";
+@@ -21,6 +22,7 @@ import Svg, {
+ } from "react-native-svg";
+ import {
+   ICON_PADDING,
++  MENU_BORDER_RADIUS,
+   PILL_BORDER_RADIUS,
+   PILL_HEIGHT,
+   PILL_WIDTH,
+@@ -54,6 +56,7 @@ interface TabBarPillProps {
+   touchX: SharedValue<number>;
+   touchY: SharedValue<number>;
+   glowProgress: SharedValue<number>;
++  hoveredTab: SharedValue<number>;
+   panGesture: GestureType;
+ }
+ 
+@@ -69,8 +72,13 @@ export default function TabBarPill({
+   touchX,
+   touchY,
+   glowProgress,
++  hoveredTab,
+   panGesture,
+ }: TabBarPillProps) {
++  const animatedBorderRadius = useDerivedValue(() =>
++    interpolate(menuProgress.get(), [0, 0.8], [PILL_BORDER_RADIUS, MENU_BORDER_RADIUS], 'clamp')
++  );
++
+   const pillGlassStyle = useAnimatedStyle(() => {
+     const mp = menuProgress.get();
+ 
+@@ -151,7 +159,7 @@ export default function TabBarPill({
+           ]}
+         >
+           <GlassMaterial
+-            borderRadius={PILL_BORDER_RADIUS}
++            borderRadius={animatedBorderRadius}
+             style={styles.glassMaterial}
+           >
+             <View style={styles.iconsRow}>
+@@ -170,6 +178,7 @@ export default function TabBarPill({
+                   touchX={touchX}
+                   touchY={touchY}
+                   glowProgress={glowProgress}
++                  hoveredTab={hoveredTab}
+                 />
+               ))}
+             </View>
+diff --git a/src/components/TabBar/TabIcon.tsx b/src/components/TabBar/TabIcon.tsx
+index 73e9b18..85bdfc2 100644
+--- a/src/components/TabBar/TabIcon.tsx
++++ b/src/components/TabBar/TabIcon.tsx
+@@ -36,6 +36,7 @@ interface TabIconProps {
+   touchX: SharedValue<number>;
+   touchY: SharedValue<number>;
+   glowProgress: SharedValue<number>;
++  hoveredTab: SharedValue<number>;
+ }
+ 
+ export default function TabIcon({
+@@ -51,6 +52,7 @@ export default function TabIcon({
+   touchX,
+   touchY,
+   glowProgress,
++  hoveredTab,
+ }: TabIconProps) {
+   const circlePressed = useSharedValue(0);
+ 
+@@ -125,10 +127,17 @@ export default function TabIcon({
+     };
+   });
+ 
+-  const circleBgStyle = useAnimatedStyle(() => ({
+-    opacity: circlePressed.get(),
++  const activeBgStyle = useAnimatedStyle(() => ({
++    opacity: hoveredTab.get() === -1 ? 1 : 0,
+   }));
+ 
++  const hoverBgStyle = useAnimatedStyle(() => {
++    const hovered = hoveredTab.get() === index ? 1 : 0;
++    return {
++      opacity: isCircle ? Math.max(circlePressed.get(), hovered) : hovered,
++    };
++  });
++
+   const iconColor = isActive ? COLORS.iconActive : COLORS.iconDefault;
+ 
+   return (
+@@ -140,22 +149,21 @@ export default function TabIcon({
+         ]}
+       >
+         {isActive && (
+-          <View
+-            style={[
+-              styles.activeBackground,
+-              isCircle && styles.circleBackground,
+-            ]}
+-          />
+-        )}
+-        {isCircle && (
+           <Animated.View
+             style={[
+               styles.activeBackground,
+-              styles.circleBackground,
+-              circleBgStyle,
++              isCircle && styles.circleBackground,
++              activeBgStyle,
+             ]}
+           />
+         )}
++        <Animated.View
++          style={[
++            styles.activeBackground,
++            isCircle && styles.circleBackground,
++            hoverBgStyle,
++          ]}
++        />
+         <View style={styles.iconWrapper}>
+           <Icon
+             size={ICON_SIZE}
+diff --git a/src/constants/layout.ts b/src/constants/layout.ts
+index 6a2e167..4a7f721 100644
+--- a/src/constants/layout.ts
++++ b/src/constants/layout.ts
+@@ -35,5 +35,5 @@ export const TAB_BAR_BOTTOM_PADDING = 8;
+ // Menu expansion
+ export const MENU_WIDTH = TOTAL_WIDTH;
+ export const MENU_HEIGHT = 420;
+-export const MENU_BORDER_RADIUS = 28;
++export const MENU_BORDER_RADIUS = 38;
+ export const MENU_ITEM_HEIGHT = 48;
+diff --git a/src/hooks/usePillGestures.ts b/src/hooks/usePillGestures.ts
+index edadcd8..9bb98d8 100644
+--- a/src/hooks/usePillGestures.ts
++++ b/src/hooks/usePillGestures.ts
+@@ -24,6 +24,7 @@ export default function usePillGestures(
+   activeTab: number,
+   setActiveTab: (index: number) => void,
+   searchProgress: SharedValue<number>,
++  toggleMenu: () => void,
+ ) {
+   const pillPressed = useSharedValue(0);
+   const overflowX = useSharedValue(0);
+@@ -31,9 +32,7 @@ export default function usePillGestures(
+   const touchX = useSharedValue(PILL_WIDTH / 2);
+   const touchY = useSharedValue(PILL_HEIGHT / 2);
+   const glowProgress = useSharedValue(0);
+-  const activeTabSV = useSharedValue(activeTab);
+-
+-  activeTabSV.set(activeTab);
++  const hoveredTab = useSharedValue(-1);
+ 
+   const triggerHaptic = useCallback(() => {
+     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+@@ -49,7 +48,7 @@ export default function usePillGestures(
+     }
+   }, [setActiveTab, pendingTab]);
+ 
+-  const detectTab = useCallback((x: number) => {
++  const detectAnyTab = useCallback((x: number) => {
+     "worklet";
+     if (x >= TABS_START && x < TABS_END) {
+       return Math.min(
+@@ -57,21 +56,12 @@ export default function usePillGestures(
+         Math.floor((x - TABS_START) / TAB_ZONE_WIDTH),
+       );
+     }
++    if (x >= TABS_END && x <= PILL_WIDTH) {
++      return 3;
++    }
+     return -1;
+   }, []);
+ 
+-  const switchToTab = useCallback((x: number) => {
+-    "worklet";
+-    if (searchProgress.get() >= 0.5) return;
+-    const newTab = detectTab(x);
+-    if (newTab >= 0 && newTab !== activeTabSV.get()) {
+-      activeTabSV.set(newTab);
+-      pendingTab.set(newTab);
+-      scheduleOnRN(applyPendingTab);
+-      scheduleOnRN(triggerHaptic);
+-    }
+-  }, [searchProgress, detectTab, activeTabSV, pendingTab, applyPendingTab, triggerHaptic]);
+-
+   const panGesture = useMemo(() => {
+     const longPress = Gesture.LongPress()
+       .minDuration(0)
+@@ -85,14 +75,14 @@ export default function usePillGestures(
+         pillPressed.set(withTiming(1, { duration: 80 }));
+         glowProgress.set(1);
+ 
+-        // Activate tab immediately on press
+-        switchToTab(e.x);
++        if (searchProgress.get() < 0.5) {
++          hoveredTab.set(detectAnyTab(e.x));
++        }
+       });
+ 
+     const pan = Gesture.Pan()
+       .minDistance(10)
+       .onStart((e) => {
+-        // Ensure glow is active even on fast swipes where long press may not fire
+         cancelAnimation(overflowX);
+         cancelAnimation(overflowY);
+         cancelAnimation(glowProgress);
+@@ -106,11 +96,9 @@ export default function usePillGestures(
+         const x = e.x;
+         const y = e.y;
+ 
+-        // Track finger for glow position
+         touchX.set(x);
+         touchY.set(y);
+ 
+-        // Compute overflow past container bounds
+         let ovX = 0;
+         if (x < 0) ovX = x;
+         else if (x > PILL_WIDTH) ovX = x - PILL_WIDTH;
+@@ -122,16 +110,38 @@ export default function usePillGestures(
+         overflowX.set(ovX);
+         overflowY.set(ovY);
+ 
+-        // When inside bounds, update active tab based on finger position
++        if (searchProgress.get() >= 0.5) return;
++
+         if (ovX === 0 && ovY === 0) {
+-          switchToTab(x);
++          const newTab = detectAnyTab(x);
++          if (newTab !== hoveredTab.get()) {
++            hoveredTab.set(newTab);
++            scheduleOnRN(triggerHaptic);
++          }
++        } else {
++          if (hoveredTab.get() !== -1) {
++            hoveredTab.set(-1);
++          }
+         }
+       })
+       .onEnd(() => {
++        const commitTab = hoveredTab.get();
++        hoveredTab.set(-1);
+         pillPressed.set(withTiming(0, { duration: 150 }));
+         glowProgress.set(withTiming(2, { duration: 300 }));
+         overflowX.set(withSpring(0, SPRING_BOUNCY));
+         overflowY.set(withSpring(0, SPRING_BOUNCY));
++
++        if (searchProgress.get() >= 0.5) return;
++
++        if (commitTab >= 0 && commitTab <= 2) {
++          pendingTab.set(commitTab);
++          scheduleOnRN(applyPendingTab);
++          scheduleOnRN(triggerHaptic);
++        } else if (commitTab === 3) {
++          scheduleOnRN(toggleMenu);
++          scheduleOnRN(triggerHaptic);
++        }
+       });
+ 
+     return Gesture.Simultaneous(longPress, pan);
+@@ -142,7 +152,13 @@ export default function usePillGestures(
+     touchY,
+     pillPressed,
+     glowProgress,
+-    switchToTab,
++    hoveredTab,
++    detectAnyTab,
++    searchProgress,
++    toggleMenu,
++    triggerHaptic,
++    pendingTab,
++    applyPendingTab,
+   ]);
+ 
+   return {
+@@ -152,6 +168,7 @@ export default function usePillGestures(
+     touchX,
+     touchY,
+     glowProgress,
++    hoveredTab,
+     panGesture,
+   };
+ }

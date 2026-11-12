@@ -17,7 +17,7 @@ defineProps<{ s: CaseDetail }>();
         <dt>at</dt><dd>{{ s.at ?? "never run" }}</dd>
         <dt>test_session_id</dt><dd><SessionId v-if="s.leadSessionId" :id="s.leadSessionId" /><span v-else class="muted">none yet</span></dd>
         <dt>harness_name</dt><dd>mod <span class="muted">(default; the run does not record which harness)</span></dd>
-        <dt>workspace_id</dt><dd><SessionId :id="`.state/${s.caseId}/ws`" /></dd>
+        <dt>workspace_id</dt><dd><SessionId :id="`sessions/fx_${s.caseId}/workspace`" /></dd>
         <dt>continues</dt><dd><router-link v-if="s.after" :to="{ name: 'test', params: { caseId: s.after } }">{{ s.after }}</router-link><span v-else class="muted">root</span> <span v-if="s.relation && s.relation !== 'root'" class="muted">· {{ s.relation === "same_session" ? "same lead session id as parent" : "different lead session id (cloned)" }}</span></dd>
       </dl>
       <div v-for="(t, i) in s.turns" :key="i" class="turn"><b>turn {{ i + 1 }}</b> {{ t.user }}<br /><span class="mono muted">expected {{ t.expectedAgents.join(", ") }} · actual {{ t.actualAgents.join(", ") || "–" }}</span> <span v-if="t.match === true" style="color:var(--pass)">✓</span><span v-else-if="t.match === false" style="color:var(--fail)">✗</span></div>

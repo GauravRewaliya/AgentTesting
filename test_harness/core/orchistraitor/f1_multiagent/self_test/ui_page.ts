@@ -1,5 +1,5 @@
 // Runs the page's OWN script (ui/index.html) against a stub DOM and a stub fetch, to check the link ("#/<session>/agent/<id>") handling without a browser.
-//   ../limited.sh bun test/ui_page.ts        every failure is printed loudly and the exit code is 1
+//   ../limited.sh bun self_test/ui_page.ts        every failure is printed loudly and the exit code is 1
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

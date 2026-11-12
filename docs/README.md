@@ -9,10 +9,10 @@ their sessions correctly? Sub-agent *work* is mocked (fixture lookup + file copy
 | `run_test/` | scratch workspace, empty at rest (wiped around each case; `--keep` leaves it) |
 | `helper/agents/*.ts` | sub-agent definitions (`forbidden: true` = distractor, calling it fails the case) |
 | `helper/skills/` | skills passed per case (empty for now) |
-| `agent_fixture/` | everything a mocked sub-agent needs: `results/<id>.ts` (each is ONLY `run(req)`), `store/` (files the scripts copy), `index.json` (generated: `bun core/build_index.ts`) |
+| `TestCases/test_folders/agent_fixture/` | everything a mocked sub-agent needs: `results/<id>.ts` (each is ONLY `run(req)`), `store/` (files the scripts copy), `index.json` (generated: `bun core/build_index.ts`) |
 | `core/` | Bun/TS runner: `run.ts` CLI, `claude.ts` spawn+parse, `interpose.ts` hook + mock, `report.ts` run report, `types.ts` |
 | `test_case/<suite>/main.ts` | `export const cases: Case[]` |
-| `.state/` | checkpoints per passed case (lead session id, sub-agent ids, workspace copy), traces, `--raw` streams |
+| `test_harness/.state/<version>/` | ALL run data: one session folder per case (agent tree, events, workspace copy, raw logs), `last/`, `cache/`, `runs/`, pointer + index |
 
 ## Core structure and the mount
 ```
@@ -24,7 +24,7 @@ core/
 harness_own_custom/core/.claude/mods/interrupt/  (the harness owns its .claude, system_prompt.md, agent_prompt.md; its tests, skip_test and report are in harness_own_custom/test/)
                                the mount: a Claude Code mod that answers the lead's Agent / SendMessage
                                calls from harness_own_custom. No real sub-agent starts, so we can
-                               interrupt every call (.state/mod_events.jsonl) and deny forbidden agents.
+                               interrupt every call (<session>/run/mod_events.jsonl) and deny forbidden agents.
 ```
 Default mode is the mod (`--plugin-dir .claude/mods/interrupt`). `--real` uses thin real Claude sub-agents instead
 (the older path: real sessions, mocked work). The mod must return the Agent tool's full output shape
@@ -37,21 +37,20 @@ diagram and the four rules (R1-R4) are at the top of that file; `harness.test.ts
 
 ## .state is a permanent cache (never deleted)
 A case that already has a result is **not run again** (`CACHED`). `--rerun` runs it again and first archives the old result to
-`.state/cache/<id>.<n>/` (`.1`, `.2`, ... each rerun keeps one more). Checkpoints (`.state/<id>/`), run records (`.state/last/`) and the session
-log (`.state/harness.jsonl`) are kept so chained cases continue without re-running their predecessors. Do not `rm -rf .state`.
+`.state/<version>/data/<ws>/cache/<id>.<n>/` (`.1`, `.2`, ... each rerun keeps one more). Sessions (`sessions/fx_<id>/`) and run records (`last/`) are kept so chained cases continue without re-running their predecessors. Do not delete `.state`. When the orchestrator changes, bump `STATE_VERSION` in `core/paths.ts`: the new version starts empty and the old one stays on disk.
 
 ## Run
 ```
 bun core/run.ts test_basic --list
 bun core/run.ts test_basic basic_1_write_hi          # one case
 bun core/run.ts test_basic                           # all, in order (chained)
-flags: --keep (keep run_test)  --raw (save the stream-json in .state)
+flags: --keep (keep run_test)  --raw (save the stream-json in <session>/run/raw.json)
 ```
 A case with `after: "<id>"` restores that case's lead session (`--resume`), sub-agent ids and workspace, so
 chains (1 -> 2 -> 3) and branches (1 -> 2B) never re-run earlier steps.
 
 ## How we interfere
-- `PreToolUse` hook on `Agent|SendMessage` logs every call to `.state/trace.jsonl` and **denies + stops** a forbidden agent.
+- `PreToolUse` hook on `Agent|SendMessage` logs every call to `<session>/run/trace.jsonl` and **denies + stops** a forbidden agent.
 - A sub-agent is a thin real Claude agent: it pipes its task to `core/interpose.ts mock <name>`, which finds a fixture
   by `keywords` (all must appear in the task) and writes its `files`. No match -> `NOTFOUND`, the case fails: that is
   the point where we add a fixture.
@@ -73,22 +72,22 @@ chains (1 -> 2 -> 3) and branches (1 -> 2B) never re-run earlier steps.
   (GitHub App, PR publishing, egress allow-list, docs generation) were left out): `wf_1` a read-only constraint reaches the sub-agent;
   `wf_2` (after 1) a follow-up that refers to a prior answer must carry it in the hand-over; `wf_3` plan -> approval gate -> build (2 turns);
   `wf_4` implement -> fresh reviewer -> fix with the findings; `wf_5` a failing sub-agent must be reported honestly.
-- Recorded results are `agent_fixture/results/<id>.ts`: `{id,title,description,match?,expected_input:{text,guardrails_test},run(req)}`.
-  `run(req)` does the work (`req.cp("lock-issue")` copies `agent_fixture/store/lock-issue` into the workspace, `req.write(path,text)`) and returns the reply
+- Recorded results are `TestCases/test_folders/agent_fixture/results/<id>.ts`: `{id,title,description,match?,expected_input:{text,guardrails_test},run(req)}`.
+  `run(req)` does the work (`req.cp("lock-issue")` copies `TestCases/test_folders/agent_fixture/store/lock-issue` into the workspace, `req.write(path,text)`) and returns the reply
   text. There is no static response field. The harness picks one by `match.keywords` (all in the task) or by similarity of the task to `expected_input.text`
-  (threshold 0.15), runs it, returns the text. `agent_fixture/index.json` lists id, file, keywords, text and what each copies, so a result is easy to find.
-- `agent_fixture/store/`: `lock-issue` (mock output), `pd_src` (original Pipedream sources), `expo_examples`, `lsp_trap` (fixtures for later suites),
+  (threshold 0.15), runs it, returns the text. `TestCases/test_folders/agent_fixture/index.json` lists id, file, keywords, text and what each copies, so a result is easy to find.
+- `TestCases/test_folders/agent_fixture/store/`: `lock-issue` (mock output), `pd_src` (original Pipedream sources), `expo_examples`, `lsp_trap` (fixtures for later suites),
   `legacy/` (Test_agent_2's Python cases, guard rules, prompts and the 7 team-role results, kept until ported to TS then deleted). Skills are in `helper/skills`.
 - Latest results (what passed, update time on top): `core/harness_own_custom/test/test_report.md` (refresh: `bun core/harness_own_custom/test/make_report.ts`); Loopferry's own: `core/loop_ferry_harness/test/test_report.md`.
 - Harness approach, tree of supported/unsupported scenarios, weaknesses and `skip_test`: `core/harness_own_custom/README.md`.
 - Loopferry's own `claude -p` session handling (does it continue and keep a session? how it works, what was tested, weaknesses): `core/loop_ferry_harness/README.md`; probes: `bun core/loop_ferry_harness/test/session_probe.ts` (real CLI, ~9 tiny calls) and `test/rules_probe.ts` (no cost).
 - Docs: `docs/sources.md` (where the test data comes from, unverified), `docs/expo_team_design.md` (Expo chain design).
-- `test_expo_proj_planning` (1), `test_expo_sub_agent` (3), `test_expo_direct_build` (2): the Expo team (planner -> ux-designer -> builder -> qa-reviewer) with the role-order guard (`core/harness_own_custom/core/guard.ts`, rules `agent_fixture/store/expo_rules.json`, lead protocol `core/prompts/lead_team.md`); a case sets `guard`, `lead` and per-turn `allowed`.
+- `test_expo_proj_planning` (1), `test_expo_sub_agent` (3), `test_expo_direct_build` (2): the Expo team (planner -> ux-designer -> builder -> qa-reviewer) with the role-order guard (`core/harness_own_custom/core/guard.ts`, rules `TestCases/test_folders/agent_fixture/store/expo_rules.json`, lead protocol `core/prompts/lead_team.md`); a case sets `guard`, `lead` and per-turn `allowed`.
 - `test_solowork` (4, tag `SoLoWork`): the lead works ALONE (`router: false`, `lead: "solo"`) and follows confirm-first: show the content, wait for the OK, then write (or apply the user's change, or write nothing on cancel). Runs in an `external` workspace (`~/.cache/test_agent_3/run_ws`) because Claude Code refuses Write/Edit under `.idea/`.
 - `test_artifact` (5, tag `Artifact`: website, explanation, figma, working website, planning/flow): all FAILED, the `Artifact` tool does not exist in headless `claude -p` (`core/harness_own_custom/test/artifact_probe.ts`).
 - **Tags**: a case has `tags: [...]` and a suite has `export const tags`; both show in the run output (`## id: title [tags]`) and in the report's Tags column.
 - **DB cases** (Loopferry's own dev database, read-only): `core/loop_ferry_harness/test/db_replay.ts` (needs `DATABASE_URL`, e.g. the repo's `.env`).
-- Still to port (sources are in `agent_fixture/store/legacy`): LSP cases, skills case.
+- Still to port (sources are in `TestCases/test_folders/agent_fixture/store/legacy`): LSP cases, skills case.
 
 ## Findings (harness)
 - The lead must be told which agent types exist and that answers are final, or it picks built-ins (`Explore`, `general-purpose`)

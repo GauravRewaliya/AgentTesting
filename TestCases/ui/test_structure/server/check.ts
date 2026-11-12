@@ -40,7 +40,7 @@ const noOwner = [...m.cases.keys()].flatMap((id) => m.sessionsOf(id)).filter(([,
 ok("every sub-agent session has one creator case", !noOwner.length, noOwner.join(", "));
 const ids = new Set(m.fixtures.map((f) => f.id)), agents = new Set((await agentDefs()).map((a) => a.name));
 const missing = [...m.cases].flatMap(([id, c]) => c.raw.turns.flatMap((t) => t.expected.expected_agents_res.filter((e) => !e.startsWith("session:") && !ids.has(e)).map((e) => `${id}→${e}`)));
-ok("every expected fixture id exists in agent_fixture/index.json", !missing.length, missing.join(", "));
+ok("every expected fixture id exists in TestCases/test_folders/agent_fixture/index.json", !missing.length, missing.join(", "));
 const badAgent = m.fixtures.filter((f) => f.agent && !agents.has(f.agent)).map((f) => `${f.id}→${f.agent}`);
 ok("every fixture's agent is a defined agent", !badAgent.length, badAgent.join(", "));
 const orphans = m.fixtures.filter((f) => m.usage(f.id)!.orphan).map((f) => f.id);

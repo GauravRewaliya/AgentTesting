@@ -1,0 +1,16 @@
+{
+ "role": "expo-go",
+ "description": "Plans, then builds, Expo Go apps (no custom native code). Has the official expo/skills. Use it for any Expo / React Native app task, incl. porting an example or demo.",
+ "model": "haiku",
+ "session": "persistent",
+ "writes": true,
+ "max_children": 0,
+ "agents": [],
+ "tiers": [
+  "T1",
+  "T2",
+  "T3",
+  "T4"
+ ],
+ "fixtures": true
+}

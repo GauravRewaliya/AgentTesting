@@ -1,5 +1,5 @@
 // Checks for the console (ui/server.ts) and the wiring bugs found while using it. Fake runner, throwaway store, no model calls.
-//   ../limited.sh bun test/ui_checks.ts        every failure is printed loudly and the exit code is 1
+//   ../limited.sh bun self_test/ui_checks.ts        every failure is printed loudly and the exit code is 1
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

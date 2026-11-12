@@ -1,0 +1,143 @@
+diff --git a/src/animations/clerk-toast/src/hook.tsx b/src/animations/clerk-toast/src/hook.tsx
+index c7012eb..fefbf51 100644
+--- a/src/animations/clerk-toast/src/hook.tsx
++++ b/src/animations/clerk-toast/src/hook.tsx
+@@ -1,6 +1,6 @@
+-import { useCallback, useMemo, useRef } from 'react';
+ import { Octicons } from '@expo/vector-icons';
+ import { PressableScale } from 'pressto';
++import { useCallback, useMemo, useRef } from 'react';
+ 
+ import type { ShowToastParams } from './hooks/use-toast';
+ import { useToast } from './hooks/use-toast';
+@@ -59,7 +59,7 @@ export const useDemoStackedToast = () => {
+         iconName: 'code',
+       },
+       {
+-        title: 'You can find it at patreon.com/reactiive',
++        title: 'You can find it at reactiive.io/demos',
+         iconName: 'package',
+       },
+       {
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.android.tsx b/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.android.tsx
+index 1d2524b..0d42c84 100644
+--- a/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.android.tsx
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.android.tsx
+@@ -1,13 +1,12 @@
+-import { StyleSheet, useWindowDimensions } from 'react-native';
+-import React, { useContext } from 'react';
+ import { LinearGradient } from 'expo-linear-gradient';
++import { useContext } from 'react';
++import { StyleSheet, useWindowDimensions } from 'react-native';
+ import Animated, {
+   useAnimatedStyle,
+   withTiming,
+ } from 'react-native-reanimated';
+ 
+ import { InternalStackedToastContext } from '../context';
+-
+ import { useGradientHeight } from './use-gradient-height';
+ 
+ export const Backdrop = () => {
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.tsx b/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.tsx
+index 12ba161..11cc550 100644
+--- a/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.tsx
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.tsx
+@@ -1,8 +1,8 @@
+-import { StyleSheet, useWindowDimensions } from 'react-native';
+-import React, { useContext } from 'react';
+ import MaskedView from '@react-native-masked-view/masked-view';
+-import { LinearGradient } from 'expo-linear-gradient';
+ import { BlurView } from 'expo-blur';
++import { LinearGradient } from 'expo-linear-gradient';
++import { useContext } from 'react';
++import { StyleSheet, useWindowDimensions } from 'react-native';
+ import Animated, {
+   useAnimatedStyle,
+   withTiming,
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/context.ts b/src/animations/clerk-toast/src/stacked-toast-manager/context.ts
+index 15a42bd..c3f42c2 100644
+--- a/src/animations/clerk-toast/src/stacked-toast-manager/context.ts
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/context.ts
+@@ -1,15 +1,15 @@
+-// Import React and useContext from React library
+-import React from 'react';
++// Import useContext from React library
++import { type ReactNode, createContext } from 'react';
+ 
+ // Define the type for a StackedToast
+ export type StackedToastType = {
+   id: number;
+   key: string;
+-  children?: () => React.ReactNode;
++  children?: () => ReactNode;
+ };
+ 
+ // Create a context for managing StackedToasts
+-export const StackedToastContext = React.createContext<{
++export const StackedToastContext = createContext<{
+   showStackedToast: (StackedToast: Omit<StackedToastType, 'id'>) => void;
+   clearAllStackedToasts: () => void;
+ }>({
+@@ -33,6 +33,6 @@ export type InternalStackedToastContextType = {
+ };
+ 
+ export const InternalStackedToastContext =
+-  React.createContext<InternalStackedToastContextType>({
++  createContext<InternalStackedToastContextType>({
+     stackedToasts: [],
+   });
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast-provider.tsx b/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast-provider.tsx
+index aa18de9..7a02116 100644
+--- a/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast-provider.tsx
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast-provider.tsx
+@@ -1,18 +1,16 @@
+ import type { PropsWithChildren } from 'react';
+-import React, { useCallback, useMemo, useRef, useState } from 'react';
++import { type FC, useCallback, useMemo, useRef, useState } from 'react';
+ 
++import { Backdrop } from './backdrop';
+ import {
+   InternalStackedToastContext,
+   StackedToastContext,
+   type StackedToastType,
+ } from './context';
+ import { StackedToast } from './stacked-toast';
+-import { Backdrop } from './backdrop';
+ 
+ // Define a StackedToastProvider component to manage and display StackedToasts
+-export const StackedToastProvider: React.FC<PropsWithChildren> = ({
+-  children,
+-}) => {
++export const StackedToastProvider: FC<PropsWithChildren> = ({ children }) => {
+   // State to manage the list of StackedToasts
+   const [stackedToasts, setStackedToasts] = useState<StackedToastType[]>([]);
+ 
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx b/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx
+index b67a070..1219566 100644
+--- a/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx
+@@ -3,13 +3,12 @@ import { StyleSheet, useWindowDimensions } from 'react-native';
+ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+ import Animated, {
+   FadeOutLeft,
+-  runOnJS,
+   useAnimatedStyle,
+   useSharedValue,
+   withSpring,
+   withTiming,
+ } from 'react-native-reanimated';
+-
++import { scheduleOnRN } from 'react-native-worklets';
+ import { MAX_VISIBLE_TOASTS, TOAST_HEIGHT } from './constants';
+ import type { StackedToastType } from './context';
+ import { useInternalStackedToast } from './hooks';
+@@ -79,7 +78,7 @@ const StackedToast: React.FC<StackedToastProps> = ({
+       },
+       isFinished => {
+         if (isFinished) {
+-          runOnJS(onDismiss)(stackedToastId);
++          scheduleOnRN(onDismiss, stackedToastId);
+         }
+       },
+     );

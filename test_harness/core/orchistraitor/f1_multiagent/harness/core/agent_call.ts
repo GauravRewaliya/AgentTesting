@@ -1,6 +1,7 @@
 // The BE command `agent.call` (plan section 21): the one authority on whether a call is allowed. Every call, granted or denied, is recorded.
 import { acquire, isResource } from "./locks.ts";
 import type { AgentDef, AgentRow, Store } from "./base.ts";
+import { customDef, isCustomName } from "./custom.ts";
 
 export const HARD_MAX_DEPTH = 4;
 export interface Policy { externalLocks?: boolean; agentMaxDepth: number; taskMaxAgents: number; maxInstancesPerRole: number; killSwitch: boolean; spendPaused: boolean; lockTtlMs: number }
@@ -9,7 +10,8 @@ export const defaultPolicy = (o: Partial<Policy> = {}): Policy => ({ agentMaxDep
 
 export interface CallReq {
   task_id: string; caller_agent_id: string; role: string; session_arg?: string; mode?: "work" | "ask";
-  objective?: string; output?: string; boundaries?: string; writes?: string[]; onBehalf?: boolean;   // onBehalf: the plan scheduler calls for its owner after the owner's turn ended
+  objective?: string; output?: string; boundaries?: string; writes?: string[]; onBehalf?: boolean;
+  title?: string;   // what an agent without a folder is FOR ("researcher: compare 3 bundlers"); used when the caller may make custom agents   // onBehalf: the plan scheduler calls for its owner after the owner's turn ended
 }
 export type CallRes =
   | { ok: true; call_id: string; agent: AgentRow; level: number; kind: "new" | "resume" | "fork"; forkFrom?: AgentRow; queued?: { position: number; heldBy: string[] }; needLocks?: string[] }
@@ -32,14 +34,23 @@ export function agentCall(store: Store, defs: Map<string, AgentDef>, policy: Pol
   if (!caller || (caller.status !== "running" && !(req.onBehalf && caller))) return deny("caller_not_live", `${req.caller_agent_id} is not a running agent of task ${req.task_id}`);
   // The lead may say "builder" (the agent's name) or "build" (its role in agent.json): both mean the same agent. A real session got "unknown_role: build" and lost a turn.
   if (!defs.has(req.role)) { const byRole = [...defs.values()].filter((d) => d.role === req.role); if (byRole.length === 1) req = { ...req, role: byRole[0]!.name }; }
-  const callerDef = defs.get(caller.name), calleeDef = defs.get(req.role);
+  const callerDef = defs.get(caller.name);
   if (!callerDef) return deny("caller_not_live", `no definition for ${caller.name}`);
+  // A role with no folder: a caller marked "custom" gets a generic sub-agent with that name and the title it gave (so it knows what it is), instead of a refusal.
+  let adHoc = false;
+  if (!defs.has(req.role) && callerDef.custom) {
+    if (!isCustomName(req.role)) return deny("bad_custom_name", `"${req.role}" is not a usable agent name: use lower-case letters, digits and "-" (2 to 32 characters), for example "market-researcher"`);
+    if (!req.title?.trim()) return deny("title_required", `"${req.role}" is not one of the defined agents (${callerDef.agents.join(", ")}). To use a custom agent, pass --title "<what this agent is for>"`);
+    defs.set(req.role, customDef(req.role, req.title, !!req.writes?.length)); adHoc = true;
+  }
+  const calleeDef = defs.get(req.role);
   if (!calleeDef) return deny("unknown_role", `no agent named "${req.role}". ${callerDef.agents.length ? `Use one of: ${callerDef.agents.join(", ")}` : "You may not call anyone"}`);
+  if (calleeDef.forbidden) { store.ev("guard.forbidden", req.task_id, caller.agent_id, { role: req.role }); return deny("forbidden", `${req.role} is not useful for this work and must not be called`); }
   // 3 depth (checked before 2 so "multi-agent is off" is the message when it is off)
   const level = caller.level + 1, limit = Math.min(policy.agentMaxDepth, HARD_MAX_DEPTH);
   if (level > limit) return deny("depth_exceeded", policy.agentMaxDepth <= 1 ? "multi-agent is off (agent_max_depth=1); do the work in the pipeline instead" : `level ${level} is deeper than the limit ${limit}`, level);
   // 2 declared in the caller's agent.json agents[]
-  if (!callerDef.agents.includes(req.role)) return deny("not_declared", `${caller.name} may call: [${callerDef.agents.join(", ")}]`, level);
+  if (!adHoc && !defs.get(req.role)?.ad_hoc && !callerDef.agents.includes(req.role)) return deny("not_declared", `${caller.name} may call: [${callerDef.agents.join(", ")}]`, level);
   // 4 no cycle: the callee may not already be on the chain above the caller
   const chain: string[] = []; for (let c: AgentRow | undefined = caller; c; c = c.caller_agent_id ? store.agent(req.task_id, c.caller_agent_id) : undefined) chain.push(c.name);
   if (chain.includes(req.role)) return deny("cycle", `${chain.reverse().join(" -> ")} -> ${req.role}`, level);
@@ -83,7 +94,8 @@ export function agentCall(store: Store, defs: Map<string, AgentDef>, policy: Pol
     const r = acquire(store, { task_id: req.task_id, agent_id: agent.agent_id, call_id, paths: req.writes!, ttlMs: policy.lockTtlMs, now });
     if (!r.ok) { queued = { position: r.position, heldBy: r.heldBy }; row.reason = `queued behind ${r.heldBy.join(",")}`; }
   }
-  store.calls.push(row); store.ev("agent.call.granted", req.task_id, caller.agent_id, { callee: agent.agent_id, level, kind, queued: !!queued }); store.save();
+  if (req.title?.trim() && (calleeDef.ad_hoc || !agent.title || agent.title === agent.name)) agent.title = req.title.trim().slice(0, 80);
+  store.calls.push(row); store.ev("agent.call.granted", req.task_id, caller.agent_id, { callee: agent.agent_id, level, kind, queued: !!queued, ...(calleeDef.ad_hoc ? { custom: true, title: agent.title } : {}) }); store.save();
   return { ok: true, call_id, agent, level, kind, forkFrom, queued, needLocks };
 }
 

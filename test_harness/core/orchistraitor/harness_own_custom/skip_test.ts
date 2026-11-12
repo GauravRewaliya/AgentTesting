@@ -8,7 +8,7 @@ export const skip_test: { id: string; needs: string; reason: string }[] = [
   { id: "worktree_isolation", needs: "sandbox.worktree", reason: "no worktree/branch per agent" },
   { id: "long_session_compaction", needs: "session.compaction", reason: "history is never trimmed or summarised" },
   { id: "subagent_token_budget", needs: "subagent_cost", reason: "sub-agent cost is zero by design" },
-  { id: "expo_t1_plan", needs: "guard.roles", reason: "role-order guard not ported (sources in agent_fixture/store/legacy)" },
+  { id: "expo_t1_plan", needs: "guard.roles", reason: "role-order guard not ported (sources in TestCases/test_folders/agent_fixture/store/legacy)" },
   { id: "expo_t2_wireframe", needs: "guard.roles", reason: "same" },
   { id: "expo_t3_build", needs: "guard.roles", reason: "same" },
   { id: "lsp_rename_define_lookup", needs: "-", reason: "tests the lead's own LSP use, not hand-over; needs the LSP plugin + local server, not this harness" },

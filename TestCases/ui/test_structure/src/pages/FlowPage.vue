@@ -5,14 +5,23 @@ import DebugFrame from "@/components/common/DebugFrame.vue";
 import HeadPicker from "@/components/flow/HeadPicker.vue";
 import FlowCanvas from "@/components/flow/FlowCanvas.vue";
 import SubAgentPanel from "@/components/panels/SubAgentPanel.vue";
+import { isRunning, resumeRuns, runCase, runsCase } from "@/store/runs";
+import { computed } from "vue";
 import type { Status } from "@/types";
-onMounted(() => { loadCards(); loadSubagents(); });
+const stepsOf = (id: string) => state.cards.find((c) => c.cases.some((r) => r.caseId === id))?.cases.length ?? 1;
+const picked = computed(() => state.cards.flatMap((c) => c.cases).find((r) => r.caseId === state.selectedCaseId) ?? null);
+onMounted(() => { loadCards(); loadSubagents(); void resumeRuns(); });
 const statuses: Status[] = ["pass", "fail", "skipped", "never_run"];
 const toggle = (s: Status) => (state.statusFilter.has(s) ? state.statusFilter.delete(s) : state.statusFilter.add(s));
 </script>
 <template>
   <DebugFrame name="FlowPage">
     <HeadPicker />
+    <div class="bar runbar">
+      <button class="primary" :disabled="!picked || isRunning" :title="picked ? 'run the selected case (fixture runner)' : 'select a case first'" @click="picked && runCase(picked.caseId, picked.ran)">{{ isRunning ? "running…" : picked ? (picked.ran ? "↻ Run all again: " : "▶ Run all: ") + picked.caseId + (stepsOf(picked.caseId) > 1 ? ` (${stepsOf(picked.caseId)} steps)` : "") : "▶ Run (select a case)" }}</button>
+      <span v-if="picked" class="mono small" :style="{ color: picked.status === 'pass' ? 'var(--pass)' : picked.status === 'fail' ? 'var(--fail)' : 'var(--mute)' }">{{ picked.ran ? picked.status + " · result in the current workspace" + (picked.at ? " · " + picked.at.slice(5, 16).replace("T", " ") : "") : "not run in the current workspace yet" }}</span>
+      <span v-if="runsCase(picked?.caseId ?? '')" class="muted small">running — see the runs tab on the right</span>
+    </div>
     <div class="bar">
       <input v-model="state.query" placeholder="filter cases…" style="max-width:260px" />
       <button v-for="s in statuses" :key="s" :class="{ on: state.statusFilter.has(s) }" @click="toggle(s)">{{ s.replace("_", " ") }}</button>
@@ -26,4 +35,4 @@ const toggle = (s: Status) => (state.statusFilter.has(s) ? state.statusFilter.de
     <div class="split"><div class="main"><FlowCanvas /></div><SubAgentPanel /></div>
   </DebugFrame>
 </template>
-<style scoped>.sep { width:1px; height:20px; background:var(--line); margin:0 4px; } .bar { display:flex; flex-wrap:wrap; gap:6px; padding:8px 12px; align-items:center; } .split { display:flex; } .main { flex:1; min-width:0; } .on { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent); }</style>
+<style scoped>.primary { border-color:var(--accent); } .runbar { border-bottom:1px solid var(--line); } .sep { width:1px; height:20px; background:var(--line); margin:0 4px; } .bar { display:flex; flex-wrap:wrap; gap:6px; padding:8px 12px; align-items:center; } .split { display:flex; } .main { flex:1; min-width:0; } .on { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent); }</style>

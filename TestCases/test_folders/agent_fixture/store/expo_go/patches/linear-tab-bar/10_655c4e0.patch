@@ -1,0 +1,2431 @@
+diff --git a/App.tsx b/App.tsx
+index b53442d..850880c 100644
+--- a/App.tsx
++++ b/App.tsx
+@@ -1,79 +1,15 @@
+ import { StatusBar } from "expo-status-bar";
+-import { useCallback, useEffect } from "react";
+-import { Pressable, StyleSheet, View } from "react-native";
++import { useState } from "react";
++import { StyleSheet, View } from "react-native";
+ import { GestureHandlerRootView } from "react-native-gesture-handler";
+ import { SafeAreaProvider } from "react-native-safe-area-context";
+ import { KeyboardProvider } from "react-native-keyboard-controller";
+-import TabBar from "./src/components/TabBar/TabBar";
++import TabBar from "./src/components/TabBar";
+ import PlaceholderScreen from "./src/components/Screens/PlaceholderScreen";
+-import useTabBarAnimation from "./src/hooks/useTabBarAnimation";
+-import usePillGestures from "./src/hooks/usePillGestures";
+-import useSearchGestures from "./src/hooks/useSearchGestures";
+-import { COLORS } from "./src/constants/theme";
++import { COLORS } from "./src/components/TabBar/constants";
+ 
+ export default function App() {
+-  const {
+-    searchProgress,
+-    menuProgress,
+-    activeTab,
+-    setActiveTab,
+-    isSearchActive,
+-    isMenuOpen,
+-    toggleSearch,
+-    toggleMenu,
+-    pillAnimatedStyle,
+-  } = useTabBarAnimation();
+-
+-  const handleTabPress = useCallback((index: number) => {
+-    if (index === 3) {
+-      toggleMenu();
+-    } else {
+-      setActiveTab(index);
+-    }
+-  }, [toggleMenu, setActiveTab]);
+-
+-  const {
+-    pillPressed,
+-    overflowX,
+-    overflowY,
+-    touchX,
+-    touchY,
+-    glowProgress,
+-    hoveredTab,
+-    panGesture,
+-  } = usePillGestures(
+-    activeTab,
+-    setActiveTab,
+-    searchProgress,
+-    menuProgress,
+-    toggleMenu,
+-  );
+-
+-  // Reset hoveredTab only after React has re-rendered with the new activeTab,
+-  // so the old tab's active background never flashes.
+-  useEffect(() => {
+-    hoveredTab.set(-1);
+-  }, [activeTab, hoveredTab]);
+-
+-  const {
+-    pressed: searchPressed,
+-    overflowX: searchOverflowX,
+-    overflowY: searchOverflowY,
+-    touchX: searchTouchX,
+-    touchY: searchTouchY,
+-    glowProgress: searchGlowProgress,
+-    composedGesture: searchComposedGesture,
+-  } = useSearchGestures(toggleSearch);
+-
+-  const {
+-    pressed: closePressed,
+-    overflowX: closeOverflowX,
+-    overflowY: closeOverflowY,
+-    touchX: closeTouchX,
+-    touchY: closeTouchY,
+-    glowProgress: closeGlowProgress,
+-    composedGesture: closeComposedGesture,
+-  } = useSearchGestures(toggleSearch);
++  const [activeTab, setActiveTab] = useState(0);
+ 
+   return (
+     <GestureHandlerRootView style={styles.container}>
+@@ -82,42 +18,7 @@ export default function App() {
+           <View style={styles.content}>
+             <PlaceholderScreen tabIndex={activeTab} />
+           </View>
+-          <TabBar
+-            activeTab={activeTab}
+-            onTabPress={handleTabPress}
+-            searchProgress={searchProgress}
+-            menuProgress={menuProgress}
+-            isSearchActive={isSearchActive}
+-            pillAnimatedStyle={pillAnimatedStyle}
+-            pillPressed={pillPressed}
+-            overflowX={overflowX}
+-            overflowY={overflowY}
+-            touchX={touchX}
+-            touchY={touchY}
+-            glowProgress={glowProgress}
+-            hoveredTab={hoveredTab}
+-            panGesture={panGesture}
+-            searchPressed={searchPressed}
+-            searchOverflowX={searchOverflowX}
+-            searchOverflowY={searchOverflowY}
+-            searchTouchX={searchTouchX}
+-            searchTouchY={searchTouchY}
+-            searchGlowProgress={searchGlowProgress}
+-            searchComposedGesture={searchComposedGesture}
+-            closePressed={closePressed}
+-            closeOverflowX={closeOverflowX}
+-            closeOverflowY={closeOverflowY}
+-            closeTouchX={closeTouchX}
+-            closeTouchY={closeTouchY}
+-            closeGlowProgress={closeGlowProgress}
+-            closeComposedGesture={closeComposedGesture}
+-          />
+-          {isMenuOpen && (
+-            <Pressable
+-              style={StyleSheet.absoluteFill}
+-              onPress={toggleMenu}
+-            />
+-          )}
++          <TabBar onTabChange={setActiveTab} />
+           <StatusBar style="light" />
+         </KeyboardProvider>
+       </SafeAreaProvider>
+diff --git a/app.json b/app.json
+index 4302265..738c509 100644
+--- a/app.json
++++ b/app.json
+@@ -22,7 +22,8 @@
+         "foregroundImage": "./assets/android-icon-foreground.png",
+         "backgroundImage": "./assets/android-icon-background.png",
+         "monochromeImage": "./assets/android-icon-monochrome.png"
+-      }
++      },
++      "package": "com.schroedernathan.lineartabbar"
+     },
+     "web": {
+       "favicon": "./assets/favicon.png"
+diff --git a/src/components/Screens/PlaceholderScreen.tsx b/src/components/Screens/PlaceholderScreen.tsx
+index e699c0f..87f1333 100644
+--- a/src/components/Screens/PlaceholderScreen.tsx
++++ b/src/components/Screens/PlaceholderScreen.tsx
+@@ -1,5 +1,5 @@
+ import { StyleSheet, Text, View } from 'react-native';
+-import { COLORS } from '../../constants/theme';
++import { COLORS } from '../TabBar/constants';
+ 
+ interface Screen {
+   name: string;
+diff --git a/src/components/TabBar/CloseSearchButton.tsx b/src/components/TabBar/CloseSearchButton.tsx
+deleted file mode 100644
+index 7d91fa7..0000000
+--- a/src/components/TabBar/CloseSearchButton.tsx
++++ /dev/null
+@@ -1,168 +0,0 @@
+-import { X } from "lucide-react-native";
+-import { StyleSheet, View } from "react-native";
+-import { GestureDetector, type ComposedGesture } from "react-native-gesture-handler";
+-import Animated, {
+-  interpolate,
+-  useAnimatedStyle,
+-  useDerivedValue,
+-  type SharedValue,
+-} from "react-native-reanimated";
+-import Svg, { Defs, RadialGradient, Stop, Rect } from "react-native-svg";
+-import {
+-  CLOSE_BUTTON_SIZE,
+-  ICON_SIZE,
+-  ICON_STROKE_WIDTH,
+-  PILL_HEIGHT,
+-  SEARCH_ACTIVE_HEIGHT,
+-  SEARCH_ACTIVE_RADIUS,
+-  SEARCH_BAR_RADIUS,
+-  TAB_BAR_GAP,
+-} from "../../constants/layout";
+-import { COLORS } from "../../constants/theme";
+-import { liquidGlassTransform } from "../../utils/liquidGlass";
+-import GlassMaterial from "./GlassMaterial";
+-
+-const HALF_W = CLOSE_BUTTON_SIZE / 2;
+-const HALF_H = PILL_HEIGHT / 2;
+-
+-// Glow constants
+-const GLOW_SIZE = 120;
+-const GLOW_HALF = GLOW_SIZE / 2;
+-
+-interface CloseSearchButtonProps {
+-  searchProgress: SharedValue<number>;
+-  pressed: SharedValue<number>;
+-  overflowX: SharedValue<number>;
+-  overflowY: SharedValue<number>;
+-  touchX: SharedValue<number>;
+-  touchY: SharedValue<number>;
+-  glowProgress: SharedValue<number>;
+-  composedGesture: ComposedGesture;
+-}
+-
+-export default function CloseSearchButton({
+-  searchProgress,
+-  pressed,
+-  overflowX,
+-  overflowY,
+-  touchX,
+-  touchY,
+-  glowProgress,
+-  composedGesture,
+-}: CloseSearchButtonProps) {
+-  const closeHeight = useDerivedValue(() =>
+-    interpolate(searchProgress.get(), [0, 1], [PILL_HEIGHT, SEARCH_ACTIVE_HEIGHT], "clamp")
+-  );
+-
+-  const glassStyle = useAnimatedStyle(() =>
+-    liquidGlassTransform(pressed.get(), overflowX.get(), overflowY.get(), HALF_W, HALF_H)
+-  );
+-
+-  // Animate the button appearing from the right
+-  const visibilityStyle = useAnimatedStyle(() => {
+-    const progress = searchProgress.get();
+-    return {
+-      opacity: interpolate(progress, [0.3, 0.6], [0, 1], "clamp"),
+-      width: interpolate(progress, [0, 0.5], [0, SEARCH_ACTIVE_HEIGHT], "clamp"),
+-      marginLeft: interpolate(progress, [0, 0.5], [0, TAB_BAR_GAP], "clamp"),
+-      transform: [
+-        { translateX: interpolate(progress, [0.3, 0.8], [20, 0], "clamp") },
+-        { scale: interpolate(progress, [0.3, 0.8], [0.5, 1], "clamp") },
+-      ],
+-    };
+-  });
+-
+-  const heightStyle = useAnimatedStyle(() => {
+-    const h = closeHeight.get();
+-    return {
+-      height: h,
+-      width: h,
+-      borderRadius: h / 2,
+-    };
+-  });
+-
+-  const glowStyle = useAnimatedStyle(() => {
+-    const progress = glowProgress.get();
+-    const opacity = progress <= 1
+-      ? progress * 0.2
+-      : interpolate(progress, [1, 2], [0.2, 0], "clamp");
+-    const scale = progress <= 1
+-      ? 1
+-      : interpolate(progress, [1, 2], [1, 4], "clamp");
+-
+-    return {
+-      opacity,
+-      transform: [
+-        { translateX: touchX.get() - GLOW_HALF },
+-        { translateY: touchY.get() - GLOW_HALF },
+-        { scale },
+-      ],
+-    };
+-  });
+-
+-  return (
+-    <Animated.View style={visibilityStyle}>
+-      <GestureDetector gesture={composedGesture}>
+-        <Animated.View style={glassStyle}>
+-          <Animated.View
+-            style={[
+-              styles.buttonClip,
+-              heightStyle,
+-            ]}
+-          >
+-            <GlassMaterial
+-              borderRadius={SEARCH_BAR_RADIUS}
+-              style={[styles.container, heightStyle]}
+-            >
+-              <View style={styles.iconCenter}>
+-                <X
+-                  size={ICON_SIZE}
+-                  color={COLORS.iconActive}
+-                  strokeWidth={ICON_STROKE_WIDTH}
+-                />
+-              </View>
+-            </GlassMaterial>
+-            <Animated.View
+-              style={[styles.glowContainer, glowStyle]}
+-              pointerEvents="none"
+-            >
+-              <Svg width={GLOW_SIZE} height={GLOW_SIZE}>
+-                <Defs>
+-                  <RadialGradient id="closeGlow" cx="50%" cy="50%" r="50%">
+-                    <Stop offset="0%" stopColor="#fff" stopOpacity={1} />
+-                    <Stop offset="100%" stopColor="#fff" stopOpacity={0} />
+-                  </RadialGradient>
+-                </Defs>
+-                <Rect
+-                  width={GLOW_SIZE}
+-                  height={GLOW_SIZE}
+-                  fill="url(#closeGlow)"
+-                />
+-              </Svg>
+-            </Animated.View>
+-          </Animated.View>
+-        </Animated.View>
+-      </GestureDetector>
+-    </Animated.View>
+-  );
+-}
+-
+-const styles = StyleSheet.create({
+-  buttonClip: {
+-    overflow: "hidden",
+-  },
+-  container: {
+-  },
+-  iconCenter: {
+-    flex: 1,
+-    alignItems: "center",
+-    justifyContent: "center",
+-  },
+-  glowContainer: {
+-    position: "absolute",
+-    top: 0,
+-    left: 0,
+-    width: GLOW_SIZE,
+-    height: GLOW_SIZE,
+-  },
+-});
+diff --git a/src/components/TabBar/GlassMaterial.tsx b/src/components/TabBar/GlassMaterial.tsx
+index 74f8ae6..f0aa2fa 100644
+--- a/src/components/TabBar/GlassMaterial.tsx
++++ b/src/components/TabBar/GlassMaterial.tsx
+@@ -3,7 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
+ import { StyleSheet, View, type ViewStyle } from "react-native";
+ import Animated, { type AnimatedStyle, type SharedValue, useAnimatedStyle } from "react-native-reanimated";
+ import MaskedView from "@react-native-masked-view/masked-view";
+-import { COLORS } from "../../constants/theme";
++import { COLORS } from "./constants";
+ import { type ReactNode, useMemo } from "react";
+ 
+ const FILL_GRADIENT_START = { x: 0.5, y: 0 };
+diff --git a/src/components/TabBar/MenuPanel.tsx b/src/components/TabBar/MenuPanel.tsx
+index 8fbde26..7e4f8fb 100644
+--- a/src/components/TabBar/MenuPanel.tsx
++++ b/src/components/TabBar/MenuPanel.tsx
+@@ -21,8 +21,7 @@ import Animated, {
+   withTiming,
+   type SharedValue,
+ } from "react-native-reanimated";
+-import { MENU_ITEM_HEIGHT } from "../../constants/layout";
+-import { COLORS } from "../../constants/theme";
++import { MENU_ITEM_HEIGHT, COLORS } from "./constants";
+ 
+ interface MenuItemData {
+   icon: LucideIcon;
+diff --git a/src/components/TabBar/SearchBar.tsx b/src/components/TabBar/SearchBar.tsx
+new file mode 100644
+index 0000000..aac93de
+--- /dev/null
++++ b/src/components/TabBar/SearchBar.tsx
+@@ -0,0 +1,304 @@
++import { Search, X } from "lucide-react-native";
++import { useEffect, useRef } from "react";
++import { StyleSheet, TextInput, View } from "react-native";
++import { GestureDetector, type ComposedGesture } from "react-native-gesture-handler";
++import Animated, {
++  interpolate,
++  useAnimatedStyle,
++  useDerivedValue,
++  type SharedValue,
++} from "react-native-reanimated";
++import Svg, { Defs, RadialGradient, Stop, Rect } from "react-native-svg";
++import {
++  CLOSE_BUTTON_SIZE,
++  COLORS,
++  ICON_SIZE,
++  ICON_STROKE_WIDTH,
++  PILL_HEIGHT,
++  SEARCH_ACTIVE_HEIGHT,
++  SEARCH_ACTIVE_RADIUS,
++  SEARCH_BAR_RADIUS,
++  SEARCH_BUTTON_SIZE,
++  TAB_BAR_GAP,
++  liquidGlassTransform,
++} from "./constants";
++import GlassMaterial from "./GlassMaterial";
++
++// --- Shared Glow Overlay ---
++
++interface GlowOverlayProps {
++  size: number;
++  id: string;
++  touchX: SharedValue<number>;
++  touchY: SharedValue<number>;
++  glowProgress: SharedValue<number>;
++}
++
++export function GlowOverlay({ size, id, touchX, touchY, glowProgress }: GlowOverlayProps) {
++  const half = size / 2;
++
++  const glowStyle = useAnimatedStyle(() => {
++    const progress = glowProgress.get();
++    const opacity = progress <= 1
++      ? progress * 0.2
++      : interpolate(progress, [1, 2], [0.2, 0], "clamp");
++    const scale = progress <= 1
++      ? 1
++      : interpolate(progress, [1, 2], [1, 4], "clamp");
++
++    return {
++      opacity,
++      transform: [
++        { translateX: touchX.get() - half },
++        { translateY: touchY.get() - half },
++        { scale },
++      ],
++    };
++  });
++
++  return (
++    <Animated.View
++      style={[{ position: "absolute", top: 0, left: 0, width: size, height: size }, glowStyle]}
++      pointerEvents="none"
++    >
++      <Svg width={size} height={size}>
++        <Defs>
++          <RadialGradient id={id} cx="50%" cy="50%" r="50%">
++            <Stop offset="0%" stopColor="#fff" stopOpacity={1} />
++            <Stop offset="100%" stopColor="#fff" stopOpacity={0} />
++          </RadialGradient>
++        </Defs>
++        <Rect width={size} height={size} fill={`url(#${id})`} />
++      </Svg>
++    </Animated.View>
++  );
++}
++
++// --- Search Button ---
++
++const SEARCH_HALF_W = SEARCH_BUTTON_SIZE / 2;
++const SEARCH_HALF_H = PILL_HEIGHT / 2;
++
++interface SearchButtonProps {
++  searchProgress: SharedValue<number>;
++  isSearchActive: boolean;
++  pressed: SharedValue<number>;
++  overflowX: SharedValue<number>;
++  overflowY: SharedValue<number>;
++  touchX: SharedValue<number>;
++  touchY: SharedValue<number>;
++  glowProgress: SharedValue<number>;
++  composedGesture: ComposedGesture;
++}
++
++export function SearchButton({
++  searchProgress,
++  isSearchActive,
++  pressed,
++  overflowX,
++  overflowY,
++  touchX,
++  touchY,
++  glowProgress,
++  composedGesture,
++}: SearchButtonProps) {
++  const inputRef = useRef<TextInput>(null);
++
++  useEffect(() => {
++    if (isSearchActive) {
++      inputRef.current?.focus();
++    }
++  }, [isSearchActive]);
++
++  const searchHeight = useDerivedValue(() =>
++    interpolate(searchProgress.get(), [0, 1], [PILL_HEIGHT, SEARCH_ACTIVE_HEIGHT], "clamp")
++  );
++  const searchRadius = useDerivedValue(() =>
++    interpolate(searchProgress.get(), [0, 1], [SEARCH_BAR_RADIUS, SEARCH_ACTIVE_RADIUS], "clamp")
++  );
++
++  const glassStyle = useAnimatedStyle(() =>
++    liquidGlassTransform(pressed.get(), overflowX.get(), overflowY.get(), SEARCH_HALF_W, SEARCH_HALF_H)
++  );
++
++  const heightStyle = useAnimatedStyle(() => ({
++    height: searchHeight.get(),
++    borderRadius: searchRadius.get(),
++  }));
++
++  const inputOpacity = useAnimatedStyle(() => ({
++    opacity: interpolate(searchProgress.get(), [0.4, 0.8], [0, 1]),
++  }));
++
++  const iconStyle = useAnimatedStyle(() => ({
++    position: "absolute" as const,
++    top: (searchHeight.get() - ICON_SIZE) / 2,
++    left: interpolate(
++      searchProgress.get(),
++      [0, 1],
++      [(SEARCH_BUTTON_SIZE - ICON_SIZE) / 2, 16],
++    ),
++  }));
++
++  return (
++    <Animated.View style={searchStyles.searchWrapper}>
++      <GestureDetector gesture={composedGesture}>
++        <Animated.View style={glassStyle}>
++          <Animated.View style={[searchStyles.searchClip, heightStyle]}>
++            <GlassMaterial
++              borderRadius={SEARCH_BAR_RADIUS}
++              style={[searchStyles.container, heightStyle]}
++            >
++              <Animated.View style={iconStyle}>
++                <Search
++                  size={ICON_SIZE}
++                  color={COLORS.iconActive}
++                  strokeWidth={ICON_STROKE_WIDTH}
++                />
++              </Animated.View>
++              <Animated.View style={[searchStyles.inputContainer, inputOpacity]}>
++                <TextInput
++                  ref={inputRef}
++                  style={searchStyles.input}
++                  placeholder="Search Workspace"
++                  placeholderTextColor={COLORS.textSecondary}
++                  selectionColor={COLORS.accentBlue}
++                  returnKeyType="search"
++                  pointerEvents={isSearchActive ? "auto" : "none"}
++                />
++              </Animated.View>
++            </GlassMaterial>
++            <GlowOverlay
++              size={120}
++              id="searchGlow"
++              touchX={touchX}
++              touchY={touchY}
++              glowProgress={glowProgress}
++            />
++          </Animated.View>
++        </Animated.View>
++      </GestureDetector>
++    </Animated.View>
++  );
++}
++
++const searchStyles = StyleSheet.create({
++  searchClip: {
++    overflow: "hidden",
++  },
++  container: {
++    justifyContent: "center",
++  },
++  inputContainer: {
++    marginLeft: 44,
++    marginRight: 16,
++    flex: 1,
++  },
++  input: {
++    color: COLORS.textPrimary,
++    fontSize: 16,
++    height: "100%",
++  },
++  searchWrapper: {
++    flex: 1,
++  },
++});
++
++// --- Close Search Button ---
++
++const CLOSE_HALF_W = CLOSE_BUTTON_SIZE / 2;
++const CLOSE_HALF_H = PILL_HEIGHT / 2;
++
++interface CloseSearchButtonProps {
++  searchProgress: SharedValue<number>;
++  pressed: SharedValue<number>;
++  overflowX: SharedValue<number>;
++  overflowY: SharedValue<number>;
++  touchX: SharedValue<number>;
++  touchY: SharedValue<number>;
++  glowProgress: SharedValue<number>;
++  composedGesture: ComposedGesture;
++}
++
++export function CloseSearchButton({
++  searchProgress,
++  pressed,
++  overflowX,
++  overflowY,
++  touchX,
++  touchY,
++  glowProgress,
++  composedGesture,
++}: CloseSearchButtonProps) {
++  const closeHeight = useDerivedValue(() =>
++    interpolate(searchProgress.get(), [0, 1], [PILL_HEIGHT, SEARCH_ACTIVE_HEIGHT], "clamp")
++  );
++
++  const glassStyle = useAnimatedStyle(() =>
++    liquidGlassTransform(pressed.get(), overflowX.get(), overflowY.get(), CLOSE_HALF_W, CLOSE_HALF_H)
++  );
++
++  const visibilityStyle = useAnimatedStyle(() => {
++    const progress = searchProgress.get();
++    return {
++      opacity: interpolate(progress, [0.3, 0.6], [0, 1], "clamp"),
++      width: interpolate(progress, [0, 0.5], [0, SEARCH_ACTIVE_HEIGHT], "clamp"),
++      marginLeft: interpolate(progress, [0, 0.5], [0, TAB_BAR_GAP], "clamp"),
++      transform: [
++        { translateX: interpolate(progress, [0.3, 0.8], [20, 0], "clamp") },
++        { scale: interpolate(progress, [0.3, 0.8], [0.5, 1], "clamp") },
++      ],
++    };
++  });
++
++  const heightStyle = useAnimatedStyle(() => {
++    const h = closeHeight.get();
++    return {
++      height: h,
++      width: h,
++      borderRadius: h / 2,
++    };
++  });
++
++  return (
++    <Animated.View style={visibilityStyle}>
++      <GestureDetector gesture={composedGesture}>
++        <Animated.View style={glassStyle}>
++          <Animated.View style={[closeStyles.buttonClip, heightStyle]}>
++            <GlassMaterial
++              borderRadius={SEARCH_BAR_RADIUS}
++              style={[closeStyles.container, heightStyle]}
++            >
++              <View style={closeStyles.iconCenter}>
++                <X
++                  size={ICON_SIZE}
++                  color={COLORS.iconActive}
++                  strokeWidth={ICON_STROKE_WIDTH}
++                />
++              </View>
++            </GlassMaterial>
++            <GlowOverlay
++              size={120}
++              id="closeGlow"
++              touchX={touchX}
++              touchY={touchY}
++              glowProgress={glowProgress}
++            />
++          </Animated.View>
++        </Animated.View>
++      </GestureDetector>
++    </Animated.View>
++  );
++}
++
++const closeStyles = StyleSheet.create({
++  buttonClip: {
++    overflow: "hidden",
++  },
++  container: {},
++  iconCenter: {
++    flex: 1,
++    alignItems: "center",
++    justifyContent: "center",
++  },
++});
+diff --git a/src/components/TabBar/SearchButton.tsx b/src/components/TabBar/SearchButton.tsx
+deleted file mode 100644
+index 7461fe9..0000000
+--- a/src/components/TabBar/SearchButton.tsx
++++ /dev/null
+@@ -1,199 +0,0 @@
+-import { Search } from "lucide-react-native";
+-import { useEffect, useRef } from "react";
+-import { StyleSheet, TextInput } from "react-native";
+-import { GestureDetector, type ComposedGesture } from "react-native-gesture-handler";
+-import Animated, {
+-  interpolate,
+-  useAnimatedStyle,
+-  useDerivedValue,
+-  type SharedValue,
+-} from "react-native-reanimated";
+-import Svg, { Defs, RadialGradient, Stop, Rect } from "react-native-svg";
+-import {
+-  ICON_SIZE,
+-  ICON_STROKE_WIDTH,
+-  PILL_HEIGHT,
+-  SEARCH_ACTIVE_HEIGHT,
+-  SEARCH_ACTIVE_RADIUS,
+-  SEARCH_BAR_RADIUS,
+-  SEARCH_BUTTON_SIZE,
+-} from "../../constants/layout";
+-import { COLORS } from "../../constants/theme";
+-import { liquidGlassTransform } from "../../utils/liquidGlass";
+-import GlassMaterial from "./GlassMaterial";
+-
+-const HALF_W = SEARCH_BUTTON_SIZE / 2;
+-const HALF_H = PILL_HEIGHT / 2;
+-
+-// Glow constants
+-const GLOW_SIZE = 120;
+-const GLOW_HALF = GLOW_SIZE / 2;
+-
+-interface SearchButtonProps {
+-  searchProgress: SharedValue<number>;
+-  isSearchActive: boolean;
+-  pressed: SharedValue<number>;
+-  overflowX: SharedValue<number>;
+-  overflowY: SharedValue<number>;
+-  touchX: SharedValue<number>;
+-  touchY: SharedValue<number>;
+-  glowProgress: SharedValue<number>;
+-  composedGesture: ComposedGesture;
+-}
+-
+-export default function SearchButton({
+-  searchProgress,
+-  isSearchActive,
+-  pressed,
+-  overflowX,
+-  overflowY,
+-  touchX,
+-  touchY,
+-  glowProgress,
+-  composedGesture,
+-}: SearchButtonProps) {
+-  const inputRef = useRef<TextInput>(null);
+-
+-
+-  // Focus immediately when search opens so keyboard animates in sync
+-  useEffect(() => {
+-    if (isSearchActive) {
+-      inputRef.current?.focus();
+-    }
+-  }, [isSearchActive]);
+-
+-  const searchHeight = useDerivedValue(() =>
+-    interpolate(searchProgress.get(), [0, 1], [PILL_HEIGHT, SEARCH_ACTIVE_HEIGHT], "clamp")
+-  );
+-  const searchRadius = useDerivedValue(() =>
+-    interpolate(searchProgress.get(), [0, 1], [SEARCH_BAR_RADIUS, SEARCH_ACTIVE_RADIUS], "clamp")
+-  );
+-
+-  const glassStyle = useAnimatedStyle(() =>
+-    liquidGlassTransform(pressed.get(), overflowX.get(), overflowY.get(), HALF_W, HALF_H)
+-  );
+-
+-  const glowStyle = useAnimatedStyle(() => {
+-    const progress = glowProgress.get();
+-    const opacity = progress <= 1
+-      ? progress * 0.2
+-      : interpolate(progress, [1, 2], [0.2, 0], "clamp");
+-    const scale = progress <= 1
+-      ? 1
+-      : interpolate(progress, [1, 2], [1, 4], "clamp");
+-
+-    return {
+-      opacity,
+-      transform: [
+-        { translateX: touchX.get() - GLOW_HALF },
+-        { translateY: touchY.get() - GLOW_HALF },
+-        { scale },
+-      ],
+-    };
+-  });
+-
+-  const heightStyle = useAnimatedStyle(() => ({
+-    height: searchHeight.get(),
+-    borderRadius: searchRadius.get(),
+-  }));
+-
+-  const inputOpacity = useAnimatedStyle(() => ({
+-    opacity: interpolate(searchProgress.get(), [0.4, 0.8], [0, 1]),
+-  }));
+-
+-  const iconStyle = useAnimatedStyle(() => ({
+-    position: "absolute" as const,
+-    top: (searchHeight.get() - ICON_SIZE) / 2,
+-    left: interpolate(
+-      searchProgress.get(),
+-      [0, 1],
+-      [(SEARCH_BUTTON_SIZE - ICON_SIZE) / 2, 16],
+-    ),
+-  }));
+-
+-  return (
+-    <Animated.View style={styles.searchWrapper}>
+-      <GestureDetector gesture={composedGesture}>
+-        <Animated.View style={glassStyle}>
+-          <Animated.View
+-            style={[
+-              styles.searchClip,
+-              heightStyle,
+-            ]}
+-          >
+-          <GlassMaterial
+-            borderRadius={SEARCH_BAR_RADIUS}
+-            style={[styles.container, heightStyle]}
+-          >
+-            <Animated.View style={iconStyle}>
+-              <Search
+-                size={ICON_SIZE}
+-                color={COLORS.iconActive}
+-                strokeWidth={ICON_STROKE_WIDTH}
+-              />
+-            </Animated.View>
+-            <Animated.View style={[styles.inputContainer, inputOpacity]}>
+-              <TextInput
+-                ref={inputRef}
+-                style={styles.input}
+-                placeholder="Search Workspace"
+-                placeholderTextColor={COLORS.textSecondary}
+-                selectionColor={COLORS.accentBlue}
+-                returnKeyType="search"
+-                pointerEvents={isSearchActive ? "auto" : "none"}
+-              />
+-            </Animated.View>
+-          </GlassMaterial>
+-          <Animated.View
+-            style={[styles.glowContainer, glowStyle]}
+-            pointerEvents="none"
+-          >
+-            <Svg width={GLOW_SIZE} height={GLOW_SIZE}>
+-              <Defs>
+-                <RadialGradient id="searchGlow" cx="50%" cy="50%" r="50%">
+-                  <Stop offset="0%" stopColor="#fff" stopOpacity={1} />
+-                  <Stop offset="100%" stopColor="#fff" stopOpacity={0} />
+-                </RadialGradient>
+-              </Defs>
+-              <Rect
+-                width={GLOW_SIZE}
+-                height={GLOW_SIZE}
+-                fill="url(#searchGlow)"
+-              />
+-            </Svg>
+-          </Animated.View>
+-          </Animated.View>
+-        </Animated.View>
+-      </GestureDetector>
+-    </Animated.View>
+-  );
+-}
+-
+-const styles = StyleSheet.create({
+-  searchClip: {
+-    overflow: "hidden",
+-  },
+-  container: {
+-    justifyContent: "center",
+-  },
+-  inputContainer: {
+-    marginLeft: 44,
+-    marginRight: 16,
+-    flex: 1,
+-  },
+-  input: {
+-    color: COLORS.textPrimary,
+-    fontSize: 16,
+-    height: "100%",
+-  },
+-  searchWrapper: {
+-    flex: 1,
+-  },
+-  glowContainer: {
+-    position: "absolute",
+-    top: 0,
+-    left: 0,
+-    width: GLOW_SIZE,
+-    height: GLOW_SIZE,
+-  },
+-});
+diff --git a/src/components/TabBar/TabBar.tsx b/src/components/TabBar/TabBar.tsx
+deleted file mode 100644
+index c109a32..0000000
+--- a/src/components/TabBar/TabBar.tsx
++++ /dev/null
+@@ -1,139 +0,0 @@
+-import { StyleSheet } from "react-native";
+-import { type GestureType, type ComposedGesture } from "react-native-gesture-handler";
+-import Animated, {
+-  useAnimatedStyle,
+-  type AnimatedStyle,
+-  type SharedValue,
+-} from "react-native-reanimated";
+-import { useSafeAreaInsets } from "react-native-safe-area-context";
+-import { useReanimatedKeyboardAnimation } from "react-native-keyboard-controller";
+-import TabBarPill from "./TabBarPill";
+-import SearchButton from "./SearchButton";
+-import CloseSearchButton from "./CloseSearchButton";
+-import {
+-  TAB_BAR_HORIZONTAL_PADDING,
+-  TAB_BAR_BOTTOM_PADDING,
+-} from "../../constants/layout";
+-
+-interface TabBarProps {
+-  activeTab: number;
+-  onTabPress: (index: number) => void;
+-  searchProgress: SharedValue<number>;
+-  menuProgress: SharedValue<number>;
+-  isSearchActive: boolean;
+-  pillAnimatedStyle: AnimatedStyle;
+-  pillPressed: SharedValue<number>;
+-  overflowX: SharedValue<number>;
+-  overflowY: SharedValue<number>;
+-  touchX: SharedValue<number>;
+-  touchY: SharedValue<number>;
+-  glowProgress: SharedValue<number>;
+-  hoveredTab: SharedValue<number>;
+-  panGesture: GestureType;
+-  searchPressed: SharedValue<number>;
+-  searchOverflowX: SharedValue<number>;
+-  searchOverflowY: SharedValue<number>;
+-  searchTouchX: SharedValue<number>;
+-  searchTouchY: SharedValue<number>;
+-  searchGlowProgress: SharedValue<number>;
+-  searchComposedGesture: ComposedGesture;
+-  closePressed: SharedValue<number>;
+-  closeOverflowX: SharedValue<number>;
+-  closeOverflowY: SharedValue<number>;
+-  closeTouchX: SharedValue<number>;
+-  closeTouchY: SharedValue<number>;
+-  closeGlowProgress: SharedValue<number>;
+-  closeComposedGesture: ComposedGesture;
+-}
+-
+-export default function TabBar({
+-  activeTab,
+-  onTabPress,
+-  searchProgress,
+-  menuProgress,
+-  isSearchActive,
+-  pillAnimatedStyle,
+-  pillPressed,
+-  overflowX,
+-  overflowY,
+-  touchX,
+-  touchY,
+-  glowProgress,
+-  hoveredTab,
+-  panGesture,
+-  searchPressed,
+-  searchOverflowX,
+-  searchOverflowY,
+-  searchTouchX,
+-  searchTouchY,
+-  searchGlowProgress,
+-  searchComposedGesture,
+-  closePressed,
+-  closeOverflowX,
+-  closeOverflowY,
+-  closeTouchX,
+-  closeTouchY,
+-  closeGlowProgress,
+-  closeComposedGesture,
+-}: TabBarProps) {
+-  const insets = useSafeAreaInsets();
+-  const bottomPadding = Math.max(insets.bottom * 0.7, TAB_BAR_BOTTOM_PADDING);
+-  const { height } = useReanimatedKeyboardAnimation();
+-
+-  const keyboardStyle = useAnimatedStyle(() => ({
+-    transform: [{ translateY: height.get() }],
+-  }));
+-
+-  return (
+-      <Animated.View style={[styles.container, { paddingBottom: bottomPadding }, keyboardStyle]}>
+-        <TabBarPill
+-          activeTab={activeTab}
+-          onTabPress={onTabPress}
+-          searchProgress={searchProgress}
+-          menuProgress={menuProgress}
+-          pillAnimatedStyle={pillAnimatedStyle}
+-          pillPressed={pillPressed}
+-          overflowX={overflowX}
+-          overflowY={overflowY}
+-          touchX={touchX}
+-          touchY={touchY}
+-          glowProgress={glowProgress}
+-          hoveredTab={hoveredTab}
+-          panGesture={panGesture}
+-        />
+-        <SearchButton
+-          searchProgress={searchProgress}
+-          isSearchActive={isSearchActive}
+-          pressed={searchPressed}
+-          overflowX={searchOverflowX}
+-          overflowY={searchOverflowY}
+-          touchX={searchTouchX}
+-          touchY={searchTouchY}
+-          glowProgress={searchGlowProgress}
+-          composedGesture={searchComposedGesture}
+-        />
+-        <CloseSearchButton
+-          searchProgress={searchProgress}
+-          pressed={closePressed}
+-          overflowX={closeOverflowX}
+-          overflowY={closeOverflowY}
+-          touchX={closeTouchX}
+-          touchY={closeTouchY}
+-          glowProgress={closeGlowProgress}
+-          composedGesture={closeComposedGesture}
+-        />
+-      </Animated.View>
+-  );
+-}
+-
+-const styles = StyleSheet.create({
+-  container: {
+-    position: "absolute",
+-    bottom: 0,
+-    left: 0,
+-    right: 0,
+-    flexDirection: "row",
+-    alignItems: "flex-end",
+-    paddingHorizontal: TAB_BAR_HORIZONTAL_PADDING,
+-  },
+-});
+diff --git a/src/components/TabBar/TabBarPill.tsx b/src/components/TabBar/TabBarPill.tsx
+index afa8680..1a54719 100644
+--- a/src/components/TabBar/TabBarPill.tsx
++++ b/src/components/TabBar/TabBarPill.tsx
+@@ -6,7 +6,7 @@ import {
+   type LucideIcon,
+ } from "lucide-react-native";
+ import { StyleSheet, View } from "react-native";
+-import { GestureDetector, type GestureType } from "react-native-gesture-handler";
++import { GestureDetector, type GestureType, type ComposedGesture } from "react-native-gesture-handler";
+ import Animated, {
+   interpolate,
+   useAnimatedStyle,
+@@ -14,21 +14,16 @@ import Animated, {
+   type AnimatedStyle,
+   type SharedValue,
+ } from "react-native-reanimated";
+-import Svg, {
+-  Defs,
+-  RadialGradient,
+-  Stop,
+-  Rect,
+-} from "react-native-svg";
+ import {
+   ICON_PADDING,
+   MENU_BORDER_RADIUS,
+   PILL_BORDER_RADIUS,
+   PILL_HEIGHT,
+   PILL_WIDTH,
+-} from "../../constants/layout";
+-import { liquidGlassTransform } from "../../utils/liquidGlass";
++  liquidGlassTransform,
++} from "./constants";
+ import GlassMaterial from "./GlassMaterial";
++import { GlowOverlay } from "./SearchBar";
+ import MenuPanel from "./MenuPanel";
+ import TabIcon from "./TabIcon";
+ 
+@@ -37,9 +32,7 @@ const TAB_ICONS: LucideIcon[] = [Box, ScanFace, Star, ChevronsUpDown];
+ const HALF_W = PILL_WIDTH / 2;
+ const HALF_H = PILL_HEIGHT / 2;
+ 
+-// Glow constants
+ const GLOW_SIZE = 200;
+-const GLOW_HALF = GLOW_SIZE / 2;
+ 
+ interface TabBarPillProps {
+   activeTab: number;
+@@ -54,7 +47,7 @@ interface TabBarPillProps {
+   touchY: SharedValue<number>;
+   glowProgress: SharedValue<number>;
+   hoveredTab: SharedValue<number>;
+-  panGesture: GestureType;
++  panGesture: ComposedGesture | GestureType;
+ }
+ 
+ export default function TabBarPill({
+@@ -94,25 +87,6 @@ export default function TabBarPill({
+     );
+   });
+ 
+-  const glowStyle = useAnimatedStyle(() => {
+-    const progress = glowProgress.get();
+-    const opacity = progress <= 1
+-      ? progress * 0.2
+-      : interpolate(progress, [1, 2], [0.2, 0], "clamp");
+-    const scale = progress <= 1
+-      ? 1
+-      : interpolate(progress, [1, 2], [1, 4], "clamp");
+-
+-    return {
+-      opacity,
+-      transform: [
+-        { translateX: touchX.get() - GLOW_HALF },
+-        { translateY: touchY.get() - GLOW_HALF },
+-        { scale },
+-      ],
+-    };
+-  });
+-
+   return (
+     <GestureDetector gesture={panGesture}>
+       <Animated.View style={pillGlassStyle}>
+@@ -149,24 +123,13 @@ export default function TabBarPill({
+             </View>
+             <MenuPanel menuProgress={menuProgress} />
+           </GlassMaterial>
+-          <Animated.View
+-            style={[styles.glowContainer, glowStyle]}
+-            pointerEvents="none"
+-          >
+-            <Svg width={GLOW_SIZE} height={GLOW_SIZE}>
+-              <Defs>
+-                <RadialGradient id="glow" cx="50%" cy="50%" r="50%">
+-                  <Stop offset="0%" stopColor="#fff" stopOpacity={1} />
+-                  <Stop offset="100%" stopColor="#fff" stopOpacity={0} />
+-                </RadialGradient>
+-              </Defs>
+-              <Rect
+-                width={GLOW_SIZE}
+-                height={GLOW_SIZE}
+-                fill="url(#glow)"
+-              />
+-            </Svg>
+-          </Animated.View>
++          <GlowOverlay
++            size={GLOW_SIZE}
++            id="pillGlow"
++            touchX={touchX}
++            touchY={touchY}
++            glowProgress={glowProgress}
++          />
+         </Animated.View>
+       </Animated.View>
+     </GestureDetector>
+@@ -193,11 +156,4 @@ const styles = StyleSheet.create({
+     paddingVertical: 4,
+     gap: 0,
+   },
+-  glowContainer: {
+-    position: "absolute",
+-    top: 0,
+-    left: 0,
+-    width: GLOW_SIZE,
+-    height: GLOW_SIZE,
+-  },
+ });
+diff --git a/src/components/TabBar/TabIcon.tsx b/src/components/TabBar/TabIcon.tsx
+index d7b87bb..c5039e4 100644
+--- a/src/components/TabBar/TabIcon.tsx
++++ b/src/components/TabBar/TabIcon.tsx
+@@ -13,14 +13,14 @@ import Animated, {
+ } from "react-native-reanimated";
+ import { scheduleOnRN } from "react-native-worklets";
+ import {
++  COLORS,
+   ICON_SIZE,
+   ICON_STROKE_WIDTH,
+   PILL_BORDER_RADIUS,
+   PILL_HEIGHT,
+   PILL_WIDTH,
+-} from "../../constants/layout";
+-import { COLORS } from "../../constants/theme";
+-import { TAB_CENTER_XS } from "../../hooks/usePillGestures";
++  TAB_CENTER_XS,
++} from "./constants";
+ 
+ 
+ interface TabIconProps {
+@@ -79,18 +79,13 @@ export default function TabIcon({
+     .onFinalize((_event, success) => {
+       pillPressed.set(withTiming(0, { duration: 150 }));
+       glowProgress.set(withTiming(2, { duration: 300 }));
++      hoveredTab.set(-1);
+       if (isCircle) {
+         circlePressed.set(withTiming(0, { duration: 200 }));
+-        // Always trigger for circle since onEnd may not fire due to outer gesture conflict
+-        scheduleOnRN(triggerHaptic);
+-        scheduleOnRN(handlePress);
+       }
+-    })
+-    .onEnd(() => {
++      // Always trigger in onFinalize since onEnd may not fire due to outer gesture conflict
+       scheduleOnRN(triggerHaptic);
+-      if (!isCircle) {
+-        scheduleOnRN(handlePress);
+-      }
++      scheduleOnRN(handlePress);
+     }), [triggerHaptic, handlePress]);
+ 
+   // Fade out icons during search or menu transition
+diff --git a/src/components/TabBar/constants.ts b/src/components/TabBar/constants.ts
+new file mode 100644
+index 0000000..cd8167c
+--- /dev/null
++++ b/src/components/TabBar/constants.ts
+@@ -0,0 +1,139 @@
++import { Dimensions } from 'react-native';
++import { interpolate } from 'react-native-reanimated';
++
++// --- Layout ---
++
++const { width: SCREEN_WIDTH } = Dimensions.get('window');
++
++export const TAB_BAR_HORIZONTAL_PADDING = 16;
++export const TAB_BAR_GAP = 12;
++
++export const PILL_HEIGHT = 52;
++export const SEARCH_ACTIVE_HEIGHT = 42;
++export const PILL_BORDER_RADIUS = PILL_HEIGHT / 2;
++export const SEARCH_ACTIVE_RADIUS = SEARCH_ACTIVE_HEIGHT / 2;
++
++export const ICON_SIZE = 22;
++export const ICON_SPACING = 52;
++export const ICON_STROKE_WIDTH = 3;
++export const ICON_PADDING = 4;
++
++export const SEARCH_BUTTON_SIZE = 52;
++export const SEARCH_BAR_RADIUS = PILL_BORDER_RADIUS;
++
++export const TOTAL_WIDTH = SCREEN_WIDTH - 2 * TAB_BAR_HORIZONTAL_PADDING;
++
++export const PILL_WIDTH = TOTAL_WIDTH - TAB_BAR_GAP - SEARCH_BUTTON_SIZE;
++
++export const CLOSE_BUTTON_SIZE = SEARCH_BUTTON_SIZE;
++
++export const SEARCH_BAR_WIDTH = TOTAL_WIDTH - TAB_BAR_GAP - CLOSE_BUTTON_SIZE;
++
++export const TAB_BAR_BOTTOM_PADDING = 8;
++
++export const MENU_WIDTH = TOTAL_WIDTH;
++export const MENU_HEIGHT = 420;
++export const MENU_BORDER_RADIUS = 38;
++export const MENU_ITEM_HEIGHT = 48;
++
++// --- Tab Zone Constants ---
++
++export const MAX_SWITCHABLE_TAB = 2;
++export const CIRCLE_SIZE = PILL_HEIGHT - 8;
++
++export const TABS_START = ICON_PADDING;
++export const TABS_END = PILL_WIDTH - ICON_PADDING - CIRCLE_SIZE;
++export const TAB_ZONE_WIDTH = (TABS_END - TABS_START) / 3;
++
++export const MENU_DRAG_THRESHOLD = -50;
++
++export const TAB_CENTER_XS = [
++  TABS_START + TAB_ZONE_WIDTH * 0.5,
++  TABS_START + TAB_ZONE_WIDTH * 1.5,
++  TABS_START + TAB_ZONE_WIDTH * 2.5,
++  PILL_WIDTH - ICON_PADDING - CIRCLE_SIZE / 2,
++] as const;
++
++// --- Theme ---
++
++export const COLORS = {
++  background: '#0A0A0A',
++  surface: 'rgba(255, 255, 255, 0.06)',
++  surfaceHover: 'rgba(255, 255, 255, 0.12)',
++  textPrimary: 'rgba(255, 255, 255, 0.9)',
++  textSecondary: 'rgba(255, 255, 255, 0.4)',
++  border: 'rgba(255, 255, 255, 0.12)',
++  glassGradientTop: 'rgba(255, 255, 255, 0.11)',
++  glassGradientBottom: 'rgba(255, 255, 255, 0.05)',
++  accentBlue: '#3B82F6',
++  iconDefault: 'rgba(255, 255, 255, 0.9)',
++  iconActive: 'rgba(255, 255, 255, 0.9)',
++  borderGradientBright: 'rgba(255, 255, 255, 0.15)',
++  borderGradientDim: 'rgba(255, 255, 255, 0.01)',
++  borderGradientMedium: 'rgba(255, 255, 255, 0.06)',
++} as const;
++
++export const SPRING = {
++  damping: 24,
++  stiffness: 170,
++  mass: 1,
++} as const;
++
++export const SPRING_BOUNCY = {
++  damping: 22,
++  stiffness: 250,
++  mass: 0.6,
++} as const;
++
++export const SPRING_MENU_OPEN = {
++  damping: 14,
++  stiffness: 170,
++  mass: 0.7,
++} as const;
++
++export const SPRING_MENU_CLOSE = {
++  damping: 22,
++  stiffness: 120,
++  mass: 0.9,
++} as const;
++
++// --- Liquid Glass ---
++
++const MAX_PULL = 60;
++const MAX_STRETCH = 0.1;
++const MAX_COMPRESS = 0.12;
++
++export function liquidGlassTransform(
++  pressed: number,
++  overflowX: number,
++  overflowY: number,
++  halfW: number,
++  halfH: number,
++) {
++  "worklet";
++
++  const pressScale = interpolate(pressed, [0, 1], [1, 1.02]);
++
++  const signX = overflowX < 0 ? -1 : 1;
++  const dampedX = signX * MAX_PULL * (1 - 1 / (Math.abs(overflowX) / MAX_PULL + 1));
++  const signY = overflowY < 0 ? -1 : 1;
++  const dampedY = signY * MAX_PULL * (1 - 1 / (Math.abs(overflowY) / MAX_PULL + 1));
++
++  const absDX = Math.abs(dampedX);
++  const absDY = Math.abs(dampedY);
++
++  const stretchX = interpolate(absDX, [0, MAX_PULL], [0, MAX_STRETCH], "clamp");
++  const stretchY = interpolate(absDY, [0, MAX_PULL], [0, MAX_STRETCH], "clamp");
++
++  const compressX = interpolate(absDY, [0, MAX_PULL], [0, MAX_COMPRESS], "clamp");
++  const compressY = interpolate(absDX, [0, MAX_PULL], [0, MAX_COMPRESS], "clamp");
++
++  return {
++    transform: [
++      { translateX: signX * halfW * stretchX },
++      { translateY: signY * halfH * stretchY },
++      { scaleX: pressScale * (1 + stretchX) * (1 - compressX) },
++      { scaleY: pressScale * (1 + stretchY) * (1 - compressY) },
++    ],
++  };
++}
+diff --git a/src/components/TabBar/index.tsx b/src/components/TabBar/index.tsx
+new file mode 100644
+index 0000000..51b8be2
+--- /dev/null
++++ b/src/components/TabBar/index.tsx
+@@ -0,0 +1,478 @@
++import { useCallback, useEffect, useMemo, useState } from "react";
++import { Keyboard, Pressable, StyleSheet } from "react-native";
++import { Gesture, type ComposedGesture } from "react-native-gesture-handler";
++import Animated, {
++  cancelAnimation,
++  interpolate,
++  useAnimatedStyle,
++  useSharedValue,
++  withSpring,
++  withTiming,
++} from "react-native-reanimated";
++import { useSafeAreaInsets } from "react-native-safe-area-context";
++import { useReanimatedKeyboardAnimation } from "react-native-keyboard-controller";
++import { scheduleOnRN } from "react-native-worklets";
++import * as Haptics from "expo-haptics";
++import {
++  MENU_BORDER_RADIUS,
++  MENU_DRAG_THRESHOLD,
++  MENU_HEIGHT,
++  MAX_SWITCHABLE_TAB,
++  PILL_BORDER_RADIUS,
++  PILL_HEIGHT,
++  PILL_WIDTH,
++  SEARCH_BUTTON_SIZE,
++  SPRING,
++  SPRING_BOUNCY,
++  SPRING_MENU_CLOSE,
++  SPRING_MENU_OPEN,
++  TAB_BAR_BOTTOM_PADDING,
++  TAB_BAR_GAP,
++  TAB_BAR_HORIZONTAL_PADDING,
++  TAB_ZONE_WIDTH,
++  TABS_END,
++  TABS_START,
++} from "./constants";
++import TabBarPill from "./TabBarPill";
++import { SearchButton, CloseSearchButton } from "./SearchBar";
++
++// --- useTabBarAnimation ---
++
++function useTabBarAnimation() {
++  const searchProgress = useSharedValue(0);
++  const menuProgress = useSharedValue(0);
++  const [activeTab, setActiveTab] = useState(0);
++  const [isSearchActive, setIsSearchActive] = useState(false);
++  const [isMenuOpen, setIsMenuOpen] = useState(false);
++
++  const toggleSearch = useCallback(() => {
++    if (menuProgress.get() > 0.5) return;
++    const opening = searchProgress.get() < 0.5;
++    if (!opening) {
++      Keyboard.dismiss();
++    }
++    searchProgress.set(withSpring(opening ? 1 : 0, SPRING));
++    setIsSearchActive(opening);
++  }, [searchProgress, menuProgress]);
++
++  const toggleMenu = useCallback(() => {
++    if (searchProgress.get() > 0.5) return;
++    const opening = menuProgress.get() < 0.5;
++    cancelAnimation(menuProgress);
++    menuProgress.set(withSpring(
++      opening ? 1 : 0,
++      opening ? SPRING_MENU_OPEN : SPRING_MENU_CLOSE,
++    ));
++    setIsMenuOpen(opening);
++  }, [menuProgress, searchProgress]);
++
++  const pillAnimatedStyle = useAnimatedStyle(() => {
++    const sp = searchProgress.get();
++    const mp = menuProgress.get();
++
++    const isMenu = mp > 0.01;
++
++    if (isMenu) {
++      const scaleX = interpolate(mp, [0, 0.15, 0.5, 0.85], [1, 0.7, 0.85, 1], 'clamp');
++      const height = interpolate(mp, [0, 0.1, 1], [PILL_HEIGHT, PILL_HEIGHT, MENU_HEIGHT]);
++      const borderRadius = interpolate(mp, [0, 0.8], [PILL_BORDER_RADIUS, MENU_BORDER_RADIUS], 'clamp');
++
++      return {
++        width: PILL_WIDTH,
++        height,
++        opacity: 1,
++        marginRight: TAB_BAR_GAP,
++        borderRadius,
++        transform: [{ scaleX }],
++      };
++    }
++
++    return {
++      width: interpolate(sp, [0, 0.6], [PILL_WIDTH, 0], 'clamp'),
++      height: PILL_HEIGHT,
++      opacity: interpolate(sp, [0, 0.3], [1, 0], 'clamp'),
++      marginRight: interpolate(sp, [0, 0.6], [TAB_BAR_GAP, 0], 'clamp'),
++      borderRadius: PILL_BORDER_RADIUS,
++      transform: [
++        { translateX: interpolate(sp, [0, 0.6], [0, -PILL_WIDTH * 0.3], 'clamp') },
++      ],
++    };
++  });
++
++  return {
++    searchProgress,
++    menuProgress,
++    activeTab,
++    setActiveTab,
++    isSearchActive,
++    isMenuOpen,
++    toggleSearch,
++    toggleMenu,
++    pillAnimatedStyle,
++  };
++}
++
++// --- usePillGestures ---
++
++function usePillGestures(
++  activeTab: number,
++  setActiveTab: (index: number) => void,
++  searchProgress: ReturnType<typeof useSharedValue<number>>,
++  menuProgress: ReturnType<typeof useSharedValue<number>>,
++  toggleMenu: () => void,
++) {
++  const pillPressed = useSharedValue(0);
++  const overflowX = useSharedValue(0);
++  const overflowY = useSharedValue(0);
++  const touchX = useSharedValue(PILL_WIDTH / 2);
++  const touchY = useSharedValue(PILL_HEIGHT / 2);
++  const glowProgress = useSharedValue(0);
++  const hoveredTab = useSharedValue(-1);
++  const menuTriggeredByDrag = useSharedValue(false);
++
++  const triggerHaptic = useCallback(() => {
++    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
++  }, []);
++
++  const pendingTab = useSharedValue(-1);
++
++  const applyPendingTab = useCallback(() => {
++    const tab = pendingTab.get();
++    if (tab >= 0) {
++      setActiveTab(tab);
++      pendingTab.set(-1);
++    }
++  }, [setActiveTab, pendingTab]);
++
++  const detectAnyTab = useCallback((x: number) => {
++    "worklet";
++    if (x >= TABS_START && x < TABS_END) {
++      return Math.min(
++        MAX_SWITCHABLE_TAB,
++        Math.floor((x - TABS_START) / TAB_ZONE_WIDTH),
++      );
++    }
++    if (x >= TABS_END && x <= PILL_WIDTH) {
++      return 3;
++    }
++    return -1;
++  }, []);
++
++  const panGesture = useMemo(() => {
++    const longPress = Gesture.LongPress()
++      .minDuration(0)
++      .onStart((e) => {
++        cancelAnimation(overflowX);
++        cancelAnimation(overflowY);
++        cancelAnimation(glowProgress);
++
++        touchX.set(e.x);
++        touchY.set(e.y);
++        pillPressed.set(withTiming(1, { duration: 80 }));
++        glowProgress.set(1);
++
++        if (searchProgress.get() < 0.5) {
++          hoveredTab.set(detectAnyTab(e.x));
++        }
++      });
++
++    const pan = Gesture.Pan()
++      .minDistance(10)
++      .onStart((e) => {
++        cancelAnimation(overflowX);
++        cancelAnimation(overflowY);
++        cancelAnimation(glowProgress);
++
++        touchX.set(e.x);
++        touchY.set(e.y);
++        pillPressed.set(withTiming(1, { duration: 80 }));
++        glowProgress.set(1);
++      })
++      .onUpdate((e) => {
++        const x = e.x;
++        const y = e.y;
++
++        touchX.set(x);
++        touchY.set(y);
++
++        let ovX = 0;
++        if (x < 0) ovX = x;
++        else if (x > PILL_WIDTH) ovX = x - PILL_WIDTH;
++
++        let ovY = 0;
++        if (y < 0) ovY = y;
++        else if (y > PILL_HEIGHT) ovY = y - PILL_HEIGHT;
++
++        overflowX.set(ovX);
++        overflowY.set(ovY);
++
++        if (searchProgress.get() >= 0.5) return;
++
++        if (
++          ovY < MENU_DRAG_THRESHOLD &&
++          !menuTriggeredByDrag.get() &&
++          menuProgress.get() < 0.5
++        ) {
++          menuTriggeredByDrag.set(true);
++          hoveredTab.set(-1);
++          scheduleOnRN(toggleMenu);
++          scheduleOnRN(triggerHaptic);
++          overflowX.set(withSpring(0, SPRING_BOUNCY));
++          overflowY.set(withSpring(0, SPRING_BOUNCY));
++          pillPressed.set(withTiming(0, { duration: 150 }));
++          return;
++        }
++
++        if (menuTriggeredByDrag.get()) return;
++
++        if (ovX === 0 && ovY === 0) {
++          const newTab = detectAnyTab(x);
++          if (newTab !== hoveredTab.get()) {
++            hoveredTab.set(newTab);
++            scheduleOnRN(triggerHaptic);
++          }
++        } else {
++          if (hoveredTab.get() !== -1) {
++            hoveredTab.set(-1);
++          }
++        }
++      })
++      .onEnd(() => {
++        const wasDragMenu = menuTriggeredByDrag.get();
++        menuTriggeredByDrag.set(false);
++
++        const commitTab = hoveredTab.get();
++        pillPressed.set(withTiming(0, { duration: 150 }));
++        glowProgress.set(withTiming(2, { duration: 300 }));
++        overflowX.set(withSpring(0, SPRING_BOUNCY));
++        overflowY.set(withSpring(0, SPRING_BOUNCY));
++
++        if (wasDragMenu) {
++          hoveredTab.set(-1);
++          return;
++        }
++        if (searchProgress.get() >= 0.5) {
++          hoveredTab.set(-1);
++          return;
++        }
++
++        if (commitTab >= 0 && commitTab <= 2) {
++          pendingTab.set(commitTab);
++          scheduleOnRN(applyPendingTab);
++          scheduleOnRN(triggerHaptic);
++        } else {
++          hoveredTab.set(-1);
++          if (commitTab === 3) {
++            scheduleOnRN(toggleMenu);
++            scheduleOnRN(triggerHaptic);
++          }
++        }
++      });
++
++    return Gesture.Simultaneous(longPress, pan);
++  }, [
++    overflowX, overflowY, touchX, touchY, pillPressed, glowProgress,
++    hoveredTab, menuTriggeredByDrag, detectAnyTab, searchProgress,
++    menuProgress, toggleMenu, triggerHaptic, pendingTab, applyPendingTab,
++  ]);
++
++  return {
++    pillPressed, overflowX, overflowY, touchX, touchY,
++    glowProgress, hoveredTab, panGesture,
++  };
++}
++
++// --- useSearchGestures ---
++
++function useSearchGestures(onToggleSearch: () => void) {
++  const pressed = useSharedValue(0);
++  const overflowX = useSharedValue(0);
++  const overflowY = useSharedValue(0);
++  const touchX = useSharedValue(SEARCH_BUTTON_SIZE / 2);
++  const touchY = useSharedValue(PILL_HEIGHT / 2);
++  const glowProgress = useSharedValue(0);
++
++  const triggerHaptic = useCallback(() => {
++    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
++  }, []);
++
++  const tapGesture = useMemo(() => {
++    return Gesture.Tap()
++      .onBegin(() => {
++        touchX.set(SEARCH_BUTTON_SIZE / 2);
++        touchY.set(PILL_HEIGHT / 2);
++        pressed.set(withTiming(1, { duration: 80 }));
++        cancelAnimation(glowProgress);
++        glowProgress.set(1);
++      })
++      .onFinalize(() => {
++        pressed.set(withTiming(0, { duration: 150 }));
++        glowProgress.set(withTiming(2, { duration: 300 }));
++      })
++      .onEnd(() => {
++        scheduleOnRN(triggerHaptic);
++        scheduleOnRN(onToggleSearch);
++      });
++  }, [pressed, touchX, touchY, glowProgress, triggerHaptic, onToggleSearch]);
++
++  const panGesture = useMemo(() => {
++    return Gesture.Pan()
++      .minDistance(10)
++      .onStart((e) => {
++        cancelAnimation(overflowX);
++        cancelAnimation(overflowY);
++        cancelAnimation(glowProgress);
++
++        touchX.set(e.x);
++        touchY.set(e.y);
++        pressed.set(withTiming(1, { duration: 80 }));
++        glowProgress.set(1);
++      })
++      .onUpdate((e) => {
++        touchX.set(e.x);
++        touchY.set(e.y);
++
++        let ovX = 0;
++        if (e.x < 0) ovX = e.x;
++        else if (e.x > SEARCH_BUTTON_SIZE) ovX = e.x - SEARCH_BUTTON_SIZE;
++
++        let ovY = 0;
++        if (e.y < 0) ovY = e.y;
++        else if (e.y > PILL_HEIGHT) ovY = e.y - PILL_HEIGHT;
++
++        overflowX.set(ovX);
++        overflowY.set(ovY);
++      })
++      .onEnd(() => {
++        pressed.set(withTiming(0, { duration: 150 }));
++        glowProgress.set(withTiming(2, { duration: 300 }));
++        overflowX.set(withSpring(0, SPRING_BOUNCY));
++        overflowY.set(withSpring(0, SPRING_BOUNCY));
++      });
++  }, [overflowX, overflowY, touchX, touchY, pressed, glowProgress]);
++
++  const composedGesture: ComposedGesture = useMemo(
++    () => Gesture.Race(panGesture, tapGesture),
++    [panGesture, tapGesture],
++  );
++
++  return {
++    pressed, overflowX, overflowY, touchX, touchY,
++    glowProgress, composedGesture,
++  };
++}
++
++// --- TabBar Component ---
++
++interface TabBarProps {
++  onTabChange?: (index: number) => void;
++}
++
++export default function TabBar({ onTabChange }: TabBarProps) {
++  const insets = useSafeAreaInsets();
++  const bottomPadding = Math.max(insets.bottom * 0.7, TAB_BAR_BOTTOM_PADDING);
++  const { height: keyboardHeight } = useReanimatedKeyboardAnimation();
++
++  const {
++    searchProgress, menuProgress, activeTab, setActiveTab,
++    isSearchActive, isMenuOpen, toggleSearch, toggleMenu, pillAnimatedStyle,
++  } = useTabBarAnimation();
++
++  const handleTabPress = useCallback((index: number) => {
++    if (index === 3) {
++      toggleMenu();
++    } else {
++      setActiveTab(index);
++    }
++  }, [toggleMenu, setActiveTab]);
++
++  const {
++    pillPressed, overflowX, overflowY, touchX, touchY,
++    glowProgress, hoveredTab, panGesture,
++  } = usePillGestures(activeTab, setActiveTab, searchProgress, menuProgress, toggleMenu);
++
++  useEffect(() => {
++    hoveredTab.set(-1);
++  }, [activeTab, hoveredTab]);
++
++  useEffect(() => {
++    onTabChange?.(activeTab);
++  }, [activeTab, onTabChange]);
++
++  const {
++    pressed: searchPressed, overflowX: searchOverflowX, overflowY: searchOverflowY,
++    touchX: searchTouchX, touchY: searchTouchY, glowProgress: searchGlowProgress,
++    composedGesture: searchComposedGesture,
++  } = useSearchGestures(toggleSearch);
++
++  const {
++    pressed: closePressed, overflowX: closeOverflowX, overflowY: closeOverflowY,
++    touchX: closeTouchX, touchY: closeTouchY, glowProgress: closeGlowProgress,
++    composedGesture: closeComposedGesture,
++  } = useSearchGestures(toggleSearch);
++
++  const keyboardStyle = useAnimatedStyle(() => ({
++    transform: [{ translateY: keyboardHeight.get() }],
++  }));
++
++  return (
++    <>
++      <Animated.View style={[styles.container, { paddingBottom: bottomPadding }, keyboardStyle]}>
++        <TabBarPill
++          activeTab={activeTab}
++          onTabPress={handleTabPress}
++          searchProgress={searchProgress}
++          menuProgress={menuProgress}
++          pillAnimatedStyle={pillAnimatedStyle}
++          pillPressed={pillPressed}
++          overflowX={overflowX}
++          overflowY={overflowY}
++          touchX={touchX}
++          touchY={touchY}
++          glowProgress={glowProgress}
++          hoveredTab={hoveredTab}
++          panGesture={panGesture}
++        />
++        <SearchButton
++          searchProgress={searchProgress}
++          isSearchActive={isSearchActive}
++          pressed={searchPressed}
++          overflowX={searchOverflowX}
++          overflowY={searchOverflowY}
++          touchX={searchTouchX}
++          touchY={searchTouchY}
++          glowProgress={searchGlowProgress}
++          composedGesture={searchComposedGesture}
++        />
++        <CloseSearchButton
++          searchProgress={searchProgress}
++          pressed={closePressed}
++          overflowX={closeOverflowX}
++          overflowY={closeOverflowY}
++          touchX={closeTouchX}
++          touchY={closeTouchY}
++          glowProgress={closeGlowProgress}
++          composedGesture={closeComposedGesture}
++        />
++      </Animated.View>
++      {isMenuOpen && (
++        <Pressable
++          style={StyleSheet.absoluteFill}
++          onPress={toggleMenu}
++        />
++      )}
++    </>
++  );
++}
++
++const styles = StyleSheet.create({
++  container: {
++    position: "absolute",
++    bottom: 0,
++    left: 0,
++    right: 0,
++    flexDirection: "row",
++    alignItems: "flex-end",
++    paddingHorizontal: TAB_BAR_HORIZONTAL_PADDING,
++  },
++});
+diff --git a/src/constants/layout.ts b/src/constants/layout.ts
+deleted file mode 100644
+index 4a7f721..0000000
+--- a/src/constants/layout.ts
++++ /dev/null
+@@ -1,39 +0,0 @@
+-import { Dimensions } from 'react-native';
+-
+-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+-
+-export const TAB_BAR_HORIZONTAL_PADDING = 16;
+-export const TAB_BAR_GAP = 12;
+-
+-export const PILL_HEIGHT = 52;
+-export const SEARCH_ACTIVE_HEIGHT = 42;
+-export const PILL_BORDER_RADIUS = PILL_HEIGHT / 2;
+-export const SEARCH_ACTIVE_RADIUS = SEARCH_ACTIVE_HEIGHT / 2;
+-
+-export const ICON_SIZE = 22;
+-export const ICON_SPACING = 52;
+-export const ICON_STROKE_WIDTH = 3;
+-export const ICON_PADDING = 4;
+-
+-export const SEARCH_BUTTON_SIZE = 52;
+-export const SEARCH_BAR_RADIUS = PILL_BORDER_RADIUS;
+-
+-// Total available width for pill + search
+-export const TOTAL_WIDTH = SCREEN_WIDTH - 2 * TAB_BAR_HORIZONTAL_PADDING;
+-
+-// Default state: pill takes most space, search is a circle
+-export const PILL_WIDTH = TOTAL_WIDTH - TAB_BAR_GAP - SEARCH_BUTTON_SIZE;
+-
+-// Close button (same size as search button circle)
+-export const CLOSE_BUTTON_SIZE = SEARCH_BUTTON_SIZE;
+-
+-// Search state: pill gone, search bar + close button fill the space
+-export const SEARCH_BAR_WIDTH = TOTAL_WIDTH - TAB_BAR_GAP - CLOSE_BUTTON_SIZE;
+-
+-export const TAB_BAR_BOTTOM_PADDING = 8;
+-
+-// Menu expansion
+-export const MENU_WIDTH = TOTAL_WIDTH;
+-export const MENU_HEIGHT = 420;
+-export const MENU_BORDER_RADIUS = 38;
+-export const MENU_ITEM_HEIGHT = 48;
+diff --git a/src/constants/theme.ts b/src/constants/theme.ts
+deleted file mode 100644
+index ea842c4..0000000
+--- a/src/constants/theme.ts
++++ /dev/null
+@@ -1,40 +0,0 @@
+-export const COLORS = {
+-  background: '#0A0A0A',
+-  surface: 'rgba(255, 255, 255, 0.06)',
+-  surfaceHover: 'rgba(255, 255, 255, 0.12)',
+-  textPrimary: 'rgba(255, 255, 255, 0.9)',
+-  textSecondary: 'rgba(255, 255, 255, 0.4)',
+-  border: 'rgba(255, 255, 255, 0.12)',
+-  glassGradientTop: 'rgba(255, 255, 255, 0.11)',
+-  glassGradientBottom: 'rgba(255, 255, 255, 0.05)',
+-  accentBlue: '#3B82F6',
+-  iconDefault: 'rgba(255, 255, 255, 0.9)',
+-  iconActive: 'rgba(255, 255, 255, 0.9)',
+-  borderGradientBright: 'rgba(255, 255, 255, 0.15)',
+-  borderGradientDim: 'rgba(255, 255, 255, 0.01)',
+-  borderGradientMedium: 'rgba(255, 255, 255, 0.06)',
+-} as const;
+-
+-export const SPRING = {
+-  damping: 24,
+-  stiffness: 170,
+-  mass: 1,
+-} as const;
+-
+-export const SPRING_BOUNCY = {
+-  damping: 22,
+-  stiffness: 250,
+-  mass: 0.6,
+-} as const;
+-
+-export const SPRING_MENU_OPEN = {
+-  damping: 14,
+-  stiffness: 170,
+-  mass: 0.7,
+-} as const;
+-
+-export const SPRING_MENU_CLOSE = {
+-  damping: 22,
+-  stiffness: 120,
+-  mass: 0.9,
+-} as const;
+diff --git a/src/hooks/useKeyboardAnimation.ts b/src/hooks/useKeyboardAnimation.ts
+deleted file mode 100644
+index b5ba2b5..0000000
+--- a/src/hooks/useKeyboardAnimation.ts
++++ /dev/null
+@@ -1,12 +0,0 @@
+-import { useAnimatedStyle } from 'react-native-reanimated';
+-import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
+-
+-export default function useKeyboardAnimation() {
+-  const { height } = useReanimatedKeyboardAnimation();
+-
+-  const keyboardAnimatedStyle = useAnimatedStyle(() => ({
+-    transform: [{ translateY: height.get() }],
+-  }));
+-
+-  return { keyboardAnimatedStyle, keyboardHeight: height };
+-}
+diff --git a/src/hooks/usePillGestures.ts b/src/hooks/usePillGestures.ts
+deleted file mode 100644
+index 3bfe889..0000000
+--- a/src/hooks/usePillGestures.ts
++++ /dev/null
+@@ -1,221 +0,0 @@
+-import { useCallback, useMemo } from "react";
+-import {
+-  useSharedValue,
+-  withSpring,
+-  withTiming,
+-  cancelAnimation,
+-  type SharedValue,
+-} from "react-native-reanimated";
+-import { Gesture } from "react-native-gesture-handler";
+-import { scheduleOnRN } from "react-native-worklets";
+-import * as Haptics from "expo-haptics";
+-import { SPRING_BOUNCY } from "../constants/theme";
+-import { ICON_PADDING, PILL_HEIGHT, PILL_WIDTH } from "../constants/layout";
+-
+-const MAX_SWITCHABLE_TAB = 2;
+-const CIRCLE_SIZE = PILL_HEIGHT - 8;
+-
+-// Tab zone boundaries: 3 flex tabs then a fixed-width circle tab
+-const TABS_START = ICON_PADDING;
+-const TABS_END = PILL_WIDTH - ICON_PADDING - CIRCLE_SIZE;
+-const TAB_ZONE_WIDTH = (TABS_END - TABS_START) / 3;
+-
+-const MENU_DRAG_THRESHOLD = -50; // px upward to trigger menu
+-
+-export default function usePillGestures(
+-  activeTab: number,
+-  setActiveTab: (index: number) => void,
+-  searchProgress: SharedValue<number>,
+-  menuProgress: SharedValue<number>,
+-  toggleMenu: () => void,
+-) {
+-  const pillPressed = useSharedValue(0);
+-  const overflowX = useSharedValue(0);
+-  const overflowY = useSharedValue(0);
+-  const touchX = useSharedValue(PILL_WIDTH / 2);
+-  const touchY = useSharedValue(PILL_HEIGHT / 2);
+-  const glowProgress = useSharedValue(0);
+-  const hoveredTab = useSharedValue(-1);
+-  const menuTriggeredByDrag = useSharedValue(false);
+-
+-  const triggerHaptic = useCallback(() => {
+-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+-  }, []);
+-
+-  const pendingTab = useSharedValue(-1);
+-
+-  const applyPendingTab = useCallback(() => {
+-    const tab = pendingTab.get();
+-    if (tab >= 0) {
+-      setActiveTab(tab);
+-      pendingTab.set(-1);
+-    }
+-  }, [setActiveTab, pendingTab]);
+-
+-  const detectAnyTab = useCallback((x: number) => {
+-    "worklet";
+-    if (x >= TABS_START && x < TABS_END) {
+-      return Math.min(
+-        MAX_SWITCHABLE_TAB,
+-        Math.floor((x - TABS_START) / TAB_ZONE_WIDTH),
+-      );
+-    }
+-    if (x >= TABS_END && x <= PILL_WIDTH) {
+-      return 3;
+-    }
+-    return -1;
+-  }, []);
+-
+-  const panGesture = useMemo(() => {
+-    const longPress = Gesture.LongPress()
+-      .minDuration(0)
+-      .onStart((e) => {
+-        cancelAnimation(overflowX);
+-        cancelAnimation(overflowY);
+-        cancelAnimation(glowProgress);
+-
+-        touchX.set(e.x);
+-        touchY.set(e.y);
+-        pillPressed.set(withTiming(1, { duration: 80 }));
+-        glowProgress.set(1);
+-
+-        if (searchProgress.get() < 0.5) {
+-          hoveredTab.set(detectAnyTab(e.x));
+-        }
+-      });
+-
+-    const pan = Gesture.Pan()
+-      .minDistance(10)
+-      .onStart((e) => {
+-        cancelAnimation(overflowX);
+-        cancelAnimation(overflowY);
+-        cancelAnimation(glowProgress);
+-
+-        touchX.set(e.x);
+-        touchY.set(e.y);
+-        pillPressed.set(withTiming(1, { duration: 80 }));
+-        glowProgress.set(1);
+-      })
+-      .onUpdate((e) => {
+-        const x = e.x;
+-        const y = e.y;
+-
+-        touchX.set(x);
+-        touchY.set(y);
+-
+-        let ovX = 0;
+-        if (x < 0) ovX = x;
+-        else if (x > PILL_WIDTH) ovX = x - PILL_WIDTH;
+-
+-        let ovY = 0;
+-        if (y < 0) ovY = y;
+-        else if (y > PILL_HEIGHT) ovY = y - PILL_HEIGHT;
+-
+-        overflowX.set(ovX);
+-        overflowY.set(ovY);
+-
+-        if (searchProgress.get() >= 0.5) return;
+-
+-        // Drag up past threshold → open menu
+-        if (
+-          ovY < MENU_DRAG_THRESHOLD &&
+-          !menuTriggeredByDrag.get() &&
+-          menuProgress.get() < 0.5
+-        ) {
+-          menuTriggeredByDrag.set(true);
+-          hoveredTab.set(-1);
+-          scheduleOnRN(toggleMenu);
+-          scheduleOnRN(triggerHaptic);
+-          // Spring overflow back immediately
+-          overflowX.set(withSpring(0, SPRING_BOUNCY));
+-          overflowY.set(withSpring(0, SPRING_BOUNCY));
+-          pillPressed.set(withTiming(0, { duration: 150 }));
+-          return;
+-        }
+-
+-        if (menuTriggeredByDrag.get()) return;
+-
+-        if (ovX === 0 && ovY === 0) {
+-          const newTab = detectAnyTab(x);
+-          if (newTab !== hoveredTab.get()) {
+-            hoveredTab.set(newTab);
+-            scheduleOnRN(triggerHaptic);
+-          }
+-        } else {
+-          if (hoveredTab.get() !== -1) {
+-            hoveredTab.set(-1);
+-          }
+-        }
+-      })
+-      .onEnd(() => {
+-        const wasDragMenu = menuTriggeredByDrag.get();
+-        menuTriggeredByDrag.set(false);
+-
+-        const commitTab = hoveredTab.get();
+-        pillPressed.set(withTiming(0, { duration: 150 }));
+-        glowProgress.set(withTiming(2, { duration: 300 }));
+-        overflowX.set(withSpring(0, SPRING_BOUNCY));
+-        overflowY.set(withSpring(0, SPRING_BOUNCY));
+-
+-        if (wasDragMenu) {
+-          hoveredTab.set(-1);
+-          return;
+-        }
+-        if (searchProgress.get() >= 0.5) {
+-          hoveredTab.set(-1);
+-          return;
+-        }
+-
+-        if (commitTab >= 0 && commitTab <= 2) {
+-          // Keep hoveredTab on the new tab until React state catches up,
+-          // so the old tab's active bg doesn't flash.
+-          pendingTab.set(commitTab);
+-          scheduleOnRN(applyPendingTab);
+-          scheduleOnRN(triggerHaptic);
+-        } else {
+-          hoveredTab.set(-1);
+-          if (commitTab === 3) {
+-            scheduleOnRN(toggleMenu);
+-            scheduleOnRN(triggerHaptic);
+-          }
+-        }
+-      });
+-
+-    return Gesture.Simultaneous(longPress, pan);
+-  }, [
+-    overflowX,
+-    overflowY,
+-    touchX,
+-    touchY,
+-    pillPressed,
+-    glowProgress,
+-    hoveredTab,
+-    menuTriggeredByDrag,
+-    detectAnyTab,
+-    searchProgress,
+-    menuProgress,
+-    toggleMenu,
+-    triggerHaptic,
+-    pendingTab,
+-    applyPendingTab,
+-  ]);
+-
+-  return {
+-    pillPressed,
+-    overflowX,
+-    overflowY,
+-    touchX,
+-    touchY,
+-    glowProgress,
+-    hoveredTab,
+-    panGesture,
+-  };
+-}
+-
+-// Precomputed tab center X positions — safe to use on UI thread (plain numbers)
+-export const TAB_CENTER_XS = [
+-  TABS_START + TAB_ZONE_WIDTH * 0.5,
+-  TABS_START + TAB_ZONE_WIDTH * 1.5,
+-  TABS_START + TAB_ZONE_WIDTH * 2.5,
+-  PILL_WIDTH - ICON_PADDING - CIRCLE_SIZE / 2,
+-] as const;
+diff --git a/src/hooks/useSearchGestures.ts b/src/hooks/useSearchGestures.ts
+deleted file mode 100644
+index 7d5001e..0000000
+--- a/src/hooks/useSearchGestures.ts
++++ /dev/null
+@@ -1,96 +0,0 @@
+-import { useCallback, useMemo } from "react";
+-import {
+-  useSharedValue,
+-  withSpring,
+-  withTiming,
+-  cancelAnimation,
+-} from "react-native-reanimated";
+-import { Gesture } from "react-native-gesture-handler";
+-import { scheduleOnRN } from "react-native-worklets";
+-import * as Haptics from "expo-haptics";
+-import { SPRING_BOUNCY } from "../constants/theme";
+-import { PILL_HEIGHT, SEARCH_BUTTON_SIZE } from "../constants/layout";
+-
+-export default function useSearchGestures(onToggleSearch: () => void) {
+-  const pressed = useSharedValue(0);
+-  const overflowX = useSharedValue(0);
+-  const overflowY = useSharedValue(0);
+-  const touchX = useSharedValue(SEARCH_BUTTON_SIZE / 2);
+-  const touchY = useSharedValue(PILL_HEIGHT / 2);
+-  const glowProgress = useSharedValue(0);
+-
+-  const triggerHaptic = useCallback(() => {
+-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+-  }, []);
+-
+-  const tapGesture = useMemo(() => {
+-    return Gesture.Tap()
+-      .onBegin(() => {
+-        touchX.set(SEARCH_BUTTON_SIZE / 2);
+-        touchY.set(PILL_HEIGHT / 2);
+-        pressed.set(withTiming(1, { duration: 80 }));
+-        cancelAnimation(glowProgress);
+-        glowProgress.set(1);
+-      })
+-      .onFinalize(() => {
+-        pressed.set(withTiming(0, { duration: 150 }));
+-        glowProgress.set(withTiming(2, { duration: 300 }));
+-      })
+-      .onEnd(() => {
+-        scheduleOnRN(triggerHaptic);
+-        scheduleOnRN(onToggleSearch);
+-      });
+-  }, [pressed, touchX, touchY, glowProgress, triggerHaptic, onToggleSearch]);
+-
+-  const panGesture = useMemo(() => {
+-    return Gesture.Pan()
+-      .minDistance(10)
+-      .onStart((e) => {
+-        cancelAnimation(overflowX);
+-        cancelAnimation(overflowY);
+-        cancelAnimation(glowProgress);
+-
+-        touchX.set(e.x);
+-        touchY.set(e.y);
+-        pressed.set(withTiming(1, { duration: 80 }));
+-        glowProgress.set(1);
+-      })
+-      .onUpdate((e) => {
+-        touchX.set(e.x);
+-        touchY.set(e.y);
+-
+-        // Use current button width (SEARCH_BUTTON_SIZE when collapsed)
+-        let ovX = 0;
+-        if (e.x < 0) ovX = e.x;
+-        else if (e.x > SEARCH_BUTTON_SIZE) ovX = e.x - SEARCH_BUTTON_SIZE;
+-
+-        let ovY = 0;
+-        if (e.y < 0) ovY = e.y;
+-        else if (e.y > PILL_HEIGHT) ovY = e.y - PILL_HEIGHT;
+-
+-        overflowX.set(ovX);
+-        overflowY.set(ovY);
+-      })
+-      .onEnd(() => {
+-        pressed.set(withTiming(0, { duration: 150 }));
+-        glowProgress.set(withTiming(2, { duration: 300 }));
+-        overflowX.set(withSpring(0, SPRING_BOUNCY));
+-        overflowY.set(withSpring(0, SPRING_BOUNCY));
+-      });
+-  }, [overflowX, overflowY, touchX, touchY, pressed, glowProgress]);
+-
+-  const composedGesture = useMemo(
+-    () => Gesture.Race(panGesture, tapGesture),
+-    [panGesture, tapGesture],
+-  );
+-
+-  return {
+-    pressed,
+-    overflowX,
+-    overflowY,
+-    touchX,
+-    touchY,
+-    glowProgress,
+-    composedGesture,
+-  };
+-}
+diff --git a/src/hooks/useTabBarAnimation.ts b/src/hooks/useTabBarAnimation.ts
+deleted file mode 100644
+index ba32dd1..0000000
+--- a/src/hooks/useTabBarAnimation.ts
++++ /dev/null
+@@ -1,118 +0,0 @@
+-import { useCallback, useState } from 'react';
+-import { Keyboard } from 'react-native';
+-import {
+-  useSharedValue,
+-  withSpring,
+-  useAnimatedStyle,
+-  interpolate,
+-  cancelAnimation,
+-} from 'react-native-reanimated';
+-import { SPRING, SPRING_MENU_OPEN, SPRING_MENU_CLOSE } from '../constants/theme';
+-import {
+-  MENU_BORDER_RADIUS,
+-  MENU_HEIGHT,
+-  PILL_BORDER_RADIUS,
+-  PILL_HEIGHT,
+-  PILL_WIDTH,
+-  TAB_BAR_GAP,
+-} from '../constants/layout';
+-
+-export default function useTabBarAnimation() {
+-  const searchProgress = useSharedValue(0);
+-  const menuProgress = useSharedValue(0);
+-  const [activeTab, setActiveTab] = useState(0);
+-  const [isSearchActive, setIsSearchActive] = useState(false);
+-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+-
+-  const toggleSearch = useCallback(() => {
+-    // Guard: don't open search while menu is open
+-    if (menuProgress.get() > 0.5) return;
+-    const opening = searchProgress.get() < 0.5;
+-    if (!opening) {
+-      Keyboard.dismiss();
+-    }
+-    searchProgress.set(withSpring(opening ? 1 : 0, SPRING));
+-    setIsSearchActive(opening);
+-  }, [searchProgress, menuProgress]);
+-
+-  const toggleMenu = useCallback(() => {
+-    // Guard: don't open menu while search is active
+-    if (searchProgress.get() > 0.5) return;
+-    const opening = menuProgress.get() < 0.5;
+-    cancelAnimation(menuProgress);
+-    menuProgress.set(withSpring(
+-      opening ? 1 : 0,
+-      opening ? SPRING_MENU_OPEN : SPRING_MENU_CLOSE,
+-    ));
+-    setIsMenuOpen(opening);
+-  }, [menuProgress, searchProgress]);
+-
+-  const pillAnimatedStyle = useAnimatedStyle(() => {
+-    const sp = searchProgress.get();
+-    const mp = menuProgress.get();
+-
+-    const isMenu = mp > 0.01;
+-
+-    if (isMenu) {
+-      // Squeeze via scaleX so layout width stays constant (search button doesn't move)
+-      const scaleX = interpolate(
+-        mp,
+-        [0, 0.15, 0.5, 0.85],
+-        [1, 0.7, 0.85, 1],
+-        'clamp',
+-      );
+-      // Height: starts after squeeze, allow overshoot past 1.0 for spring bounce
+-      const height = interpolate(
+-        mp,
+-        [0, 0.1, 1],
+-        [PILL_HEIGHT, PILL_HEIGHT, MENU_HEIGHT],
+-      );
+-      const borderRadius = interpolate(
+-        mp,
+-        [0, 0.8],
+-        [PILL_BORDER_RADIUS, MENU_BORDER_RADIUS],
+-        'clamp',
+-      );
+-
+-      return {
+-        width: PILL_WIDTH,
+-        height,
+-        opacity: 1,
+-        marginRight: TAB_BAR_GAP,
+-        borderRadius,
+-        transform: [{ scaleX }],
+-      };
+-    }
+-
+-    // Search-driven animation (existing)
+-    return {
+-      width: interpolate(sp, [0, 0.6], [PILL_WIDTH, 0], 'clamp'),
+-      height: PILL_HEIGHT,
+-      opacity: interpolate(sp, [0, 0.3], [1, 0], 'clamp'),
+-      marginRight: interpolate(sp, [0, 0.6], [TAB_BAR_GAP, 0], 'clamp'),
+-      borderRadius: PILL_BORDER_RADIUS,
+-      transform: [
+-        {
+-          translateX: interpolate(
+-            sp,
+-            [0, 0.6],
+-            [0, -PILL_WIDTH * 0.3],
+-            'clamp',
+-          ),
+-        },
+-      ],
+-    };
+-  });
+-
+-  return {
+-    searchProgress,
+-    menuProgress,
+-    activeTab,
+-    setActiveTab,
+-    isSearchActive,
+-    isMenuOpen,
+-    toggleSearch,
+-    toggleMenu,
+-    pillAnimatedStyle,
+-  };
+-}
+diff --git a/src/utils/liquidGlass.ts b/src/utils/liquidGlass.ts
+deleted file mode 100644
+index b02f827..0000000
+--- a/src/utils/liquidGlass.ts
++++ /dev/null
+@@ -1,44 +0,0 @@
+-import { interpolate } from "react-native-reanimated";
+-
+-const MAX_PULL = 60;
+-const MAX_STRETCH = 0.1;
+-const MAX_COMPRESS = 0.12;
+-
+-/**
+- * Compute liquid-glass stretch/compress transform values from overflow + press state.
+- * Runs on the UI thread as a worklet.
+- */
+-export function liquidGlassTransform(
+-  pressed: number,
+-  overflowX: number,
+-  overflowY: number,
+-  halfW: number,
+-  halfH: number,
+-) {
+-  "worklet";
+-
+-  const pressScale = interpolate(pressed, [0, 1], [1, 1.02]);
+-
+-  const signX = overflowX < 0 ? -1 : 1;
+-  const dampedX = signX * MAX_PULL * (1 - 1 / (Math.abs(overflowX) / MAX_PULL + 1));
+-  const signY = overflowY < 0 ? -1 : 1;
+-  const dampedY = signY * MAX_PULL * (1 - 1 / (Math.abs(overflowY) / MAX_PULL + 1));
+-
+-  const absDX = Math.abs(dampedX);
+-  const absDY = Math.abs(dampedY);
+-
+-  const stretchX = interpolate(absDX, [0, MAX_PULL], [0, MAX_STRETCH], "clamp");
+-  const stretchY = interpolate(absDY, [0, MAX_PULL], [0, MAX_STRETCH], "clamp");
+-
+-  const compressX = interpolate(absDY, [0, MAX_PULL], [0, MAX_COMPRESS], "clamp");
+-  const compressY = interpolate(absDX, [0, MAX_PULL], [0, MAX_COMPRESS], "clamp");
+-
+-  return {
+-    transform: [
+-      { translateX: signX * halfW * stretchX },
+-      { translateY: signY * halfH * stretchY },
+-      { scaleX: pressScale * (1 + stretchX) * (1 - compressX) },
+-      { scaleY: pressScale * (1 + stretchY) * (1 - compressY) },
+-    ],
+-  };
+-}

@@ -4,29 +4,33 @@
 //   2. send(id, message)   -> continues THAT session only; unknown id is an error.
 //   3. sessions are isolated: one session's history is never visible to another.
 //   4. every event is appended to the event log (this is what we "interrupt" and inspect).
-// Sub-agent work is mocked: replies come from agent_fixture/results/<id>.ts (run(req)), files are copied into the workspace.
+// Sub-agent work is mocked: replies come from TestCases/test_folders/agent_fixture/results/<id>.ts (run(req)), files are copied into the workspace.
 import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
-import { FIXTURES, ROOT, RUN_TEST, STATE } from "@core/paths.ts";
+import { FIXTURES, ROOT, RUN_TEST, resultFiles } from "@core/paths.ts";
 import type { Fixture, Req, ResultModule } from "@core/types.ts";
 import type { Decision, Event, IHarness, Interceptor, Msg, Session } from "./interface.ts";
 export type { Decision, Event, IHarness, Interceptor, Msg, Session } from "./interface.ts";
 
-// Recorded results (agent_fixture/results/<id>.ts): each is ONLY run(req). See ResultModule / Req in core/types.ts.
-export type Recorded = { id: string; text: string; agent?: string; keywords?: string[]; run: (o: { agent: string; task: string; ws: string; root: string }) => string };
+// Recorded results (TestCases/test_folders/agent_fixture/results/<id>.ts): each is ONLY run(req). See ResultModule / Req in core/types.ts.
+export type Recorded = { id: string; text: string; agent?: string; keywords?: string[]; after?: string; run: (o: { agent: string; task: string; ws: string; root: string }) => string };
 export async function loadResults(dir: string): Promise<Recorded[]> {
-  if (!existsSync(dir)) return [];
   const out: Recorded[] = [];
-  for (const f of readdirSync(dir).filter((x) => x.endsWith(".ts"))) {
-    const m = (await import(pathToFileURL(join(dir, f)).href)).default as ResultModule;
-    out.push({ id: m.id, text: m.expected_input?.text ?? "", agent: m.match?.agent, keywords: m.match?.keywords,
+  for (const { path } of resultFiles(dir)) {   // results/<suite>/<file>.ts
+    const m = (await import(pathToFileURL(path).href)).default as ResultModule;
+    out.push({
+      id: m.id, text: m.expected_input?.text ?? "", agent: m.match?.agent, keywords: m.match?.keywords, after: m.match?.after,
       run: ({ agent, task, ws, root }) => {
         const store = join(FIXTURES, "store");
-        const req: Req = { agent, task, ws, store,
+        const req: Req = {
+          agent, task, ws, store,
           cp(from, to = "") { const dst = join(ws, to); cpSync(join(store, from), dst, { recursive: true }); return walk(dst).map((p) => p.slice(ws.length + 1)); },
-          write(path, text) { const abs = join(ws, path); mkdirSync(dirname(abs), { recursive: true }); writeFileSync(abs, text); } };
-        return String(m.run(req)); } });
+          write(path, text) { const abs = join(ws, path); mkdirSync(dirname(abs), { recursive: true }); writeFileSync(abs, text); }
+        };
+        return String(m.run(req));
+      }
+    });
   }
   return out;
 }
@@ -41,6 +45,18 @@ function embed(s: string) {
 const cos = (a: Map<number, number>, b: Map<number, number>) => { let s = 0; for (const [k, x] of a) s += x * (b.get(k) ?? 0); return s; };
 export const HIT_MIN = 0.15;   // Test_agent_2's FIX_MIN: below this the lookup is NOTFOUND
 
+
+/** Which recorded result answers this hand-over: ALL its keywords in the task (and the agent) win; otherwise the best similarity (>= HIT_MIN) among results without keywords. Exported so a tool can look up WITHOUT running. */
+export function pickRecorded(results: Recorded[], agent: string, task: string, served: string[] = []): Recorded | undefined {
+  // a result with `after` (a rework "fix") is only eligible once that result was already served in this task (`served` = ids served so far)
+  const rs = results.filter((r) => (!r.agent || r.agent === agent) && (!r.after || served.includes(r.after))); const low = task.toLowerCase();
+  // most specific wins (more keywords); on a tie the one with `after` wins (the next step of a rework)
+  const kw = rs.filter((r) => r.keywords?.length && r.keywords.every((k) => low.includes(k.toLowerCase()))).sort((a, b) => b.keywords!.length - a.keywords!.length || Number(!!b.after) - Number(!!a.after))[0];
+  if (kw) return kw;
+  const q = embed(task.slice(0, 400)); let best: [number, Recorded?] = [0];
+  for (const r of rs.filter((x) => !x.keywords?.length)) { const sc = cos(q, embed(r.text)); if (sc > best[0]) best = [sc, r]; }
+  return best[0] >= HIT_MIN ? best[1] : undefined;
+}
 
 export class Harness implements IHarness {
   sessions = new Map<string, Session>();
@@ -72,14 +88,7 @@ export class Harness implements IHarness {
     s.history.push({ role: "reply", text: reply }); this.emit({ kind: "reply", id, agent: s.agent, text: reply });
     return { id, reply };
   }
-  private lookup(agent: string, task: string): Recorded | undefined {
-    const rs = (this.opts.results ?? []).filter((r) => !r.agent || r.agent === agent); const low = task.toLowerCase();
-    const kw = rs.find((r) => r.keywords?.length && r.keywords.every((k) => low.includes(k.toLowerCase())));
-    if (kw) return kw;
-    const q = embed(task.slice(0, 400)); let best: [number, Recorded?] = [0];
-    for (const r of rs.filter((x) => !x.keywords?.length)) { const sc = cos(q, embed(r.text)); if (sc > best[0]) best = [sc, r]; }
-    return best[0] >= HIT_MIN ? best[1] : undefined;
-  }
+  private lookup(agent: string, task: string): Recorded | undefined { return pickRecorded(this.opts.results ?? [], agent, task); }
   private decide(d: Decision | void, s: Session): string | undefined {
     if (!d) return undefined;
     if ("deny" in d) { this.emit({ kind: "error", id: s.id, agent: s.agent, text: d.deny }); throw new Error(d.deny); }
@@ -105,7 +114,7 @@ export class Harness implements IHarness {
 //   bun main.ts send <id> < message      -> {"id","reply"}   (errors exit 2)
 if (import.meta.main) {
   const ws = process.env.TEST_WS ?? RUN_TEST;
-  const h = new Harness({ fixtures: [], results: await loadResults(join(FIXTURES, "results")), root: ROOT, ws, log: process.env.HARNESS_LOG ?? join(STATE, "harness.jsonl") });
+  const h = new Harness({ fixtures: [], results: await loadResults(join(FIXTURES, "results")), root: ROOT, ws, log: process.env.HARNESS_LOG ?? (() => { throw new Error("HARNESS_LOG is not set: the log lives in the case's run/ folder in .state"); })() });
   const [cmd, arg] = process.argv.slice(2); const input = await Bun.stdin.text();
   try { console.log(JSON.stringify(cmd === "spawn" ? h.spawn(arg, input) : h.send(arg, input))); }
   catch (e) { console.log(JSON.stringify({ error: String(e) })); process.exit(2); }

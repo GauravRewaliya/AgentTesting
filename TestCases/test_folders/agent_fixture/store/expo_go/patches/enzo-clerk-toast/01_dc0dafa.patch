@@ -1,0 +1,897 @@
+diff --git a/src/animations/clerk-toast/index.tsx b/src/animations/clerk-toast/index.tsx
+new file mode 100644
+index 0000000..4776279
+--- /dev/null
++++ b/src/animations/clerk-toast/index.tsx
+@@ -0,0 +1,42 @@
++import { GestureHandlerRootView } from 'react-native-gesture-handler';
++import * as Font from 'expo-font';
++import { StyleSheet } from 'react-native';
++import { useEffect, useState } from 'react';
++import { SafeAreaProvider } from 'react-native-safe-area-context';
++
++// Import the custom font file
++// eslint-disable-next-line @typescript-eslint/ban-ts-comment
++// @ts-ignore
++import sfProRoundedBold from './assets/fonts/SF-Pro-Rounded-Bold.otf';
++import { App } from './src';
++import { StackedToastProvider } from './src/stacked-toast-manager';
++
++// AppContainer component definition
++export const ClerkToast = () => {
++  // State to track whether custom fonts have been loaded
++  const [fontsLoaded, setFontsLoaded] = useState(false);
++
++  // Load custom fonts using async Font.loadAsync
++  useEffect(() => {
++    (async () => {
++      await Font.loadAsync({
++        'SF-Pro-Rounded-Bold': sfProRoundedBold,
++      });
++      setFontsLoaded(true);
++    })();
++  }, []);
++
++  // Render the AppContainer with GestureHandlerRootView and SafeAreaProvider
++  return (
++    <SafeAreaProvider>
++      <GestureHandlerRootView style={localStyles.fill}>
++        <StackedToastProvider>{fontsLoaded && <App />}</StackedToastProvider>
++      </GestureHandlerRootView>
++    </SafeAreaProvider>
++  );
++};
++
++// Styles for the AppContainer component
++const localStyles = StyleSheet.create({
++  fill: { flex: 1 },
++});
+diff --git a/src/animations/clerk-toast/src/components/pressable-scale.tsx b/src/animations/clerk-toast/src/components/pressable-scale.tsx
+new file mode 100644
+index 0000000..4a81daf
+--- /dev/null
++++ b/src/animations/clerk-toast/src/components/pressable-scale.tsx
+@@ -0,0 +1,57 @@
++import type { PropsWithChildren } from 'react';
++import React from 'react';
++import type { StyleProp, ViewStyle } from 'react-native';
++import { Gesture, GestureDetector } from 'react-native-gesture-handler';
++import Animated, {
++  runOnJS,
++  useAnimatedStyle,
++  useSharedValue,
++  withTiming,
++} from 'react-native-reanimated';
++
++type PressableScaleProps = PropsWithChildren<{
++  onPress?: () => void;
++  style?: StyleProp<ViewStyle>;
++}>;
++
++// Create the PressableScale component
++const PressableScale: React.FC<PressableScaleProps> = ({
++  children,
++  onPress,
++  style,
++}) => {
++  // Create a shared value to track the press state
++  const active = useSharedValue(false);
++
++  // Create a tap gesture handler
++  const gesture = Gesture.Tap()
++    .maxDuration(4000) // Set maximum duration for tap gesture
++    .onTouchesDown(() => {
++      active.value = true; // Mark as active on touch down
++    })
++    .onTouchesUp(() => {
++      if (onPress != null) runOnJS(onPress)(); // Execute onPress on touch up
++    })
++    .onFinalize(() => {
++      active.value = false; // Reset press state on finalize
++    });
++
++  // Create an animated style for scaling effect
++  const rAnimatedStyle = useAnimatedStyle(() => {
++    return {
++      transform: [
++        {
++          scale: withTiming(active.value ? 0.92 : 1), // Scale down when active, return to normal otherwise
++        },
++      ],
++    };
++  }, []);
++
++  return (
++    <GestureDetector gesture={gesture}>
++      <Animated.View style={[style, rAnimatedStyle]}>{children}</Animated.View>
++    </GestureDetector>
++  );
++};
++
++export { PressableScale };
+diff --git a/src/animations/clerk-toast/src/hook.tsx b/src/animations/clerk-toast/src/hook.tsx
+new file mode 100644
+index 0000000..0d6eb5f
+--- /dev/null
++++ b/src/animations/clerk-toast/src/hook.tsx
+@@ -0,0 +1,94 @@
++import { useCallback, useMemo, useRef } from 'react';
++import { Octicons } from '@expo/vector-icons';
++
++import type { ShowToastParams } from './hooks/use-toast';
++import { useToast } from './hooks/use-toast';
++import { PressableScale } from './components/pressable-scale';
++import { useStackedToast } from './stacked-toast-manager/hooks';
++
++export const useDemoStackedToast = () => {
++  const { showToast } = useToast();
++  const toastIndex = useRef(0);
++
++  const { clearAllStackedToasts } = useStackedToast();
++  const toasts: ShowToastParams[] = useMemo(
++    () => [
++      {
++        title: 'This is a Custom Toast message',
++        iconName: 'archive',
++      },
++      {
++        title: 'Strongly inspired by Emil Kowalski',
++        iconName: 'star',
++      },
++      {
++        title: 'It works with React Native and Expo!',
++        iconName: 'rocket',
++      },
++      {
++        title: 'Can you guess the main library used here?',
++        iconName: 'question',
++      },
++      {
++        title: 'Reanimated - of course!',
++        iconName: 'heart',
++      },
++      {
++        title: 'Wait! Too many Toasts here!',
++        iconName: 'alert',
++      },
++      {
++        title: "Let's swipe them away!",
++        iconName: 'arrow-left',
++      },
++      {
++        title: "Actually, let's clear quickly everything",
++        iconName: 'trash',
++        trailing: (
++          <PressableScale
++            onPress={clearAllStackedToasts}
++            style={{
++              marginRight: 6,
++            }}>
++            <Octicons name="x" size={16} color="#fff" />
++          </PressableScale>
++        ),
++      },
++      {
++        title: 'What about the source code?',
++        iconName: 'code',
++      },
++      {
++        title: 'You can find it at patreon.com/reactiive',
++        iconName: 'package',
++      },
++      {
++        title: "You're still here?",
++        iconName: 'smiley',
++      },
++      {
++        title: 'Ok, last one!',
++        iconName: 'check',
++      },
++      {
++        title: 'Thanks for watching!',
++        iconName: 'thumbsup',
++      },
++    ],
++    [clearAllStackedToasts],
++  );
++
++  const onPress = useCallback(() => {
++    // This is how you can show a toast easily
++    // showToast({
++    //   title: 'This is a Custom Toast message',
++    //   iconName: 'archive',
++    //   // optional - trailing: <></>
++    // })
++    showToast(toasts[toastIndex.current++ % toasts.length]);
++  }, [showToast, toasts]);
++
++  return {
++    onPress,
++  };
++};
+diff --git a/src/animations/clerk-toast/src/hooks/use-toast.tsx b/src/animations/clerk-toast/src/hooks/use-toast.tsx
+new file mode 100644
+index 0000000..ba5081e
+--- /dev/null
++++ b/src/animations/clerk-toast/src/hooks/use-toast.tsx
+@@ -0,0 +1,68 @@
++import { useCallback } from 'react';
++import { StyleSheet, Text, View } from 'react-native';
++import { LinearGradient } from 'expo-linear-gradient';
++import { Octicons } from '@expo/vector-icons';
++import type { Icon } from '@expo/vector-icons/build/createIconSet';
++
++import { useStackedToast } from '../stacked-toast-manager/hooks';
++
++type IconName<T, H extends string> = T extends Icon<infer U, H> ? U : never;
++// Is there a better way to do this?
++type OcticonsIconName = IconName<typeof Octicons, 'octicons'>;
++
++export type ShowToastParams = {
++  title: string;
++  iconName?: OcticonsIconName;
++  trailing?: React.ReactNode;
++};
++
++// This custom hook, useToast, provides a way to create and display toast notifications
++// in a React Native application. It leverages the useStackedToast hook to manage
++// multiple toasts in a stack-like manner. The toast messages can include a title,
++// an optional icon, and optional trailing content. The toasts are styled using
++// a linear gradient background and can be easily customized.
++export const useToast = () => {
++  const { showStackedToast } = useStackedToast();
++
++  const showToast = useCallback(
++    ({ title, iconName, trailing }: ShowToastParams) => {
++      return showStackedToast({
++        key: `key-${Math.random() * 1000}`,
++        children: () => {
++          return (
++            <LinearGradient
++              colors={['#2C2E35', '#26252D']}
++              locations={[0, 0.9]}
++              style={styles.container}>
++              {iconName && <Octicons name={iconName} size={16} color="#fff" />}
++              <Text style={styles.internalText}>{title}</Text>
++              <View style={{ flex: 1 }} />
++              {trailing}
++            </LinearGradient>
++          );
++        },
++      });
++    },
++    [showStackedToast],
++  );
++
++  return {
++    showToast,
++  };
++};
++
++const styles = StyleSheet.create({
++  container: {
++    flex: 1,
++    alignItems: 'center',
++    backgroundColor: '#2A292F',
++    flexDirection: 'row',
++    paddingHorizontal: 20,
++  },
++  internalText: {
++    fontFamily: 'SF-Pro-Rounded-Bold',
++    fontSize: 14,
++    color: 'white',
++    marginLeft: 10,
++  },
++});
+diff --git a/src/animations/clerk-toast/src/index.tsx b/src/animations/clerk-toast/src/index.tsx
+new file mode 100644
+index 0000000..bb702a6
+--- /dev/null
++++ b/src/animations/clerk-toast/src/index.tsx
+@@ -0,0 +1,45 @@
++import { ScrollView, StyleSheet, View } from 'react-native';
++import { StatusBar } from 'expo-status-bar';
++
++import { PressableScale } from './components/pressable-scale';
++import { useDemoStackedToast } from './hook';
++
++const App = () => {
++  const { onPress } = useDemoStackedToast();
++
++  return (
++    <View style={styles.container}>
++      <StatusBar style="auto" />
++      <ScrollView
++        contentContainerStyle={{
++          paddingTop: 60,
++        }}>
++        {new Array(10).fill(null).map((_, index) => (
++          <PressableScale
++            key={index}
++            onPress={onPress}
++            style={styles.listItem}
++          />
++        ))}
++      </ScrollView>
++    </View>
++  );
++};
++
++const styles = StyleSheet.create({
++  container: {
++    flex: 1,
++    backgroundColor: '#fefefe',
++  },
++  listItem: {
++    height: 100,
++    backgroundColor: 'black',
++    marginHorizontal: 20,
++    marginVertical: 10,
++    borderRadius: 20,
++    borderCurve: 'continuous',
++  },
++});
++
++// Export the main App component for use in other files
++export { App };
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.android.tsx b/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.android.tsx
+new file mode 100644
+index 0000000..1d2524b
+--- /dev/null
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.android.tsx
+@@ -0,0 +1,38 @@
++import { StyleSheet, useWindowDimensions } from 'react-native';
++import React, { useContext } from 'react';
++import { LinearGradient } from 'expo-linear-gradient';
++import Animated, {
++  useAnimatedStyle,
++  withTiming,
++} from 'react-native-reanimated';
++
++import { InternalStackedToastContext } from '../context';
++
++import { useGradientHeight } from './use-gradient-height';
++
++export const Backdrop = () => {
++  const { stackedToasts } = useContext(InternalStackedToastContext);
++  const { height: windowHeight } = useWindowDimensions();
++  const gradientHeight = useGradientHeight();
++
++  const rAnimatedStyle = useAnimatedStyle(() => {
++    const top = windowHeight - gradientHeight;
++    return {
++      top: withTiming(top, {
++        duration: 500,
++      }),
++    };
++  }, [windowHeight, stackedToasts.length]);
++
++  return (
++    <Animated.View
++      pointerEvents="none"
++      style={[StyleSheet.absoluteFill, rAnimatedStyle]}>
++      <LinearGradient
++        locations={[0, 0.55]}
++        colors={['rgba(255, 255,255,0.0)', 'rgba(255, 255,255,0.5)']}
++        style={StyleSheet.absoluteFill}
++      />
++    </Animated.View>
++  );
++};
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.tsx b/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.tsx
+new file mode 100644
+index 0000000..12ba161
+--- /dev/null
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.tsx
+@@ -0,0 +1,57 @@
++import { StyleSheet, useWindowDimensions } from 'react-native';
++import React, { useContext } from 'react';
++import MaskedView from '@react-native-masked-view/masked-view';
++import { LinearGradient } from 'expo-linear-gradient';
++import { BlurView } from 'expo-blur';
++import Animated, {
++  useAnimatedStyle,
++  withTiming,
++} from 'react-native-reanimated';
++
++import { InternalStackedToastContext } from '../context';
++
++import { useGradientHeight } from './use-gradient-height';
++
++// The Backdrop component creates a visually appealing background for stacked toasts.
++// It uses a combination of a masked view, linear gradient, and blur effect to create
++// a semi-transparent, animated backdrop that adjusts based on the number of toasts.
++// The backdrop animates from the bottom of the screen, creating a smooth transition
++// as toasts are added or removed.
++export const Backdrop = () => {
++  const { stackedToasts } = useContext(InternalStackedToastContext);
++  const { height: windowHeight } = useWindowDimensions();
++  const gradientHeight = useGradientHeight();
++
++  const rAnimatedStyle = useAnimatedStyle(() => {
++    const top = windowHeight - gradientHeight;
++    return {
++      top: withTiming(top, {
++        duration: 500,
++      }),
++    };
++  }, [windowHeight, stackedToasts.length]);
++
++  return (
++    <Animated.View style={[StyleSheet.absoluteFill, rAnimatedStyle]}>
++      <MaskedView
++        pointerEvents="none"
++        maskElement={
++          <LinearGradient
++            locations={[0, 0.55]}
++            colors={['rgba(255, 255,255,0.0)', 'rgba(255, 255,255,1)']}
++            style={StyleSheet.absoluteFill}
++          />
++        }
++        style={{
++          height: windowHeight / 2,
++          width: '100%',
++        }}>
++        <BlurView
++          intensity={80}
++          tint={'systemChromeMaterialLight'}
++          style={StyleSheet.absoluteFill}
++        />
++      </MaskedView>
++    </Animated.View>
++  );
++};
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/use-gradient-height.ts b/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/use-gradient-height.ts
+new file mode 100644
+index 0000000..0e882c2
+--- /dev/null
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/use-gradient-height.ts
+@@ -0,0 +1,13 @@
++import { useContext } from 'react';
++import { useWindowDimensions } from 'react-native';
++
++import { InternalStackedToastContext } from '../context';
++import { MAX_VISIBLE_TOASTS, TOAST_HEIGHT } from '../constants';
++
++export const useGradientHeight = () => {
++  const { stackedToasts } = useContext(InternalStackedToastContext);
++  const { height: windowHeight } = useWindowDimensions();
++  const gradientHeight =
++    Math.min(stackedToasts.length, MAX_VISIBLE_TOASTS) * (TOAST_HEIGHT + 90);
++  return Math.min(gradientHeight, windowHeight / 2);
++};
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/constants.ts b/src/animations/clerk-toast/src/stacked-toast-manager/constants.ts
+new file mode 100644
+index 0000000..26abf4e
+--- /dev/null
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/constants.ts
+@@ -0,0 +1,3 @@
++export const TOAST_HEIGHT = 55;
++
++export const MAX_VISIBLE_TOASTS = 3;
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/context.ts b/src/animations/clerk-toast/src/stacked-toast-manager/context.ts
+new file mode 100644
+index 0000000..15a42bd
+--- /dev/null
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/context.ts
+@@ -0,0 +1,38 @@
++// Import React and useContext from React library
++import React from 'react';
++
++// Define the type for a StackedToast
++export type StackedToastType = {
++  id: number;
++  key: string;
++  children?: () => React.ReactNode;
++};
++
++// Create a context for managing StackedToasts
++export const StackedToastContext = React.createContext<{
++  showStackedToast: (StackedToast: Omit<StackedToastType, 'id'>) => void;
++  clearAllStackedToasts: () => void;
++}>({
++  showStackedToast: () => {}, // Default empty function for showStackedToast
++  clearAllStackedToasts: () => {}, // Default empty function for clearAllStackedToasts
++});
++
++// Why did I create two contexts?
++// The first one is for general use.
++// If you want to show a StackedToast:
++// 1. You don't need to know the internal details of the StackedToastProvider.
++// 2. You don't need to re-render the component when the internal state of the StackedToastProvider changes.
++
++// The second one is for internal use.
++// This is used to update the internal state of each StackedToast.
++// It is used to calculate the position of each StackedToast based on its ID.
++// You can see the usage of this context in the hooks.ts file.
++
++export type InternalStackedToastContextType = {
++  stackedToasts: StackedToastType[];
++};
++
++export const InternalStackedToastContext =
++  React.createContext<InternalStackedToastContextType>({
++    stackedToasts: [],
++  });
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/hooks.ts b/src/animations/clerk-toast/src/stacked-toast-manager/hooks.ts
+new file mode 100644
+index 0000000..154a0df
+--- /dev/null
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/hooks.ts
+@@ -0,0 +1,31 @@
++import { useContext, useMemo } from 'react'; // Importing useContext and useMemo hooks from React
++
++import { InternalStackedToastContext, StackedToastContext } from './context'; // Importing custom context objects
++import { MAX_VISIBLE_TOASTS, TOAST_HEIGHT } from './constants';
++
++// Custom hook to access the stacked toast context
++export const useStackedToast = () => {
++  return useContext(StackedToastContext); // Using useContext hook to access StackedToastContext
++};
++
++// Custom hook to access internal stacked toast information based on a key
++export const useInternalStackedToast = (key: string) => {
++  const { stackedToasts } = useContext(InternalStackedToastContext); // Extracting stackedToasts from InternalStackedToastContext
++
++  const id = useMemo(() => {
++    // Using useMemo to memoize the ID calculation based on changes in key or stackedToasts
++
++    // Finding the ID of the stacked toast with the provided key
++    return stackedToasts.find(item => item.key === key)?.id;
++  }, [key, stackedToasts]);
++
++  // This will calculate the "bottom displacement" of the stacked toast based on its ID
++  // The id is retrieved from the previous useMemo call (using the key)
++  const bottomHeight = useMemo(() => {
++    const offset = 15; // Offset value for calculation
++
++    return Math.min(id ?? 0, MAX_VISIBLE_TOASTS - 1) * (TOAST_HEIGHT + offset);
++  }, [id]);
++
++  return { id: id ?? 0, bottomHeight }; // Returning the calculated ID and bottom height
++};
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/index.ts b/src/animations/clerk-toast/src/stacked-toast-manager/index.ts
+new file mode 100644
+index 0000000..13c3dec
+--- /dev/null
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/index.ts
+@@ -0,0 +1,3 @@
++export * from './context';
++export * from './stacked-toast-provider';
++export * from './stacked-toast';
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast-provider.tsx b/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast-provider.tsx
+new file mode 100644
+index 0000000..aa18de9
+--- /dev/null
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast-provider.tsx
+@@ -0,0 +1,125 @@
++import type { PropsWithChildren } from 'react';
++import React, { useCallback, useMemo, useRef, useState } from 'react';
++
++import {
++  InternalStackedToastContext,
++  StackedToastContext,
++  type StackedToastType,
++} from './context';
++import { StackedToast } from './stacked-toast';
++import { Backdrop } from './backdrop';
++
++// Define a StackedToastProvider component to manage and display StackedToasts
++export const StackedToastProvider: React.FC<PropsWithChildren> = ({
++  children,
++}) => {
++  // State to manage the list of StackedToasts
++  const [stackedToasts, setStackedToasts] = useState<StackedToastType[]>([]);
++
++  // Function to show a new StackedToast
++  const showStackedToast = useCallback(
++    (stackedSheet: Omit<StackedToastType, 'id'>) => {
++      setStackedToasts(prev => {
++        // Update the IDs and add the new StackedToast to the list
++        const updatedPrev = prev.map(item => ({
++          ...item,
++          id: item.id + 1,
++        }));
++
++        return [...updatedPrev, { ...stackedSheet, id: 0 }];
++      });
++    },
++    [setStackedToasts],
++  );
++
++  // Memoized sorted list of StackedToasts based on their IDs
++  const sortedStackedToasts = useMemo(() => {
++    return stackedToasts.sort((a, b) => a.id - b.id);
++  }, [stackedToasts]);
++
++  // Function to dismiss a StackedToast by its ID
++  const onDismiss = useCallback(
++    (StackedToastId: number) => {
++      setStackedToasts(prev => {
++        return prev
++          .map(item => {
++            // Set the item to null if its ID matches the dismissed ID
++            if (item.id === StackedToastId) {
++              return null;
++            }
++
++            // Decrement the ID for StackedToasts with higher IDs than the dismissed StackedToast
++            if (item.id > StackedToastId) {
++              return {
++                ...item,
++                id: item.id - 1,
++              };
++            }
++
++            return item;
++          })
++          .filter(Boolean) as StackedToastType[]; // Filter out null values and cast to StackedToastType
++      });
++    },
++    [setStackedToasts],
++  );
++
++  const clearAllStackedToasts = useCallback(() => {
++    setStackedToasts([]);
++  }, [setStackedToasts]);
++
++  // Memoized context value containing the showStackedToast function
++  const value = useMemo(() => {
++    return {
++      showStackedToast,
++      clearAllStackedToasts,
++    };
++  }, [clearAllStackedToasts, showStackedToast]);
++
++  const stackedToastsMemoizedByKeys = useRef<
++    Record<string | number, React.ReactNode>
++  >({});
++
++  const renderStackedToast = useCallback(
++    (stackedSheet: StackedToastType, index: number) => {
++      const key = stackedSheet.key || stackedSheet.id;
++
++      if (stackedToastsMemoizedByKeys.current[key]) {
++        return stackedToastsMemoizedByKeys.current[key];
++      }
++
++      const stackedSheetNode = (
++        <StackedToast
++          stackedSheet={stackedSheet}
++          key={stackedSheet.key || stackedSheet.id}
++          index={index}
++          onDismiss={onDismiss}
++        />
++      );
++
++      stackedToastsMemoizedByKeys.current[key] = stackedSheetNode;
++      return stackedSheetNode;
++    },
++    [onDismiss],
++  );
++
++  const internalStackedToastValue = useMemo(() => {
++    return {
++      stackedToasts,
++    };
++  }, [stackedToasts]);
++
++  // Render the StackedToastContext.Provider with children and mapped StackedToast components
++  return (
++    <StackedToastContext.Provider value={value}>
++      <InternalStackedToastContext.Provider value={internalStackedToastValue}>
++        {children}
++        {sortedStackedToasts.map((stackedSheet, index) => {
++          // Render each StackedToast component with the given key, StackedToast, index, and onDismiss function
++          return renderStackedToast(stackedSheet, index);
++        })}
++        <Backdrop />
++      </InternalStackedToastContext.Provider>
++    </StackedToastContext.Provider>
++  );
++};
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx b/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx
+new file mode 100644
+index 0000000..f3b6c6d
+--- /dev/null
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx
+@@ -0,0 +1,199 @@
++import { StyleSheet, useWindowDimensions } from 'react-native';
++import Animated, {
++  FadeOutLeft,
++  runOnJS,
++  useAnimatedStyle,
++  useSharedValue,
++  withSpring,
++  withTiming,
++} from 'react-native-reanimated';
++import { Gesture, GestureDetector } from 'react-native-gesture-handler';
++import { useCallback, useEffect, useMemo } from 'react';
++
++import type { StackedToastType } from './context';
++import { useInternalStackedToast } from './hooks';
++import { MAX_VISIBLE_TOASTS, TOAST_HEIGHT } from './constants';
++
++// Define the props for the StackedToast component
++type StackedToastProps = {
++  index: number;
++  stackedSheet: StackedToastType;
++  onDismiss: (StackedToastId: number) => void;
++};
++
++// Constants for StackedToast styling
++
++const BaseSafeArea = 50;
++
++// Define the StackedToast component
++const StackedToast: React.FC<StackedToastProps> = ({
++  stackedSheet,
++  index,
++  onDismiss,
++}) => {
++  // Get the width of the window using useWindowDimensions hook
++  const { width: windowWidth } = useWindowDimensions();
++  const { id: stackedToastId, bottomHeight } =
++    useInternalStackedToast(stackedSheet.key) ?? 0;
++  const isActiveStackedToast = stackedToastId === 0;
++
++  // Shared values for animation
++  // That's the "initial" position of the StackedToast
++  // After that, the StackedToast will be animated to the bottom
++  const initialBottomPosition = isActiveStackedToast
++    ? // Not an elegant way to handle the first StackedToast.
++      // Basically the purpose is that the initial position of the StackedToast
++      // should be the same as the last StackedToast that is being dismissed
++      // Except for the first StackedToast, that should be animated from the bottom
++      // of the screen (so -HideStackedToastOffset)
++      -TOAST_HEIGHT
++    : BaseSafeArea;
++
++  const bottom = useSharedValue(initialBottomPosition);
++
++  // Update the bottom position when the StackedToast id changes
++  // After the "mount" animation, the StackedToast will be animated to the
++  // right bottom value.
++  // To be honest that's not an easy solution, but it seems to work fine
++  useEffect(() => {
++    bottom.value = withSpring(BaseSafeArea + bottomHeight, {
++      duration: 500,
++      dampingRatio: 1.5,
++      stiffness: 1,
++      overshootClamping: false,
++      restSpeedThreshold: 50,
++    });
++
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [bottomHeight]);
++
++  const translateX = useSharedValue(0);
++  const isSwiping = useSharedValue(false);
++
++  // Callback to dismiss the StackedToast with animation
++  const dismissItem = useCallback(() => {
++    'worklet';
++    translateX.value = withTiming(
++      -windowWidth,
++      {
++        duration: 250,
++      },
++      isFinished => {
++        if (isFinished) {
++          runOnJS(onDismiss)(stackedToastId);
++        }
++      },
++    );
++  }, [onDismiss, stackedToastId, translateX, windowWidth]);
++
++  // Gesture handler for swipe interactions
++  const gesture = Gesture.Pan()
++    // .enabled(isActiveStackedToast)
++    .onBegin(() => {
++      isSwiping.value = true;
++    })
++    .onUpdate(event => {
++      // Allow swiping only to the left direction
++      if (event.translationX > 0) return;
++      translateX.value = event.translationX;
++    })
++    .onEnd(event => {
++      // Dismiss the StackedToast if swiped enough, otherwise animate back to the initial position
++      if (event.translationX < -50) {
++        dismissItem();
++      } else {
++        translateX.value = withSpring(0);
++      }
++    })
++    .onFinalize(() => {
++      isSwiping.value = false;
++    });
++
++  // Animated styles for the StackedToast container
++  const rStackedToastStyle = useAnimatedStyle(() => {
++    return {
++      bottom: bottom.value,
++      zIndex: withTiming(100 - stackedToastId),
++      shadowRadius: withTiming(Math.max(10 - stackedToastId * 2.5, 2)),
++      shadowOpacity: withTiming(
++        stackedToastId > 3 ? 0.1 - stackedToastId * 0.025 : 0.08,
++      ),
++    };
++  }, [stackedSheet, stackedToastId]);
++
++  const rStackedToastTranslationStyle = useAnimatedStyle(() => {
++    return {
++      transform: [
++        {
++          translateX: translateX.value,
++        },
++      ],
++    };
++  }, []);
++
++  // Animated styles for the visible container (opacity)
++  const rVisibleContainerStyle = useAnimatedStyle(() => {
++    return {
++      // The content of the first two StackedToasts is visible
++      // The content of the other StackedToasts is hidden
++      opacity: withTiming(stackedToastId < MAX_VISIBLE_TOASTS ? 1 : 0),
++    };
++  }, [stackedToastId]);
++
++  const memoizedChildren = useMemo(() => {
++    if (!stackedSheet.children) return null;
++    return stackedSheet.children();
++  }, [stackedSheet]);
++
++  // Render the StackedToast component
++  return (
++    <GestureDetector gesture={gesture}>
++      <Animated.View
++        key={index}
++        style={[
++          {
++            width: windowWidth * 0.9,
++            left: windowWidth * 0.05,
++            zIndex: -1,
++          },
++          styles.container,
++          rStackedToastStyle,
++        ]}
++        exiting={FadeOutLeft.delay(120 * stackedToastId)}>
++        <Animated.View key={index} style={rStackedToastTranslationStyle}>
++          {memoizedChildren && (
++            <Animated.View
++              style={[
++                rVisibleContainerStyle,
++                {
++                  width: windowWidth * 0.9,
++                  borderRadius: 35,
++                  borderCurve: 'continuous',
++                  overflow: 'hidden',
++                  height: TOAST_HEIGHT,
++                },
++              ]}>
++              {stackedToastId <= MAX_VISIBLE_TOASTS * 1.5 && memoizedChildren}
++            </Animated.View>
++          )}
++        </Animated.View>
++      </Animated.View>
++    </GestureDetector>
++  );
++};
++
++// Styles for the StackedToast component
++const styles = StyleSheet.create({
++  container: {
++    position: 'absolute',
++    borderRadius: 35,
++    shadowOffset: {
++      width: 0,
++      height: 0,
++    },
++    elevation: 2,
++  },
++});
++
++// Export the StackedToast component for use in other files
++export { StackedToast };

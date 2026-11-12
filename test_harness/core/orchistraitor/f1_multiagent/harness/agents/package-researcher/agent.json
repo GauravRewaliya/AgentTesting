@@ -1,0 +1,15 @@
+{
+ "role": "package-researcher",
+ "description": "Looks up libraries and packages (names, versions, compatibility, install steps) on the web and reports with sources",
+ "model": "haiku",
+ "session": "persistent",
+ "writes": false,
+ "max_children": 0,
+ "agents": [],
+ "tiers": [
+  "T1",
+  "T2",
+  "T3",
+  "T4"
+ ]
+}

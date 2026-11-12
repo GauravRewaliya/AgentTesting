@@ -40,3 +40,18 @@ export interface Health { responses: Record<string, { pass: number; total: numbe
 export interface TryResult { accepted: boolean; rejections: string[]; reply?: string; fixture?: string | null; found?: boolean; files?: string[] }
 export interface WorkspaceSnap { hasScratch: boolean; original: string[]; current: string[]; removed: string[]; added: string[]; edited: string[] }
 export interface Usage { expectedBy: { caseId: string; suite: string; turn: number }[]; servedIn: { caseId: string; times: number }[]; sharedStore: { store: string; with: string[] }[]; agentCases: string[]; orphan: boolean }
+
+/* ───────── "Run" of the fixture-mock runner (test_harness/core/run.ts; results land in test_harness/.state/<version>, which Flow + Test pages read) ───────── */
+export type StateRunStatus = "running" | "done" | "failed" | "stopped";
+export interface StateRun {
+  id: string; suite: string;
+  /** the cases handed to run.ts, in order: the missing ancestors (`after`) first, the case you asked for last */
+  cases: string[]; rerun: boolean; startedAt: number; endedAt?: number; pid: number; status: StateRunStatus; exitCode?: number | null;
+}
+export interface StateRunLog { run: StateRun; log: string }
+
+/** One result of a case in a workspace: the current one (`last/<id>.json`) or an archived one (`cache/<id>.<n>/last.json`, made by a rerun). */
+export interface RunSummary { source: "now" | "archived"; n: number; at: string; status: string; ok: boolean; cost: number; turns: number; notes: string[] }
+/** A run that was started from the UI (a "session run"): the trigger, plus its sub tasks = the cases it ran (the missing `after` ancestors first, the case you asked for last). */
+export interface SessionRun extends StateRun { sub: { caseId: string; state: "ok" | "fail" | "not_run" }[] }
+export interface CaseRuns { /** every step "Run" executes for this case, in order */ chain: string[]; workspace: string; current: RunSummary | null; history: RunSummary[]; sessionRuns: SessionRun[] }

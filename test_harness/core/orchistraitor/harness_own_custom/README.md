@@ -19,12 +19,12 @@ lead (claude -p, haiku)
 .claude/mods/interrupt   (loaded with --plugin-dir; answers the tool call itself, no sub-agent starts)
   │  guard: forbidden agent -> GUARD stop | unknown type -> GUARD-RETRY (lead retries, not counted)
   ▼
-main.ts  Harness   spawn -> NEW session (fresh id) | send -> SAME session only | every step = event in .state/harness.jsonl
+main.ts  Harness   spawn -> NEW session (fresh id) | send -> SAME session only | every step = event in <session>/run/harness.jsonl (.state)
   │  Interceptor hooks (interface.ts): onSpawn / onSend / onEvent  <- where we step in
   ▼
 lookup:  results/<id>.ts by keywords+agent, else similarity to expected_input.text (>= 0.15), else NOTFOUND
   ▼
-result.run(req)   cp from agent_fixture/store, req.write(...), return the reply text   (the only thing a result has)
+result.run(req)   cp from TestCases/test_folders/agent_fixture/store, req.write(...), return the reply text   (the only thing a result has)
 ```
 
 Rules the harness keeps (R1-R4, checked offline by `bun test core/harness_own_custom`):
@@ -51,7 +51,7 @@ harness_own_custom
 ├─ session
 │  ├─ isolation [ok] R1, R3
 │  ├─ followup [partial] reply is a template over the history, not a model
-│  ├─ restart [ok] rebuilt from .state/harness.jsonl
+│  ├─ restart [ok] rebuilt from the case run/harness.jsonl in .state
 │  ├─ compaction [no] no long-history / context-limit behaviour
 │  └─ lead_resume [ok] --resume of the `after` checkpoint
 ├─ lookup
@@ -114,7 +114,7 @@ what it can falsely fail or mislead
 coupling and plumbing
 ├─ the mod returns the Agent tool's full output shape; a Claude Code update can reject it (the error is explicit)
 ├─ `--real` mode is a different path (thin real sub-agent via core/interpose.ts): do not mix its numbers with mod mode
-├─ state: .state/ checkpoints and harness.jsonl are shared by all suites; stale ones can leak ids (delete .state/<id> to rerun fresh)
+├─ state: .state/<version> sessions are shared by all suites; stale ones can leak ids (delete the session folder to rerun fresh)
 ├─ parallel Agent calls run as separate bun processes reading the same log: ids stay unique, but ordering is not tested
 └─ nothing is committed or isolated per run: run_test is wiped, .state is not
 ```

@@ -1,0 +1,18 @@
+diff --git a/src/animations/clerk-toast/src/index.tsx b/src/animations/clerk-toast/src/index.tsx
+index 0b80f30..7f82a14 100644
+--- a/src/animations/clerk-toast/src/index.tsx
++++ b/src/animations/clerk-toast/src/index.tsx
+@@ -1,5 +1,4 @@
+ import { ScrollView, StyleSheet, View } from 'react-native';
+-import { StatusBar } from 'expo-status-bar';
+ import { PressableScale } from 'pressto';
+ 
+ import { useDemoStackedToast } from './hook';
+@@ -9,7 +8,6 @@ const App = () => {
+ 
+   return (
+     <View style={styles.container}>
+-      <StatusBar style="auto" />
+       <ScrollView
+         contentContainerStyle={{
+           paddingTop: 60,

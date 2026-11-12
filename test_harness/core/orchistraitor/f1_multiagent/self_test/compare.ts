@@ -1,5 +1,5 @@
 // Comparison: which set-up is cheaper and gives better output? Same tasks, deterministic quality scores, real claude -p.
-//   bun test/compare.ts [--reps 2] [--only C-solo-haiku,R-multi-mix]      results: test/compare_results.json + compare_report.md
+//   bun self_test/compare.ts [--reps 2] [--only C-solo-haiku,R-multi-mix]      results: self_test/compare_results.json + compare_report.md
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";

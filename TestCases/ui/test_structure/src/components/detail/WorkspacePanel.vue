@@ -23,7 +23,7 @@ const prompt = computed(() => {
 <template>
   <DebugFrame name="WorkspacePanel">
     <div class="ws">
-      <p class="muted">Saved workspace: <code>.state/{{ caseId }}/ws</code> (read-only). Changes below go to a scratch copy.</p>
+      <p class="muted">Saved workspace: <code>.state/…/sessions/fx_{{ caseId }}/workspace</code> (read-only). Changes below go to a scratch copy.</p>
       <p v-if="err" style="color:var(--fail)">{{ err }}</p>
       <template v-if="snap">
         <div v-for="f in snap.current" :key="f" class="f"><code :class="{ ed: snap.edited.includes(f), ad: snap.added.includes(f) }">{{ f }}</code>

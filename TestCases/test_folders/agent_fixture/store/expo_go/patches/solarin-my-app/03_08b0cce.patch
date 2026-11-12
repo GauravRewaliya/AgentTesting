@@ -1,0 +1,137 @@
+diff --git a/app/3d-rotate/index.tsx b/app/3d-rotate/index.tsx
+index a246026..40182d7 100644
+--- a/app/3d-rotate/index.tsx
++++ b/app/3d-rotate/index.tsx
+@@ -1,6 +1,5 @@
+ import { View, Text, StyleSheet, TextInput, ScrollView } from "react-native";
+ import React, { useRef } from "react";
+-import { SafeAreaView } from "react-native-safe-area-context";
+ import Rotate3d, { Rotate3dHandle } from "@/components/3dRotate";
+ import { ThemedText, ThemedTextWrapper } from "@/components/ThemedText";
+ import PressableBounce from "@/components/PresableBounce";
+@@ -10,17 +9,10 @@ import Animated, {
+ } from "react-native-reanimated";
+ import { Host, HStack, Slider } from "@expo/ui/swift-ui";
+ import { useThemeColor } from "@/hooks/useThemeColor";
+-import {
+-  ArrowLeft,
+-  ArrowRight,
+-  ChevronLeft,
+-  RotateCcw,
+-} from "lucide-react-native";
+-import {
+-  KeyboardAvoidingView,
+-  KeyboardAwareScrollView,
+-} from "react-native-keyboard-controller";
++import { ArrowLeft, ArrowRight, RotateCcw } from "lucide-react-native";
++import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+ import { ThemedViewWrapper } from "@/components/ThemedView";
++import DrawPad, { DrawPadHandle } from "expo-drawpad";
+ 
+ const AnimatedSlider = Animated.createAnimatedComponent(Slider);
+ 
+@@ -94,29 +86,41 @@ const FrontContent = ({ goForward }: { goForward: () => void }) => (
+     <View style={styles.body}>
+       <InputField label="Recipient" value="John Doe" readOnly />
+       <InputField label="Package ID" value="PKG123456" readOnly />
+-      <InputField label="Received by" value="" placeholder="Enter name" />
++      <InputField label="Received by" placeholder="Enter name" />
+       <SubmitButton onPress={goForward} />
+     </View>
+   </ItemWrapper>
+ );
+ 
+-const BackContent = ({ goBack }: { goBack: () => void }) => (
+-  <ItemWrapper style={styles.backCard}>
+-    <View style={styles.header}>
+-      <PressableBounce onPress={goBack} bounceScale={0.9}>
+-        <ThemedTextWrapper>
+-          <ArrowLeft size={26} strokeWidth={2.4} />
+-        </ThemedTextWrapper>
+-      </PressableBounce>
+-      <ThemedText type="title" style={[styles.title, styles.backTitle]}>
+-        Sign
+-      </ThemedText>
+-      <ThemedTextWrapper>
+-        <RotateCcw strokeWidth={2.4} size={23} />
+-      </ThemedTextWrapper>
+-    </View>
+-  </ItemWrapper>
+-);
++const BackContent = ({ goBack }: { goBack: () => void }) => {
++  const padRef = useRef<DrawPadHandle>(null);
++  const pathLength = useSharedValue<number>(0);
++
++  const clearPad = () => {
++    padRef.current?.erase();
++  };
++
++  return (
++    <ItemWrapper style={styles.backCard}>
++      <View style={styles.header}>
++        <PressableBounce onPress={goBack} bounceScale={0.9}>
++          <ThemedTextWrapper>
++            <ArrowLeft size={26} strokeWidth={2.4} />
++          </ThemedTextWrapper>
++        </PressableBounce>
++        <ThemedText type="title" style={[styles.title, styles.backTitle]}>
++          Sign
++        </ThemedText>
++        <PressableBounce onPress={clearPad} bounceScale={0.9}>
++          <ThemedTextWrapper>
++            <RotateCcw strokeWidth={2.4} size={23} />
++          </ThemedTextWrapper>
++        </PressableBounce>
++      </View>
++      <DrawPad ref={padRef} pathLength={pathLength} />
++    </ItemWrapper>
++  );
++};
+ 
+ const InputField = ({
+   label,
+@@ -125,6 +129,7 @@ const InputField = ({
+   label?: string;
+ } & React.ComponentProps<typeof TextInput>) => {
+   const text = useThemeColor("text");
++
+   return (
+     <View style={styles.inputField}>
+       {label && <ThemedText style={styles.label}>{label}</ThemedText>}
+diff --git a/components/3dRotate.tsx b/components/3dRotate.tsx
+index c6a5a43..cf74ae0 100644
+--- a/components/3dRotate.tsx
++++ b/components/3dRotate.tsx
+@@ -14,6 +14,7 @@ import Animated, {
+   useSharedValue,
+   withSpring,
+ } from "react-native-reanimated";
++import { Feedback } from "@/functions";
+ 
+ export type Rotate3dHandle = {
+   flip: () => void;
+@@ -83,11 +84,13 @@ export default function Rotate3d({
+       Math.round(progress.value) === 0 ? 1 : 0,
+       SPRING_CONFIG
+     );
++    Feedback.soft();
+   };
+ 
+   const flipTo = (to: "front" | "back") => {
+     const targetValue = to === "front" ? 0 : 1;
+     progress.value = withSpring(targetValue, SPRING_CONFIG);
++    Feedback.soft();
+   };
+ 
+   useImperativeHandle(
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -21,6 +21,7 @@
+     "expo-blur": "~58.0.1",
+     "expo-constants": "~58.0.7",
+     "expo-dev-client": "~58.0.7",
++    "expo-drawpad": "^0.3.1",
+     "expo-font": "~58.0.2",
+     "expo-glass-effect": "~58.0.2",
+     "expo-haptics": "~58.0.1",

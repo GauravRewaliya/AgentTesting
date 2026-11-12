@@ -18,6 +18,8 @@ import { release } from "./core/locks.ts";
 import { applyQueue } from "./core/patches.ts";
 import { depsBlock, replan, validatePlan, type PlanRow, type PlanTask } from "./core/plan.ts";
 import { locksFromEnv } from "./core/lockapi.ts";
+import { customDef } from "./core/custom.ts";
+import { FixtureGate } from "./core/fixture_gate.ts";
 
 const MAX_WAVE = 4;
 const HDIR = dirname(fileURLToPath(import.meta.url)), TOOLS = `bun ${join(HDIR, "tools.ts")}`;
@@ -31,6 +33,7 @@ if (!file || !task) { out({ ok: false, reason: "tool environment missing (HARNES
 const store = new MStore(file), defs = loadAgents(join(HDIR, "agents"));
 // per-agent model: HARNESS_MODELS='{"researcher":"sonnet"}' overrides agent.json for this launch
 for (const [n, m] of Object.entries(JSON.parse(E.HARNESS_MODELS ?? "{}") as Record<string, string>)) { const d = defs.get(n); if (d) d.model = m; }
+{ const only = E.HARNESS_LEAD_AGENTS, ld = defs.get("lead"); if (only !== undefined && ld) ld.agents = only.split(",").filter(Boolean); }   // a test case decides which agents its lead has
 const locks = locksFromEnv(store);
 const policy = defaultPolicy({ agentMaxDepth: Number(E.HARNESS_MAX_DEPTH ?? 1), maxInstancesPerRole: Number(E.HARNESS_MAX_INSTANCES ?? 4), externalLocks: locks.kind === "redis", lockTtlMs: Number(E.HARNESS_LOCK_TTL_MS ?? 120_000) });
 const cwd = E.HARNESS_CWD ?? process.cwd();
@@ -47,7 +50,9 @@ async function runCall(call_id: string) {
   const kind = s === "new" ? "new" : s.startsWith("fork:") ? "fork" : "resume";
   const res: Extract<CallRes, { ok: true }> = { ok: true, call_id, agent, level: call.level, kind, forkFrom: kind === "fork" ? store.agent(call.task_id, s.slice(5)) : undefined };
   const real = E.HARNESS_RUNNER === "real";
-  const runner: Runner = real ? new RealRunner(600_000) : new ScriptRunner(async (c) => { await sleep(Number(E.HARNESS_FAKE_DELAY_MS ?? 0)); if (c.prompt.includes("FAILME")) throw new Error("fake failure"); if (c.prompt.includes("ASKPARENT") && !c.prompt.includes("ANSWER FROM YOUR PARENT")) return "NEEDS_PARENT: which address should I use? I read the brief and found two."; return `FAKE REPLY from ${c.row.agent_id}: ${req.objective?.slice(0, 60)}`; });
+  const inner: Runner = real ? new RealRunner(600_000) : new ScriptRunner(async (c) => { await sleep(Number(E.HARNESS_FAKE_DELAY_MS ?? 0)); if (c.prompt.includes("FAILME")) throw new Error("fake failure"); if (c.prompt.includes("ASKPARENT") && !c.prompt.includes("ANSWER FROM YOUR PARENT")) return "NEEDS_PARENT: which address should I use? I read the brief and found two."; return `FAKE REPLY from ${c.row.agent_id}: ${req.objective?.slice(0, 60)}`; });
+  const runner: Runner = new FixtureGate(inner, () => store);   // agents with "fixtures": true are answered by recorded results (check_and_correction); every other agent runs as before
+  if (!defs.has(req.role)) defs.set(req.role, customDef(req.role, req.title ?? req.role, !!req.writes?.length));   // a custom agent: rebuilt here from the call record
   const def = launchDef(defs.get(req.role)!, defs, res.level, policy.agentMaxDepth, join(tmpdir(), "lf-launch"), TOOLS);
   const epoch0 = agent.epoch ?? 0;
   const guard = setInterval(() => { store.reload(); if (store.aborted() || (store.agent(call.task_id, call.callee_agent_id!)?.epoch ?? 0) !== epoch0) runner.killAll?.(); }, 1000);   // the watchdog flag, or a stop (replan / cancel), ends this callee at once
@@ -131,7 +136,7 @@ const lastReport = (agent: string) => [...store.reports].reverse().find((r) => r
 if (cmd === "delegate") {
   const asyncMode = rest.includes("--async");
   const req: CallReq = { task_id: task, caller_agent_id: me, role: flag("role") ?? "", session_arg: flag("session"), mode: flag("mode") === "ask" ? "ask" : "work",
-    objective: flag("objective"), output: flag("output"), boundaries: flag("boundaries"), writes: flag("writes")?.split(",").filter(Boolean) };
+    objective: flag("objective"), output: flag("output"), boundaries: flag("boundaries"), writes: flag("writes")?.split(",").filter(Boolean), title: flag("title") };
   const res = await grant(req, asyncMode);   // asyncMode: claimed at once, so it counts as live and cannot be double-called
   if (!res.ok) out({ ok: false, reason: res.reason });
   else if (res.queued) out({ ok: true, queued: true, agent_id: res.agent.agent_id, position: res.queued.position, waiting_for: res.queued.heldBy, note: "its locks are held; it starts by itself when they free; use wait" });

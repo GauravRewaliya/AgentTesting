@@ -3,12 +3,12 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { CASES, FIXTURES, HELPER_AGENTS, ROOT, STATE } from "@core/paths.ts";
+import { CASES, FIXTURES, HELPER_AGENTS, ROOT, currentWorkspace } from "@core/paths.ts";
+import { readSession, sessionDir, wsPath } from "@core/state2/store.ts";
 export { ROOT };
 const json = <T>(p: string): T | undefined => (existsSync(p) ? (JSON.parse(readFileSync(p, "utf8")) as T) : undefined);
-const lines = (p: string) => (existsSync(p) ? readFileSync(p, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : []);
 
-export type RawCase = { id: string; title: string; after?: string; agents: string[]; distractors?: string[]; tags?: string[]; guard?: string; router?: boolean; turns: { user: string; expected: { context: string; expected_agents_res: string[] } }[] };
+export type RawCase = { allow_real_subAg?: boolean; id: string; title: string; after?: string; agents: string[]; distractors?: string[]; tags?: string[]; guard?: string; router?: boolean; turns: { user: string; expected: { context: string; expected_agents_res: string[] } }[] };
 type Last = { at: string; status: string; warnings?: string[]; turns: { actual: string[]; expected: string[]; match: boolean; guard: boolean; notfound: boolean; calls: number; cost: number; reply?: string }[] };
 type Ckpt = { sessionId: string; ids: Record<string, string> };
 
@@ -23,10 +23,14 @@ export async function loadSuites() {
   return out;
 }
 
-export const readLast = (id: string) => json<Last & { title: string }>(join(STATE, "last", `${id}.json`));
-export const readCkpt = (id: string) => json<Ckpt>(join(STATE, id, "ckpt.json"));
-export const wsDir = (id: string) => join(STATE, id, "ws");
-export const harnessEvents = () => lines(join(STATE, "harness.jsonl")) as { t: number; kind: string; id?: string; agent?: string; text?: string; fixture?: string | null }[];
+// Everything the pages read about a run comes from .state/<version>/ (the one place runs are stored).
+const fx = (id: string) => readSession(currentWorkspace(), "fx_" + id);
+export const readLast = (id: string) => json<Last & { title: string }>(join(wsPath(currentWorkspace()), "last", `${id}.json`));
+export const readCkpt = (id: string): Ckpt | undefined => { const m = fx(id)?.session; return m?.master ? { sessionId: m.master.claude_session ?? "", ids: Object.fromEntries(m.agents.map((a) => [a.label, a.agent_id])) } : undefined; };
+export const fixtureOf = (id: string) => Object.fromEntries((fx(id)?.session.agents ?? []).filter((a) => a.fixture).map((a) => [a.agent_id, a.fixture!]));   // sub-session id -> result that answered it
+export const caseEvents = (id: string) => fx(id)?.events ?? [];
+/** the files the agents left after this case: sessions/fx_<case>/workspace in .state */
+export const wsDir = (id: string) => { const s = fx(id)?.session; return s ? join(sessionDir(s.workspace, s.task, s.parent), "workspace") : join(wsPath(currentWorkspace()), "-no-session-", id); };
 
 export const agentDefs = async () => {
   const dir = HELPER_AGENTS;
@@ -37,7 +41,7 @@ export const agentDefs = async () => {
   }
   return out;
 };
-export const fixtureIndex = () => json<{ id: string; file: string; title: string; agent?: string; keywords?: string[]; text: string; copies?: string[] }[]>(join(FIXTURES, "index.json")) ?? [];
+export const fixtureIndex = () => json<{ id: string; suite: string; file: string; title: string; agent?: string; keywords?: string[]; text: string; copies?: string[] }[]>(join(FIXTURES, "index.json")) ?? [];
 export const guardRules = () => {
   const dir = join(FIXTURES, "store");
   const out: Record<string, Record<string, import("@test_harness/core/orchistraitor/harness_own_custom/core/guard.ts").Rule>> = {};

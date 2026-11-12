@@ -3,13 +3,16 @@
 import { state } from "@/store/dashboard";
 import DebugFrame from "@/components/common/DebugFrame.vue";
 import SubAgentWorkbench from "@/components/subagents/SubAgentWorkbench.vue";
+import RunsSidebar from "@/components/detail/RunsSidebar.vue";
 </script>
 <template>
   <DebugFrame name="SubAgentPanel">
     <aside class="panel" :class="{ closed: !state.panelOpen }">
       <div class="hd"><button @click="state.panelOpen = !state.panelOpen">{{ state.panelOpen ? "›" : "‹ sub-agents" }}</button>
-        <router-link v-if="state.panelOpen" to="/subagents">open full page ↗</router-link></div>
-      <SubAgentWorkbench v-if="state.panelOpen" compact />
+        <template v-if="state.panelOpen"><button :class="{ on: state.rightTab === 'agents' }" @click="state.rightTab = 'agents'">sub-agents</button><button :class="{ on: state.rightTab === 'runs' }" @click="state.rightTab = 'runs'">runs</button></template>
+        <router-link v-if="state.panelOpen && state.rightTab === 'agents'" to="/subagents">open full page ↗</router-link></div>
+      <SubAgentWorkbench v-if="state.panelOpen && state.rightTab === 'agents'" compact />
+      <div v-if="state.panelOpen && state.rightTab === 'runs'" style="padding:8px 12px"><RunsSidebar /></div>
     </aside>
   </DebugFrame>
 </template>

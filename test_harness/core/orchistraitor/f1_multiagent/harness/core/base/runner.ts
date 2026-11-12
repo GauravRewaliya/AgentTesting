@@ -34,7 +34,8 @@ export class RealRunner implements Runner {
     const args = ["-p", c.prompt, "--output-format", "json", "--model", c.agent.model,
       "--setting-sources", "", "--strict-mcp-config", "--append-system-prompt-file", c.agent.prompt_file,
       "--tools", c.agent.tools.join(","), "--permission-mode", "dontAsk",
-      ...(c.session.fork_from ? ["--resume", c.session.fork_from, "--fork-session", "--session-id", c.session.id]
+      ...(c.stateless ? ["--no-session-persistence"]
+        : c.session.fork_from ? ["--resume", c.session.fork_from, "--fork-session", "--session-id", c.session.id]
         : [c.session.resume ? "--resume" : "--session-id", c.session.id]),
       ...(c.extraArgs ?? []),
       "--allowedTools", ...c.agent.allow];

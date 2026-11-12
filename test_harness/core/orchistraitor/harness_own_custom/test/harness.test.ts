@@ -1,7 +1,7 @@
 
 // Role-order guard (ported from Test_agent_2 g0_guard_offline): 6 good/bad hand-over payloads, no model
 import { checkHandover } from "../core/guard.ts";
-const rules = JSON.parse(await Bun.file(new URL("../../../agent_fixture/store/expo_rules.json", import.meta.url)).text());
+const rules = JSON.parse(await Bun.file(Bun.pathToFileURL(join(FIXTURES, "store/expo_rules.json"))).text());
 const long = (s: string) => s.padEnd(300, " .");
 test("guard: a good planner hand-over passes", () => {
   expect(checkHandover({ rules, agent: "planner", done: [], prompt: long("Plan an Expo app from expo/examples: drawer navigation and a zustand store in run_test") })).toEqual([]);
@@ -30,10 +30,11 @@ import { loadResults } from "../core/main.ts";
 import { mkdtempSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { FIXTURES } from "@core/paths.ts";
 test("expo chain through the harness: files land and QA reports the real gap", async () => {
   const ROOT = join(import.meta.dir, "../../..");
   const ws = mkdtempSync(join(tmpdir(), "expo-chain-"));
-  const h = new Harness({ fixtures: [], results: await loadResults(join(ROOT, "agent_fixture/results")), root: ROOT, ws });
+  const h = new Harness({ fixtures: [], results: await loadResults(join(FIXTURES, "results")), root: ROOT, ws });
   const p = h.spawn("planner", "Plan an Expo app from expo/examples: drawer navigation and a zustand store in run_test");
   expect(p.fixture).toBe("role-expo-planner"); expect(existsSync(join(ws, "notes-app/plan.md"))).toBe(true);
   expect(h.spawn("builder", "build with-drawer-navigation wireframe plan.md").reply).toContain("ERROR: no wireframe");   // role order is the guard's job; the mock also refuses
@@ -50,7 +51,7 @@ test("expo chain through the harness: files land and QA reports the real gap", a
 
 // Role-order guard (ported from Test_agent_2 g0_guard_offline): 6 good/bad hand-over payloads, no model
 import { checkHandover } from "../core/guard.ts";
-const rules = JSON.parse(await Bun.file(new URL("../../../agent_fixture/store/expo_rules.json", import.meta.url)).text());
+const rules = JSON.parse(await Bun.file(Bun.pathToFileURL(join(FIXTURES, "store/expo_rules.json"))).text());
 const long = (s: string) => s.padEnd(300, " .");
 test("guard: a good planner hand-over passes", () => {
   expect(checkHandover({ rules, agent: "planner", done: [], prompt: long("Plan an Expo app from expo/examples: drawer navigation and a zustand store in run_test") })).toEqual([]);
@@ -82,7 +83,7 @@ import { join } from "node:path";
 test("expo chain through the harness: files land and QA reports the real gap", async () => {
   const ROOT = join(import.meta.dir, "../../..");
   const ws = mkdtempSync(join(tmpdir(), "expo-chain-"));
-  const h = new Harness({ fixtures: [], results: await loadResults(join(ROOT, "agent_fixture/results")), root: ROOT, ws });
+  const h = new Harness({ fixtures: [], results: await loadResults(join(FIXTURES, "results")), root: ROOT, ws });
   const p = h.spawn("planner", "Plan an Expo app from expo/examples: drawer navigation and a zustand store in run_test");
   expect(p.fixture).toBe("role-expo-planner"); expect(existsSync(join(ws, "notes-app/plan.md"))).toBe(true);
   expect(h.spawn("builder", "build with-drawer-navigation wireframe plan.md").reply).toContain("ERROR: no wireframe");   // role order is the guard's job; the mock also refuses

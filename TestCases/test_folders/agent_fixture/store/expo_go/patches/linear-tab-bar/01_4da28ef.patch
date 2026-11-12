@@ -1,0 +1,1319 @@
+diff --git a/App.js b/App.js
+deleted file mode 100644
+index 09f879b..0000000
+--- a/App.js
++++ /dev/null
+@@ -1,20 +0,0 @@
+-import { StatusBar } from 'expo-status-bar';
+-import { StyleSheet, Text, View } from 'react-native';
+-
+-export default function App() {
+-  return (
+-    <View style={styles.container}>
+-      <Text>Open up App.js to start working on your app!</Text>
+-      <StatusBar style="auto" />
+-    </View>
+-  );
+-}
+-
+-const styles = StyleSheet.create({
+-  container: {
+-    flex: 1,
+-    backgroundColor: '#fff',
+-    alignItems: 'center',
+-    justifyContent: 'center',
+-  },
+-});
+diff --git a/App.tsx b/App.tsx
+new file mode 100644
+index 0000000..014673f
+--- /dev/null
++++ b/App.tsx
+@@ -0,0 +1,53 @@
++import { StatusBar } from 'expo-status-bar';
++import { StyleSheet, View } from 'react-native';
++import { GestureHandlerRootView } from 'react-native-gesture-handler';
++import { SafeAreaProvider } from 'react-native-safe-area-context';
++import { KeyboardProvider } from 'react-native-keyboard-controller';
++import TabBar from './src/components/TabBar/TabBar';
++import PlaceholderScreen from './src/components/Screens/PlaceholderScreen';
++import useTabBarAnimation from './src/hooks/useTabBarAnimation';
++import { COLORS } from './src/constants/theme';
++
++export default function App() {
++  const {
++    searchProgress,
++    activeTab,
++    setActiveTab,
++    isSearchActive,
++    toggleSearch,
++    pillAnimatedStyle,
++    searchAnimatedStyle,
++  } = useTabBarAnimation();
++
++  return (
++    <GestureHandlerRootView style={styles.container}>
++      <SafeAreaProvider>
++        <KeyboardProvider>
++          <View style={styles.content}>
++            <PlaceholderScreen tabIndex={activeTab} />
++          </View>
++          <TabBar
++            activeTab={activeTab}
++            onTabPress={setActiveTab}
++            searchProgress={searchProgress}
++            isSearchActive={isSearchActive}
++            toggleSearch={toggleSearch}
++            pillAnimatedStyle={pillAnimatedStyle}
++            searchAnimatedStyle={searchAnimatedStyle}
++          />
++          <StatusBar style="light" />
++        </KeyboardProvider>
++      </SafeAreaProvider>
++    </GestureHandlerRootView>
++  );
++}
++
++const styles = StyleSheet.create({
++  container: {
++    flex: 1,
++    backgroundColor: COLORS.background,
++  },
++  content: {
++    flex: 1,
++  },
++});
+diff --git a/app.json b/app.json
+index 1d56deb..4302265 100644
+--- a/app.json
++++ b/app.json
+@@ -5,14 +5,16 @@
+     "version": "1.0.0",
+     "orientation": "portrait",
+     "icon": "./assets/icon.png",
+-    "userInterfaceStyle": "light",
++    "userInterfaceStyle": "dark",
++    "newArchEnabled": true,
+     "splash": {
+       "image": "./assets/splash-icon.png",
+       "resizeMode": "contain",
+       "backgroundColor": "#ffffff"
+     },
+     "ios": {
+-      "supportsTablet": true
++      "supportsTablet": true,
++      "bundleIdentifier": "com.schroedernathan.linear-tab-bar"
+     },
+     "android": {
+       "adaptiveIcon": {
+diff --git a/babel.config.js b/babel.config.js
+new file mode 100644
+index 0000000..1c4d91d
+--- /dev/null
++++ b/babel.config.js
+@@ -0,0 +1,11 @@
++module.exports = function (api) {
++  api.cache(true);
++  return {
++    presets: ['babel-preset-expo'],
++    plugins: [
++      // Must be last: transforms useAnimatedStyle / shared values in app components.
++      // Also includes react-native-worklets/plugin internally.
++      'react-native-reanimated/plugin',
++    ],
++  };
++};
+diff --git a/index.js b/index.ts
+similarity index 100%
+rename from index.js
+rename to index.ts
+diff --git a/src/components/Screens/PlaceholderScreen.tsx b/src/components/Screens/PlaceholderScreen.tsx
+new file mode 100644
+index 0000000..e699c0f
+--- /dev/null
++++ b/src/components/Screens/PlaceholderScreen.tsx
+@@ -0,0 +1,41 @@
++import { StyleSheet, Text, View } from 'react-native';
++import { COLORS } from '../../constants/theme';
++
++interface Screen {
++  name: string;
++  color: string;
++}
++
++const SCREENS: Screen[] = [
++  { name: 'Projects', color: '#0A0A0A' },
++  { name: 'Discover', color: '#0A0A0A' },
++  { name: 'Favorites', color: '#0A0A0A' },
++  { name: 'Settings', color: '#0A0A0A' },
++];
++
++interface PlaceholderScreenProps {
++  tabIndex: number;
++}
++
++export default function PlaceholderScreen({ tabIndex }: PlaceholderScreenProps) {
++  const screen = SCREENS[tabIndex] || SCREENS[0];
++
++  return (
++    <View style={[styles.container, { backgroundColor: screen.color }]}>
++      <Text style={styles.title}>{screen.name}</Text>
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  container: {
++    flex: 1,
++    justifyContent: 'center',
++    alignItems: 'center',
++  },
++  title: {
++    fontSize: 32,
++    fontWeight: '700',
++    color: COLORS.textPrimary,
++  },
++});
+diff --git a/src/components/TabBar/GlassMaterial.tsx b/src/components/TabBar/GlassMaterial.tsx
+new file mode 100644
+index 0000000..a2db6b9
+--- /dev/null
++++ b/src/components/TabBar/GlassMaterial.tsx
+@@ -0,0 +1,135 @@
++import { BlurView } from "expo-blur";
++import { LinearGradient } from "expo-linear-gradient";
++import { StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
++import Svg, {
++  Defs,
++  LinearGradient as SvgLinearGradient,
++  Rect,
++  Stop,
++} from "react-native-svg";
++import { COLORS } from "../../constants/theme";
++import { type ReactNode, useCallback, useId, useMemo, useState } from "react";
++
++const FILL_GRADIENT_START = { x: 0.5, y: 0 };
++const FILL_GRADIENT_END = { x: 0.5, y: 1 };
++
++const SHEEN_EXTEND = -0.01;
++/** Sheen angle: degrees clockwise from horizontal (+y down). */
++const SHEEN_ANGLE_DEG = 63;
++const SHEEN_RAD = (Math.PI / 180) * SHEEN_ANGLE_DEG;
++const SHEEN_UX = Math.cos(SHEEN_RAD);
++const SHEEN_UY = Math.sin(SHEEN_RAD);
++
++function sheenGradientLine(w: number, h: number) {
++  const pad = Math.max(w, h) * SHEEN_EXTEND;
++  const cx = w / 2;
++  const cy = h / 2;
++  const R = Math.hypot(w, h) / 2 + pad;
++  return {
++    x1: cx - R * SHEEN_UX,
++    y1: cy - R * SHEEN_UY,
++    x2: cx + R * SHEEN_UX,
++    y2: cy + R * SHEEN_UY,
++  };
++}
++
++interface BorderSheenProps {
++  borderRadius: number;
++}
++
++function BorderSheen({ borderRadius }: BorderSheenProps) {
++  const rawId = useId();
++  const gradId = useMemo(() => rawId.replace(/:/g, ""), [rawId]);
++  const [{ w, h }, setSize] = useState({ w: 0, h: 0 });
++  const onLayout = useCallback((e: LayoutChangeEvent) => {
++    const { width, height } = e.nativeEvent.layout;
++    setSize((prev) =>
++      prev.w === width && prev.h === height ? prev : { w: width, h: height }
++    );
++  }, []);
++
++  const stroke = 2;
++  const rx = Math.min(
++    borderRadius,
++    w > 0 && h > 0 ? Math.min(w, h) / 2 : borderRadius
++  );
++
++  if (w < stroke * 2 || h < stroke * 2) {
++    return <View style={StyleSheet.absoluteFill} onLayout={onLayout} />;
++  }
++
++  const innerW = w - stroke;
++  const innerH = h - stroke;
++  const x = stroke / 2;
++  const y = stroke / 2;
++  const { x1, y1, x2, y2 } = sheenGradientLine(w, h);
++
++  return (
++    <View style={StyleSheet.absoluteFill} onLayout={onLayout} pointerEvents="none">
++      <Svg width={w} height={h}>
++        <Defs>
++          <SvgLinearGradient
++            id={gradId}
++            gradientUnits="userSpaceOnUse"
++            x1={x1}
++            y1={y1}
++            x2={x2}
++            y2={y2}
++          >
++            <Stop offset="0%" stopColor="#fff" stopOpacity={0.5} />
++            <Stop offset="28%" stopColor="#fff" stopOpacity={0} />
++            <Stop offset="72%" stopColor="#fff" stopOpacity={0} />
++            <Stop offset="100%" stopColor="#fff" stopOpacity={0.22} />
++          </SvgLinearGradient>
++        </Defs>
++        <Rect
++          x={x}
++          y={y}
++          width={innerW}
++          height={innerH}
++          rx={rx}
++          ry={rx}
++          fill="none"
++          stroke={`url(#${gradId})`}
++          strokeWidth={stroke}
++        />
++      </Svg>
++    </View>
++  );
++}
++
++interface GlassMaterialProps {
++  children: ReactNode;
++  style?: ViewStyle;
++  borderRadius?: number;
++}
++
++export default function GlassMaterial({ children, style, borderRadius = 32 }: GlassMaterialProps) {
++  const fill = useMemo(
++    () => [StyleSheet.absoluteFill, { borderRadius, overflow: "hidden" as const }],
++    [borderRadius]
++  );
++
++  return (
++    <View
++      style={[{ borderRadius, overflow: "hidden" }, style]}
++      collapsable={false}
++    >
++      <BlurView tint="dark" intensity={40} style={fill} />
++      <LinearGradient
++        colors={[COLORS.glassGradientTop, COLORS.glassGradientBottom]}
++        start={FILL_GRADIENT_START}
++        end={FILL_GRADIENT_END}
++        style={fill}
++      />
++      <BorderSheen borderRadius={borderRadius} />
++      <View style={styles.content} pointerEvents="box-none">
++        {children}
++      </View>
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  content: StyleSheet.absoluteFillObject,
++});
+diff --git a/src/components/TabBar/NotificationDot.tsx b/src/components/TabBar/NotificationDot.tsx
+new file mode 100644
+index 0000000..7ff2279
+--- /dev/null
++++ b/src/components/TabBar/NotificationDot.tsx
+@@ -0,0 +1,30 @@
++import { StyleSheet } from 'react-native';
++import Animated, { useAnimatedStyle, interpolate, type SharedValue } from 'react-native-reanimated';
++import { COLORS } from '../../constants/theme';
++
++interface NotificationDotProps {
++  searchProgress: SharedValue<number>;
++}
++
++export default function NotificationDot({ searchProgress }: NotificationDotProps) {
++  const animatedStyle = useAnimatedStyle(() => ({
++    opacity: interpolate(searchProgress.value, [0, 0.3], [1, 0]),
++    transform: [{ scale: interpolate(searchProgress.value, [0, 0.3], [1, 0]) }],
++  }));
++
++  return (
++    <Animated.View style={[styles.dot, animatedStyle]} />
++  );
++}
++
++const styles = StyleSheet.create({
++  dot: {
++    position: 'absolute',
++    top: -1,
++    right: -1,
++    width: 7,
++    height: 7,
++    borderRadius: 3.5,
++    backgroundColor: COLORS.accentBlue,
++  },
++});
+diff --git a/src/components/TabBar/SearchButton.tsx b/src/components/TabBar/SearchButton.tsx
+new file mode 100644
+index 0000000..24b79f2
+--- /dev/null
++++ b/src/components/TabBar/SearchButton.tsx
+@@ -0,0 +1,160 @@
++import * as Haptics from "expo-haptics";
++import { Search } from "lucide-react-native";
++import { useCallback, useRef } from "react";
++import { StyleSheet, TextInput } from "react-native";
++import { Gesture, GestureDetector } from "react-native-gesture-handler";
++import Animated, {
++  interpolate,
++  useAnimatedReaction,
++  useAnimatedStyle,
++  useSharedValue,
++  withTiming,
++  type AnimatedStyle,
++  type SharedValue,
++} from "react-native-reanimated";
++import { scheduleOnRN } from "react-native-worklets";
++import {
++  ICON_SIZE,
++  ICON_STROKE_WIDTH,
++  PILL_HEIGHT,
++  SEARCH_BAR_RADIUS,
++  SEARCH_BUTTON_SIZE,
++} from "../../constants/layout";
++import { COLORS } from "../../constants/theme";
++import GlassMaterial from "./GlassMaterial";
++
++interface SearchButtonProps {
++  searchProgress: SharedValue<number>;
++  searchAnimatedStyle: AnimatedStyle;
++  onToggleSearch: () => void;
++  isSearchActive: boolean;
++}
++
++export default function SearchButton({
++  searchProgress,
++  searchAnimatedStyle,
++  onToggleSearch,
++  isSearchActive,
++}: SearchButtonProps) {
++  const inputRef = useRef<TextInput>(null);
++  const pressed = useSharedValue(0);
++
++  const focusInput = useCallback(() => {
++    inputRef.current?.focus();
++  }, []);
++
++  const blurInput = useCallback(() => {
++    inputRef.current?.blur();
++  }, []);
++
++  const triggerHaptic = useCallback(() => {
++    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
++  }, []);
++
++  // Auto-focus / blur based on search progress
++  useAnimatedReaction(
++    () => searchProgress.value,
++    (current, previous) => {
++      if (previous !== null) {
++        if (current > 0.95 && previous <= 0.95) {
++          scheduleOnRN(focusInput);
++        }
++        if (current < 0.5 && previous >= 0.5) {
++          scheduleOnRN(blurInput);
++        }
++      }
++    },
++  );
++
++  const tap = Gesture.Tap()
++    .onBegin(() => {
++      pressed.value = withTiming(1, { duration: 80 });
++    })
++    .onFinalize(() => {
++      pressed.value = withTiming(0, { duration: 150 });
++    })
++    .onEnd(() => {
++      scheduleOnRN(triggerHaptic);
++      scheduleOnRN(onToggleSearch);
++    });
++
++  const pressAnimatedStyle = useAnimatedStyle(() => ({
++    transform: [{ scale: interpolate(pressed.value, [0, 1], [1, 0.95]) }],
++  }));
++
++  const inputOpacity = useAnimatedStyle(() => ({
++    opacity: interpolate(searchProgress.value, [0.4, 0.8], [0, 1]),
++  }));
++
++  const iconVerticalOffset = (PILL_HEIGHT - ICON_SIZE) / 2;
++
++  const iconStyle = useAnimatedStyle(() => {
++    const progress = searchProgress.value;
++    return {
++      position: "absolute" as const,
++      top: iconVerticalOffset,
++      left: interpolate(
++        progress,
++        [0, 1],
++        [(SEARCH_BUTTON_SIZE - ICON_SIZE) / 2, 16],
++      ),
++    };
++  });
++
++  return (
++    <GestureDetector gesture={tap}>
++      <Animated.View
++        style={[
++          pressAnimatedStyle,
++          searchAnimatedStyle,
++          styles.searchClip,
++          { borderRadius: SEARCH_BAR_RADIUS },
++        ]}
++      >
++        <GlassMaterial
++          borderRadius={SEARCH_BAR_RADIUS}
++          style={styles.container}
++        >
++          <Animated.View style={iconStyle}>
++            <Search
++              size={ICON_SIZE}
++              color={COLORS.iconActive}
++              strokeWidth={ICON_STROKE_WIDTH}
++            />
++          </Animated.View>
++          <Animated.View style={[styles.inputContainer, inputOpacity]}>
++            <TextInput
++              ref={inputRef}
++              style={styles.input}
++              placeholder="Search..."
++              placeholderTextColor={COLORS.textSecondary}
++              selectionColor={COLORS.accentBlue}
++              returnKeyType="search"
++              pointerEvents={isSearchActive ? "auto" : "none"}
++            />
++          </Animated.View>
++        </GlassMaterial>
++      </Animated.View>
++    </GestureDetector>
++  );
++}
++
++const styles = StyleSheet.create({
++  searchClip: {
++    overflow: "hidden",
++  },
++  container: {
++    height: PILL_HEIGHT,
++    justifyContent: "center",
++  },
++  inputContainer: {
++    marginLeft: 44,
++    marginRight: 16,
++    flex: 1,
++  },
++  input: {
++    color: COLORS.textPrimary,
++    fontSize: 16,
++    height: "100%",
++  },
++});
+diff --git a/src/components/TabBar/TabBar.tsx b/src/components/TabBar/TabBar.tsx
+new file mode 100644
+index 0000000..e3829fb
+--- /dev/null
++++ b/src/components/TabBar/TabBar.tsx
+@@ -0,0 +1,71 @@
++import { StyleSheet } from 'react-native';
++import Animated, { type AnimatedStyle, type SharedValue } from 'react-native-reanimated';
++import { useSafeAreaInsets } from 'react-native-safe-area-context';
++import TabBarPill from './TabBarPill';
++import SearchButton from './SearchButton';
++import useKeyboardAnimation from '../../hooks/useKeyboardAnimation';
++import {
++  TAB_BAR_HORIZONTAL_PADDING,
++  TAB_BAR_GAP,
++  TAB_BAR_BOTTOM_PADDING,
++} from '../../constants/layout';
++
++interface TabBarProps {
++  activeTab: number;
++  onTabPress: (index: number) => void;
++  searchProgress: SharedValue<number>;
++  isSearchActive: boolean;
++  toggleSearch: () => void;
++  pillAnimatedStyle: AnimatedStyle;
++  searchAnimatedStyle: AnimatedStyle;
++}
++
++export default function TabBar({
++  activeTab,
++  onTabPress,
++  searchProgress,
++  isSearchActive,
++  toggleSearch,
++  pillAnimatedStyle,
++  searchAnimatedStyle,
++}: TabBarProps) {
++  const insets = useSafeAreaInsets();
++  const { keyboardAnimatedStyle } = useKeyboardAnimation();
++
++  return (
++    <Animated.View
++      style={[
++        styles.container,
++        { paddingBottom: Math.max(insets.bottom, TAB_BAR_BOTTOM_PADDING) },
++        keyboardAnimatedStyle,
++      ]}
++    >
++      <TabBarPill
++        activeTab={activeTab}
++        onTabPress={onTabPress}
++        searchProgress={searchProgress}
++        pillAnimatedStyle={pillAnimatedStyle}
++        onBackPress={toggleSearch}
++      />
++      <SearchButton
++        searchProgress={searchProgress}
++        searchAnimatedStyle={searchAnimatedStyle}
++        onToggleSearch={toggleSearch}
++        isSearchActive={isSearchActive}
++      />
++    </Animated.View>
++  );
++}
++
++const styles = StyleSheet.create({
++  container: {
++    position: 'absolute',
++    bottom: 0,
++    left: 0,
++    right: 0,
++    flexDirection: 'row',
++    alignItems: 'flex-end',
++    paddingHorizontal: TAB_BAR_HORIZONTAL_PADDING,
++    gap: TAB_BAR_GAP,
++  },
++});
+diff --git a/src/components/TabBar/TabBarPill.tsx b/src/components/TabBar/TabBarPill.tsx
+new file mode 100644
+index 0000000..7295cff
+--- /dev/null
++++ b/src/components/TabBar/TabBarPill.tsx
+@@ -0,0 +1,84 @@
++import { Box, ChevronsUpDown, ScanFace, Star, type LucideIcon } from "lucide-react-native";
++import { StyleSheet, View } from "react-native";
++import Animated, { type AnimatedStyle, type SharedValue } from "react-native-reanimated";
++import {
++  ICON_PADDING,
++  PILL_BORDER_RADIUS,
++  PILL_HEIGHT,
++} from "../../constants/layout";
++import GlassMaterial from "./GlassMaterial";
++import TabIcon from "./TabIcon";
++
++const TAB_ICONS: LucideIcon[] = [Box, ScanFace, Star, ChevronsUpDown];
++
++interface TabBarPillProps {
++  activeTab: number;
++  onTabPress: (index: number) => void;
++  searchProgress: SharedValue<number>;
++  pillAnimatedStyle: AnimatedStyle;
++  onBackPress: () => void;
++}
++
++export default function TabBarPill({
++  activeTab,
++  onTabPress,
++  searchProgress,
++  pillAnimatedStyle,
++  onBackPress,
++}: TabBarPillProps) {
++  return (
++    <Animated.View
++      style={[
++        styles.pill,
++        pillAnimatedStyle,
++        styles.pillSurface,
++        { borderRadius: PILL_BORDER_RADIUS },
++      ]}
++    >
++      <GlassMaterial
++        borderRadius={PILL_BORDER_RADIUS}
++        style={styles.glassMaterial}
++      >
++        <View style={styles.iconsRow}>
++          {TAB_ICONS.map((Icon, index) => (
++            <TabIcon
++              key={index}
++              index={index}
++              icon={Icon}
++              isActive={index < 3 && activeTab === index}
++              onPress={onTabPress}
++              searchProgress={searchProgress}
++              showDot={index === 3}
++              onBackPress={onBackPress}
++              isCircle={index === 3}
++            />
++          ))}
++        </View>
++      </GlassMaterial>
++    </Animated.View>
++  );
++}
++
++const styles = StyleSheet.create({
++  pill: {
++    height: PILL_HEIGHT,
++    justifyContent: "center",
++  },
++  /** Blur ignores many clip paths unless this native view owns bounds + clip. */
++  pillSurface: {
++    overflow: "hidden",
++  },
++  glassMaterial: {
++    flex: 1,
++    alignSelf: "stretch",
++    minWidth: 0,
++  },
++  iconsRow: {
++    flex: 1,
++    flexDirection: "row",
++    alignItems: "stretch",
++    paddingHorizontal: ICON_PADDING,
++    paddingVertical: 4,
++    gap: 0,
++  },
++});
+diff --git a/src/components/TabBar/TabIcon.js b/src/components/TabBar/TabIcon.js
+new file mode 100644
+index 0000000..041c1e9
+--- /dev/null
++++ b/src/components/TabBar/TabIcon.js
+@@ -0,0 +1,168 @@
++import * as Haptics from "expo-haptics";
++import { ArrowLeft } from "lucide-react-native";
++import { useCallback } from "react";
++import { StyleSheet, View } from "react-native";
++import { Gesture, GestureDetector } from "react-native-gesture-handler";
++import Animated, {
++  interpolate,
++  useAnimatedStyle,
++  useSharedValue,
++  withTiming,
++} from "react-native-reanimated";
++import { scheduleOnRN } from "react-native-worklets";
++import {
++  ICON_SIZE,
++  ICON_STROKE_WIDTH,
++  PILL_BORDER_RADIUS,
++  PILL_HEIGHT,
++} from "../../constants/layout";
++import { COLORS } from "../../constants/theme";
++import NotificationDot from "./NotificationDot";
++
++export default function TabIcon({
++  index,
++  icon: Icon,
++  isActive,
++  onPress,
++  searchProgress,
++  showDot,
++  onBackPress,
++  isCircle,
++}) {
++  const pressed = useSharedValue(0);
++
++  const triggerHaptic = useCallback(() => {
++    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
++  }, []);
++
++  const handlePress = useCallback(() => {
++    // When search is active and this is icon 0, act as back button
++    if (index === 0 && onBackPress && searchProgress.value > 0.5) {
++      onBackPress();
++    } else {
++      onPress(index);
++    }
++  }, [index, onPress, onBackPress, searchProgress]);
++
++  const tap = Gesture.Tap()
++    .onBegin(() => {
++      pressed.value = withTiming(1, { duration: 80 });
++    })
++    .onFinalize(() => {
++      pressed.value = withTiming(0, { duration: 150 });
++    })
++    .onEnd(() => {
++      scheduleOnRN(triggerHaptic);
++      scheduleOnRN(handlePress);
++    });
++
++  const pressAnimatedStyle = useAnimatedStyle(() => ({
++    transform: [{ scale: interpolate(pressed.value, [0, 1], [1, 0.9]) }],
++  }));
++
++  const pressBackgroundStyle = useAnimatedStyle(() => ({
++    opacity: pressed.value,
++  }));
++
++  // Fade out icons 1-3 during search transition and collapse their width
++  const iconAnimatedStyle = useAnimatedStyle(() => {
++    const progress = searchProgress.value;
++    if (index === 0) {
++      return { opacity: 1, transform: [{ scale: 1 }] };
++    }
++    return {
++      opacity: interpolate(progress, [0, 0.3], [1, 0]),
++      transform: [{ scale: interpolate(progress, [0, 0.3], [1, 0.5]) }],
++      flex: isCircle ? undefined : interpolate(progress, [0, 0.3], [1, 0]),
++      width: isCircle
++        ? interpolate(progress, [0, 0.3], [CIRCLE_SIZE, 0])
++        : undefined,
++      overflow: "hidden",
++    };
++  });
++
++  // Icon 0 crossfade: tab icon ↔ back arrow
++  const tabIconOpacity = useAnimatedStyle(() => ({
++    opacity: interpolate(searchProgress.value, [0, 0.5], [1, 0]),
++  }));
++
++  const backIconOpacity = useAnimatedStyle(() => ({
++    opacity: interpolate(searchProgress.value, [0.5, 1], [0, 1]),
++  }));
++
++  const iconColor = isActive ? COLORS.iconActive : COLORS.iconDefault;
++
++  return (
++    <GestureDetector gesture={tap}>
++      <Animated.View
++        style={[
++          isCircle ? styles.circleContainer : styles.container,
++          pressAnimatedStyle,
++          iconAnimatedStyle,
++        ]}
++      >
++        {isActive && <View style={[styles.activeBackground, isCircle && styles.circleBackground]} />}
++        {!isActive && <Animated.View style={[styles.activeBackground, pressBackgroundStyle, isCircle && styles.circleBackground]} />}
++        <View style={styles.iconWrapper}>
++          {index === 0 ? (
++            <>
++              <Animated.View style={[styles.iconAbsolute, tabIconOpacity]}>
++                <Icon
++                  size={ICON_SIZE}
++                  color={iconColor}
++                  strokeWidth={ICON_STROKE_WIDTH}
++                />
++              </Animated.View>
++              <Animated.View style={[styles.iconAbsolute, backIconOpacity]}>
++                <ArrowLeft
++                  size={ICON_SIZE}
++                  color={COLORS.iconActive}
++                  strokeWidth={ICON_STROKE_WIDTH}
++                />
++              </Animated.View>
++            </>
++          ) : (
++            <Icon size={ICON_SIZE} color={iconColor} strokeWidth={ICON_STROKE_WIDTH} />
++          )}
++          {showDot && <NotificationDot searchProgress={searchProgress} />}
++        </View>
++      </Animated.View>
++    </GestureDetector>
++  );
++}
++
++const CIRCLE_SIZE = PILL_HEIGHT - 8;
++
++const styles = StyleSheet.create({
++  container: {
++    flex: 1,
++    height: "100%",
++    alignItems: "center",
++    justifyContent: "center",
++    borderRadius: PILL_BORDER_RADIUS,
++  },
++  circleContainer: {
++    width: CIRCLE_SIZE,
++    height: CIRCLE_SIZE,
++    alignItems: "center",
++    justifyContent: "center",
++    borderRadius: CIRCLE_SIZE / 2,
++  },
++  activeBackground: {
++    ...StyleSheet.absoluteFillObject,
++    backgroundColor: COLORS.surfaceHover,
++    borderRadius: PILL_BORDER_RADIUS,
++  },
++  circleBackground: {
++    borderRadius: CIRCLE_SIZE / 2,
++  },
++  iconWrapper: {
++    width: ICON_SIZE,
++    height: ICON_SIZE,
++    alignItems: "center",
++    justifyContent: "center",
++  },
++  iconAbsolute: {
++    position: "absolute",
++  },
++});
+diff --git a/src/components/TabBar/TabIcon.tsx b/src/components/TabBar/TabIcon.tsx
+new file mode 100644
+index 0000000..66ef562
+--- /dev/null
++++ b/src/components/TabBar/TabIcon.tsx
+@@ -0,0 +1,180 @@
++import * as Haptics from "expo-haptics";
++import { ArrowLeft, type LucideIcon } from "lucide-react-native";
++import { useCallback } from "react";
++import { StyleSheet, View } from "react-native";
++import { Gesture, GestureDetector } from "react-native-gesture-handler";
++import Animated, {
++  interpolate,
++  useAnimatedStyle,
++  useSharedValue,
++  withTiming,
++  type SharedValue,
++} from "react-native-reanimated";
++import { scheduleOnRN } from "react-native-worklets";
++import {
++  ICON_SIZE,
++  ICON_STROKE_WIDTH,
++  PILL_BORDER_RADIUS,
++  PILL_HEIGHT,
++} from "../../constants/layout";
++import { COLORS } from "../../constants/theme";
++import NotificationDot from "./NotificationDot";
++
++interface TabIconProps {
++  index: number;
++  icon: LucideIcon;
++  isActive: boolean;
++  onPress: (index: number) => void;
++  searchProgress: SharedValue<number>;
++  showDot: boolean;
++  onBackPress: () => void;
++  isCircle: boolean;
++}
++
++export default function TabIcon({
++  index,
++  icon: Icon,
++  isActive,
++  onPress,
++  searchProgress,
++  showDot,
++  onBackPress,
++  isCircle,
++}: TabIconProps) {
++  const pressed = useSharedValue(0);
++
++  const triggerHaptic = useCallback(() => {
++    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
++  }, []);
++
++  const handlePress = useCallback(() => {
++    // When search is active and this is icon 0, act as back button
++    if (index === 0 && onBackPress && searchProgress.value > 0.5) {
++      onBackPress();
++    } else {
++      onPress(index);
++    }
++  }, [index, onPress, onBackPress, searchProgress]);
++
++  const tap = Gesture.Tap()
++    .onBegin(() => {
++      pressed.value = withTiming(1, { duration: 80 });
++    })
++    .onFinalize(() => {
++      pressed.value = withTiming(0, { duration: 150 });
++    })
++    .onEnd(() => {
++      scheduleOnRN(triggerHaptic);
++      scheduleOnRN(handlePress);
++    });
++
++  const pressAnimatedStyle = useAnimatedStyle(() => ({
++    transform: [{ scale: interpolate(pressed.value, [0, 1], [1, 0.9]) }],
++  }));
++
++  const pressBackgroundStyle = useAnimatedStyle(() => ({
++    opacity: pressed.value,
++  }));
++
++  // Fade out icons 1-3 during search transition and collapse their width
++  const iconAnimatedStyle = useAnimatedStyle(() => {
++    const progress = searchProgress.value;
++    if (index === 0) {
++      return { opacity: 1, transform: [{ scale: 1 }] };
++    }
++    return {
++      opacity: interpolate(progress, [0, 0.3], [1, 0]),
++      transform: [{ scale: interpolate(progress, [0, 0.3], [1, 0.5]) }],
++      flex: isCircle ? undefined : interpolate(progress, [0, 0.3], [1, 0]),
++      width: isCircle
++        ? interpolate(progress, [0, 0.3], [CIRCLE_SIZE, 0])
++        : undefined,
++      overflow: "hidden" as const,
++    };
++  });
++
++  // Icon 0 crossfade: tab icon ↔ back arrow
++  const tabIconOpacity = useAnimatedStyle(() => ({
++    opacity: interpolate(searchProgress.value, [0, 0.5], [1, 0]),
++  }));
++
++  const backIconOpacity = useAnimatedStyle(() => ({
++    opacity: interpolate(searchProgress.value, [0.5, 1], [0, 1]),
++  }));
++
++  const iconColor = isActive ? COLORS.iconActive : COLORS.iconDefault;
++
++  return (
++    <GestureDetector gesture={tap}>
++      <Animated.View
++        style={[
++          isCircle ? styles.circleContainer : styles.container,
++          pressAnimatedStyle,
++          iconAnimatedStyle,
++        ]}
++      >
++        {isActive && <View style={[styles.activeBackground, isCircle && styles.circleBackground]} />}
++        {!isActive && <Animated.View style={[styles.activeBackground, pressBackgroundStyle, isCircle && styles.circleBackground]} />}
++        <View style={styles.iconWrapper}>
++          {index === 0 ? (
++            <>
++              <Animated.View style={[styles.iconAbsolute, tabIconOpacity]}>
++                <Icon
++                  size={ICON_SIZE}
++                  color={iconColor}
++                  strokeWidth={ICON_STROKE_WIDTH}
++                />
++              </Animated.View>
++              <Animated.View style={[styles.iconAbsolute, backIconOpacity]}>
++                <ArrowLeft
++                  size={ICON_SIZE}
++                  color={COLORS.iconActive}
++                  strokeWidth={ICON_STROKE_WIDTH}
++                />
++              </Animated.View>
++            </>
++          ) : (
++            <Icon size={ICON_SIZE} color={iconColor} strokeWidth={ICON_STROKE_WIDTH} />
++          )}
++          {showDot && <NotificationDot searchProgress={searchProgress} />}
++        </View>
++      </Animated.View>
++    </GestureDetector>
++  );
++}
++
++const CIRCLE_SIZE = PILL_HEIGHT - 8;
++
++const styles = StyleSheet.create({
++  container: {
++    flex: 1,
++    height: "100%",
++    alignItems: "center",
++    justifyContent: "center",
++    borderRadius: PILL_BORDER_RADIUS,
++  },
++  circleContainer: {
++    width: CIRCLE_SIZE,
++    height: CIRCLE_SIZE,
++    alignItems: "center",
++    justifyContent: "center",
++    borderRadius: CIRCLE_SIZE / 2,
++  },
++  activeBackground: {
++    ...StyleSheet.absoluteFillObject,
++    backgroundColor: COLORS.surfaceHover,
++    borderRadius: PILL_BORDER_RADIUS,
++  },
++  circleBackground: {
++    borderRadius: CIRCLE_SIZE / 2,
++  },
++  iconWrapper: {
++    width: ICON_SIZE,
++    height: ICON_SIZE,
++    alignItems: "center",
++    justifyContent: "center",
++  },
++  iconAbsolute: {
++    position: "absolute",
++  },
++});
+diff --git a/src/constants/layout.ts b/src/constants/layout.ts
+new file mode 100644
+index 0000000..2e1a36a
+--- /dev/null
++++ b/src/constants/layout.ts
+@@ -0,0 +1,28 @@
++import { Dimensions } from 'react-native';
++
++const { width: SCREEN_WIDTH } = Dimensions.get('window');
++
++export const TAB_BAR_HORIZONTAL_PADDING = 16;
++export const TAB_BAR_GAP = 12;
++
++export const PILL_HEIGHT = 52;
++export const PILL_BORDER_RADIUS = PILL_HEIGHT / 2;
++
++export const ICON_SIZE = 22;
++export const ICON_SPACING = 52;
++export const ICON_STROKE_WIDTH = 3;
++export const ICON_PADDING = 4;
++
++export const SEARCH_BUTTON_SIZE = 52;
++export const SEARCH_BAR_RADIUS = PILL_BORDER_RADIUS;
++
++// Total available width for pill + search
++export const TOTAL_WIDTH = SCREEN_WIDTH - 2 * TAB_BAR_HORIZONTAL_PADDING;
++
++// Default state: pill takes most space, search is a circle
++export const PILL_WIDTH = TOTAL_WIDTH - TAB_BAR_GAP - SEARCH_BUTTON_SIZE;
++
++// Search state: search takes most space, pill is a circle
++export const SEARCH_BAR_WIDTH = TOTAL_WIDTH - TAB_BAR_GAP - SEARCH_BUTTON_SIZE;
++
++export const TAB_BAR_BOTTOM_PADDING = 8;
+diff --git a/src/constants/theme.ts b/src/constants/theme.ts
+new file mode 100644
+index 0000000..174bf68
+--- /dev/null
++++ b/src/constants/theme.ts
+@@ -0,0 +1,19 @@
++export const COLORS = {
++  background: '#0A0A0A',
++  surface: 'rgba(255, 255, 255, 0.06)',
++  surfaceHover: 'rgba(255, 255, 255, 0.12)',
++  textPrimary: 'rgba(255, 255, 255, 0.9)',
++  textSecondary: 'rgba(255, 255, 255, 0.4)',
++  border: 'rgba(255, 255, 255, 0.12)',
++  glassGradientTop: 'rgba(255, 255, 255, 0.11)',
++  glassGradientBottom: 'rgba(255, 255, 255, 0.05)',
++  accentBlue: '#3B82F6',
++  iconDefault: 'rgba(255, 255, 255, 0.9)',
++  iconActive: 'rgba(255, 255, 255, 0.9)',
++} as const;
++
++export const SPRING = {
++  damping: 20,
++  stiffness: 300,
++  mass: 0.8,
++} as const;
+diff --git a/src/hooks/useKeyboardAnimation.ts b/src/hooks/useKeyboardAnimation.ts
+new file mode 100644
+index 0000000..b5ba2b5
+--- /dev/null
++++ b/src/hooks/useKeyboardAnimation.ts
+@@ -0,0 +1,12 @@
++import { useAnimatedStyle } from 'react-native-reanimated';
++import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
++
++export default function useKeyboardAnimation() {
++  const { height } = useReanimatedKeyboardAnimation();
++
++  const keyboardAnimatedStyle = useAnimatedStyle(() => ({
++    transform: [{ translateY: height.get() }],
++  }));
++
++  return { keyboardAnimatedStyle, keyboardHeight: height };
++}
+diff --git a/src/hooks/useTabBarAnimation.js b/src/hooks/useTabBarAnimation.js
+new file mode 100644
+index 0000000..c4371f3
+--- /dev/null
++++ b/src/hooks/useTabBarAnimation.js
+@@ -0,0 +1,65 @@
++import { useCallback, useState } from 'react';
++import { useSharedValue, withSpring, useAnimatedStyle, interpolate } from 'react-native-reanimated';
++import { SPRING } from '../constants/theme';
++import {
++  PILL_WIDTH,
++  SEARCH_BUTTON_SIZE,
++  SEARCH_BAR_WIDTH,
++  PILL_HEIGHT,
++  PILL_BORDER_RADIUS,
++  SEARCH_BAR_RADIUS,
++} from '../constants/layout';
++
++export default function useTabBarAnimation() {
++  const searchProgress = useSharedValue(0);
++  const [activeTab, setActiveTab] = useState(0);
++  const [isSearchActive, setIsSearchActive] = useState(false);
++
++  const toggleSearch = useCallback(() => {
++    const toValue = searchProgress.value < 0.5 ? 1 : 0;
++    searchProgress.value = withSpring(toValue, SPRING);
++    setIsSearchActive(toValue === 1);
++  }, [searchProgress]);
++
++  const pillAnimatedStyle = useAnimatedStyle(() => {
++    const progress = searchProgress.value;
++    return {
++      width: interpolate(progress, [0, 1], [PILL_WIDTH, SEARCH_BUTTON_SIZE]),
++    };
++  });
++
++  const searchAnimatedStyle = useAnimatedStyle(() => {
++    const progress = searchProgress.value;
++    return {
++      width: interpolate(progress, [0, 1], [SEARCH_BUTTON_SIZE, SEARCH_BAR_WIDTH]),
++    };
++  });
++
++  const getIconAnimatedStyle = useCallback((index) => {
++    return () => {
++      'worklet';
++      const progress = searchProgress.value;
++      if (index === 0) {
++        return {
++          opacity: 1,
++          transform: [{ scale: 1 }],
++        };
++      }
++      return {
++        opacity: interpolate(progress, [0, 0.3], [1, 0]),
++        transform: [{ scale: interpolate(progress, [0, 0.3], [1, 0.5]) }],
++      };
++    };
++  }, []);
++
++  return {
++    searchProgress,
++    activeTab,
++    setActiveTab,
++    isSearchActive,
++    toggleSearch,
++    pillAnimatedStyle,
++    searchAnimatedStyle,
++    getIconAnimatedStyle,
++  };
++}
+diff --git a/src/hooks/useTabBarAnimation.ts b/src/hooks/useTabBarAnimation.ts
+new file mode 100644
+index 0000000..13b24b0
+--- /dev/null
++++ b/src/hooks/useTabBarAnimation.ts
+@@ -0,0 +1,62 @@
++import { useCallback, useState } from 'react';
++import { useSharedValue, withSpring, useAnimatedStyle, interpolate } from 'react-native-reanimated';
++import { SPRING } from '../constants/theme';
++import {
++  PILL_WIDTH,
++  SEARCH_BUTTON_SIZE,
++  SEARCH_BAR_WIDTH,
++} from '../constants/layout';
++
++export default function useTabBarAnimation() {
++  const searchProgress = useSharedValue(0);
++  const [activeTab, setActiveTab] = useState(0);
++  const [isSearchActive, setIsSearchActive] = useState(false);
++
++  const toggleSearch = useCallback(() => {
++    const toValue = searchProgress.value < 0.5 ? 1 : 0;
++    searchProgress.value = withSpring(toValue, SPRING);
++    setIsSearchActive(toValue === 1);
++  }, [searchProgress]);
++
++  const pillAnimatedStyle = useAnimatedStyle(() => {
++    const progress = searchProgress.value;
++    return {
++      width: interpolate(progress, [0, 1], [PILL_WIDTH, SEARCH_BUTTON_SIZE]),
++    };
++  });
++
++  const searchAnimatedStyle = useAnimatedStyle(() => {
++    const progress = searchProgress.value;
++    return {
++      width: interpolate(progress, [0, 1], [SEARCH_BUTTON_SIZE, SEARCH_BAR_WIDTH]),
++    };
++  });
++
++  const getIconAnimatedStyle = useCallback((index: number) => {
++    return () => {
++      'worklet';
++      const progress = searchProgress.value;
++      if (index === 0) {
++        return {
++          opacity: 1,
++          transform: [{ scale: 1 }],
++        };
++      }
++      return {
++        opacity: interpolate(progress, [0, 0.3], [1, 0]),
++        transform: [{ scale: interpolate(progress, [0, 0.3], [1, 0.5]) }],
++      };
++    };
++  }, []);
++
++  return {
++    searchProgress,
++    activeTab,
++    setActiveTab,
++    isSearchActive,
++    toggleSearch,
++    pillAnimatedStyle,
++    searchAnimatedStyle,
++    getIconAnimatedStyle,
++  };
++}
+diff --git a/tsconfig.json b/tsconfig.json
+new file mode 100644
+index 0000000..a0863d0
+--- /dev/null
++++ b/tsconfig.json
+@@ -0,0 +1,7 @@
++{
++  "extends": "expo/tsconfig.base",
++  "compilerOptions": {
++    "strict": true,
++    "jsx": "react-jsx"
++  }
++}
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -1,18 +1,35 @@
+ {
+   "name": "linear-tab-bar",
+   "version": "1.0.0",
+-  "main": "index.js",
++  "main": "index.ts",
+   "scripts": {
+     "start": "expo start",
+-    "android": "expo start --android",
+-    "ios": "expo start --ios",
++    "android": "expo run:android",
++    "ios": "expo run:ios",
+     "web": "expo start --web"
+   },
+   "dependencies": {
++    "@react-native-masked-view/masked-view": "0.3.2",
++    "babel-preset-expo": "~55.0.8",
+     "expo": "~55.0.8",
++    "expo-blur": "~55.0.10",
++    "expo-haptics": "~55.0.9",
++    "expo-linear-gradient": "~55.0.9",
+     "expo-status-bar": "~55.0.4",
++    "lucide-react-native": "^0.577.0",
+     "react": "19.2.0",
+-    "react-native": "0.83.2"
++    "react-native": "0.83.2",
++    "react-native-gesture-handler": "~2.30.0",
++    "react-native-keyboard-controller": "1.20.7",
++    "react-native-reanimated": "4.2.1",
++    "react-native-safe-area-context": "~5.6.2",
++    "react-native-svg": "15.15.3",
++    "react-native-worklets": "0.7.2"
+   },
+-  "private": true
++  "private": true,
++  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e",
++  "devDependencies": {
++    "@types/react": "~19.2.10",
++    "typescript": "~5.9.2"
++  }
+ }

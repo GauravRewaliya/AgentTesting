@@ -1,8 +1,9 @@
+import type { TestTag } from "../../tags.ts";
 import type { Case } from "@core/types.ts";
 
 // Two writers, two separate tasks: same agent TYPE, different TASK -> different sessions, no memory leak.
-const common = { agents: ["writer", "reviewer"], distractors: ["poet"] };
-export const tags = ["session","isolation"];
+const common = { agents: ["writer", "reviewer"] };
+export const tags: TestTag[] = ["multi_ag", "single_prompt", "split_task"];
 export const cases: Case[] = [
   {
     id: "b2_1_writer_a", title: "writer #A: create a.md (Alpha)", needs: ["multiagent.spawn"], ...common,

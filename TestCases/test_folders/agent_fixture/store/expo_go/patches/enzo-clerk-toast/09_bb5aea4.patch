@@ -1,0 +1,17 @@
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx b/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx
+index 449c6b5..485395b 100644
+--- a/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx
+@@ -180,12 +180,7 @@ const styles = StyleSheet.create({
+   container: {
+     borderCurve: 'continuous',
+     borderRadius: 35,
+-    elevation: 2,
+     position: 'absolute',
+-    shadowOffset: {
+-      width: 0,
+-      height: 0,
+-    },
+   },
+ });
+ 

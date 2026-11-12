@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// What the harness recorded for this case's sub-agent sessions (.state/harness.jsonl), filtered to the selected session.
+// What the harness recorded for this case's sub-agent sessions (session events.jsonl in .state), filtered to the selected session.
 import { computed } from "vue";
 import type { CaseDetail } from "@/types";
 import DebugFrame from "@/components/common/DebugFrame.vue";

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import FlowPage from "@/pages/FlowPage.vue";
 import SubAgentsPage from "@/pages/SubAgentsPage.vue";
+import ExperimentPage from "@/pages/ExperimentPage.vue";
 import TestDetailPage from "@/pages/TestDetailPage.vue";
 
 export const router = createRouter({
@@ -8,6 +9,7 @@ export const router = createRouter({
   routes: [
     { path: "/", name: "flow", component: FlowPage },
     { path: "/subagents", name: "subagents", component: SubAgentsPage },
+    { path: "/experiment", name: "experiment", component: ExperimentPage },
     { path: "/test/:caseId", name: "test", component: TestDetailPage, props: true },
   ],
 });

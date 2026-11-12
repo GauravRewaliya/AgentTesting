@@ -1,7 +1,8 @@
 // Role-order guard (ported from Test_agent_2 guard.py). PURE: decides whether a sub-agent call may proceed.
-// Rules come from a JSON file per case (agent_fixture/store/*_rules.json): { <role>: { requires_done[], contains_all[], min_chars, forbidden? } }.
+// Rules come from a JSON file per case (TestCases/test_folders/agent_fixture/store/*_rules.json): { <role>: { requires_done[], contains_all[], min_chars, forbidden? } }.
 // The mod calls it through `bun main.ts guard <agent>`; tests call it directly (test/harness.test.ts).
-export type Rule = { requires_done?: string[]; contains_all?: string[]; min_chars?: number; forbidden?: boolean };
+import type { Rule } from "../../../../../TestCases/test_folders/agent_fixture/types.ts";
+export type { Rule };   // declared in agent_fixture/types.ts
 export type GuardInput = { rules: Record<string, Rule>; agent: string; prompt: string; done: string[]; allowed?: string[] | null };
 
 /** Reasons the call must be stopped; empty = it may proceed. */

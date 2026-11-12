@@ -1,6 +1,6 @@
 // Sub-agent index + positive/negative cases, executed on the REAL pieces:
 //   lookup  = Harness.spawn (the same fixture lookup the mod uses: keywords, then similarity >= HIT_MIN)
-//   guard   = checkHandover (the role-order rules from agent_fixture/store/*_rules.json)
+//   guard   = checkHandover (the role-order rules from TestCases/test_folders/agent_fixture/store/*_rules.json)
 import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

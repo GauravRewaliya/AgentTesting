@@ -27,7 +27,7 @@ export function launchDef(def: AgentDef, defs: Map<string, AgentDef>, level: num
   const decl = t.delegate ? declarations(def, defs) + (toolsCmd ? `
 
 # How to call them (one Bash command each; every command prints one line of JSON)
-  ${toolsCmd} delegate --role <role> --session new|<agent_id>|fork:<agent_id> --objective "<what>" --output "<format>" --boundaries "<limits>" [--async] [--mode ask] [--writes a,b]
+  ${toolsCmd} delegate --role <role> --session new|<agent_id>|fork:<agent_id> --objective "<what>" --output "<format>" --boundaries "<limits>" [--async] [--mode ask] [--writes a,b] [--title "<what this agent is for>"]
   ${toolsCmd} wait --agents <id>,<id> [--timeout 90]     (after --async calls: waits until they finish and returns their answers)
   ${toolsCmd} agents_list
 To ask an agent that already worked on a topic for more, continue it with --session <its agent_id>: it remembers what it did.` : "") : "";

@@ -1,12 +1,12 @@
 # Test 2: f_1_withmulti_ag (multi-agent on demand)
 
-Generated 2026-11-06T15:31:24.979Z. 167/167 passed.
+Generated 2026-11-10T06:20:44.718Z. 169/169 passed.
 
-Harness under test: `harness/` = the base harness (../loop_ferry_f_1) + agent.call, instances, locks, worktrees/patches, board, tools. Real suite NOT run.
+Harness under test: `harness/` = the base harness (harness/core/base/) + agent.call, instances, locks, worktrees/patches, board, tools. Real suite NOT run.
 
 | suite | id | check | result |
 |---|---|---|---|
-| offline: agent.call authority | M1 | agents:check passes; lead declares four sub-agents in agent.json; .claude/agents is empty everywhere | PASS |
+| offline: agent.call authority | M1 | agents:check passes; lead declares eight sub-agents in agent.json (and may call custom ones); .claude/agents is empty everywhere | PASS |
 | offline: agent.call authority | M1b | declarations are built at run time from the callees' agent.json and tell the lead their REAL tools: researcher has web access, builder can write but has NO web access | PASS |
 | offline: agent.call authority | M2a | multi-agent OFF (default depth 1): the lead cannot call anyone; the reason says so | PASS |
 | offline: agent.call authority | M2a2 | the default policy is off | PASS |
@@ -27,7 +27,7 @@ Harness under test: `harness/` = the base harness (../loop_ferry_f_1) + agent.ca
 | offline: agent.call authority | M2p | a writer must declare writes; a read-only agent may not; every call (granted or denied) leaves a call row with its reason | PASS |
 | offline: launch (tools per level, run-time declarations, native equivalents) | M3 | the delegate tool exists for the lead only when multi-agent is on, and is REMOVED at the last level and for leaves | PASS |
 | offline: launch (tools per level, run-time declarations, native equivalents) | M3b | the launch prompt = CLAUDE.md + the declarations when it may call; plain CLAUDE.md when it may not | PASS |
-| offline: launch (tools per level, run-time declarations, native equivalents) | M3c | backend N from the same files: --agents holds the four declared agents; the native depth wall is 3 below the lead and capped at the hard limit | PASS |
+| offline: launch (tools per level, run-time declarations, native equivalents) | M3c | backend N from the same files: --agents holds the eight declared agents; the native depth wall is 3 below the lead and capped at the hard limit | PASS |
 | offline: write locks and the queue | M4a | overlap/cover rules | PASS |
 | offline: write locks and the queue | M4b | all-or-none: B wants b.ts+c.ts, b.ts is held -> B queues at position 1 and holds NOTHING (c.ts stays free) | PASS |
 | offline: write locks and the queue | M4c | no deadlock: two writers wanting {x,y} and {y,x}: one gets both, the other waits holding nothing | PASS |
@@ -172,4 +172,6 @@ Harness under test: `harness/` = the base harness (../loop_ferry_f_1) + agent.ca
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS2 | with the ui's cap of 3: six turns later the LEAD was never rolled (it keeps one session), while a worker was rolled at the 4th resume as designed | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS3 | if a master IS reset (or is new in a store that already has a chat), its brief carries the conversation from the record (not the message being answered), so it does not start blank | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS4 | a call by ROLE word ("research") works like a call by agent NAME ("researcher") where the two differ, and a truly wrong name is refused and told the valid names; the shipped definitions use one word for both | PASS |
+| masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | CU1 | a lead marked custom can call a role with no folder: without --title it is refused and told to give one; with a title the agent is made, named and titled, read-only; continuing it works; a bad name is refused; a lead not marked custom still gets unknown_role | PASS |
+| masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | CU2 | a distractor agent (agent.json forbidden) is refused with code forbidden and an event is logged; a custom agent given --writes becomes a writer with write tools | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS5 | the lead's prompt carries the rules the real sessions called for: count what the person lists (one agent per item, cover each plausible reading), 'ask <agent>' means continue THAT agent, role value is the exact name, keep internals out of the answer | PASS |

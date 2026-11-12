@@ -1,8 +1,9 @@
+import type { TestTag } from "../../tags.ts";
 import type { Case } from "@core/types.ts";
 
 // Base case set: session persistence vs separation between sub-agents. Judged from the report, not asserted.
-const common = { agents: ["writer", "reviewer"], distractors: ["poet"] };
-export const tags = ["handover","session"];
+const common = { agents: ["writer", "reviewer"] };
+export const tags: TestTag[] = ["multi_ag", "single_prompt", "split_task"];
 export const cases: Case[] = [
   {
     id: "basic_1_write_hi", title: "writer creates hi.md with Hi; the lead only delegates", needs: ["multiagent.spawn", "sandbox.files"], ...common,

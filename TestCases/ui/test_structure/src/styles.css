@@ -1,5 +1,6 @@
-:root { --bg:#f6f7f9; --card:#fff; --ink:#1c2230; --mute:#6b7280; --line:#d9dde4; --accent:#3b6df0; --pass:#1a8f4c; --fail:#d03b3b; --warn:#b7791f; --dbg:#e0457b; }
-@media (prefers-color-scheme: dark) { :root { --bg:#12151c; --card:#1b2029; --ink:#e6e9ef; --mute:#8b94a5; --line:#2c3340; --accent:#7a9cff; --pass:#3ac374; --fail:#f06a6a; --warn:#e0a84a; --dbg:#ff6fa0; } }
+:root { color-scheme: light; --bg:#f6f7f9; --card:#fff; --ink:#1c2230; --mute:#6b7280; --line:#d9dde4; --accent:#3b6df0; --pass:#1a8f4c; --fail:#d03b3b; --warn:#b7791f; --dbg:#e0457b; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; --bg:#12151c; --card:#1b2029; --ink:#e6e9ef; --mute:#8b94a5; --line:#2c3340; --accent:#7a9cff; --pass:#3ac374; --fail:#f06a6a; --warn:#e0a84a; --dbg:#ff6fa0; } }
+:root[data-theme="dark"] { color-scheme: dark; --bg:#12151c; --card:#1b2029; --ink:#e6e9ef; --mute:#8b94a5; --line:#2c3340; --accent:#7a9cff; --pass:#3ac374; --fail:#f06a6a; --warn:#e0a84a; --dbg:#ff6fa0; }
 * { box-sizing: border-box; }
 body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 system-ui, sans-serif; }
 code, .mono { font-family: ui-monospace, monospace; font-size:12px; }

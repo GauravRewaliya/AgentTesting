@@ -1,0 +1,471 @@
+{
+ "with-tailwindcss": [
+  {
+   "n": 1,
+   "sha": "0073f46826addae3904f5ac2385a1340ab47f2c1",
+   "from": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+   "folded": 31,
+   "snapshot": true,
+   "date": "2026-07-02",
+   "subject": "with-tailwindcss at the latest Expo SDK (state of 0073f46: Upgraded Expo SDK to `expo@latest` (#701))",
+   "patch": "patches/with-tailwindcss/01_0073f46.patch",
+   "files": [
+    "with-tailwindcss/app.json",
+    "with-tailwindcss/metro.config.js",
+    "with-tailwindcss/nativewind-env.d.ts",
+    "with-tailwindcss/package.json",
+    "with-tailwindcss/postcss.config.mjs",
+    "with-tailwindcss/src/app/_layout.tsx",
+    "with-tailwindcss/src/app/index.tsx",
+    "with-tailwindcss/src/global.css",
+    "with-tailwindcss/src/tw/image.tsx",
+    "with-tailwindcss/src/tw/index.tsx",
+    "with-tailwindcss/tsconfig.json"
+   ],
+   "patch_bytes": 14072
+  }
+ ],
+ "with-storybook": [
+  {
+   "n": 1,
+   "sha": "0073f46826addae3904f5ac2385a1340ab47f2c1",
+   "from": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+   "folded": 68,
+   "snapshot": true,
+   "date": "2026-07-02",
+   "subject": "with-storybook at the latest Expo SDK (state of 0073f46: Upgraded Expo SDK to `expo@latest` (#701))",
+   "patch": "patches/with-storybook/01_0073f46.patch",
+   "files": [
+    "with-storybook/.gitignore",
+    "with-storybook/.storybook/main.js",
+    "with-storybook/.storybook/preview.js",
+    "with-storybook/App.js",
+    "with-storybook/app.json",
+    "with-storybook/package.json",
+    "with-storybook/stories/Button.jsx",
+    "with-storybook/stories/Button.stories.js",
+    "with-storybook/stories/Configure.mdx",
+    "with-storybook/stories/Gradient.jsx",
+    "with-storybook/stories/Gradient.stories.js",
+    "with-storybook/stories/assets/accessibility.svg",
+    "with-storybook/stories/assets/discord.svg",
+    "with-storybook/stories/assets/github.svg",
+    "with-storybook/stories/assets/tutorials.svg",
+    "with-storybook/stories/assets/youtube.svg"
+   ],
+   "patch_bytes": 30799
+  }
+ ],
+ "solarin-my-app": [
+  {
+   "n": 1,
+   "sha": "754eb2560eede000329936f8e647fd2bd719c88a",
+   "from": "6ee086cb93a26d4beb17c1226eddac1b34134f44",
+   "folded": 0,
+   "date": "2025-10-11",
+   "subject": "feat: add 3D Rotate feature; implement Rotate3d component with flip animation and integrate into navigation",
+   "patch": "patches/solarin-my-app/01_754eb25.patch",
+   "files": [
+    "app/3d-rotate/_layout.tsx",
+    "app/3d-rotate/index.tsx",
+    "app/_layout.tsx",
+    "components/3dRotate.tsx"
+   ],
+   "patch_bytes": 3606,
+   "legacy_pins": [
+    "@react-navigation/bottom-tabs",
+    "@react-navigation/drawer"
+   ]
+  },
+  {
+   "n": 2,
+   "sha": "7371b88987796302c421f1abe58ea7c12d8ac00e",
+   "from": "754eb2560eede000329936f8e647fd2bd719c88a",
+   "folded": 0,
+   "date": "2025-10-12",
+   "subject": "feat: enhance Rotate3d component; add support for dynamic front and back content, improve flipping logic, and integrate animated styles",
+   "patch": "patches/solarin-my-app/02_7371b88.patch",
+   "files": [
+    "app/3d-rotate/index.tsx",
+    "components/3dRotate.tsx"
+   ],
+   "patch_bytes": 10753,
+   "legacy_pins": [
+    "@react-navigation/bottom-tabs",
+    "@react-navigation/drawer"
+   ]
+  },
+  {
+   "n": 3,
+   "sha": "08b0cceff8610f59b4503cbbafa0891baf456bc4",
+   "from": "7371b88987796302c421f1abe58ea7c12d8ac00e",
+   "folded": 0,
+   "date": "2025-10-12",
+   "subject": "feat: integrate DrawPad component for signature capture in BackContent; enhance user interaction with feedback on flip actions",
+   "patch": "patches/solarin-my-app/03_08b0cce.patch",
+   "files": [
+    "app/3d-rotate/index.tsx",
+    "components/3dRotate.tsx",
+    "package.json"
+   ],
+   "patch_bytes": 4665,
+   "legacy_pins": [
+    "@react-navigation/bottom-tabs",
+    "@react-navigation/drawer"
+   ]
+  }
+ ],
+ "linear-tab-bar": [
+  {
+   "n": 1,
+   "sha": "4da28ef1d6198febd7bd824bc9a430693e304f05",
+   "from": "98c40235e96aa1e38bb0d7df7d305babb191999b",
+   "folded": 0,
+   "date": "2026-03-23",
+   "subject": "Initial commit. Linear style tab bar",
+   "patch": "patches/linear-tab-bar/01_4da28ef.patch",
+   "files": [
+    "App.tsx",
+    "app.json",
+    "babel.config.js",
+    "src/components/Screens/PlaceholderScreen.tsx",
+    "src/components/TabBar/GlassMaterial.tsx",
+    "src/components/TabBar/NotificationDot.tsx",
+    "src/components/TabBar/SearchButton.tsx",
+    "src/components/TabBar/TabBar.tsx",
+    "src/components/TabBar/TabBarPill.tsx",
+    "src/components/TabBar/TabIcon.js",
+    "src/components/TabBar/TabIcon.tsx",
+    "src/constants/layout.ts",
+    "src/constants/theme.ts",
+    "src/hooks/useKeyboardAnimation.ts",
+    "src/hooks/useTabBarAnimation.js",
+    "src/hooks/useTabBarAnimation.ts",
+    "tsconfig.json",
+    "package.json"
+   ],
+   "patch_bytes": 38011
+  },
+  {
+   "n": 2,
+   "sha": "4072c98f1872f04eb6b678bb03e37f051eca2c3e",
+   "from": "4da28ef1d6198febd7bd824bc9a430693e304f05",
+   "folded": 0,
+   "date": "2026-03-23",
+   "subject": "Created custom drag stretch and glow implementation",
+   "patch": "patches/linear-tab-bar/02_4072c98.patch",
+   "files": [
+    "App.tsx",
+    "src/components/TabBar/SearchButton.tsx",
+    "src/components/TabBar/TabBar.tsx",
+    "src/components/TabBar/TabBarPill.tsx",
+    "src/components/TabBar/TabIcon.tsx",
+    "src/constants/theme.ts",
+    "src/hooks/usePillGestures.ts",
+    "src/hooks/useSearchGestures.ts"
+   ],
+   "patch_bytes": 42443
+  },
+  {
+   "n": 3,
+   "sha": "66e5453510b7666db12fb46ab232fc761fdc6b2e",
+   "from": "4072c98f1872f04eb6b678bb03e37f051eca2c3e",
+   "folded": 0,
+   "date": "2026-03-23",
+   "subject": "Created serch input animation with closing button",
+   "patch": "patches/linear-tab-bar/03_66e5453.patch",
+   "files": [
+    "App.tsx",
+    "src/components/TabBar/CloseSearchButton.tsx",
+    "src/components/TabBar/GlassMaterial.tsx",
+    "src/components/TabBar/SearchButton.tsx",
+    "src/components/TabBar/TabBar.tsx",
+    "src/components/TabBar/TabBarPill.tsx",
+    "src/components/TabBar/TabIcon.tsx",
+    "src/constants/layout.ts",
+    "src/constants/theme.ts",
+    "src/hooks/useTabBarAnimation.ts"
+   ],
+   "patch_bytes": 26812
+  },
+  {
+   "n": 4,
+   "sha": "0d610325979c36bafef53760ddd436dff3908369",
+   "from": "66e5453510b7666db12fb46ab232fc761fdc6b2e",
+   "folded": 0,
+   "date": "2026-03-23",
+   "subject": "Fixed hold glow on glass material",
+   "patch": "patches/linear-tab-bar/04_0d61032.patch",
+   "files": [
+    "src/hooks/usePillGestures.ts"
+   ],
+   "patch_bytes": 3352
+  },
+  {
+   "n": 5,
+   "sha": "a044717ef93496b7176fb58b49b73a48ac071554",
+   "from": "0d610325979c36bafef53760ddd436dff3908369",
+   "folded": 0,
+   "date": "2026-03-24",
+   "subject": "Created custom popup menu animation",
+   "patch": "patches/linear-tab-bar/05_a044717.patch",
+   "files": [
+    "App.tsx",
+    "src/components/TabBar/GlassMaterial.tsx",
+    "src/components/TabBar/MenuPanel.tsx",
+    "src/components/TabBar/SearchButton.tsx",
+    "src/components/TabBar/TabBar.tsx",
+    "src/components/TabBar/TabBarPill.tsx",
+    "src/components/TabBar/TabIcon.tsx",
+    "src/constants/layout.ts",
+    "src/constants/theme.ts",
+    "src/hooks/useTabBarAnimation.ts"
+   ],
+   "patch_bytes": 32729
+  },
+  {
+   "n": 6,
+   "sha": "9e692f9668d6eaddb801716c2d4856cf6a2e153d",
+   "from": "a044717ef93496b7176fb58b49b73a48ac071554",
+   "folded": 3,
+   "date": "2026-03-24",
+   "subject": "Dragging the pill now doesnt change the routed tab until letting go",
+   "patch": "patches/linear-tab-bar/06_9e692f9.patch",
+   "files": [
+    "App.tsx",
+    "src/components/TabBar/GlassMaterial.tsx",
+    "src/components/TabBar/TabBar.tsx",
+    "src/components/TabBar/TabBarPill.tsx",
+    "src/components/TabBar/TabIcon.tsx",
+    "src/constants/layout.ts",
+    "src/hooks/usePillGestures.ts"
+   ],
+   "patch_bytes": 13302
+  },
+  {
+   "n": 7,
+   "sha": "c5a53ac171faf30a92c8bd0d22d5bfeaa3adaba2",
+   "from": "9e692f9668d6eaddb801716c2d4856cf6a2e153d",
+   "folded": 0,
+   "date": "2026-03-24",
+   "subject": "when dragging the pill up, the menu triggers",
+   "patch": "patches/linear-tab-bar/07_c5a53ac.patch",
+   "files": [
+    "App.tsx",
+    "src/hooks/usePillGestures.ts"
+   ],
+   "patch_bytes": 3045
+  },
+  {
+   "n": 8,
+   "sha": "8e22f6be5460a729902fca4cc6eedb68ac6dbc9b",
+   "from": "c5a53ac171faf30a92c8bd0d22d5bfeaa3adaba2",
+   "folded": 0,
+   "date": "2026-03-24",
+   "subject": "Added proper linear gradient masked border for fake glass effect",
+   "patch": "patches/linear-tab-bar/08_8e22f6b.patch",
+   "files": [
+    "src/components/TabBar/GlassMaterial.tsx",
+    "src/constants/theme.ts"
+   ],
+   "patch_bytes": 3428
+  },
+  {
+   "n": 9,
+   "sha": "3c78584879a522ca26de016f1d65f160a5bf9a4f",
+   "from": "8e22f6be5460a729902fca4cc6eedb68ac6dbc9b",
+   "folded": 1,
+   "date": "2026-03-24",
+   "subject": "Optimize animation performance: remove dead worklets, deduplicate liquid glass, memoize gestures",
+   "patch": "patches/linear-tab-bar/09_3c78584.patch",
+   "files": [
+    "App.tsx",
+    "src/components/TabBar/CloseSearchButton.tsx",
+    "src/components/TabBar/MenuPanel.tsx",
+    "src/components/TabBar/SearchButton.tsx",
+    "src/components/TabBar/TabBar.tsx",
+    "src/components/TabBar/TabBarPill.tsx",
+    "src/components/TabBar/TabIcon.tsx",
+    "src/hooks/usePillGestures.ts",
+    "src/hooks/useTabBarAnimation.ts",
+    "src/utils/liquidGlass.ts"
+   ],
+   "patch_bytes": 22395
+  },
+  {
+   "n": 10,
+   "sha": "655c4e091e5838c7c31236e580ff3b029627bcdb",
+   "from": "3c78584879a522ca26de016f1d65f160a5bf9a4f",
+   "folded": 2,
+   "date": "2026-03-24",
+   "subject": "Simplified file structure and deleted unused keyboard animation file",
+   "patch": "patches/linear-tab-bar/10_655c4e0.patch",
+   "files": [
+    "App.tsx",
+    "app.json",
+    "src/components/Screens/PlaceholderScreen.tsx",
+    "src/components/TabBar/GlassMaterial.tsx",
+    "src/components/TabBar/MenuPanel.tsx",
+    "src/components/TabBar/SearchBar.tsx",
+    "src/components/TabBar/TabBarPill.tsx",
+    "src/components/TabBar/TabIcon.tsx",
+    "src/components/TabBar/constants.ts",
+    "src/components/TabBar/index.tsx"
+   ],
+   "patch_bytes": 72859
+  }
+ ],
+ "enzo-clerk-toast": [
+  {
+   "n": 1,
+   "sha": "dc0dafa334569059f395da990903a8e7ad8d3323",
+   "from": "1b4fafffdd0380d924736a395fe2085f0e9e43ef",
+   "folded": 0,
+   "date": "2024-09-03",
+   "subject": "feat: patreon demos 2024 (#3)",
+   "patch": "patches/enzo-clerk-toast/01_dc0dafa.patch",
+   "files": [
+    "src/animations/clerk-toast/index.tsx",
+    "src/animations/clerk-toast/src/components/pressable-scale.tsx",
+    "src/animations/clerk-toast/src/hook.tsx",
+    "src/animations/clerk-toast/src/hooks/use-toast.tsx",
+    "src/animations/clerk-toast/src/index.tsx",
+    "src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.android.tsx",
+    "src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.tsx",
+    "src/animations/clerk-toast/src/stacked-toast-manager/backdrop/use-gradient-height.ts",
+    "src/animations/clerk-toast/src/stacked-toast-manager/constants.ts",
+    "src/animations/clerk-toast/src/stacked-toast-manager/context.ts",
+    "src/animations/clerk-toast/src/stacked-toast-manager/hooks.ts",
+    "src/animations/clerk-toast/src/stacked-toast-manager/index.ts",
+    "src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast-provider.tsx",
+    "src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx"
+   ],
+   "patch_bytes": 29608
+  },
+  {
+   "n": 2,
+   "sha": "917f84d5ed3cfd3146509685c663f6c9335b0951",
+   "from": "dc0dafa334569059f395da990903a8e7ad8d3323",
+   "folded": 1,
+   "date": "2024-09-27",
+   "subject": "refactor: replace pressables with pressto",
+   "patch": "patches/enzo-clerk-toast/02_917f84d.patch",
+   "files": [
+    "src/animations/clerk-toast/index.tsx",
+    "src/animations/clerk-toast/src/hook.tsx",
+    "src/animations/clerk-toast/src/index.tsx"
+   ],
+   "patch_bytes": 4696
+  },
+  {
+   "n": 3,
+   "sha": "94b032792c77126cc01e3457ceed5eac7fab4ddb",
+   "from": "917f84d5ed3cfd3146509685c663f6c9335b0951",
+   "folded": 0,
+   "date": "2024-11-06",
+   "subject": "fix: status bar handling",
+   "patch": "patches/enzo-clerk-toast/03_94b0327.patch",
+   "files": [
+    "src/animations/clerk-toast/src/index.tsx"
+   ],
+   "patch_bytes": 638
+  },
+  {
+   "n": 4,
+   "sha": "881adc6f09e9a8c8517e932820b5d6c9bdf2dfd0",
+   "from": "94b032792c77126cc01e3457ceed5eac7fab4ddb",
+   "folded": 1,
+   "date": "2025-09-15",
+   "subject": "refactor: animated.SharedValue",
+   "patch": "patches/enzo-clerk-toast/04_881adc6.patch",
+   "files": [
+    "src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx"
+   ],
+   "patch_bytes": 2079
+  },
+  {
+   "n": 5,
+   "sha": "8c8c533bf193537646af21e200b3da58fd2b8bdc",
+   "from": "881adc6f09e9a8c8517e932820b5d6c9bdf2dfd0",
+   "folded": 1,
+   "date": "2025-09-27",
+   "subject": "replace runOnJS with scheduleOnRN and runOnUI with scheduleOnUI (#2)",
+   "patch": "patches/enzo-clerk-toast/05_8c8c533.patch",
+   "files": [
+    "src/animations/clerk-toast/src/hook.tsx",
+    "src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.android.tsx",
+    "src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.tsx",
+    "src/animations/clerk-toast/src/stacked-toast-manager/context.ts",
+    "src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast-provider.tsx",
+    "src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx"
+   ],
+   "patch_bytes": 6142
+  },
+  {
+   "n": 6,
+   "sha": "7aae7eb16c2e4d60e7172788073b3f87203b7b7a",
+   "from": "8c8c533bf193537646af21e200b3da58fd2b8bdc",
+   "folded": 3,
+   "date": "2025-10-14",
+   "subject": "fix: haptics with pressto (#26)",
+   "patch": "patches/enzo-clerk-toast/06_7aae7eb.patch",
+   "files": [
+    "src/animations/clerk-toast/_meta.json",
+    "src/animations/clerk-toast/index.tsx",
+    "src/animations/clerk-toast/src/hook.tsx",
+    "src/animations/clerk-toast/src/hooks/use-toast.tsx",
+    "src/animations/clerk-toast/src/index.tsx",
+    "src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.android.tsx",
+    "src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.tsx",
+    "src/animations/clerk-toast/src/stacked-toast-manager/backdrop/use-gradient-height.ts",
+    "src/animations/clerk-toast/src/stacked-toast-manager/context.ts",
+    "src/animations/clerk-toast/src/stacked-toast-manager/hooks.ts",
+    "src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast-provider.tsx",
+    "src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx"
+   ],
+   "patch_bytes": 56340
+  },
+  {
+   "n": 7,
+   "sha": "aac472e926349f60282ae8851e4bfdc7bc586eb5",
+   "from": "7aae7eb16c2e4d60e7172788073b3f87203b7b7a",
+   "folded": 3,
+   "date": "2025-11-01",
+   "subject": "fix: unstable animations (#36)",
+   "patch": "patches/enzo-clerk-toast/07_aac472e.patch",
+   "files": [
+    "src/animations/clerk-toast/src/index.tsx",
+    "src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx"
+   ],
+   "patch_bytes": 40169
+  },
+  {
+   "n": 8,
+   "sha": "283781960980a6dc046ba9036de63eac13f8ab78",
+   "from": "aac472e926349f60282ae8851e4bfdc7bc586eb5",
+   "folded": 0,
+   "date": "2025-11-02",
+   "subject": "style: prefer spring animations (#39)",
+   "patch": "patches/enzo-clerk-toast/08_2837819.patch",
+   "files": [
+    "src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.android.tsx",
+    "src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.tsx",
+    "src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx"
+   ],
+   "patch_bytes": 2945
+  },
+  {
+   "n": 9,
+   "sha": "bb5aea46060203cb97fe944ffbb95d2db7fc20e6",
+   "from": "283781960980a6dc046ba9036de63eac13f8ab78",
+   "folded": 0,
+   "date": "2025-12-07",
+   "subject": "style: improve shadows (#47)",
+   "patch": "patches/enzo-clerk-toast/09_bb5aea4.patch",
+   "files": [
+    "src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx"
+   ],
+   "patch_bytes": 591
+  }
+ ]
+}

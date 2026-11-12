@@ -5,22 +5,25 @@ import { Store } from "./base.ts";
 export interface PatchRow { id: string; task_id: string; agent_id: string; base: string; files: string[]; text: string; state: "draft" | "ready" | "applied" | "superseded" | "rejected"; error?: string; t: number }
 import type { PlanRow } from "./plan.ts";
 import type { SessionRun } from "./session_run.ts";
+import type { FixtureSessionRow } from "./fixture_sessions.ts";
 export interface NoteRow { id: string; task_id: string; from: string; to: string; text: string; refs: string[]; read_by: string[]; t: number }
 
 export class MStore extends Store {
   patches: PatchRow[] = []; notes: NoteRow[] = []; plans: PlanRow[] = []; runs: SessionRun[] = [];
+  /** Fixture (mocked sub-agent) sessions: master task -> fixture session id -> state, version, history. See fixture_sessions.ts. */
+  fixtureSessions: FixtureSessionRow[] = [];
   constructor(file?: string) { super(file); this.reload(); }   // field initialisers run after super(), so load again
   protected override fileStamp(): string { const b = this.file + ".board"; let x = ""; try { const s = statSync(b); x = `${s.mtimeMs}:${s.size}`; } catch { /* none yet */ } return super.fileStamp() + "|" + x; }
   override reload() {
     super.reload();
     const f = this.file && this.file + ".board";
-    if (f && existsSync(f)) { const j = JSON.parse(readFileSync(f, "utf8")); this.patches = j.patches ?? []; this.notes = j.notes ?? []; this.plans = j.plans ?? []; this.runs = j.runs ?? []; }
+    if (f && existsSync(f)) { const j = JSON.parse(readFileSync(f, "utf8")); this.patches = j.patches ?? []; this.notes = j.notes ?? []; this.plans = j.plans ?? []; this.runs = j.runs ?? []; this.fixtureSessions = j.fixtureSessions ?? []; }
     this.stamp = this.fileStamp();
   }
   override save() {
     super.save();
     if (!this.file) return;
-    writeFileSync(this.file + ".board.tmp", JSON.stringify({ patches: this.patches, notes: this.notes, plans: this.plans, runs: this.runs }));
+    writeFileSync(this.file + ".board.tmp", JSON.stringify({ patches: this.patches, notes: this.notes, plans: this.plans, runs: this.runs, fixtureSessions: this.fixtureSessions }));
     renameSync(this.file + ".board.tmp", this.file + ".board");
     this.stamp = this.fileStamp();
   }

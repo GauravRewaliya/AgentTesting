@@ -1,0 +1,82 @@
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.android.tsx b/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.android.tsx
+index b0cefc9..4bf7180 100644
+--- a/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.android.tsx
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.android.tsx
+@@ -5,7 +5,7 @@ import { useContext } from 'react';
+ import { LinearGradient } from 'expo-linear-gradient';
+ import Animated, {
+   useAnimatedStyle,
+-  withTiming,
++  withSpring,
+ } from 'react-native-reanimated';
+ 
+ import { InternalStackedToastContext } from '../context';
+@@ -19,9 +19,15 @@ export const Backdrop = () => {
+   const rAnimatedStyle = useAnimatedStyle(() => {
+     const top = windowHeight - gradientHeight;
+     return {
+-      top: withTiming(top, {
+-        duration: 500,
+-      }),
++      top: 0,
++      transform: [
++        {
++          translateY: withSpring(top, {
++            dampingRatio: 1,
++            duration: 500,
++          }),
++        },
++      ],
+     };
+   }, [windowHeight, stackedToasts.length]);
+ 
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.tsx b/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.tsx
+index 9d84511..81c3c1e 100644
+--- a/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.tsx
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/backdrop/index.tsx
+@@ -7,7 +7,7 @@ import { BlurView } from 'expo-blur';
+ import { LinearGradient } from 'expo-linear-gradient';
+ import Animated, {
+   useAnimatedStyle,
+-  withTiming,
++  withSpring,
+ } from 'react-native-reanimated';
+ 
+ import { InternalStackedToastContext } from '../context';
+@@ -26,9 +26,15 @@ export const Backdrop = () => {
+   const rAnimatedStyle = useAnimatedStyle(() => {
+     const top = windowHeight - gradientHeight;
+     return {
+-      top: withTiming(top, {
+-        duration: 500,
+-      }),
++      top: 0,
++      transform: [
++        {
++          translateY: withSpring(top, {
++            dampingRatio: 1,
++            duration: 500,
++          }),
++        },
++      ],
+       pointerEvents: 'none',
+     };
+   }, [windowHeight, stackedToasts.length]);
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx b/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx
+index c9f3fae..449c6b5 100644
+--- a/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx
+@@ -72,10 +72,11 @@ const StackedToast: React.FC<StackedToastProps> = ({
+ 
+   const dismissItem = useCallback(() => {
+     'worklet';
+-    translateX.value = withTiming(
++    translateX.value = withSpring(
+       -windowWidth,
+       {
+-        duration: 250,
++        dampingRatio: 1,
++        duration: 350,
+       },
+       isFinished => {
+         if (isFinished) {

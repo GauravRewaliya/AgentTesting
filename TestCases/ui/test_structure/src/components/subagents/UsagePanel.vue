@@ -14,7 +14,7 @@ const u = () => state.usage[props.id];
       <div v-for="x in u()!.expectedBy" :key="x.caseId + x.turn"><router-link :to="{ name: 'test', params: { caseId: x.caseId } }">{{ x.caseId }}</router-link> <span class="muted">turn {{ x.turn }} · {{ x.suite }}</span></div>
       <div v-if="!u()!.expectedBy.length" class="muted">none</div>
       <h5>Cases it really answered ({{ u()!.servedIn.length }})</h5>
-      <div v-for="x in u()!.servedIn" :key="x.caseId"><router-link :to="{ name: 'test', params: { caseId: x.caseId } }">{{ x.caseId }}</router-link> <span class="muted">{{ x.times }}×, from .state/harness.jsonl</span></div>
+      <div v-for="x in u()!.servedIn" :key="x.caseId"><router-link :to="{ name: 'test', params: { caseId: x.caseId } }">{{ x.caseId }}</router-link> <span class="muted">{{ x.times }}×, from .state sessions</span></div>
       <div v-if="!u()!.servedIn.length" class="muted">none recorded</div>
       <template v-if="u()!.sharedStore.length"><h5>Shares store files</h5>
         <div v-for="x in u()!.sharedStore" :key="x.store"><code>{{ x.store }}</code> <span class="muted">also copied by</span> {{ x.with.join(", ") }}</div></template>

@@ -4,8 +4,8 @@ Goal: see every test case on one vue-flow canvas, open one test session on its o
 and poke a sub-agent mock from a right-hand panel. Nothing is cleared: a test session id is kept.
 
 ## Data truth today (no database behind Test_agent_3)
-`.state/last/<case>.json` (result), `.state/<case>/ckpt.json` (lead session id + sub-agent ids),
-`.state/harness.jsonl` / `trace.jsonl` / `mod_events.jsonl` (events). `src/types` maps these 1:1.
+`.state/<version>/data/<ws>/last/<case>.json` (result), `sessions/fx_<case>/session.json` (lead session id + sub-agent ids),
+`sessions/fx_<case>/events.jsonl` + `run/` (events). `src/types` maps these 1:1.
 A `DataSource` (store/dashboard.ts) is the only thing that knows where data comes from:
 fixtures now -> `Bun.serve` reading `.state/` (phase 2) -> Postgres via `Bun.SQL` if you want it (phase 3).
 

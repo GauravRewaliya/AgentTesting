@@ -2,10 +2,10 @@
 //   case --after--> case              (test_case/*/main.ts)
 //   case --creates--> sub-session     (a session belongs to the case whose PARENT checkpoint does not already have it,
 //                                      because ckpt.json carries the ancestors' ids forward)
-//   sub-session --answered by--> fixture   (.state/harness.jsonl reply events)
+//   sub-session --answered by--> fixture   (.state session agents carry the fixture that answered them)
 //   case --expects--> fixture         (turns[].expected.expected_agents_res; "session:x#n" entries are follow-ups, not fixtures)
-//   fixture --copies--> store path    (agent_fixture/index.json)
-import { fixtureIndex, harnessEvents, loadSuites, readCkpt, readLast, type RawCase } from "./data.ts";
+//   fixture --copies--> store path    (TestCases/test_folders/agent_fixture/index.json)
+import { fixtureIndex, fixtureOf, loadSuites, readCkpt, readLast, type RawCase } from "./data.ts";
 import type { CaseProfile, Usage } from "../shared/types.ts";
 
 export type Model = Awaited<ReturnType<typeof buildModel>>;
@@ -23,10 +23,8 @@ export async function buildModel() {
   const owner = new Map<string, string>(); // sub-session id -> creator case
   for (const [id, c] of cases) for (const [, sid] of sessionsOf(id)) if (!has(c.raw.after, sid)) owner.set(sid, id);
 
-  const events = harnessEvents();
   const servedBy = new Map<string, string>(); // sub-session id -> fixture that answered its spawn
-  for (const e of events) if (e.kind === "reply" && e.fixture && e.id && !servedBy.has(e.id)) servedBy.set(e.id, e.fixture);
-
+  for (const id of cases.keys()) for (const [sid, fxid] of Object.entries(fixtureOf(id))) if (!servedBy.has(sid)) servedBy.set(sid, fxid);   // agent rows in .state carry the fixture that answered them
   const fixtures = fixtureIndex();
   const children = new Map<string, string[]>(); // case -> cases that continue it
   for (const [id, c] of cases) if (c.raw.after && cases.has(c.raw.after)) children.set(c.raw.after, [...(children.get(c.raw.after) ?? []), id]);
@@ -56,5 +54,5 @@ export async function buildModel() {
     return { agentMode: multi ? "multi" : "solo", noDelegate: c.router !== false && expected.length === 0, multiPrompt, multiSession, subAgents, kind };
   };
 
-  return { suites, cases, profile, ckpt, last, sessionsOf, owner, servedBy, events, fixtures, children, usage };
+  return { suites, cases, profile, ckpt, last, sessionsOf, owner, servedBy, fixtures, children, usage };
 }

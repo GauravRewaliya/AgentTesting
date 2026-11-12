@@ -1,0 +1,136 @@
+diff --git a/src/animations/clerk-toast/index.tsx b/src/animations/clerk-toast/index.tsx
+index 4776279..825dc5f 100644
+--- a/src/animations/clerk-toast/index.tsx
++++ b/src/animations/clerk-toast/index.tsx
+@@ -1,36 +1,23 @@
+ import { GestureHandlerRootView } from 'react-native-gesture-handler';
+-import * as Font from 'expo-font';
+ import { StyleSheet } from 'react-native';
+-import { useEffect, useState } from 'react';
+ import { SafeAreaProvider } from 'react-native-safe-area-context';
+ 
+ // Import the custom font file
+ // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+ // @ts-ignore
+-import sfProRoundedBold from './assets/fonts/SF-Pro-Rounded-Bold.otf';
++
+ import { App } from './src';
+ import { StackedToastProvider } from './src/stacked-toast-manager';
+ 
+ // AppContainer component definition
+ export const ClerkToast = () => {
+-  // State to track whether custom fonts have been loaded
+-  const [fontsLoaded, setFontsLoaded] = useState(false);
+-
+-  // Load custom fonts using async Font.loadAsync
+-  useEffect(() => {
+-    (async () => {
+-      await Font.loadAsync({
+-        'SF-Pro-Rounded-Bold': sfProRoundedBold,
+-      });
+-      setFontsLoaded(true);
+-    })();
+-  }, []);
+-
+   // Render the AppContainer with GestureHandlerRootView and SafeAreaProvider
+   return (
+     <SafeAreaProvider>
+       <GestureHandlerRootView style={localStyles.fill}>
+-        <StackedToastProvider>{fontsLoaded && <App />}</StackedToastProvider>
++        <StackedToastProvider>
++          <App />
++        </StackedToastProvider>
+       </GestureHandlerRootView>
+     </SafeAreaProvider>
+   );
+diff --git a/src/animations/clerk-toast/src/components/pressable-scale.tsx b/src/animations/clerk-toast/src/components/pressable-scale.tsx
+deleted file mode 100644
+index 4a81daf..0000000
+--- a/src/animations/clerk-toast/src/components/pressable-scale.tsx
++++ /dev/null
+@@ -1,57 +0,0 @@
+-import type { PropsWithChildren } from 'react';
+-import React from 'react';
+-import type { StyleProp, ViewStyle } from 'react-native';
+-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+-import Animated, {
+-  runOnJS,
+-  useAnimatedStyle,
+-  useSharedValue,
+-  withTiming,
+-} from 'react-native-reanimated';
+-
+-type PressableScaleProps = PropsWithChildren<{
+-  onPress?: () => void;
+-  style?: StyleProp<ViewStyle>;
+-}>;
+-
+-// Create the PressableScale component
+-const PressableScale: React.FC<PressableScaleProps> = ({
+-  children,
+-  onPress,
+-  style,
+-}) => {
+-  // Create a shared value to track the press state
+-  const active = useSharedValue(false);
+-
+-  // Create a tap gesture handler
+-  const gesture = Gesture.Tap()
+-    .maxDuration(4000) // Set maximum duration for tap gesture
+-    .onTouchesDown(() => {
+-      active.value = true; // Mark as active on touch down
+-    })
+-    .onTouchesUp(() => {
+-      if (onPress != null) runOnJS(onPress)(); // Execute onPress on touch up
+-    })
+-    .onFinalize(() => {
+-      active.value = false; // Reset press state on finalize
+-    });
+-
+-  // Create an animated style for scaling effect
+-  const rAnimatedStyle = useAnimatedStyle(() => {
+-    return {
+-      transform: [
+-        {
+-          scale: withTiming(active.value ? 0.92 : 1), // Scale down when active, return to normal otherwise
+-        },
+-      ],
+-    };
+-  }, []);
+-
+-  return (
+-    <GestureDetector gesture={gesture}>
+-      <Animated.View style={[style, rAnimatedStyle]}>{children}</Animated.View>
+-    </GestureDetector>
+-  );
+-};
+-
+-export { PressableScale };
+diff --git a/src/animations/clerk-toast/src/hook.tsx b/src/animations/clerk-toast/src/hook.tsx
+index 0d6eb5f..c7012eb 100644
+--- a/src/animations/clerk-toast/src/hook.tsx
++++ b/src/animations/clerk-toast/src/hook.tsx
+@@ -1,9 +1,9 @@
+ import { useCallback, useMemo, useRef } from 'react';
+ import { Octicons } from '@expo/vector-icons';
++import { PressableScale } from 'pressto';
+ 
+ import type { ShowToastParams } from './hooks/use-toast';
+ import { useToast } from './hooks/use-toast';
+-import { PressableScale } from './components/pressable-scale';
+ import { useStackedToast } from './stacked-toast-manager/hooks';
+ 
+ export const useDemoStackedToast = () => {
+diff --git a/src/animations/clerk-toast/src/index.tsx b/src/animations/clerk-toast/src/index.tsx
+index bb702a6..0b80f30 100644
+--- a/src/animations/clerk-toast/src/index.tsx
++++ b/src/animations/clerk-toast/src/index.tsx
+@@ -1,7 +1,7 @@
+ import { ScrollView, StyleSheet, View } from 'react-native';
+ import { StatusBar } from 'expo-status-bar';
++import { PressableScale } from 'pressto';
+ 
+-import { PressableScale } from './components/pressable-scale';
+ import { useDemoStackedToast } from './hook';
+ 
+ const App = () => {

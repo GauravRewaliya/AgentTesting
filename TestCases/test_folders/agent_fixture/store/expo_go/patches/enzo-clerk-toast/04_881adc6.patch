@@ -1,0 +1,49 @@
+diff --git a/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx b/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx
+index f3b6c6d..b67a070 100644
+--- a/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx
++++ b/src/animations/clerk-toast/src/stacked-toast-manager/stacked-toast.tsx
+@@ -1,4 +1,6 @@
++import { useCallback, useEffect, useMemo } from 'react';
+ import { StyleSheet, useWindowDimensions } from 'react-native';
++import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+ import Animated, {
+   FadeOutLeft,
+   runOnJS,
+@@ -7,12 +9,10 @@ import Animated, {
+   withSpring,
+   withTiming,
+ } from 'react-native-reanimated';
+-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+-import { useCallback, useEffect, useMemo } from 'react';
+ 
++import { MAX_VISIBLE_TOASTS, TOAST_HEIGHT } from './constants';
+ import type { StackedToastType } from './context';
+ import { useInternalStackedToast } from './hooks';
+-import { MAX_VISIBLE_TOASTS, TOAST_HEIGHT } from './constants';
+ 
+ // Define the props for the StackedToast component
+ type StackedToastProps = {
+@@ -57,11 +57,10 @@ const StackedToast: React.FC<StackedToastProps> = ({
+   // To be honest that's not an easy solution, but it seems to work fine
+   useEffect(() => {
+     bottom.value = withSpring(BaseSafeArea + bottomHeight, {
+-      duration: 500,
+-      dampingRatio: 1.5,
+-      stiffness: 1,
++      mass: 1,
++      damping: 100,
++      stiffness: 80,
+       overshootClamping: false,
+-      restSpeedThreshold: 50,
+     });
+ 
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+@@ -113,7 +112,7 @@ const StackedToast: React.FC<StackedToastProps> = ({
+   const rStackedToastStyle = useAnimatedStyle(() => {
+     return {
+       bottom: bottom.value,
+-      zIndex: withTiming(100 - stackedToastId),
++      zIndex: 100 - stackedToastId,
+       shadowRadius: withTiming(Math.max(10 - stackedToastId * 2.5, 2)),
+       shadowOpacity: withTiming(
+         stackedToastId > 3 ? 0.1 - stackedToastId * 0.025 : 0.08,

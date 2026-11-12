@@ -1,14 +1,15 @@
 // bun core/harness_own_custom/make_report.ts  -> core/harness_own_custom/test_report.md : what passed, update time at the top.
-// Sources: .state/last/<case>.json (written by every run of core/run.ts), judgements.json (our verdicts after reading a report),
+// Sources: .state/<version>/data/<ws>/last/<case>.json (written by every run of core/run.ts), judgements.json (our verdicts after reading a report),
 // bun test (harness rules), core/project_harness probes. A case with no judgement gets a MECHANICAL verdict only:
 // "PASS (auto)" = the responders that answered equal expected_agents_res, no guard stop, no NOTFOUND. Nothing is asserted by code.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { WORKSPACE_DIR } from "@core/paths.ts";
 import { skip_test } from "./skip_test.ts";
 import { real_cases, ready_for } from "../project_harness/real_cases.ts";
 
 const HERE = import.meta.dir, ROOT = join(HERE, "../..");
-const LAST = join(ROOT, ".state/last"), JUDGE = join(HERE, "judgements.json");
+const LAST = join(WORKSPACE_DIR, "last"), JUDGE = join(HERE, "judgements.json");
 type Turn = { actual: string[]; expected: string[]; match: boolean; guard: boolean; notfound: boolean; other_tools: string[]; calls: number; cost: number; reply: string };
 type Rec = { suite: string; id: string; title: string; at: string; status: "ran" | "skipped"; warnings: string[]; turns: Turn[] };
 const recs: Rec[] = existsSync(LAST) ? readdirSync(LAST).filter((f) => f.endsWith(".json")).map((f) => JSON.parse(readFileSync(join(LAST, f), "utf8"))) : [];
@@ -57,6 +58,6 @@ for (const s of suites) {
 L.push(`## Real Loopferry harness: FAILED (not tested)`, ``, `Due to the limits below these were **not run** and are marked failed so the gap stays visible. The probes in \`core/project_harness\` cover the session rule and the CLI only.`, ``, `| | Case | Limitation | Where Loopferry lists it |`, `|---|---|---|---|`, ...real_cases.map((r) => `| ❌ | \`${r.id}\` ${r.title.replace(/\|/g, "/")} | ${r.limit} | ${r.source} |`), ``);
 L.push(`## What Loopferry is ready for`, ``, `Taken from Loopferry's own README, handbook/PENDING.md and the live-acceptance plan. **Not re-verified by running it** (see the FAILED section above).`, ``, "```", ready_for, "```", ``);
 L.push(`## Not run by design (skip_test)`, ``, `| Scenario | Needs | Why |`, `|---|---|---|`, ...skip_test.map((s) => `| ⏭️ \`${s.id}\` | ${s.needs} | ${s.reason} |`), ``,
-  `## How to refresh`, ``, "```", `bun core/run.ts <suite>                      # run a suite (writes .state/last/*.json)`, `# read the report, record verdicts in core/harness_own_custom/judgements.json`, `bun core/harness_own_custom/make_report.ts   # rewrite this file`, "```", ``);
+  `## How to refresh`, ``, "```", `bun core/run.ts <suite>                      # run a suite (writes .state/<version>/data/<ws>/last/*.json)`, `# read the report, record verdicts in core/harness_own_custom/judgements.json`, `bun core/harness_own_custom/make_report.ts   # rewrite this file`, "```", ``);
 writeFileSync(join(HERE, "test_report.md"), L.join("\n"));
 console.log(`test_report.md written: ${recs.length} cases, ${count((r) => verdict(r).startsWith("PASS"))} pass`);

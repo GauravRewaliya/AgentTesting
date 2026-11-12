@@ -1,0 +1,7 @@
+{
+ "expo-go": {
+  "requires_done": [],
+  "contains_all": ["run_test", "plan.md"],
+  "min_chars": 120
+ }
+}
