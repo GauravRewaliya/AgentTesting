@@ -1,6 +1,6 @@
 # Test 2: f_1_withmulti_ag (multi-agent on demand)
 
-Generated 2026-11-13T13:11:47.501Z. 165/169 passed.
+Generated 2026-11-13T13:13:34.810Z. 166/169 passed.
 
 Harness under test: `harness/` = the base harness (harness/core/base/) + agent.call, instances, locks, worktrees/patches, board, tools. Real suite NOT run.
 
@@ -36,7 +36,7 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 | offline: write locks and the queue | M4f | a dead agent's lease expires: the waiter gets the lock on its next try, an event records it | PASS |
 | offline: write locks and the queue | M4g | the edit guard: inside my locks = allow; a file another agent holds = LOCKED (names the holder, says what to do); outside what I declared = NOT DECLARED | PASS |
 | offline: write locks and the queue | M4i | fairness: with the lock free but B already waiting, a later request C must queue behind B; B gets it on its next try | PASS |
-| offline: write locks and the queue | M4h | reap removes every expired lease | **FAIL** |
+| offline: write locks and the queue | M4h | reap removes every expired lease | PASS |
 | offline: worktrees, patches, the Bash-write audit (real git) | M5a | audit: a write outside the declared paths is detected from git status (the Bash gap's detective control) | PASS |
 | offline: worktrees, patches, the Bash-write audit (real git) | M5b | applying patches in queue order: non-overlapping ones apply (two edits far apart in one file both land); the one touching the same line is REJECTED with the git error and nothing half-applied | PASS |
 | offline: worktrees, patches, the Bash-write audit (real git) | M5c | a newer patch from the same agent supersedes its older unapplied one | PASS |
@@ -178,11 +178,6 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 
 ## Failures
 
-### M4h reap removes every expired lease
-```
-
-```
-
 ### NP1 who can call whom: only the lead and the builder can call sub-agents; every other agent is a leaf; the call tool is REMOVED at level 4 and for everyone when multi-agent is off (max depth 1); every agent has at least one tool; every declared sub-agent exists
 ```
 callers=builder,lead,planner
@@ -190,10 +185,10 @@ callers=builder,lead,planner
 
 ### SL1 a waiting lead does NOT take a worker's slot: with a lead running, three workers (cap 3) all start at once (none waits), and the three together take about one task-time, not three
 ```
-waited_ms=2,1,1355 three workers took 2589 ms
+waited_ms=0,1,1357 three workers took 2587 ms
 ```
 
 ### SL2 the cap still holds for workers (3 at a time): a fourth waits for a free slot, and the wait is RECORDED on its agent.done event (waited_ms) so a hidden delay shows up in the log and the summary
 ```
-waited_ms sorted=1,1,1655,1657
+waited_ms sorted=0,2,1662,1664
 ```

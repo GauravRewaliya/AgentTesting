@@ -156,7 +156,7 @@ if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
   if (!Array.isArray(tasks) || !tasks.length) { out({ ok: false, reason: "--tasks must be a non-empty JSON array of {title, writes, objective}" }); process.exit(0); }
   const from = flag("from"), role = flag("role") ?? "builder", started: Record<string, unknown>[] = [];
   for (const t of tasks) {
-    const req: CallReq = { task_id: task, caller_agent_id: me, role, session_arg: from ? `fork:${from}` : "new", mode: "work", objective: t.objective, output: t.output ?? flag("output"), boundaries: t.boundaries ?? flag("boundaries"),
+    const req: CallReq = { task_id: task, caller_agent_id: me, role, session_arg: from ? `fork:${from}` : "new", mode: "work", objective: t.objective, output: t.output ?? flag("output") ?? "Reply in 3 lines: the files you wrote, what you could not do, what you did not check.", boundaries: t.boundaries ?? flag("boundaries") ?? "Write only the files in your writes; edit nothing else. No server, no tests, no npm/pnpm, no build.",
       writes: (Array.isArray(t.writes) ? t.writes : String(t.writes ?? "").split(",")).map((w) => String(w).trim()).filter(Boolean), title: t.title };
     const res = await grant(req, true);
     if (!res.ok) started.push({ title: t.title, ok: false, reason: res.reason });

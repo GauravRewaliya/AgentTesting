@@ -19,4 +19,4 @@ export async function acquireSlot(name: string, max: number, dir = join(tmpdir()
     await new Promise((r) => setTimeout(r, 150));
   }
 }
-export const maxProcs = () => Math.max(1, Number(process.env.HARNESS_MAX_PROCS ?? 3));
+export const maxProcs = () => Math.max(1, Number(process.env.HARNESS_MAX_PROCS ?? 5));

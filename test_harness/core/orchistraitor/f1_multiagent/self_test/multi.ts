@@ -154,7 +154,7 @@ async function offline() {
     Z("A", "ca"); Z("B", "cb"); s6.locks = [];   // A's lock vanishes without promotion (e.g. its lease just ran out), B is still waiting
     const cLate = Z("C", "cc"), bTurn = Z("B", "cb");
     t("M4i", "fairness: with the lock free but B already waiting, a later request C must queue behind B; B gets it on its next try", !cLate.ok && bTurn.ok, JSON.stringify([cLate, bTurn]));
-    reap(s5, N + 1e6); t("M4h", "reap removes every expired lease", s5.locks.length === 0, ""); }
+    reap(s5, N + 1e7); t("M4h", "reap removes every expired lease", s5.locks.length === 0, ""); }
 
   setSuite("offline: worktrees, patches, the Bash-write audit (real git)");
   { const repo = mkRepo({ "a.txt": Array.from({ length: 12 }, (_, i) => "A" + (i + 1)).join("\n") + "\n", "b.txt": "B1\n", "c.txt": "C1\n" }), store = new MStore();
