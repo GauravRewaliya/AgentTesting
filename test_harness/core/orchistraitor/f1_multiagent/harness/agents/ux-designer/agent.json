@@ -1,6 +1,6 @@
 {
  "role": "ux-designer",
- "description": "Designs screens and flows: layout, components, states and copy, as a short written spec (markdown)",
+ "description": "Writes a short UX spec (screens, flows, states, copy) as markdown for a NEW product. NOT for cloning or matching a real website (the lookup agents and site_build do that from pictures).",
  "model": "sonnet",
  "session": "persistent",
  "writes": true,

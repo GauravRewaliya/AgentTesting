@@ -1,6 +1,6 @@
 {
  "role": "lookup",
- "description": "UI/UX reference analyst: studies a real website in a real browser (pictures, sections, components, motion, assets) and writes the build briefs the builders work from in parallel",
+ "description": "UI/UX reference COORDINATOR for a very large reference (many page types captured): splits the visual analysis across lookup-page workers that run in parallel and writes the design system. For a normal website clone use the harness command site_build instead (it generates the same split as a pipeline). NOT for facts (researcher) and NOT for code (builder).",
  "model": "haiku",
  "session": "persistent",
  "writes": true,

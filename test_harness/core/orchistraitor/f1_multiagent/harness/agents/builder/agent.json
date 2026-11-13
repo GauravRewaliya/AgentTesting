@@ -1,6 +1,6 @@
 {
  "role": "builder",
- "description": "Implements the plan, fixes findings, reports what it changed",
+ "description": "Builds the pages / files it is given from a brief or a spec, fixes findings, reports what it changed. For a WEBSITE clone it is started by site_build (one builder per screens file, from its brief), never alone.",
  "model": "sonnet",
  "session": "persistent",
  "writes": true,

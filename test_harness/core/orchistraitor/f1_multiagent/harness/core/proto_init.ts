@@ -88,7 +88,7 @@ function siteInit(dir: string, o: Opts): ReturnType<typeof protoInit> {
   copyFileSync(join(SK, "site.css"), join(dir, "css", "site.css")); copyFileSync(join(SK, "site.js"), join(dir, "js", "site.js"));
   const accent = /^#[0-9a-f]{3,8}$/i.test(o.accent ?? "") ? o.accent! : "#10b981", font = (o.font ?? "").replace(/[^\w \-]/g, "").trim();
   writeFileSync(join(dir, "css", "theme.css"), `/* BRAND TOKENS of this site (the kit reads them). Change colours / font / radius HERE, never in css/site.css. */\n:root{\n  --accent:${accent};\n${font ? `  --font:"${font}",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;\n` : ""}  --radius:14px;\n}\n${o.bgDark ? `:root[data-theme=dark]{\n  --bg:${o.bgDark};\n  --bg-soft:color-mix(in srgb,${o.bgDark} 95%,#fff);\n  --surface:color-mix(in srgb,${o.bgDark} 93%,#fff);\n  --header-bg:color-mix(in srgb,${o.bgDark} 78%,transparent);\n}\n` : ""}`);
-  if (pages.every((p) => !p.group)) pages.forEach((p, n) => { p.file = pages.length > 4 ? `part-${Math.floor(n / 4) + 1}` : "main"; });   // balanced files: ~4 pages per builder
+  if (pages.every((p) => !p.group)) pages.forEach((p, n) => { p.file = pages.length > 2 ? `part-${Math.floor(n / 2) + 1}` : "main"; });   // balanced files: ~2 pages per builder (writing is generation time: more files = more builders in parallel)
   const byFile: Record<string, NavItem[]> = {}; for (const i of pages) (byFile[i.file!] ??= []).push(i);
   const written = ["css/site.css", "js/site.js", "css/theme.css"];
   for (const [f, items] of Object.entries(byFile)) {

@@ -56,7 +56,7 @@ export function validatePlan(tasks: PlanTask[], defs: Map<string, AgentDef>, own
     for (let i = 0; i < ts.length; i++) for (let j = i + 1; j < ts.length; j++) {
       const a = ts[i]!, b = ts[j]!;
       if ((a.writes ?? []).some((x) => (b.writes ?? []).some((y) => overlaps(x, y)))) err(`${a.id} and ${b.id} would write the same files at the same time; make one depend on the other`);
-      if (a.role === b.role && (a.session ?? "new") === "new" && (b.session ?? "new") === "new" && similar(a.objective, b.objective)) err(`${a.id} and ${b.id} look like the same work given twice; merge them or make the objectives different`);
+      if (a.role === b.role && (a.session ?? "new") === "new" && (b.session ?? "new") === "new" && similar(a.objective, b.objective) && !(a.writes?.length && b.writes?.length && !a.writes.some((x) => b.writes!.some((y) => overlaps(x, y))))) err(`${a.id} and ${b.id} look like the same work given twice; merge them or make the objectives different`);
       if (a.session && a.session !== "new" && a.session === b.session) err(`${a.id} and ${b.id} both continue ${a.session} at the same time`);
     }
   }

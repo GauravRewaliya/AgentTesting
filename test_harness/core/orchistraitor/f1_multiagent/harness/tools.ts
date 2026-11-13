@@ -154,6 +154,14 @@ async function grant(req: CallReq, claim: boolean): Promise<CallRes> {
 }
 const lastReport = (agent: string) => [...store.reports].reverse().find((r) => r.task_id === task && r.agent_id === agent);
 
+/** A WEBSITE project (proto.json kit "site") is built by the pipeline (site_build), never by a lone builder: refuse a NEW builder that writes into it until a plan for it exists (a builder that is CONTINUED for a fix is always allowed). Found in a real run: "One file, one builder; skip the lookup to stay fast". */
+function siteGuard(req: CallReq): string | undefined {
+  const sa = req.session_arg ?? "new"; if (req.role !== "builder" || !(sa === "new" || sa.startsWith("fork:"))) return undefined;
+  const m = /^run_test\/([^/]+)\//.exec((req.writes ?? [])[0] ?? ""); if (!m) return undefined;
+  try { if (JSON.parse(readFileSync(join(cwd, "run_test", m[1]!, "proto.json"), "utf8")).kit !== "site") return undefined; } catch { return undefined; }
+  if (store.plans.some((p) => p.task_id === task && p.tasks.some((t) => (t.writes ?? []).some((x) => x.startsWith(`run_test/${m[1]}/`))))) return undefined;
+  return `run_test/${m[1]} is a WEBSITE project (kit site): its pages are built by the PIPELINE, not by a single builder, so the layouts and briefs exist and several builders work in parallel. Run: site_build --dir run_test/${m[1]} --ref <store made by ref_capture> --request "<the person's words>"; follow it with plan_status --plan <id> --wait 60. (A builder that is already working on it can still be continued with --session <its id> for a fix.)`;
+}
 const JOB_TOOLS = new Set(["ref_capture", "ref_compare", "site_audit", "browse", "ref_assets", "proto_check", "preview"]);
 if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   // BACKGROUND JOB: the slow tool runs by itself and this call returns at once; `wait --any --agents job_..` (also with agent ids) hands the result over the moment it is ready
   const jd = join(cwd, "run_test", "_jobs"), { mkdirSync } = await import("node:fs"), id = "job_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -168,6 +176,7 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
   const req: CallReq = { task_id: task, caller_agent_id: me, role: flag("role") ?? "", session_arg: flag("session"), mode: flag("mode") === "ask" ? "ask" : "work",
     objective: flag("objective"), output: flag("output"), boundaries: flag("boundaries"), writes: flag("writes")?.split(",").filter(Boolean), title: flag("title"), model: flag("model") };
   const mp = modelProblem(req.role, req.model); if (mp) { out({ ok: false, reason: mp }); process.exit(0); }
+  const sg = siteGuard(withWrites(req)); if (sg) { out({ ok: false, reason: sg }); process.exit(0); }
   const res = await grant(withWrites(req), asyncMode);   // asyncMode: claimed at once, so it counts as live and cannot be double-called
   if (!res.ok) out({ ok: false, reason: res.reason });
   else if (res.queued) out({ ok: true, queued: true, agent_id: res.agent.agent_id, position: res.queued.position, waiting_for: res.queued.heldBy, note: "its locks are held; it starts by itself when they free; use wait" });
@@ -182,6 +191,7 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
     const req: CallReq = { task_id: task, caller_agent_id: me, role, session_arg: from ? `fork:${from}` : "new", mode: "work", objective: t.objective, output: t.output ?? flag("output") ?? "Reply in 3 lines: the files you wrote, what you could not do, what you did not check.", boundaries: t.boundaries ?? flag("boundaries") ?? "Write only the files in your writes; edit nothing else. No server, no tests, no npm/pnpm, no build.",
       writes: (Array.isArray(t.writes) ? t.writes : String(t.writes ?? "").split(",")).map((w) => String(w).trim()).filter(Boolean), title: t.title, model: t.model ?? flag("model") };
     const mp = modelProblem(role, req.model); if (mp) { started.push({ title: t.title, ok: false, reason: mp }); continue; }
+    const sg = siteGuard(withWrites(req)); if (sg) { started.push({ title: t.title, ok: false, reason: sg }); continue; }
     const res = await grant(withWrites(req), true);
     if (!res.ok) started.push({ title: t.title, ok: false, reason: res.reason });
     else if (res.queued) started.push({ title: t.title, ok: true, queued: true, agent_id: res.agent.agent_id, waiting_for: res.queued.heldBy });
@@ -220,6 +230,33 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
   out({ ...(jobs.length ? { jobs } : {}), ...(any ? { finished_now: finishedNow, checks, next_step: pending().length ? `React to ${finishedNow.join(", ")} NOW (a FIX verdict goes back to that builder at once; CLEAN needs nothing), then wait --any --agents ${pending().join(",")}` : "everyone is done: run ref_compare / preview" } : {}), ...(interrupted ? { interrupted: "user_message", note: "the person sent you a message: it follows in your context; answer it, then call wait again for the same agents" } : {}), proto_check: protos, timed_out: pending().length > 0 && !interrupted, still_running: pending(), agents: names.filter((n) => !n.startsWith("job_")).map((n) => { const a = store.agent(task, n), r = lastReport(n); return { agent_id: n, status: a?.status ?? "unknown", needs_parent: a?.needs_parent ?? undefined, report_id: r?.id, summary: r?.summary.slice(0, 600) ?? null, ...((r?.summary.length ?? 0) > 600 ? { truncated: true, read_full_with: `ledger_get --report ${r!.id}` } : {}), patch: store.patches.filter((p) => p.task_id === task && p.agent_id === n).map((p) => `${p.id}:${p.state}`).join(",") || null }; }) });
 } else if (cmd === "apply_patches") {
   await applyPatchesCmd();
+} else if (cmd === "site_build") {   // THE PIPELINE for a website clone, made by the harness (no script for the model to skip): a design worker + per screens file a brief worker (lookup-page) and a builder that depends ONLY on its own brief; the plan runner starts every task the moment its dependencies are done, 4 at a time.
+  // `site_build --dir run_test/<project> --ref <store>[,<store2>] --request "<the person's words>"` -> returns plan_id; follow it with `plan_status --plan <id> --wait 60`
+  const proj = projPath(flag("dir") ?? "."), refs = (flag("ref") ?? "").split(",").map((x) => x.trim().replace(/[^\w.-]+/g, "-")).filter(Boolean), request = (flag("request") ?? "the page as in the reference").slice(0, 600);
+  let routes: { id: string; label?: string; file?: string }[] = []; try { routes = JSON.parse(readFileSync(join(proj, "proto.json"), "utf8")).routes; } catch { /* checked below */ }
+  const rel = proj.slice(resolve(cwd).length + 1), R = (x: string) => `run_test/_ref/${refs[0]}/${x}`;
+  if (!inWs(proj) || !routes.length || !refs.length || !existsSync(join(cwd, "run_test", "_ref", refs[0]!, "STORE.md"))) out({ ok: false, reason: "needs --dir run_test/<project> made by proto_init (proto.json) and --ref <store made by ref_capture> (run_test/_ref/<name>/STORE.md); several stores: --ref a,b (the first one receives the briefs)" });
+  else {
+    const stores = refs.map((r) => `run_test/_ref/${r}/`).join(" and "), byFile = new Map<string, typeof routes>(); for (const r of routes) byFile.set(r.file ?? "main", [...(byFile.get(r.file ?? "main") ?? []), r]);
+    const tasks: PlanTask[] = [{ id: "design", role: "lookup-page", output: "REPORT line with the file", boundaries: `write only ${R("briefs/BRIEF.md")}; terse (about 60 lines); never copy a reference sentence`, writes: [R("briefs/BRIEF.md")],
+      objective: `Reference store(s): ${stores} (STORE.md = index, pictures/overview-N.png = contact sheets). Project ${rel}/. The person wants: ${request}. Write briefs/BRIEF.md: the DESIGN SYSTEM in words and numbers (palette with roles light / dark, fonts and type scale, spacing rhythm, container, radius, shadows, header and footer, theme behaviour, the motion catalog, the tone of the copy).` }];
+    for (const [f, pages] of byFile) {
+      tasks.push({ id: `brief-${f}`.slice(0, 24), role: "lookup-page", output: "REPORT line with the files", boundaries: "write only your layouts and your brief; terse; original copy only; every link target must be a route of PROTO.md", writes: [R(`briefs/BRIEF_${f}.md`), ...pages.map((p) => R(`layouts/${p.id}.md`))],
+        objective: `Pages ${pages.map((p) => p.label ?? p.id).join(" and ")} (screens file ${f}). Write ${pages.map((p) => `layouts/${p.id}.md`).join(" and ")} and briefs/BRIEF_${f}.md. Stores: ${stores}; project ${rel}/. Request: ${request}` });
+      tasks.push({ id: `build-${f}`.slice(0, 24), role: "builder", deps: [`brief-${f}`.slice(0, 24)], output: "REPORT line with the files", boundaries: `write only ${rel}/js/screens/${f}.js and ${rel}/css/pages-${f}.css`, writes: [`${rel}/js/screens/${f}.js`, `${rel}/css/pages-${f}.css`],
+        objective: `Pages ${pages.map((p) => p.label ?? p.id).join(" and ")} (screens file js/screens/${f}.js). Build exactly what briefs/BRIEF_${f}.md says (your complete context, with briefs/BRIEF.md written in parallel: read it when it exists). Store ${stores}; project ${rel}/. Request: ${request}` });
+    }
+    let o: unknown;
+    store.tx(() => {
+      const owner = store.agent(task, me), v = validatePlan(tasks, defs, owner?.name ?? "lead", policy, store, task);
+      if (!v.ok) { store.ev("plan.rejected", task, me, { errors: v.errors.length }); o = { ok: false, errors: v.errors }; return; }
+      const plan_id = "plan" + (store.plans.filter((p) => p.task_id === task).length + 1);
+      store.plans.push({ task_id: task, plan_id, owner: me, waves: v.waves, status: "running", created: Date.now(), tasks: tasks.map((t) => ({ ...t, status: "pending" as const })) });
+      store.ev("plan.submitted", task, me, { plan_id, tasks: tasks.length, waves: v.waves.length }); o = { ok: true, plan_id, tasks: tasks.map((t) => `${t.id} (${t.role}${t.deps ? " after " + t.deps.join(",") : ""})`), waves: v.waves };
+    });
+    if ((o as { ok: boolean }).ok) { if (!E.HARNESS_PLAN_DRY) spawn("bun", ["--smol", join(HDIR, "tools.ts"), "_plan", "--plan", (o as { plan_id: string }).plan_id], { detached: true, stdio: "ignore", env: process.env }).unref(); (o as Record<string, unknown>).next = `The pipeline runs by itself (briefs and builds overlap, 4 at a time). Follow it: plan_status --plan ${(o as { plan_id: string }).plan_id} --wait 60 (repeat while it is running). When it is done start the checks together: ref_compare --async, site_audit --async, preview --async, then wait --any --agents <job ids>.`; }
+    out(o);
+  }
 } else if (cmd === "plan_submit") {
   let tasks: PlanTask[];
   try { tasks = JSON.parse(flag("tasks") ?? "[]"); } catch (e) { out({ ok: false, errors: ["--tasks is not valid JSON: " + String(e).slice(0, 80)] }); process.exit(0); }

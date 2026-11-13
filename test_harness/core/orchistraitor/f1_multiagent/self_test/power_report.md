@@ -1,6 +1,6 @@
 # Power layer: phase gates, agent_peek, slash commands, budget
 
-Generated 2026-11-13T14:52:15.386Z. 44/44 passed.
+Generated 2026-11-13T15:18:54.869Z. 44/44 passed.
 
 Offline: fake agents, real harness code, no model calls.
 

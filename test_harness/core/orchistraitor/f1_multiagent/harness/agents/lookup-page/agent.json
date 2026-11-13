@@ -1,6 +1,6 @@
 {
  "role": "lookup-page",
- "description": "Lookup worker: studies ONE group of pages of a reference store (pictures, outline) and writes their layouts and the builder brief for its screens file",
+ "description": "VISUAL UI/UX analyst for ONE group of pages of a studied website. USE WHEN a site is cloned or restyled from a reference store (run_test/_ref/<name>/): reads the contact-sheet pictures and writes the layouts + the builder brief for its screens file (terse, 1-2 min, sandboxed: reads pictures, writes md). Started by site_build; you rarely call it yourself. NOT for facts (researcher) and NOT for code (builder).",
  "model": "haiku",
  "session": "persistent",
  "writes": true,
