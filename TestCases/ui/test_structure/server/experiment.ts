@@ -89,13 +89,16 @@ function stateOf(c: SuiteCase, e: ExpEntry | undefined, st: MStore, running: Set
   if (!e) return "never_run";
   if (running.has(e.task) && e.done < c.turns.length) return "running";
   if (e.done < c.turns.length) return "partial";
-  return judgeAll(st, c, e).every((t) => t.match && !t.guard) ? "pass" : "fail";
+  return statusOf(judgeAll(st, c, e)) as CaseState;   // the SAME rule as run.ts and the Flow page (match, no guard, no gate, no reply problem)
 }
 const known = () => { try { return new Set(readdirSync(join(F1, "harness", "agents"), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)); } catch { return new Set<string>(); } };
 function judgeAll(st: MStore, c: SuiteCase, e: ExpEntry) {
   const repo = repoFor(e.task, (e as { home?: string }).home), files = existsSync(repo) ? readdirSync(repo).filter((f) => f !== ".git") : [], k = known();
-  const home = (e as { home?: string }).home, own = home && home !== e.task && existsSync(join(STATE_DIR, home, "store", "store.json")) ? new MStore(join(STATE_DIR, home, "store", "store.json")) : st;   // a BRANCH is judged on its OWN store (the merged view also holds a copy of the parent's rows)
-  return Array.from({ length: Math.min(e.done, c.turns.length) }, (_, i) => judgeTurn(own, e.task, c, i, e.marks[i] ?? 0, e.marks[i + 1], files, k));
+  const home = (e as { home?: string }).home, own = home && existsSync(join(STATE_DIR, home, "store", "store.json")) ? new MStore(join(STATE_DIR, home, "store", "store.json")) : st;   // judged on the case's OWN session store (the merged view also holds legacy rows and a branch's copy of the parent's rows)
+  // a turn counts only its OWN calls: up to where it ended (`ends`), or (older records) up to the first message typed in the chat after it started: later free chat in the same session is not part of the case
+  const notes = (own.notes ?? []).filter((n) => n.task_id === e.task && n.from === "user" && !n.refs.includes("testrun")), taskCalls = own.calls.filter((x) => x.task_id === e.task);
+  const endOf = (i: number): number | undefined => { const ends = (e as { ends?: number[] }).ends?.[i]; if (ends !== undefined) return ends; if (e.marks[i + 1] !== undefined) return e.marks[i + 1]; const t0 = e.started?.[i] ?? 0, free = notes.filter((n) => n.t > t0).sort((a, b) => a.t - b.t)[0]; return free ? taskCalls.filter((x) => x.t < free.t).length : undefined; };
+  return Array.from({ length: Math.min(e.done, c.turns.length) }, (_, i) => judgeTurn(own, e.task, c, i, e.marks[i] ?? 0, endOf(i), files, k));
 }
 
 export async function overview(): Promise<ExperimentOverview> {
@@ -303,7 +306,7 @@ export async function refreshF1(): Promise<F1Snap> {
     const next = Object.values(exp).filter((o) => homeOf(o) === h && o.case !== e.case && (o.started?.[0] ?? 0) > (e.started?.[0] ?? 0)).sort((a, b) => a.started[0]! - b.started[0]!)[0];   // the case that continues in this home
     const turns = noLead ? [] : judgeAll(s, c, e);
     const cost = s.agentsOf(e.task).reduce((x, a) => x + costOf(s, e.task, a.agent_id), 0);   // the whole session so far (a chain shares one session)
-    n.last.set(c.id, { at: new Date(e.at).toISOString(), status: status === "skipped" ? "skipped" : "ran", verdict: status, title: c.title, task: e.task, home: h, warnings: [],
+    n.last.set(c.id, { at: new Date(e.at).toISOString(), status: status === "skipped" ? "skipped" : "ran", verdict: noLead || status === "skipped" ? status : undefined, title: c.title, task: e.task, home: h, warnings: [],
       turns: turns.map((j, i) => ({ actual: j.calls.map((x) => `${x.kind}:${x.role}`), expected: j.expected.map((x) => `${x.kind}:${x.role}`), match: j.match && !j.gate && !j.reply_problem, guard: j.guard, notfound: false, calls: j.calls.length, cost: i === 0 ? cost : 0, reply: j.reply })) });
     const endIdx = next?.marks?.[0] ?? Infinity, endT = next?.started?.[0] ?? Infinity, startT = e.started?.[0] ?? 0;
     const calls = s.calls.filter((x) => x.task_id === e.task).slice(0, endIdx), seen = new Set<string>(), perRole = new Map<string, number>(), ids: Record<string, string> = {}, fx: Record<string, string> = {};

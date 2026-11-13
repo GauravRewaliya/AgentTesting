@@ -5,8 +5,21 @@
    "Glob",
    "Grep",
    "LSP",
+   "Bash(bun *tools.ts delegate*)",
+   "Bash(bun *tools.ts wait*)",
+   "Bash(bun *tools.ts agents_list*)",
+   "Bash(bun *tools.ts agent_info*)",
+   "Bash(bun *tools.ts board_status*)",
+   "Bash(bun *tools.ts inbox*)",
+   "Bash(bun *tools.ts ls*)",
+   "Bash(bun *tools.ts read_file*)",
+   "Bash(bun *tools.ts grep*)",
+   "Bash(bun *tools.ts qa_check*)",
    "Bash(bun *tools.ts preview*)",
-   "Bash(bun *tools.ts proc_list*)"
+   "Bash(bun *tools.ts proc_list*)",
+   "Bash(bun *tools.ts bg_*)",
+   "Bash(bun *check_phases.ts*)",
+   "Bash(bun *check_plan_links.ts*)"
   ]
  }
 }

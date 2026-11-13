@@ -33,7 +33,7 @@ export const cases: Case[] = [
     agents: ["planner", "ux-designer", "builder", "qa-reviewer"], max_agent_calls: 3,
     turns: [{
       user: "In run_test/hello create index.html with an h1 that says Hello and a button that says Click. Nothing else.",
-      expected: { context: "A small, clear job: the lead sends it straight to ONE builder (with --writes run_test/hello/index.html) and never calls the planner or the ux-designer. index.html has the h1 'Hello' and the button 'Click', nothing more.", expected_agents_res: [] },
+      expected: { context: "A small, clear job: the lead sends it straight to ONE builder (with --writes run_test/hello/index.html) and never calls the planner or the ux-designer. index.html has the h1 'Hello' and the button 'Click', nothing more.", expected_agents_res: [], expected_roles: ["builder"] },
     }],
   },
   {

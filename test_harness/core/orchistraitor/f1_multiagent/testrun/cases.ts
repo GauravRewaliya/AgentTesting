@@ -71,7 +71,7 @@ export function judgeTurn(store: MStore, task: string, c: RawCase, i: number, ma
   for (const x of mapped) if (x.status !== "denied" && gateOf.get(x.id)?.verdict === "extra" && wantResume.has(x.role) && !calls.some((k) => k.kind === "resume" && k.role === x.role)) calls.push({ ...x, kind: "resume" as const });
   const denied = mapped.filter((x) => x.status === "denied");
   const mine = new Set(all.map((x) => x.id)), gate = store.evs("fixture.fail", task).filter((e) => mine.has(String((e.data as { call?: string }).call))).map((e) => String((e.data as { reason?: string }).reason)).pop();
-  const exp = expectedCalls(c.turns[i]!.expected.expected_agents_res), key = (x: { kind: string; role: string }) => `${x.kind === "fork" ? "new" : x.kind}:${x.role}`;
+  const exp = [...expectedCalls(c.turns[i]!.expected.expected_agents_res), ...((c.turns[i]!.expected as { expected_roles?: string[] }).expected_roles ?? []).map((r) => ({ kind: "new" as const, role: r }))], roleSet = new Set((c.turns[i]!.expected as { expected_roles?: string[] }).expected_roles ?? []), key = (x: { kind: string; role: string }) => `${x.kind === "fork" || roleSet.has(x.role) ? "new" : x.kind}:${x.role}`;   // expected_roles: the role must be called; a NEW session or a resume of one it already has both count (a case sent again into its session)
   const a = calls.map(key).sort(), b = exp.map(key).sort();
   const forbidden = new Set(c.distractors ?? []);
   const lead = store.notes.filter((n) => n.task_id === task && n.from === "lead" && n.to === "user" && !n.refs.includes("testrun"));   // not the copy the runner writes for the UI chat
@@ -107,6 +107,6 @@ export function declareGateLimit(store: MStore, task: string, c: { max_agent_cal
 export const statusOf = (turns: TurnJudge[]) => (turns.length && turns.every((t) => t.match && !t.guard && !t.gate && !t.reply_problem) ? "pass" : "fail");
 
 /** exp.json (keyed by case id): which task the case ran in, and where each turn began. Shared by the CLI and the console. */
-export interface ExpEntry { case: string; task: string; home?: string; suite: string; agents: string[]; marks: number[]; started: number[]; done: number; at: number }
+export interface ExpEntry { case: string; task: string; home?: string; suite: string; agents: string[]; marks: number[]; /** call count at the END of each turn: later calls (free chat in the same session) are not part of the case */ ends?: number[]; started: number[]; done: number; at: number }
 export const readExp = (file: string): Record<string, ExpEntry> => { try { return JSON.parse(readFileSync(file, "utf8")); } catch { return {}; } };
 export const writeExp = (file: string, o: Record<string, ExpEntry>) => { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, JSON.stringify(o, null, 1)); };

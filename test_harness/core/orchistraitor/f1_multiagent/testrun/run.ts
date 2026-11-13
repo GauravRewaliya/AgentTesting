@@ -122,7 +122,7 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   const qaReq = (apps: string[]) => ({ workspace: REPO, run_test: join(REPO, "run_test"), session: runTask, apps });
   const qaGuide = flags.has("--video") && c.qa ? (() => { const q = c.qa!(qaReq([])); return q.enabled ? q.guide : undefined; })() : undefined;
   const noLead = videoOnly || !!(c as { no_lead?: boolean }).no_lead, turns = noLead ? [] : sayMsg ? [{ user: sayMsg, expected: sayArg ? { context: "(step: the person said \"" + sayMsg + "\")", expected_agents_res: [] as string[] } : c.turns[0]!.expected }]   /* --say: a free step (no calls expected); --resume: the case's own expectation */ : stopPause ? c.turns.slice(0, 1) : c.turns;
-  if (again && !sayMsg) { ent.marks = []; ent.started = []; ent.done = 0; ent.at = Date.now(); saveExp(ent); console.log("   again            : the prompts are sent again into the existing session (nothing is archived or reset)"); }
+  if (again && !sayMsg) { ent.marks = []; ent.started = []; (ent as { ends?: number[] }).ends = []; ent.done = 0; ent.at = Date.now(); saveExp(ent); console.log("   again            : the prompts are sent again into the existing session (nothing is archived or reset)"); }
   const judged = []; let cost = 0, leadCost = 0;
   for (let i = 0; i < turns.length; i++) {
     store.reload(); ent.marks[i] = store.calls.filter((x) => x.task_id === runTask).length; ent.started[i] = Date.now(); saveExp(ent);
@@ -139,7 +139,7 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
     const j = judgeTurn(store, runTask, { ...c, turns } as never, i, ent.marks[i]!, undefined, files, new Set(defs.keys()));
     if (!j.reply && out.ok) j.reply = out.reply;
     j.reply_problem = replyProblem(turns[i]!.expected as { reply_must?: string[]; reply_forbid?: string[] }, j.reply);   // judge the FINAL reply (the fallback above fills it when the lead sent no note)
-    judged.push(j); ent.done = i + 1; saveExp(ent);
+    judged.push(j); ent.done = i + 1; ((ent as { ends?: number[] }).ends ??= [])[i] = store.calls.filter((x) => x.task_id === runTask).length; saveExp(ent);
     if (j.reply && !fake) store.tx(() => { const n = say(store, runTask, "lead", "user", j.reply, chatRefs, Infinity); n.read_by.push("user"); });   // the lead's final answer of this turn (the chat shows it)
     leadCost += (out as { cost?: number }).cost ?? 0; cost = leadCost + costOf(store, runTask, out.row.agent_id);   // the lead's own cost (claude total_cost_usd) + real sub-agents (fixtures cost 0)
     console.log(`-- turn ${i + 1}  ${j.match && !j.guard && !j.gate && !j.reply_problem ? "MATCH" : "DIFFERS"}${j.guard ? "  GUARD: a distractor was called" : ""}${j.gate ? "  GATE FAILED: " + j.gate : ""}   lead_ok=${out.ok}   cost so far=$${cost.toFixed(4)} (lead $${leadCost.toFixed(4)})${j.reply_problem ? "   REPLY: " + j.reply_problem : ""}`);

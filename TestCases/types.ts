@@ -17,6 +17,8 @@ export type Expected = {
   context: string;
   /** Ids planned to respond, in order: the recorded result id for a spawn (e.g. "pd-slack-layout"), or `session:<agent>#<n>` for a follow-up to an earlier session. */
   expected_agents_res: (RecordedId | SessionRef)[];
+  /** For a case with REAL sub-agents (`allow_real_subAg`): the roles the lead must call (a new session each), e.g. ["builder"]. Without it an empty `expected_agents_res` means "the lead must NOT delegate". */
+  expected_roles?: string[];
   /** Words the lead's FINAL reply to the user must contain (all of them, case-insensitive). Without this the judge only sees WHO was called, so a right call list with a wrong or confused answer still passes ("wrong pass"). Few, plain words. */
   reply_must?: string[];
   /** Words the final reply must NOT contain (any one fails the turn), e.g. "not finished" after a fix was served. */
