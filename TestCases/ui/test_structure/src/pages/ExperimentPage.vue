@@ -38,7 +38,7 @@ const allCases = computed(() => (ov.value?.suites ?? []).flatMap((s) => s.cases.
 const caseOf = (id?: string) => allCases.value.find((c) => c.id === id);
 const color: Record<CaseState, string> = { pass: "var(--pass)", fail: "var(--fail)", partial: "var(--warn)", running: "var(--accent)", skipped: "var(--mute)", never_run: "var(--mute)" };
 const ago = (t?: number) => { if (!t) return "-"; const s = Math.max(0, Math.round((now.value - t) / 1000)); return s < 60 ? s + "s ago" : s < 3600 ? Math.floor(s / 60) + "m ago" : s < 86400 ? Math.floor(s / 3600) + "h ago" : Math.floor(s / 86400) + "d ago"; };
-const dur = (ms?: number) => { if (ms === undefined) return "-"; if (ms < 1000) return "0s"; const s = Math.round(ms / 1000); return s < 60 ? s + "s" : s < 3600 ? Math.floor(s / 60) + "m " + String(s % 60).padStart(2, "0") + "s" : Math.floor(s / 3600) + "h " + String(Math.floor((s % 3600) / 60)).padStart(2, "0") + "m"; };
+const dur = (ms: number) => { if (ms < 1000) return "0s"; const s = Math.round(ms / 1000); return s < 60 ? s + "s" : s < 3600 ? Math.floor(s / 60) + "m " + String(s % 60).padStart(2, "0") + "s" : Math.floor(s / 3600) + "h " + String(Math.floor((s % 3600) / 60)).padStart(2, "0") + "m"; };
 const hm = (t: number) => new Date(t).toTimeString().slice(0, 8);
 const usd = (n: number) => "$" + n.toFixed(4);
 const say = (m: string) => { notice.value = m; setTimeout(() => { if (notice.value === m) notice.value = ""; }, 8000); };
@@ -130,7 +130,7 @@ const tree = (s: LiveSession): Node[] => {
         <div v-for="s in shown" :key="s.task" class="srw">
           <button class="srow" :class="{ on: s.task === sel && !creating }" @click="open(s.task)">
             <div class="t1"><span class="dot" :class="s.state" /><span class="tt">{{ s.case ?? s.title }}</span></div>
-            <div class="t2" :title="'last activity ' + ago(s.last)">active {{ dur(s.activeMs) }}<template v-if="s.state !== 'active'"> (working)</template> · {{ s.agents.length }} sub-agent(s)<template v-if="s.fixtures"> · fixture ×{{ s.fixtures }}</template></div>
+            <div class="t2" :title="'last activity ' + ago(s.last)"><template v-if="s.activeMs !== undefined">active {{ dur(s.activeMs) }}<template v-if="s.state !== 'active'"> (working)</template> · </template>{{ s.agents.length }} sub-agent(s)<template v-if="s.fixtures"> · fixture ×{{ s.fixtures }}</template></div>
           </button>
           <button class="more" aria-label="session options" @click.stop="menu = menu === s.task ? null : s.task">⋮</button>
           <div v-if="menu === s.task" class="menu" @click.stop><button class="del" @click="del(s)">Delete session + sub-agents</button></div>
@@ -201,7 +201,7 @@ const tree = (s: LiveSession): Node[] => {
             <div v-if="session.master" class="card clk" :class="'s-' + session.master.status" title="click: commands, briefs, answer, previews" @click="openDetail(session.master.id)">
               <div class="top"><span class="tag t-master">MASTER</span><span class="nm">{{ session.master.id }}</span><span class="st">{{ session.master.status }}</span></div>
               <div class="muted small">{{ session.master.activity || "idle" }}</div>
-              <div class="muted small mono" :title="'last activity ' + ago(session.master.lastEventAt)">{{ session.master.runs }} turn(s) · {{ usd(session.master.cost) }} incl. sub-agents · active {{ dur(session.master.activeMs) }}</div>
+              <div class="muted small mono" :title="'last activity ' + ago(session.master.lastEventAt)">{{ session.master.runs }} turn(s) · {{ usd(session.master.cost) }} incl. sub-agents<template v-if="session.master.activeMs !== undefined"> · active {{ dur(session.master.activeMs) }}</template><template v-if="session.master.lastCall"> · last call {{ hm(session.master.lastCall.at) }} took {{ dur(session.master.lastCall.ms) }}<template v-if="session.master.lastCall.running"> so far</template></template></div>
             </div>
             <p v-else class="muted small">The master has not started yet.</p>
             <div class="muted small">may call: {{ session.agentsAllowed.join(", ") || "nobody" }}</div>
@@ -212,7 +212,7 @@ const tree = (s: LiveSession): Node[] => {
               <div class="top"><span class="dot" :class="a.needsParent ? 'stalled' : a.status" /><span class="tag" :class="'t-' + a.name">{{ a.name.toUpperCase() }}</span><span v-if="a.fixture" class="tag" title="answer served from agent_fixture, no model ran">FIXTURE</span><span class="nm">{{ a.title }}</span><span class="st">{{ a.needsParent ? "waiting for parent" : a.status }}</span></div>
               <div v-if="a.activity" class="muted small mono">▸ {{ a.activity }}</div>
               <div v-if="a.needsParent" class="warn small">asked: {{ a.needsParent.split("\n")[0] }}</div>
-              <div class="muted small mono" :title="'last activity ' + ago(a.lastEventAt)">{{ a.id }} · L{{ a.level }} · {{ a.runs }} run(s) · {{ usd(a.cost) }} · active {{ dur(a.activeMs) }}<template v-if="a.status === 'running'"> (working)</template></div>
+              <div class="muted small mono" :title="'last activity ' + ago(a.lastEventAt)">{{ a.id }} · L{{ a.level }} · {{ a.runs }} run(s) · {{ usd(a.cost) }}<template v-if="a.activeMs !== undefined"> · active {{ dur(a.activeMs) }}</template><template v-if="a.status === 'running'"> (working)</template><template v-if="a.lastCall"> · last call {{ hm(a.lastCall.at) }} took {{ dur(a.lastCall.ms) }}<template v-if="a.lastCall.running"> so far</template></template></div>
             </div>
 
             <section v-if="detailId" class="detail">

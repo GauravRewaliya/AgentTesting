@@ -53,3 +53,15 @@ export function activeMs(store: MStore, task: string, now = Date.now(), agent?: 
   for (const [a, b] of iv) { if (!cur || a > cur[1]) { if (cur) total += cur[1] - cur[0]; cur = [a, b]; } else cur[1] = Math.max(cur[1], b); }
   return cur ? total + cur[1] - cur[0] : total;
 }
+
+/** The most recent call of one agent: when it started and how long it took (a running call: so far; one that ended without writing back: up to the agent's last event). */
+export function lastCall(store: MStore, task: string, agent: string, now = Date.now()): { at: number; ms: number; running: boolean } | null {
+  const sp = spans(store, task).filter((s) => s.agent_id === agent), starts = store.events.filter((e) => e.task_id === task && e.agent_id === agent && e.kind === "agent.start").map((e) => e.t);
+  if (!starts.length) return null;
+  const a = store.agent(task, agent), last = starts[starts.length - 1]!;
+  if (starts.length > sp.length) {   // the newest start has no end yet
+    const running = a?.status === "running", end = running ? now : Math.max(last, ...store.events.filter((e) => e.task_id === task && e.agent_id === agent).map((e) => e.t));
+    return { at: last, ms: Math.max(0, end - last), running };
+  }
+  const s = sp[sp.length - 1]!; return { at: s.start, ms: Math.max(0, s.ms), running: false };
+}

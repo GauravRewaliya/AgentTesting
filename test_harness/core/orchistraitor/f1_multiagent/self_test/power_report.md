@@ -1,6 +1,6 @@
 # Power layer: phase gates, agent_peek, slash commands, budget
 
-Generated 2026-11-13T14:49:54.171Z. 43/43 passed.
+Generated 2026-11-13T14:52:15.386Z. 44/44 passed.
 
 Offline: fake agents, real harness code, no model calls.
 
@@ -48,4 +48,5 @@ Offline: fake agents, real harness code, no model calls.
 | active time (experiment page) | A2 | a call still running counts up to now | PASS |
 | active time (experiment page) | A3 | a call that ended without writing back counts only up to the agent's last event, not for ever | PASS |
 | active time (experiment page) | A5 | per agent: the builder alone was active 15 s (5..20), the researcher 2 s | PASS |
+| active time (experiment page) | A6 | last call: researcher started at 30 s and took 2 s; builder's newest call (idle, no end) started at 40 s and counts to its last event | PASS |
 | active time (experiment page) | A4 | a task with no events is 0 | PASS |

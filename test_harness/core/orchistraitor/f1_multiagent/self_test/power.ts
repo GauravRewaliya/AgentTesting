@@ -133,6 +133,8 @@ setSuite("active time (experiment page)");
   b.status = "idle";
   t("A3", "a call that ended without writing back counts only up to the agent's last event, not for ever", activeMs(st, "t", 9_000_000) === 21_000, String(activeMs(st, "t", 9_000_000)));
   t("A5", "per agent: the builder alone was active 15 s (5..20), the researcher 2 s", activeMs(st, "t", 100_000, b.agent_id) === 15_000 && activeMs(st, "t", 100_000, c.agent_id) === 2_000, `${activeMs(st, "t", 100_000, b.agent_id)} ${activeMs(st, "t", 100_000, c.agent_id)}`);
+  { const { lastCall } = await import("../harness/core/peek.ts"); const lb = lastCall(st, "t", b.agent_id, 45_000), lc = lastCall(st, "t", c.agent_id, 45_000);
+    t("A6", "last call: researcher started at 30 s and took 2 s; builder's newest call (idle, no end) started at 40 s and counts to its last event", lc?.at === 30_000 && lc.ms === 2000 && !lc.running && lb?.at === 40_000 && lb.ms === 0 && !lb.running && lastCall(st, "t", "nobody#1") === null, JSON.stringify([lb, lc])); }
   t("A4", "a task with no events is 0", activeMs(new MStore(), "none") === 0);
 }
 const failed = writeReport(join(import.meta.dirname, "power_report.md"), "Power layer: phase gates, agent_peek, slash commands, budget", "Offline: fake agents, real harness code, no model calls.");

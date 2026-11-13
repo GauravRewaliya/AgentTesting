@@ -7,7 +7,7 @@ import { bgOf, taskProcs } from "./preview.ts";
 import { reviewDue, touchBg } from "@core/orchistraitor/f1_multiagent/harness/core/bg.ts";
 import { MStore, say } from "@core/orchistraitor/f1_multiagent/harness/core/board.ts";
 import { claudeDirs } from "@core/orchistraitor/f1_multiagent/harness/core/base.ts";
-import { activeMs } from "@core/orchistraitor/f1_multiagent/harness/core/peek.ts";
+import { activeMs, lastCall } from "@core/orchistraitor/f1_multiagent/harness/core/peek.ts";
 import { costOf, stopAgent } from "@core/orchistraitor/f1_multiagent/harness/core/agent_call.ts";
 import { locksFromEnv } from "@core/orchistraitor/f1_multiagent/harness/core/lockapi.ts";
 import { judgeTurn, loadSuites, readExp, statusOf, unsupported, writeExp, type ExpEntry, type SuiteCase } from "@core/orchistraitor/f1_multiagent/testrun/cases.ts";
@@ -205,7 +205,7 @@ export function chat(task: string): ChatOut {
 
 export function live(): LiveSession[] {
   const st = store(), exp = Object.values(expAll()), byTask = new Map(exp.map((e) => [e.task, e]));
-  const row = (a: ReturnType<MStore["agentsOf"]>[number], task: string): LiveAgent => ({ id: a.agent_id, name: a.name, level: a.level, caller: a.caller_agent_id ?? null, status: a.status, title: a.title || a.name, activity: a.activity ?? "", needsParent: a.needs_parent ?? null, runs: a.runs ?? 0, cost: costOf(st, task, a.agent_id), lastEventAt: a.last_event_at, activeMs: activeMs(st, task, Date.now(), a.agent_id), session: a.session_id ?? undefined, fixture: st.events.some((ev) => ev.task_id === task && ev.agent_id === a.agent_id && ev.kind === "fixture.call") });
+  const row = (a: ReturnType<MStore["agentsOf"]>[number], task: string): LiveAgent => ({ id: a.agent_id, name: a.name, level: a.level, caller: a.caller_agent_id ?? null, status: a.status, title: a.title || a.name, activity: a.activity ?? "", needsParent: a.needs_parent ?? null, runs: a.runs ?? 0, cost: costOf(st, task, a.agent_id), lastEventAt: a.last_event_at, activeMs: activeMs(st, task, Date.now(), a.agent_id), lastCall: lastCall(st, task, a.agent_id), session: a.session_id ?? undefined, fixture: st.events.some((ev) => ev.task_id === task && ev.agent_id === a.agent_id && ev.kind === "fixture.call") });
   const tasks = new Map<string, number>(st.runs.map((r) => [r.task_id, r.last_active_at]));
   for (const f of readdirSync(SESS).filter((x) => x.endsWith(".json"))) { const sd = readSide(f.slice(0, -5)); if (sd && !tasks.has(sd.task)) tasks.set(sd.task, sd.createdAt); }
   const procs = psList(), runGoing = listRuns().some((r) => r.status === "running"), alive = (task: string) => (runGoing && (byTask.get(task)?.at ?? 0) > Date.now() - 600_000) || procs.some((p) => !p.args.startsWith("ps ") && (p.args.includes(task) || (/testrun\/(run|chat)\.ts/.test(p.args) && exp.some((x) => x.task === task && p.args.includes(x.case)))));   // a chat.ts / run.ts / claude process of this session (run.ts is given the CASE id, not the task id; it may be waiting for the one master slot, with no claude child yet)

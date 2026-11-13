@@ -14,7 +14,7 @@ export interface RunInfo {
 
 export interface LiveAgent {
   id: string; name: string; level: number; caller: string | null; status: string; title: string; activity: string;
-  needsParent: string | null; runs: number; cost: number; lastEventAt: number; /** ms this agent itself was working */ activeMs: number; session?: string; fixture?: boolean;   // fixture = its answer was served from agent_fixture, not a real model run
+  needsParent: string | null; runs: number; cost: number; lastEventAt: number; /** ms this agent itself was working */ activeMs: number; /** its newest call: start time, how long it took (so far if running) */ lastCall: { at: number; ms: number; running: boolean } | null; session?: string; fixture?: boolean;   // fixture = its answer was served from agent_fixture, not a real model run
 }
 export interface LiveSession {
   /** "experiment" = made on this page (＋ New session, free chat); "test" = made by a test run (testrun/run.ts, a case) */ kind: "experiment" | "test"; /** sub-agent answers served from a recorded fixture */ fixtures: number;
