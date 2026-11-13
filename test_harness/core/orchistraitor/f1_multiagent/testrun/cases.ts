@@ -16,7 +16,7 @@ export const AGENT_TESTING = resolve(HERE, "../../../../..");
 export const CASES_DIR = join(AGENT_TESTING, "TestCases", "test_folders");
 const FIXTURE_INDEX = join(FIXTURES, "index.json");   // the ONE fixture place (paths.ts)
 
-export interface RawCase { expect_qa?: "stop" | "give_up" | "failed"; max_agent_calls?: number; allow_real_subAg?: boolean; id: string; title: string; after?: string; branch_from?: string; branch_auto?: boolean; agents: string[]; distractors?: string[]; router?: boolean; tags?: string[]; turns: { user: string; expected: { context: string; expected_agents_res: string[] } }[] }
+export interface RawCase { needs?: string[]; expect_qa?: "stop" | "give_up" | "failed"; max_agent_calls?: number; allow_real_subAg?: boolean; id: string; title: string; after?: string; branch_from?: string; branch_auto?: boolean; agents: string[]; distractors?: string[]; router?: boolean; tags?: string[]; turns: { user: string; expected: { context: string; expected_agents_res: string[] } }[] }
 export interface SuiteCase extends RawCase { suite: string; suiteTags: string[] }
 
 export async function loadSuites(): Promise<SuiteCase[]> {

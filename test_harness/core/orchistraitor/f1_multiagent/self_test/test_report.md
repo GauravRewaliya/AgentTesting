@@ -1,6 +1,6 @@
 # Test 2: f_1_withmulti_ag (multi-agent on demand)
 
-Generated 2026-11-12T16:44:22.116Z. 169/169 passed.
+Generated 2026-11-13T13:11:47.501Z. 165/169 passed.
 
 Harness under test: `harness/` = the base harness (harness/core/base/) + agent.call, instances, locks, worktrees/patches, board, tools. Real suite NOT run.
 
@@ -36,7 +36,7 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 | offline: write locks and the queue | M4f | a dead agent's lease expires: the waiter gets the lock on its next try, an event records it | PASS |
 | offline: write locks and the queue | M4g | the edit guard: inside my locks = allow; a file another agent holds = LOCKED (names the holder, says what to do); outside what I declared = NOT DECLARED | PASS |
 | offline: write locks and the queue | M4i | fairness: with the lock free but B already waiting, a later request C must queue behind B; B gets it on its next try | PASS |
-| offline: write locks and the queue | M4h | reap removes every expired lease | PASS |
+| offline: write locks and the queue | M4h | reap removes every expired lease | **FAIL** |
 | offline: worktrees, patches, the Bash-write audit (real git) | M5a | audit: a write outside the declared paths is detected from git status (the Bash gap's detective control) | PASS |
 | offline: worktrees, patches, the Bash-write audit (real git) | M5b | applying patches in queue order: non-overlapping ones apply (two edits far apart in one file both land); the one touching the same line is REJECTED with the git error and nothing half-applied | PASS |
 | offline: worktrees, patches, the Bash-write audit (real git) | M5c | a newer patch from the same agent supersedes its older unapplied one | PASS |
@@ -158,7 +158,7 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 | session runs: one id to come back to; resume after the processes died (the laptop was closed); NOT RUN YET when written, run with --suite runs | RN7 | a closed run is not resumed by accident (refused with the reason), but can be with --force; an unknown id names the runs that exist | PASS |
 | session runs: one id to come back to; resume after the processes died (the laptop was closed); NOT RUN YET when written, run with --suite runs | RN8 | END TO END: `main.ts resume --run <id>` in a fresh process prints the recovery, restarts the plan's scheduler from the stored settings, and the cut-off task finishes by CONTINUING researcher#1 (same agent, session argument researcher#1, no new agent created) | PASS |
 | session runs: one id to come back to; resume after the processes died (the laptop was closed); NOT RUN YET when written, run with --suite runs | RN9 | the helper commands take the run id: `tree --run <id>` works like `--task`, and `runs` lists every run with its main agent and Claude session id | PASS |
-| stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP1 | who can call whom: only the lead and the builder can call sub-agents; every other agent is a leaf; the call tool is REMOVED at level 4 and for everyone when multi-agent is off (max depth 1); every agent has at least one tool; every declared sub-agent exists | PASS |
+| stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP1 | who can call whom: only the lead and the builder can call sub-agents; every other agent is a leaf; the call tool is REMOVED at level 4 and for everyone when multi-agent is off (max depth 1); every agent has at least one tool; every declared sub-agent exists | **FAIL** |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP2 | and a caller is TOLD what it may call and what each one can do: the builder's launch text lists the researcher (web access) and the reviewer with their real tools | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP3 | every agent prompt says what to do when stuck (STOP, reply NEEDS_PARENT: with what is needed and what was done, the parent continues you in the same conversation); callers also say how to answer a child; the PM knows plan_answer | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP4 | a callee that replies NEEDS_PARENT: is marked 'waiting for its parent': the question is on its row, in the event log, in the call result, and shown in the tree (ASKS ITS PARENT) | PASS |
@@ -166,8 +166,8 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP6 | PLAN: the task whose agent asked is BLOCKED with its question (not done); the task that needs its answer has NOT started (no builder exists); the plan stays open | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP7 | answering is strict: a task that is not blocked cannot be answered, and an empty answer is refused | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP8 | the parent answers with plan_answer: the SAME agent (researcher#1, session argument researcher#1) continues with 'ANSWER FROM YOUR PARENT' in its brief, then the waiting task runs and the plan completes | PASS |
-| process slots: a waiting lead never takes a worker's place; time spent waiting for a slot is visible in the log (stand-in CLI with a delay) | SL1 | a waiting lead does NOT take a worker's slot: with a lead running, three workers (cap 3) all start at once (none waits), and the three together take about one task-time, not three | PASS |
-| process slots: a waiting lead never takes a worker's place; time spent waiting for a slot is visible in the log (stand-in CLI with a delay) | SL2 | the cap still holds for workers (3 at a time): a fourth waits for a free slot, and the wait is RECORDED on its agent.done event (waited_ms) so a hidden delay shows up in the log and the summary | PASS |
+| process slots: a waiting lead never takes a worker's place; time spent waiting for a slot is visible in the log (stand-in CLI with a delay) | SL1 | a waiting lead does NOT take a worker's slot: with a lead running, three workers (cap 3) all start at once (none waits), and the three together take about one task-time, not three | **FAIL** |
+| process slots: a waiting lead never takes a worker's place; time spent waiting for a slot is visible in the log (stand-in CLI with a delay) | SL2 | the cap still holds for workers (3 at a time): a fourth waits for a free slot, and the wait is RECORDED on its agent.done event (waited_ms) so a hidden delay shows up in the log and the summary | **FAIL** |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS1 | the lead and the project manager are conversations, not tasks: their resume cap is far above a worker's (a real session rolled the lead on its 5th message with a cap of 3 and the lead told the person it had lost track) | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS2 | with the ui's cap of 3: six turns later the LEAD was never rolled (it keeps one session), while a worker was rolled at the 4th resume as designed | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS3 | if a master IS reset (or is new in a store that already has a chat), its brief carries the conversation from the record (not the message being answered), so it does not start blank | PASS |
@@ -175,3 +175,25 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | CU1 | a lead marked custom can call a role with no folder: without --title it is refused and told to give one; with a title the agent is made, named and titled, read-only; continuing it works; a bad name is refused; a lead not marked custom still gets unknown_role | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | CU2 | a distractor agent (agent.json forbidden) is refused with code forbidden and an event is logged; a custom agent given --writes becomes a writer with write tools | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS5 | the lead's prompt carries the rules the real sessions called for: count what the person lists (one agent per item, cover each plausible reading), 'ask <agent>' means continue THAT agent, role value is the exact name, keep internals out of the answer | PASS |
+
+## Failures
+
+### M4h reap removes every expired lease
+```
+
+```
+
+### NP1 who can call whom: only the lead and the builder can call sub-agents; every other agent is a leaf; the call tool is REMOVED at level 4 and for everyone when multi-agent is off (max depth 1); every agent has at least one tool; every declared sub-agent exists
+```
+callers=builder,lead,planner
+```
+
+### SL1 a waiting lead does NOT take a worker's slot: with a lead running, three workers (cap 3) all start at once (none waits), and the three together take about one task-time, not three
+```
+waited_ms=2,1,1355 three workers took 2589 ms
+```
+
+### SL2 the cap still holds for workers (3 at a time): a fourth waits for a free slot, and the wait is RECORDED on its agent.done event (waited_ms) so a hidden delay shows up in the log and the summary
+```
+waited_ms sorted=1,1,1655,1657
+```
