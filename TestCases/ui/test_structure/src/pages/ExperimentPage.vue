@@ -201,7 +201,7 @@ const tree = (s: LiveSession): Node[] => {
             <div v-if="session.master" class="card clk" :class="'s-' + session.master.status" title="click: commands, briefs, answer, previews" @click="openDetail(session.master.id)">
               <div class="top"><span class="tag t-master">MASTER</span><span class="nm">{{ session.master.id }}</span><span class="st">{{ session.master.status }}</span></div>
               <div class="muted small">{{ session.master.activity || "idle" }}</div>
-              <div class="muted small mono">{{ session.master.runs }} turn(s) · {{ usd(session.master.cost) }} incl. sub-agents · {{ ago(session.master.lastEventAt) }}</div>
+              <div class="muted small mono" :title="'last activity ' + ago(session.master.lastEventAt)">{{ session.master.runs }} turn(s) · {{ usd(session.master.cost) }} incl. sub-agents · active {{ dur(session.master.activeMs) }}</div>
             </div>
             <p v-else class="muted small">The master has not started yet.</p>
             <div class="muted small">may call: {{ session.agentsAllowed.join(", ") || "nobody" }}</div>
@@ -212,7 +212,7 @@ const tree = (s: LiveSession): Node[] => {
               <div class="top"><span class="dot" :class="a.needsParent ? 'stalled' : a.status" /><span class="tag" :class="'t-' + a.name">{{ a.name.toUpperCase() }}</span><span v-if="a.fixture" class="tag" title="answer served from agent_fixture, no model ran">FIXTURE</span><span class="nm">{{ a.title }}</span><span class="st">{{ a.needsParent ? "waiting for parent" : a.status }}</span></div>
               <div v-if="a.activity" class="muted small mono">▸ {{ a.activity }}</div>
               <div v-if="a.needsParent" class="warn small">asked: {{ a.needsParent.split("\n")[0] }}</div>
-              <div class="muted small mono">{{ a.id }} · L{{ a.level }} · {{ a.runs }} run(s) · {{ usd(a.cost) }} · {{ ago(a.lastEventAt) }}</div>
+              <div class="muted small mono" :title="'last activity ' + ago(a.lastEventAt)">{{ a.id }} · L{{ a.level }} · {{ a.runs }} run(s) · {{ usd(a.cost) }} · active {{ dur(a.activeMs) }}<template v-if="a.status === 'running'"> (working)</template></div>
             </div>
 
             <section v-if="detailId" class="detail">

@@ -4,14 +4,15 @@
 // Chrome 136+ ignores the debug port on the DEFAULT profile, so `browser_launch` starts Chrome with its OWN profile folder (test_harness/.state/chrome-profile): log in there once, the sessions stay.
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
-const STATE = join(import.meta.dir, "..", "..", "..", "..", "..", ".state"), FILE = join(STATE, "browser.json"), PROFILE = join(STATE, "chrome-profile");
+const STATE = join(import.meta.dir, "..", "..", "..", "..", "..", ".state"), PROFILE = join(STATE, "chrome-profile");
+const file = () => process.env.HARNESS_BROWSER_STATE || join(STATE, "browser.json");   // tests point this at a scratch file so a real saved connection is never read or changed
 export const chromeBin = () => ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"].find((c) => spawnSync("which", [c]).status === 0);
 export interface Tab { id: string; title: string; url: string; type: string; webSocketDebuggerUrl?: string }
 export interface Status { mode: "attached" | "headless"; endpoint?: string; browser?: string; userAgent?: string; tabs?: Tab[]; reachable?: boolean; since?: string; note: string }
 
-const readCfg = (): { endpoint?: string; since?: string; enabled?: boolean } => { try { return JSON.parse(readFileSync(FILE, "utf8")); } catch { return {}; } };
+const readCfg = (): { endpoint?: string; since?: string; enabled?: boolean } => { try { return JSON.parse(readFileSync(file(), "utf8")); } catch { return {}; } };
 /** the browser agents use, or undefined (= the private headless Chrome): a connected endpoint that is switched ON (toggle: agents stop using it without disconnecting) */
 export function attachedEndpoint(): string | undefined {
   if (process.env.HARNESS_CDP_URL) return process.env.HARNESS_CDP_URL.replace(/\/$/, "");
@@ -21,7 +22,7 @@ export const savedEndpoint = () => readCfg().endpoint;
 /** switch the connected browser ON / OFF for agents; the connection (endpoint) is remembered */
 export async function toggle(on: boolean): Promise<Status | { ok: false; reason: string }> {
   const c = readCfg(); if (!c.endpoint) return { ok: false, reason: "no browser connected yet: browser_connect or browser_launch first" };
-  mkdirSync(STATE, { recursive: true }); writeFileSync(FILE, JSON.stringify({ ...c, enabled: on })); return status();
+  mkdirSync(dirname(file()), { recursive: true }); writeFileSync(file(), JSON.stringify({ ...c, enabled: on })); return status();
 }
 const get = async (url: string, init?: RequestInit) => { const r = await fetch(url, { ...init, signal: AbortSignal.timeout(4000) }); if (!r.ok) throw new Error(`${r.status} ${url}`); return r; };
 export async function sessions(endpoint: string): Promise<{ browser: string; userAgent: string; tabs: Tab[] }> {
@@ -32,15 +33,15 @@ export async function status(): Promise<Status> {
   const ep = attachedEndpoint();
   if (!ep && savedEndpoint()) return { mode: "headless", endpoint: savedEndpoint(), note: `The connected browser at ${savedEndpoint()} is switched OFF: agents use the private headless Chrome. Switch it on with browser_toggle --on (or the toggle in the UI).` };
   if (!ep) return { mode: "headless", note: "No browser connected: pages are opened in a private headless Chrome (nothing is kept, no logins). Connect one: `browser_launch` (a visible Chrome with its own profile, log in once) or `browser_connect --url http://127.0.0.1:9222` (a Chrome you started with --remote-debugging-port=9222)." };
-  try { const s = await sessions(ep); let since: string | undefined; try { since = (JSON.parse(readFileSync(FILE, "utf8")) as { since?: string }).since; } catch { /* env only */ } return { mode: "attached", endpoint: ep, reachable: true, since, ...s, note: `Agents use THIS browser (new tab per task, closed afterwards). ${s.tabs.length} open tab(s). To inspect a tab you already have open: browse --tab "<part of its url or title>".` }; }
+  try { const s = await sessions(ep); let since: string | undefined; try { since = (JSON.parse(readFileSync(file(), "utf8")) as { since?: string }).since; } catch { /* env only */ } return { mode: "attached", endpoint: ep, reachable: true, since, ...s, note: `Agents use THIS browser (new tab per task, closed afterwards). ${s.tabs.length} open tab(s). To inspect a tab you already have open: browse --tab "<part of its url or title>".` }; }
   catch (e) { return { mode: "attached", endpoint: ep, reachable: false, note: `The connected browser at ${ep} does not answer (${String((e as Error).message).slice(0, 80)}). Start it again with browser_launch or disconnect with browser_disconnect; until then agents fall back to the private headless Chrome.` }; }
 }
 export async function connect(endpoint: string): Promise<Status | { ok: false; reason: string }> {
   const ep = endpoint.replace(/\/$/, ""); if (!/^https?:\/\/[\w.-]+:\d+$/.test(ep)) return { ok: false, reason: "give --url http://127.0.0.1:9222 (host and port of the Chrome debug port)" };
   try { await sessions(ep); } catch (e) { return { ok: false, reason: `nothing answers at ${ep} (${String((e as Error).message).slice(0, 60)}). Start Chrome with: google-chrome --remote-debugging-port=${ep.split(":").pop()} --user-data-dir=<a folder>, or run browser_launch.` }; }
-  mkdirSync(STATE, { recursive: true }); writeFileSync(FILE, JSON.stringify({ endpoint: ep, since: new Date().toISOString(), enabled: true })); return status();
+  mkdirSync(dirname(file()), { recursive: true }); writeFileSync(file(), JSON.stringify({ endpoint: ep, since: new Date().toISOString(), enabled: true })); return status();
 }
-export function disconnect() { rmSync(FILE, { force: true }); return { ok: true, note: "Disconnected: agents use the private headless Chrome again. (The browser itself keeps running.)" }; }
+export function disconnect() { rmSync(file(), { force: true }); return { ok: true, note: "Disconnected: agents use the private headless Chrome again. (The browser itself keeps running.)" }; }
 /** Start a VISIBLE Chrome with a debug port and its own profile (so logins persist and the person can watch / log in), then connect to it. */
 export async function launch(port = 9222, url = "about:blank"): Promise<Status | { ok: false; reason: string }> {
   const ep = `http://127.0.0.1:${port}`;

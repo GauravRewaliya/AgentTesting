@@ -1,6 +1,6 @@
 # Test 2: f_1_withmulti_ag (multi-agent on demand)
 
-Generated 2026-11-13T14:46:53.550Z. 27/30 passed.
+Generated 2026-11-13T14:48:43.387Z. 29/30 passed.
 
 Harness under test: `harness/` = the base harness (harness/core/base/) + agent.call, instances, locks, worktrees/patches, board, tools. Real suite NOT run.
 
@@ -24,9 +24,9 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK8 | the footer and the header button link ONLY to real routes, and every route is in the footer or the header (no page without a way in) | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK9 | the untouched site starter passes proto_check | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK10 | every team command is a real executable on the agents' PATH (harness/bin): builders no longer hunt for `bun .../tools.ts` (it cost them ~6 steps) | PASS |
-| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK11 | REAL BROWSER: the site follows the system theme (light bg bright, dark bg dark), no JavaScript error | **FAIL** |
+| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK11 | REAL BROWSER: the site follows the system theme (light bg bright, dark bg dark), no JavaScript error | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK12 | REAL BROWSER: clicking a nav item opens that route, the toggle switches the theme (the browser driver can click, scroll and evaluate like a person) | PASS |
-| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK13 | connected browser: without an endpoint agents use the private headless Chrome; with one, browser_status says attached, names the browser and lists the open tabs | **FAIL** |
+| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK13 | connected browser: without an endpoint agents use the private headless Chrome; with one, browser_status says attached, names the browser and lists the open tabs | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK14 | browse through the connected browser opens its OWN tab, works, and closes it again (the person's tabs are left as they were) | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK15 | browse --tab attaches to a tab that is ALREADY open (reads its page without navigating) and says clearly when no tab matches | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK17 | the on/off toggle: OFF = agents use the private headless Chrome (the connection is remembered and says so), ON = the connected browser again | PASS |
@@ -41,15 +41,5 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 
 ### NP3 every agent prompt says what to do when stuck (STOP, reply NEEDS_PARENT: with what is needed and what was done, the parent continues you in the same conversation); callers also say how to answer a child; the PM knows plan_answer
 ```
-./lookup-page, ./lookup
-```
-
-### PK11 REAL BROWSER: the site follows the system theme (light bg bright, dark bg dark), no JavaScript error
-```
-rgb(255, 255, 255) / rgb(11, 13, 16) the connected browser at http://127.0.0.1:9222 does not answer: used the private headless Chrome instead (browser_status shows it)
-```
-
-### PK13 connected browser: without an endpoint agents use the private headless Chrome; with one, browser_status says attached, names the browser and lists the open tabs
-```
-{"mode":"attached","endpoint":"http://127.0.0.1:9476","reachable":true,"since":"2026-11-13T14:37:54.527Z","browser":"Chrome/148.0.7778.96","userAgent":"Mozilla/
+./lookup
 ```

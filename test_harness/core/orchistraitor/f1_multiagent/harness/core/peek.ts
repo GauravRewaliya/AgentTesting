@@ -37,12 +37,13 @@ export const peekText = (p: Peek): string => [
 
 /** How long a task was ACTIVE: the time at least one agent was working (parallel agents count once, gaps between turns do not count).
  *  A call still open counts up to now while its agent is running, else up to that agent's last event (it ended without writing back). */
-export function activeMs(store: MStore, task: string, now = Date.now()): number {
-  const iv: [number, number][] = spans(store, task).map((s) => [s.start, s.start + Math.max(0, s.ms)]);
+export function activeMs(store: MStore, task: string, now = Date.now(), agent?: string): number {   // agent: only that agent's own work
+  const sp = spans(store, task).filter((s) => !agent || s.agent_id === agent);
+  const iv: [number, number][] = sp.map((s) => [s.start, s.start + Math.max(0, s.ms)]);
   const closed = new Map<string, number>();
-  for (const s of spans(store, task)) closed.set(s.agent_id, (closed.get(s.agent_id) ?? 0) + 1);
+  for (const s of sp) closed.set(s.agent_id, (closed.get(s.agent_id) ?? 0) + 1);
   const starts = new Map<string, number[]>();
-  for (const e of store.events) if (e.task_id === task && e.kind === "agent.start" && e.agent_id) starts.set(e.agent_id, [...(starts.get(e.agent_id) ?? []), e.t]);
+  for (const e of store.events) if (e.task_id === task && e.kind === "agent.start" && e.agent_id && (!agent || e.agent_id === agent)) starts.set(e.agent_id, [...(starts.get(e.agent_id) ?? []), e.t]);
   for (const [id, ts] of starts) {   // starts after the closed ones are still open
     const a = store.agent(task, id), last = Math.max(...store.events.filter((e) => e.task_id === task && e.agent_id === id).map((e) => e.t));
     for (const t0 of ts.slice(closed.get(id) ?? 0)) iv.push([t0, a?.status === "running" ? now : Math.max(t0, last)]);

@@ -776,6 +776,7 @@ async function lockAgentsSuite() {
 
 // ---------------------------------------------------------------------------- process slots
 async function protoKitSuite() {
+  const bstate = join(tmpdir(), "bstate-" + randomUUID().slice(0, 6) + ".json"), bstateSaved = process.env.HARNESS_BROWSER_STATE; process.env.HARNESS_BROWSER_STATE = bstate;   // a REAL saved browser connection is never read or changed by the tests
   setSuite("prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder");
   const nav = parseNav("Overview, Apps, Build>Logs, Build>Playground, Settings"), d = join(tmpdir(), "protokit-" + randomUUID().slice(0, 6));
   t("PK1", "parseNav: text and JSON both work, ids are slugs, 'Group>Label' groups screens into one file, icons are guessed, duplicates dropped",
@@ -821,9 +822,9 @@ async function protoKitSuite() {
       t("PK14", "browse through the connected browser opens its OWN tab, works, and closes it again (the person's tabs are left as they were)", r.ok && (r.results[0] as { eval?: string }).eval === "Open page" && tabsBefore === tabsAfter, `${tabsBefore} -> ${tabsAfter} ${r.reason ?? ""}`);
       const re = await browse({ url: "", tab: "Open page", outDir: sd, steps: [{ eval: "document.querySelector('h1').innerText" }] }), none = await browse({ url: "", tab: "no-such-tab-xyz", outDir: sd, steps: [] });
       t("PK15", "browse --tab attaches to a tab that is ALREADY open (reads its page without navigating) and says clearly when no tab matches", re.ok && (re.results[0] as { eval?: string }).eval === "Logged-in page" && !none.ok && /no open tab matches/.test(none.reason ?? ""), `${JSON.stringify(re.results)} ${none.reason}`);
-      const cfgFile = join(import.meta.dirname, "..", "..", "..", "..", ".state", "browser.json"), keep = existsSync(cfgFile) ? readFileSync(cfgFile, "utf8") : null;   // the toggle reads the saved connection: use it with a scratch file and put the real one back
+      const cfgFile = bstate;
       delete process.env.HARNESS_CDP_URL; writeFileSync(cfgFile, JSON.stringify({ endpoint: ep, enabled: true })); const on = bconn.attachedEndpoint(); await bconn.toggle(false); const off = bconn.attachedEndpoint(), offSt = await bconn.status(); await bconn.toggle(true); const on2 = bconn.attachedEndpoint();
-      if (keep === null) rmSync(cfgFile, { force: true }); else writeFileSync(cfgFile, keep);
+      rmSync(cfgFile, { force: true });
       t("PK17", "the on/off toggle: OFF = agents use the private headless Chrome (the connection is remembered and says so), ON = the connected browser again", on === ep && off === undefined && offSt.mode === "headless" && /switched OFF/.test(offSt.note) && on2 === ep, `${on} ${off} ${on2}`);
       process.env.HARNESS_CDP_URL = "http://127.0.0.1:9"; const dead = await bconn.status(), fb = await browse({ url: "file://" + pg, outDir: sd, steps: [{ eval: "document.title" }] });
       t("PK16", "a connected browser that stops answering is reported (not reachable) and agents fall back to the private headless Chrome instead of failing", dead.mode === "attached" && dead.reachable === false && fb.ok && fb.console.some((x) => x.includes("does not answer")), JSON.stringify(dead).slice(0, 120));
@@ -862,7 +863,7 @@ async function protoKitSuite() {
     const c = A("lookup#1", "c0", [R + "briefs/BRIEF.md", R + "layouts/_overview.md"]), w1 = A("lookup-page#1", "c1", [R + "briefs/BRIEF_part-1.md", R + "layouts/home.md", R + "layouts/features.md"]), w2 = A("lookup-page#2", "c2", [R + "briefs/BRIEF_part-2.md", R + "layouts/blog.md"]);
     const ls2 = new MStore(), wide = acquire(ls2, { task_id: "t", agent_id: "lookup#1", call_id: "c0", paths: [R + "**"], ttlMs: 60_000, now: N2 }), blocked = acquire(ls2, { task_id: "t", agent_id: "lookup-page#1", call_id: "c1", paths: [R + "layouts/home.md"], ttlMs: 60_000, now: N2 });
     t("PK22", "the lookup coordinator and its parallel workers hold disjoint files and ALL start at once (no queue); the same job under a whole-folder lock would block every worker (which is why the lead gives the coordinator only its own two files)", c.ok && w1.ok && w2.ok && wide.ok && !blocked.ok, `${c.ok} ${w1.ok} ${w2.ok} wide-then-worker ok=${blocked.ok}`); }
-  rmSync(sd, { recursive: true, force: true });
+  rmSync(sd, { recursive: true, force: true }); rmSync(bstate, { force: true }); if (bstateSaved === undefined) delete process.env.HARNESS_BROWSER_STATE; else process.env.HARNESS_BROWSER_STATE = bstateSaved;
 }
 async function slotsSuite() {
   setSuite("process slots: a waiting lead never takes a worker's place; time spent waiting for a slot is visible in the log (stand-in CLI with a delay)");

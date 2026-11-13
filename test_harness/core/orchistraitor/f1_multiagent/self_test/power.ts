@@ -132,6 +132,7 @@ setSuite("active time (experiment page)");
   t("A2", "a call still running counts up to now", activeMs(st, "t", 45_000) === 26_000, String(activeMs(st, "t", 45_000)));
   b.status = "idle";
   t("A3", "a call that ended without writing back counts only up to the agent's last event, not for ever", activeMs(st, "t", 9_000_000) === 21_000, String(activeMs(st, "t", 9_000_000)));
+  t("A5", "per agent: the builder alone was active 15 s (5..20), the researcher 2 s", activeMs(st, "t", 100_000, b.agent_id) === 15_000 && activeMs(st, "t", 100_000, c.agent_id) === 2_000, `${activeMs(st, "t", 100_000, b.agent_id)} ${activeMs(st, "t", 100_000, c.agent_id)}`);
   t("A4", "a task with no events is 0", activeMs(new MStore(), "none") === 0);
 }
 const failed = writeReport(join(import.meta.dirname, "power_report.md"), "Power layer: phase gates, agent_peek, slash commands, budget", "Offline: fake agents, real harness code, no model calls.");
