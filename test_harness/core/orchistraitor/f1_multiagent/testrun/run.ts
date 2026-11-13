@@ -152,6 +152,7 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
     judged.push(j); ent.done = i + 1; ((ent as { ends?: number[] }).ends ??= [])[i] = store.calls.filter((x) => x.task_id === runTask).length; saveExp(ent);
     if (j.reply && !fake) store.tx(() => { const n = say(store, runTask, "lead", "user", j.reply, chatRefs, Infinity); n.read_by.push("user"); });   // the lead's final answer of this turn (the chat shows it)
     leadCost += (out as { cost?: number }).cost ?? 0; cost = leadCost + costOf(store, runTask, out.row.agent_id);   // the lead's own cost (claude total_cost_usd) + real sub-agents (fixtures cost 0)
+    { const cap = (c as { max_cost_usd?: number }).max_cost_usd ?? Number(process.env.HARNESS_CASE_CAP_USD ?? 1); if (!fake && cap > 0 && cost > cap) j.gate = (j.gate ? j.gate + "; " : "") + `COST CAP: $${cost.toFixed(4)} is over the case cap $${cap} (case.max_cost_usd or env HARNESS_CASE_CAP_USD)`; }   // a runaway real lead fails the case instead of silently spending
     console.log(`-- turn ${i + 1}  ${j.match && !j.guard && !j.gate && !j.reply_problem ? "MATCH" : "DIFFERS"}${j.guard ? "  GUARD: a distractor was called" : ""}${j.gate ? "  GATE FAILED: " + j.gate : ""}   lead_ok=${out.ok}   cost so far=$${cost.toFixed(4)} (lead $${leadCost.toFixed(4)})${j.reply_problem ? "   REPLY: " + j.reply_problem : ""}`);
     console.log("   EXPECTED context : " + j.expectedContext);
     console.log("   EXPECTED calls   : " + (j.expected.map((e) => `${e.kind}:${e.role}`).join(", ") || "(none: the lead must not delegate)"));

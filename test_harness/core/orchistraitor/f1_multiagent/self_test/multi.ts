@@ -21,6 +21,8 @@ import { chatLog, chatPM, conversationBlock, digest, renderBoard } from "../harn
 import { ensureRun, findRun, redactUrl, resumeRun } from "../harness/core/session_run.ts";
 import { StoreLocks, locksFromEnv, type LockApi } from "../harness/core/lockapi.ts";
 import { RedisLocks } from "../harness/core/locks_redis.ts";
+import { parseNav, protoInit } from "../harness/core/proto_init.ts";
+import { protoCheck } from "../harness/core/proto_check.ts";
 import { applyQueue } from "../harness/core/patches.ts";
 import { addWorktree, auditWrites, patchOf, removeWorktree } from "../harness/core/worktree.ts";
 import { HARNESS_DIR, loadDefs } from "../harness/main.ts";
@@ -692,8 +694,8 @@ async function parentSuite() {
   const { readdirSync: ls, readFileSync: rf } = await import("node:fs");
   // ---- the call / tools matrix (what the audit printed), asserted
   { const rows = [...defs.values()], callers = rows.filter((d) => launchTools(d, 1, 4).delegate).map((d) => d.name).sort();
-    t("NP1", "who can call whom: only the lead and the builder can call sub-agents; every other agent is a leaf; the call tool is REMOVED at level 4 and for everyone when multi-agent is off (max depth 1); every agent has at least one tool; every declared sub-agent exists",
-      callers.join() === "builder,lead" && rows.every((d) => !launchTools(d, 4, 4).delegate && !launchTools(d, 1, 1).delegate && d.tools.length >= 1) && rows.every((d) => d.agents.every((n) => defs.has(n))) && rows.filter((d) => d.agents.length === 0).every((d) => !launchTools(d, 1, 4).delegate), `callers=${callers}`);
+    t("NP1", "who can call whom: only the lead, the planner (ux-designer, builder) and the builder can call sub-agents; every other agent is a leaf; the call tool is REMOVED at level 4 and for everyone when multi-agent is off (max depth 1); every agent has at least one tool; every declared sub-agent exists",
+      callers.join() === "builder,lead,planner" && rows.every((d) => !launchTools(d, 4, 4).delegate && !launchTools(d, 1, 1).delegate && d.tools.length >= 1) && rows.every((d) => d.agents.every((n) => defs.has(n))) && rows.filter((d) => d.agents.length === 0).every((d) => !launchTools(d, 1, 4).delegate), `callers=${callers}`);
     const dec = declarations(defs.get("builder")!, defs);
     t("NP2", "and a caller is TOLD what it may call and what each one can do: the builder's launch text lists the researcher (web access) and the reviewer with their real tools", /researcher \(read-only; has web access/.test(dec) && /reviewer \(read-only; NO web access/.test(dec), dec.slice(0, 160)); }
   // ---- the prompts
@@ -768,6 +770,22 @@ async function lockAgentsSuite() {
 }
 
 // ---------------------------------------------------------------------------- process slots
+async function protoKitSuite() {
+  setSuite("prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder");
+  const nav = parseNav("Overview, Apps, Build>Logs, Build>Playground, Settings"), d = join(tmpdir(), "protokit-" + randomUUID().slice(0, 6));
+  t("PK1", "parseNav: text and JSON both work, ids are slugs, 'Group>Label' groups screens into one file, icons are guessed, duplicates dropped",
+    nav.length === 5 && nav[2]!.group === "Build" && nav[2]!.file === "build" && nav[0]!.file === "main" && nav[0]!.icon === "home" && parseNav('[{"label":"Auth configs"},"Auth configs"]').length === 1, JSON.stringify(nav.map((n) => [n.id, n.file])));
+  const r = protoInit(d, { title: "Acme Admin", nav, rel: "run_test/acme" });
+  t("PK2", "proto_init writes the shell (index.html, kit.css, kit.js, one screens file + one pages css per group, proto.json, PROTO.md) and says how to fork", r.ok && ["index.html", "css/kit.css", "js/kit.js", "js/screens/main.js", "js/screens/build.js", "css/pages-build.css", "proto.json", "PROTO.md"].every((f) => existsSync(join(d, f))) && r.next.includes("run_test/acme/js/screens/<file>.js"), JSON.stringify(r).slice(0, 200));
+  const pc = protoCheck(d);
+  t("PK3", "the untouched starter passes proto_check (every kit class used by kit.js exists, scripts parse, every screen is defined)", pc.ok, pc.problems.join(" | "));
+  t("PK4", "starting a prototype twice is refused (a redo must edit the existing one, never overwrite it)", !protoInit(d, { title: "x", nav }).ok, "");
+  const stub = readFileSync(join(d, "js/screens/main.js"), "utf8");
+  t("PK5", "every nav item has a stub that says TODO (the preview smoke check refuses it until a builder replaces it)", nav.every((n) => stub.includes("Screens.") || readFileSync(join(d, `js/screens/${n.file}.js`), "utf8").includes("TODO")), "");
+  writeFileSync(join(d, "js/screens/main.js"), stub.replace("Screens.Apps = {", "Screens.Apps = { template: '<div class=\"nope-class\">x</div>',"));
+  t("PK6", "an unstyled class a builder invents is reported by proto_check", protoCheck(d).problems.some((x) => x.includes("nope-class")), "");
+  rmSync(d, { recursive: true, force: true });
+}
 async function slotsSuite() {
   setSuite("process slots: a waiting lead never takes a worker's place; time spent waiting for a slot is visible in the log (stand-in CLI with a delay)");
   const { writeFileSync: wf, chmodSync } = await import("node:fs");
@@ -976,6 +994,7 @@ if (want("sessions")) await sessionsSuite();
 if (want("runs")) await runsSuite();
 if (want("parent")) await parentSuite();
 if (want("slots")) await slotsSuite();
+if (want("protokit")) await protoKitSuite();
 if (want("masters")) await mastersSuite();
 if (SUITES?.has("lockagents") || (REAL && !SUITES)) await lockAgentsSuite();   // real model: only when asked for
 if (REAL) await real(); else console.log("\n(real suite skipped; add --real)");

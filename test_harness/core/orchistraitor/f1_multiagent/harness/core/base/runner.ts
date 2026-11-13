@@ -33,6 +33,9 @@ export const wantsLsp = (c: RunCall) => c.agent.tools.includes("LSP");
 export const lspArgs = (c: RunCall): string[] => wantsLsp(c) ? ["--plugin-dir", LSP_PLUGIN_DIR] : [];
 export const lspEnv = (c: RunCall): Record<string, string> => wantsLsp(c) ? { ENABLE_LSP_TOOL: "1" } : {};
 
+/** The Artifact tools only exist in headless `claude -p` with CLAUDE_CODE_ENTRYPOINT=cli-interactive (probed 2026-11-13, CLI 2.1.323). An agent whose tools include `Artifact` gets it. */
+export const artifactEnv = (c: RunCall): Record<string, string> => c.agent.tools.includes("Artifact") ? { CLAUDE_CODE_ENTRYPOINT: "cli-interactive" } : {};
+
 export class RealRunner implements Runner {
   calls: RunCall[] = []; protected live = new Set<import("node:child_process").ChildProcess>();
   /** Stop every claude process this runner started (the fail-fast watchdog uses it). */
@@ -57,7 +60,7 @@ export class RealRunner implements Runner {
     return new Promise((resolve) => {
       const resumeId = c.stateless ? undefined : c.session.fork_from ?? (c.session.resume ? c.session.id : undefined), profile = resumeId ? profileOfSession(resumeId) : undefined;   // continue a session IN the profile that holds it
       const p = spawn("claude", args, { cwd: c.cwd, stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", ...(profile ? { CLAUDE_CONFIG_DIR: profile } : {}), ...lspEnv(c), ...(c.env ?? {}) } });
+        env: { ...process.env, CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", ...(profile ? { CLAUDE_CONFIG_DIR: profile } : {}), ...lspEnv(c), ...artifactEnv(c), ...(c.env ?? {}) } });
       this.live.add(p); try { setPriority(p.pid!, 10); } catch { /* low priority is best effort */ }
       let out = "", err = "";
       p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));

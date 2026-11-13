@@ -1,5 +1,5 @@
 // The agents' tools as one command (plan 5.2 / 23.3):
-//   bun tools.ts <delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop|ls|read_file|grep|qa_check|proto_check|fork_all|qa_give_up|preview|preview_list|preview_stop|preview_restart|bg_start|bg_list|bg_log|bg_stop|proc_list|proc_stop> --flag value ...
+//   bun tools.ts <proto_init|delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop|ls|read_file|grep|qa_check|proto_check|fork_all|qa_give_up|preview|preview_list|preview_stop|preview_restart|bg_start|bg_list|bg_log|bg_stop|proc_list|proc_stop> --flag value ...
 //   ls / read_file / grep = READ-ONLY look at the shared workspace run_test/ (core/workspace_read.ts): the lead can check a result itself instead of asking a sub-agent to run commands.
 // A stand-in for the mod's registered tools: same rules (agent.call), same registry, one line of JSON out.
 // Identity comes from the environment set for THIS agent: HARNESS_STORE, HARNESS_TASK, HARNESS_AGENT, HARNESS_CWD, HARNESS_MAX_DEPTH, HARNESS_RUNNER.
@@ -44,6 +44,11 @@ const locks = locksFromEnv(store);
 const policy = defaultPolicy({ agentMaxDepth: Number(E.HARNESS_MAX_DEPTH ?? 1), maxInstancesPerRole: Number(E.HARNESS_MAX_INSTANCES ?? 4), externalLocks: locks.kind === "redis", lockTtlMs: Number(E.HARNESS_LOCK_TTL_MS ?? 1_200_000) });
 const cwd = E.HARNESS_CWD ?? process.cwd();
 
+/** A writer called without --writes would be refused by the lock hook on its first Write and cost a second call: default to the run_test/<project> folder the objective names. */
+function withWrites(req: CallReq): CallReq {
+  if (req.writes?.length || !defs.get(req.role)?.writes) return req;
+  const m = /run_test\/[\w.-]+/.exec(req.objective ?? ""); return m ? { ...req, writes: [m[0]] } : req;
+}
 function spawnRun(call_id: string) {   // a detached process runs the callee; it survives the Bash call that started it
   spawn("bun", ["--smol", join(HDIR, "tools.ts"), "_run", "--call", call_id], { detached: true, stdio: "ignore", env: process.env }).unref();
 }
@@ -145,7 +150,7 @@ if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
   const asyncMode = rest.includes("--async");
   const req: CallReq = { task_id: task, caller_agent_id: me, role: flag("role") ?? "", session_arg: flag("session"), mode: flag("mode") === "ask" ? "ask" : "work",
     objective: flag("objective"), output: flag("output"), boundaries: flag("boundaries"), writes: flag("writes")?.split(",").filter(Boolean), title: flag("title") };
-  const res = await grant(req, asyncMode);   // asyncMode: claimed at once, so it counts as live and cannot be double-called
+  const res = await grant(withWrites(req), asyncMode);   // asyncMode: claimed at once, so it counts as live and cannot be double-called
   if (!res.ok) out({ ok: false, reason: res.reason });
   else if (res.queued) out({ ok: true, queued: true, agent_id: res.agent.agent_id, position: res.queued.position, waiting_for: res.queued.heldBy, note: "its locks are held; it starts by itself when they free; use wait" });
   else if (asyncMode) { spawnRun(res.call_id); out({ ok: true, async: true, agent_id: res.agent.agent_id, call_id: res.call_id, status: "running", note: "use wait --agents <ids> to get the answers" }); }
@@ -158,7 +163,7 @@ if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
   for (const t of tasks) {
     const req: CallReq = { task_id: task, caller_agent_id: me, role, session_arg: from ? `fork:${from}` : "new", mode: "work", objective: t.objective, output: t.output ?? flag("output") ?? "Reply in 3 lines: the files you wrote, what you could not do, what you did not check.", boundaries: t.boundaries ?? flag("boundaries") ?? "Write only the files in your writes; edit nothing else. No server, no tests, no npm/pnpm, no build.",
       writes: (Array.isArray(t.writes) ? t.writes : String(t.writes ?? "").split(",")).map((w) => String(w).trim()).filter(Boolean), title: t.title };
-    const res = await grant(req, true);
+    const res = await grant(withWrites(req), true);
     if (!res.ok) started.push({ title: t.title, ok: false, reason: res.reason });
     else if (res.queued) started.push({ title: t.title, ok: true, queued: true, agent_id: res.agent.agent_id, waiting_for: res.queued.heldBy });
     else { spawnRun(res.call_id); started.push({ title: t.title, ok: true, agent_id: res.agent.agent_id, status: "running" }); }
@@ -279,6 +284,10 @@ if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
 } else if (cmd === "ls") { out(wsLs(join(cwd, "run_test"), flag("path")));
 } else if (cmd === "read_file") { out(wsRead(join(cwd, "run_test"), flag("path") ?? "", Number(flag("offset") ?? 1), Number(flag("limit") ?? 200)));
 } else if (cmd === "grep") { out(wsGrep(join(cwd, "run_test"), flag("pattern") ?? "", flag("path")));
+} else if (cmd === "proto_init") {   // the STARTER of a no-build prototype, made by the harness (no model call): design kit + shell + one stub screen per nav item + PROTO.md. Builders then only write screens.
+  const rel = (flag("dir") ?? "").replace(/^run_test[\\/]?/, ""), d = resolve(cwd, "run_test", rel);
+  if (!rel || rel.includes("..") || !d.startsWith(resolve(cwd, "run_test") + "/")) out({ ok: false, reason: "--dir must be run_test/<project>" });
+  else { const { protoInit, parseNav } = await import("./core/proto_init.ts"); out(protoInit(d, { title: flag("title") ?? rel, nav: parseNav(flag("nav") ?? ""), user: flag("user"), org: flag("org"), rel: "run_test/" + rel })); }
 } else if (cmd === "proto_check") {   // a NO-BUILD prototype (index.html + plain scripts + Vue from a CDN): files exist, scripts parse, every screen / component used is defined. No install, no server: under a second.
   const d = resolve(cwd, flag("dir") ?? ""); if (!d.startsWith(resolve(cwd))) { out({ ok: false, error: "the folder must be inside the workspace" }); } else { const { protoCheck } = await import("./core/proto_check.ts"); out(protoCheck(d)); }
 } else if (cmd === "qa_check") {   // EARLY CHECK while developing (no video): type check + dev server + page errors + dev log, in a throwaway Docker container (2 GB, 1 CPU). On a failure it first CHECKPOINTS the workspace (git commit), then tells the master what to hand to the sub-agent. Same issue 3 times in a row = STOP, the test is marked failed (harness/core/qa_loop.ts).
@@ -321,6 +330,7 @@ if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
     const run = bgm.getBg(sdir, r.id), reasons: string[] = [];
     if (run && run.status !== "running") reasons.push(`the preview script ended: ${run.status}${run.exit_code !== undefined ? ` (exit ${run.exit_code})` : ""}. ${(bgm.bgLog(sdir, r.id, 25) ?? "").split("\n").filter((x) => /error|ERR_|failed|cannot find|not found|unable/i.test(x)).slice(-4).join(" | ")}`);
     else if (r.page?.checked && r.page.renders === false) reasons.push(...(r.page.errors.length ? r.page.errors : [r.page.why ?? "the page is blank"]));
+    else if (r.page?.route_problems?.length) reasons.push(...r.page.route_problems.map((x) => `${x.route}: ${x.problems.join("; ")}`));
     else if (!r.ready) return undefined;   // still starting (install can take minutes): no verdict yet
     if (!reasons.length) { recordCheck(qs, { ok: true, stage: "preview", reasons: [] }); writeQa(qdir, qs); return undefined; }
     const g = (a: string[]) => spawnSync("git", ["-C", cwd, "-c", "user.name=harness", "-c", "user.email=harness@local", ...a], { encoding: "utf8" });
@@ -329,7 +339,7 @@ if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
     bgm.stopBg(sdir, r.id, "harness", { userAsked: true });   // a broken preview is not left running
     if (v.stop) return { ok: false, stop: true, stage: "preview", reasons, same_issue_count: v.n, checkpoint, next: `STOP: the same issue failed ${v.n} times in a row. The test is marked failed. Do not delegate again: give your final answer, say it failed, why, and what you tried.` };
     return { ok: false, stage: "preview", reasons, attempt: v.n, of: MAX_SAME, checkpoint, preview_stopped: true,
-      hand_over: `The app in run_test/${dirRel} starts, but it is BROKEN in a browser (${reasons.join(" | ")}). Fix THIS, whoever caused it (pre-existing code counts: the app must work). Native-only packages (react-native-pulsar, keyboard-controller) are already stubbed on web by the preview, so look for the cause in the app code or its imports. Change only what is needed; do not delete features. Say which files you changed and why.`,
+      hand_over: r.page?.route_problems?.length ? `The prototype in run_test/${dirRel} runs, but these screens are not finished (found by opening every route in a browser): ${reasons.join(" | ")}. Each screen is owned by the file named in brackets (PROTO.md has the table): fix ONLY your own file. Replace every stub with a finished screen: believable mock data (never undefined / lorem / TODO), a working search or filter, a row that opens a detail view, an empty state, buttons that open a modal or a toast. Use only the kit classes in PROTO.md. Say which files you changed.` : `The app in run_test/${dirRel} starts, but it is BROKEN in a browser (${reasons.join(" | ")}). Fix THIS, whoever caused it (pre-existing code counts: the app must work). Native-only packages (react-native-pulsar, keyboard-controller) are already stubbed on web by the preview, so look for the cause in the app code or its imports. Change only what is needed; do not delete features. Say which files you changed and why.`,
       next: `The preview is NOT working (attempt ${v.n} of ${MAX_SAME}): do not give the person a link or call it done. Delegate the fix with hand_over (add PLAN.md and the folder), then run preview --dir ${dirRel} again. A DIFFERENT error next time is fine. If you judge it cannot be fixed, run qa_give_up --reason "<evidence>": that records it as an error you caught.` };
   };
   if (cmd === "bg_list" || cmd === "preview_list") {

@@ -128,6 +128,8 @@ export type Case = {
   /** true = the master's `qa_check` is switched OFF for this case (the tool answers "disabled" and the request says so). For cases that test the DELEGATION only, or whose recorded app is known to be broken (solarin) and has no fix fixture. */
   no_qa_check?: true;
   max_agent_calls?: number;
+  /** Real-money cap for this case in USD (lead + real sub-agents). Over it, the case fails with a COST CAP gate. Default: env HARNESS_CASE_CAP_USD, else 1. Not applied to --fake. */
+  max_cost_usd?: number;
   /** Runs right BEFORE the lead of this node starts (like a fixture, a plain function): the place to put a fix, a broken file or any starting state into the branch's workspace (e.g. "the bug was fixed in the meantime"). Default (not set) = `defaultBeforeNodeRun` (TestCases/branch.ts): only prints what node this is. Not run with `--list`/`--fake`? It runs with `--fake` too (the workspace is real, the lead is not). */
   before_node_run?: (ctx: NodeRunCtx) => void | Promise<void>;
   /** Runs right AFTER the node, and ONLY when the node PASSED (a failed case never runs it, so a broken state is never post-processed): e.g. add a file for the next node of the chain, or log a checkpoint. Same ctx as `before_node_run` (`phase: "after"`). Default = prints. It runs before the video / session record, so they see its result. */

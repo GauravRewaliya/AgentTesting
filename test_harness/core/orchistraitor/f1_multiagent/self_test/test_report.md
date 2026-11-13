@@ -1,6 +1,6 @@
 # Test 2: f_1_withmulti_ag (multi-agent on demand)
 
-Generated 2026-11-13T13:13:34.810Z. 166/169 passed.
+Generated 2026-11-13T13:27:35.804Z. 174/175 passed.
 
 Harness under test: `harness/` = the base harness (harness/core/base/) + agent.call, instances, locks, worktrees/patches, board, tools. Real suite NOT run.
 
@@ -166,8 +166,14 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP6 | PLAN: the task whose agent asked is BLOCKED with its question (not done); the task that needs its answer has NOT started (no builder exists); the plan stays open | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP7 | answering is strict: a task that is not blocked cannot be answered, and an empty answer is refused | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP8 | the parent answers with plan_answer: the SAME agent (researcher#1, session argument researcher#1) continues with 'ANSWER FROM YOUR PARENT' in its brief, then the waiting task runs and the plan completes | PASS |
-| process slots: a waiting lead never takes a worker's place; time spent waiting for a slot is visible in the log (stand-in CLI with a delay) | SL1 | a waiting lead does NOT take a worker's slot: with a lead running, three workers (cap 3) all start at once (none waits), and the three together take about one task-time, not three | **FAIL** |
-| process slots: a waiting lead never takes a worker's place; time spent waiting for a slot is visible in the log (stand-in CLI with a delay) | SL2 | the cap still holds for workers (3 at a time): a fourth waits for a free slot, and the wait is RECORDED on its agent.done event (waited_ms) so a hidden delay shows up in the log and the summary | **FAIL** |
+| process slots: a waiting lead never takes a worker's place; time spent waiting for a slot is visible in the log (stand-in CLI with a delay) | SL1 | a waiting lead does NOT take a worker's slot: with a lead running, three workers (cap 3) all start at once (none waits), and the three together take about one task-time, not three | PASS |
+| process slots: a waiting lead never takes a worker's place; time spent waiting for a slot is visible in the log (stand-in CLI with a delay) | SL2 | the cap still holds for workers (3 at a time): a fourth waits for a free slot, and the wait is RECORDED on its agent.done event (waited_ms) so a hidden delay shows up in the log and the summary | PASS |
+| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK1 | parseNav: text and JSON both work, ids are slugs, 'Group>Label' groups screens into one file, icons are guessed, duplicates dropped | PASS |
+| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK2 | proto_init writes the shell (index.html, kit.css, kit.js, one screens file + one pages css per group, proto.json, PROTO.md) and says how to fork | PASS |
+| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK3 | the untouched starter passes proto_check (every kit class used by kit.js exists, scripts parse, every screen is defined) | PASS |
+| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK4 | starting a prototype twice is refused (a redo must edit the existing one, never overwrite it) | PASS |
+| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK5 | every nav item has a stub that says TODO (the preview smoke check refuses it until a builder replaces it) | PASS |
+| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK6 | an unstyled class a builder invents is reported by proto_check | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS1 | the lead and the project manager are conversations, not tasks: their resume cap is far above a worker's (a real session rolled the lead on its 5th message with a cap of 3 and the lead told the person it had lost track) | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS2 | with the ui's cap of 3: six turns later the LEAD was never rolled (it keeps one session), while a worker was rolled at the 4th resume as designed | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS3 | if a master IS reset (or is new in a store that already has a chat), its brief carries the conversation from the record (not the message being answered), so it does not start blank | PASS |
@@ -181,14 +187,4 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 ### NP1 who can call whom: only the lead and the builder can call sub-agents; every other agent is a leaf; the call tool is REMOVED at level 4 and for everyone when multi-agent is off (max depth 1); every agent has at least one tool; every declared sub-agent exists
 ```
 callers=builder,lead,planner
-```
-
-### SL1 a waiting lead does NOT take a worker's slot: with a lead running, three workers (cap 3) all start at once (none waits), and the three together take about one task-time, not three
-```
-waited_ms=0,1,1357 three workers took 2587 ms
-```
-
-### SL2 the cap still holds for workers (3 at a time): a fourth waits for a free slot, and the wait is RECORDED on its agent.done event (waited_ms) so a hidden delay shows up in the log and the summary
-```
-waited_ms sorted=0,2,1662,1664
 ```

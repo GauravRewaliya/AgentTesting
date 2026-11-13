@@ -37,7 +37,7 @@ export function protoCheck(dir: string): ProtoReport {
   for (const t of tags) if (!isDefined(t)) problems.push(`<${t}> is used in a template but nothing defines ${pascal(t)} (Components.${pascal(t)} = { ... })`);
   // CSS contract: a class used in a template / html must exist in some .css file (a missing one = an unstyled element: the "looks unfinished" problem)
   const cssDefs = new Set<string>(); for (const text of [...all.filter((x) => x.endsWith(".css")).map((f) => readFileSync(f, "utf8")), ...inlineCss]) for (const m of text.matchAll(/\.(-?[a-zA-Z_][\w-]*)/g)) cssDefs.add(m[1]!);
-  const usedCls = new Map<string, string>(), scan = (name: string, text: string) => { for (const m of text.matchAll(/(?<![:@.\w-])class\s*=\s*(?:\\?"([^"\\]*)\\?"|\\?'([^'\\]*)\\?'|`([^`]*)`)/g)) for (const c of (m[1] ?? m[2] ?? m[3] ?? "").split(/\s+/)) if (c && /^[a-zA-Z_-][\w-]*$/.test(c) && !usedCls.has(c)) usedCls.set(c, name); };
+  const usedCls = new Map<string, string>(), scan = (name: string, text: string) => { for (const m of text.matchAll(/(?<![:@.\w-])class\s*=\s*(?:\\?"([^"\\]*)\\?"|\\?'([^'\\]*)\\?'|`([^`]*)`)/g)) { const val = m[1] ?? m[2] ?? m[3] ?? ""; if (/[+${}()]/.test(val)) continue; for (const c of val.split(/\s+/)) if (c && /^[a-zA-Z_-][\w-]*$/.test(c) && !usedCls.has(c)) usedCls.set(c, name); } };
   for (const [rel, text] of Object.entries(src)) scan(rel, text); scan("index.html", html);
   const noCss = [...usedCls].filter(([c]) => !cssDefs.has(c)).map(([c, f]) => `${c} (${f})`);
   if (noCss.length) problems.push(`CSS classes used but defined in no .css file (unstyled): ${noCss.slice(0, 12).join(", ")}${noCss.length > 12 ? ` ... +${noCss.length - 12} more` : ""}`);

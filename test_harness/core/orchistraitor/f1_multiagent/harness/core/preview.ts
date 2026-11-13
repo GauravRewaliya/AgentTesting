@@ -3,7 +3,7 @@
 //   - folder with package.json: `pnpm install` (CI=true for the install only: no prompts, the server itself keeps watch mode) then the `web` (Expo), `dev` or `start` script on {port}; Vite-style servers get `--host 0.0.0.0`, Expo takes `--port` only
 //   - folder with only index.html: static server (core/static_server.ts, no install)
 // Settings come from the environment, else from <repo>/.env (see .env.example): PREVIEW_PUBLIC_HOST, PREVIEW_BIND is not needed any more (the script binds itself), PREVIEW_PORT_FROM/TO.
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { networkInterfaces } from "node:os";
@@ -69,12 +69,38 @@ export function checkPage(url: string, budgetMs = 30_000): { checked: boolean; r
     const dom = r.stdout ?? "", rootEmpty = /<div id="(root|app|__next)"[^>]*>\s*<\/div>/.test(dom), bodyText = dom.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<[^>]+>/g, "").trim();
     if (/main-frame-error|class="neterror"|ERR_CONNECTION_REFUSED|This site can.t be reached/.test(dom)) return { checked: true, renders: false, errors: [], why: "the browser could not reach the page (connection refused or no answer)" };
     const renders = !rootEmpty && (bodyText.length > 0 || /<(canvas|img|svg|video)/.test(dom)) && errors.length === 0;
-    const gpu = webgpuAdapter(), note = gpu === "no" ? `Chrome here has NO WebGPU adapter: a 3D/WebGPU scene (a canvas that stays empty while the normal UI draws) shows nothing and says nothing. Start Chrome with: google-chrome ${WEBGPU_FLAGS} ${url}` : undefined;
+    const gpu = /<canvas/.test(dom) ? webgpuAdapter() : "unknown", note = gpu === "no" ? `Chrome here has NO WebGPU adapter: a 3D/WebGPU scene (a canvas that stays empty while the normal UI draws) shows nothing and says nothing. Start Chrome with: google-chrome ${WEBGPU_FLAGS} ${url}` : undefined;
     return { checked: true, webgpu_adapter: gpu, note, renders, errors, why: renders ? undefined : errors.length ? "the page threw a JavaScript error" : rootEmpty ? "the page stayed empty (nothing was drawn)" : "no visible content" };
   } catch (e) { return { checked: false, errors: [], why: String((e as Error).message).slice(0, 120) }; }
   finally { rmSync(dir, { recursive: true, force: true }); }
 }
-export type PreviewStart = { ok: true; id: string; public_url: string; url: string; port: number; ready: boolean; status: string; log: string; expires_at?: number; page?: ReturnType<typeof checkPage> } | { ok: false; reason: string };
+/** A prototype made by `proto_init` has proto.json: open EVERY route in headless Chrome (all at once) and report what looks unfinished: a TODO / coming soon stub, lorem ipsum, undefined / NaN / [object Object] in the text,
+ *  a table with no rows, a "screen not found", a JavaScript error, or almost no content. One line per bad route, so the lead hands exactly that to the builder that owns the screen. Takes ~10 s for any number of routes. */
+export async function smokeRoutes(baseUrl: string, routes: { id: string; label?: string; file?: string }[], budgetMs = 6_000): Promise<{ route: string; problems: string[] }[]> {
+  const chrome = ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"].find((c) => spawnSync("which", [c]).status === 0); if (!chrome) return [];
+  const one = (r: { id: string; label?: string; file?: string }) => new Promise<{ route: string; problems: string[] }>((done) => {
+    const dir = mkdtempSync(join(tmpdir(), "pvsmoke-")); let out = "", err = "";
+    const p = spawn(chrome, ["--headless=new", "--no-sandbox", "--disable-gpu", `--user-data-dir=${dir}`, "--enable-logging=stderr", "--v=0", `--virtual-time-budget=${budgetMs}`, "--dump-dom", `${baseUrl}/#/${r.id}`]);
+    p.stdout.on("data", (b) => { out += b; }); p.stderr.on("data", (b) => { err += b; });
+    const finish = () => {
+      rmSync(dir, { recursive: true, force: true });
+      const main = (out.match(/<main[^>]*>([\s\S]*?)<\/main>/)?.[1] ?? out), text = main.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<[^>]+>/g, " ").replace(/\s+/g, " ").trim(), problems: string[] = [];
+      const errors = [...new Set([...err.matchAll(/CONSOLE[^"]*"((?:Uncaught|TypeError|ReferenceError|Error|\[Vue warn\])[^"]{0,200})/g)].map((m) => m[1]!))].slice(0, 2);
+      if (errors.length) problems.push("JavaScript error: " + errors.join(" | "));
+      if (/TODO|coming soon|not built yet/i.test(text)) problems.push("still a stub (TODO / coming soon)");
+      if (/lorem ipsum/i.test(text)) problems.push("lorem ipsum text");
+      if (/\bundefined\b|\bNaN\b|\[object Object\]|\{\{/.test(text)) problems.push("shows undefined / NaN / [object Object] / a raw {{ }}");
+      if (/Screen not found/.test(text)) problems.push(`no Screens.${r.id} is defined`);
+      if (/<table/.test(main) && !/<td/.test(main)) problems.push("a table with no rows");
+      if (text.length < 60 && !/TODO|not found/i.test(text)) problems.push("almost empty (" + text.length + " characters)");
+      done({ route: `#/${r.id}${r.file ? ` (js/screens/${r.file}.js)` : ""}`, problems });
+    };
+    const t = setTimeout(() => { p.kill("SIGKILL"); }, budgetMs + 25_000); p.on("close", () => { clearTimeout(t); finish(); });
+  });
+  return (await Promise.all(routes.map(one))).filter((x) => x.problems.length);
+}
+type PreviewStartPage = ReturnType<typeof checkPage> & { route_problems?: { route: string; problems: string[] }[] };
+export type PreviewStart = { ok: true; id: string; public_url: string; url: string; port: number; ready: boolean; status: string; log: string; expires_at?: number; page?: ReturnType<typeof checkPage> & { route_problems?: { route: string; problems: string[] }[] } } | { ok: false; reason: string };
 /** Start the preview as a background script. `allowedRoot`: the folder must be inside it. Waits up to `waitSec` for the page to answer (install can take minutes: the script keeps running, read bg_log). */
 export async function startPreview(o: { storeDir: string; task: string; dir: string; allowedRoot: string; by?: string; waitSec?: number; timeoutMin?: number; userRequested?: boolean }): Promise<PreviewStart> {
   const dir = resolve(o.dir), root = resolve(o.allowedRoot);
@@ -84,7 +110,8 @@ export async function startPreview(o: { storeDir: string; task: string; dir: str
   const port = again?.port ?? await freePort(Number(cfg("PREVIEW_PORT_FROM", "5300")), Number(cfg("PREVIEW_PORT_TO", "5399")));
   const m = again ?? startBg(o.storeDir, { task: o.task, cmd: d.cmd, dir, by: o.by ?? "master", label: `preview ${dir.split("/").pop()}`, kind: "preview", port, publicHost: publicHost(), env: { __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS: publicHost() }, timeoutMin: o.timeoutMin, userRequested: o.userRequested });
   const w = await waitReady(o.storeDir, m.id, `http://127.0.0.1:${port}`, o.waitSec ?? 90);
-  const page = w.ready && cfg("PREVIEW_PAGE_CHECK", "1") !== "0" ? checkPage(`http://127.0.0.1:${port}`) : undefined;
+  const page: PreviewStartPage | undefined = w.ready && cfg("PREVIEW_PAGE_CHECK", "1") !== "0" ? checkPage(`http://127.0.0.1:${port}`) : undefined;
+  if (page?.renders && existsSync(join(dir, "proto.json"))) { try { const pj = JSON.parse(readFileSync(join(dir, "proto.json"), "utf8")); const bad = await smokeRoutes(`http://127.0.0.1:${port}`, pj.routes ?? []); if (bad.length) page.route_problems = bad; } catch { /* a broken proto.json is proto_check's job */ } }
   return { ok: true, id: m.id, page, expires_at: m.expires_at, public_url: `http://${publicHost()}:${port}`, url: `http://127.0.0.1:${port}`, port, ready: w.ready, status: w.status, log: bgLog(o.storeDir, m.id, 15) ?? "" };
 }
 export { bgLog, getBg, listBg, stopBg, type BgRow };
