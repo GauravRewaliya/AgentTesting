@@ -8,12 +8,43 @@ import { expoGo } from "../lib/shared.ts";
 //   ReferenceError: Cannot access 'abandonBoundaryMeasurement' before initialization   in react-native-screen-transitions@3.13.0 (lib/module/.../coordinator.js:167)
 // a circular import inside that THIRD-PARTY package that works on native (Hermes) and throws on web. The screenshot shows Expo's red error overlay, not the app. (The earlier "Couldn't find a drawer" error only came from the minified production export.)
 // Recipe to switch on once the package works on web (or is stubbed on web): { enabled: true, kind: "expo-web", app: "my-app", route: "/", viewport: "390x844" }. Working example of the same flow: examples/tailwind_reanimated.ts (eg_tw_01).
-// KNOWN-NEGATIVE app: as recorded it fails `tools.ts qa_check` (4+ type errors; web crash). The detection is proven by advance_test/adv_5_broken_app_qa_check (small app, with a fix fixture); solarin has NO fix fixture, so here the lead can only report honestly.
+// WORKING SET-UP (2026-11-13). The recorded app has ~60 type errors from the start (Expo 58 preview + React Native 0.88 rc typings) and a web crash (T-14), so `qa_check` is OFF here (`no_qa_check`): these cases test the DELEGATION.
+// before_node_run writes NOTES.md into the app (how to run it: the project memory of this app); the LAST phase's after_node_run applies store/expo_go/fixes/solarin-my-app/typecheck_fix.patch (a real `git diff`, verified to apply after the 3 commits)
+// and ONLY when the phase passed. The patch fixes 53 of the 54 type errors (see NOTES.md); the web crash and one node_modules type error are still open (TODO T-14/T-19). A negative case (qa on, the master asks for the fix, the fixture fixes) can be added later.
+import { join } from "node:path";
+import type { NodeRunCtx } from "@core/types.ts";
+const FIXDIR = join(import.meta.dir, "../../agent_fixture/store/expo_go/fixes/solarin-my-app");
+const notes = (ctx: NodeRunCtx) => { if (ctx.read("my-app/NOTES.md")) return; ctx.write("my-app/NOTES.md", `# my-app notes (written by the test harness, before_node_run)
+Run it (pnpm only, never npm/npx/yarn):
+  cd run_test/my-app && corepack pnpm install
+  corepack pnpm exec tsc --noEmit            # type check
+  corepack pnpm exec expo start --web        # dev server (web)
+Check like the harness: tools.ts qa_check --dir my-app  (type check + dev server + page errors; about a minute)
+Known issues of this recorded app (they are in the upstream commit, not caused by your change):
+  - ~60 type errors from the Expo 58 preview / React Native 0.88 rc typings (Drawer props, absoluteFillObject, @expo/ui, TextInput refs).
+  - react-native-screen-transitions 3.13.0 crashes on web (circular import: abandonBoundaryMeasurement) - TODO T-14.
+  - auto_run (after the last phase) applies 3 fix commits from fixes/solarin-my-app/: (1) types silenced, (2) undeclared @react-navigation packages declared, (3) ../ imports changed to the @/ alias. The web crash stays (needs another package version).
+  - Imports: use the @/ alias (@/components/..., @/hooks/...), never ../ relative paths.
+`); ctx.log("NOTES.md written into run_test/my-app"); };
+const knownBroken = {
+  no_qa_check: true as const,
+  before_node_run: notes,
+};
+const FOUND = [
+  "typecheck: 54 tsc errors (Drawer props TS2322, absoluteFillObject TS2551, @expo/ui exports TS2305, TextInput refs TS2339, two package sources in node_modules)",
+  "dev server: Metro cannot resolve @react-navigation/core and @react-navigation/routers (used by the app, not declared in package.json); @react-navigation/elements is imported and not declared either",
+  "style: 34 imports use ../ relative paths; the tsconfig alias @/ exists and 35 files already use it",
+];
+// AUTO RUN (no model call): after the LAST phase passed, the harness mimics what the master would do next: apply the 3 fix commits in order (types, deps, @/ imports), commit each in the workspace, and record what it found (store/auto_run.json).
+const lastPhase = {
+  after_node_run: (ctx: NodeRunCtx) => { const r = ctx.auto_run({ dir: "my-app", fixDir: FIXDIR, found: FOUND }); ctx.log(r.error ? "auto_run FAILED: " + r.error : `auto_run: ${r.commits.length} fix commits applied and committed: ` + r.commits.map((c) => `${c.sha} ${c.subject}`).join(" | ")); },
+};
 const solarinQa: Case["qa"] = () => ({ enabled: false, why: "web crash in react-native-screen-transitions@3.13.0 (circular import, ReferenceError ... before initialization); docs/QA_ISSUES.md #12, TODO T-14" });
 export const cases: Case[] = [
   {
     ...expoGo,
     qa: solarinQa,
+    ...knownBroken,
     id: "eg_solarin_01_754eb25",
     title: "[ref expo.dev/demos/solarin-johnson -> Solarin-Johnson/my-app] phase 1/3 · commit 754eb25 (2025-10-11) \"feat: add 3D Rotate feature; implement Rotate3d component with flip an\"",
     turns: [{
@@ -28,6 +59,7 @@ export const cases: Case[] = [
   {
     ...expoGo,
     qa: solarinQa,
+    ...knownBroken,
     id: "eg_solarin_02_7371b88",
     after: "eg_solarin_01_754eb25",
     title: "[ref expo.dev/demos/solarin-johnson -> Solarin-Johnson/my-app] phase 2/3 · commit 7371b88 (2025-10-12) \"feat: enhance Rotate3d component; add support for dynamic front and ba\"",
@@ -43,6 +75,8 @@ export const cases: Case[] = [
   {
     ...expoGo,
     qa: solarinQa,
+    ...knownBroken,
+    ...lastPhase,
     id: "eg_solarin_03_08b0cce",
     after: "eg_solarin_02_7371b88",
     title: "[ref expo.dev/demos/solarin-johnson -> Solarin-Johnson/my-app] phase 3/3 · commit 08b0cce (2025-10-12) \"feat: integrate DrawPad component for signature capture in BackContent\"",

@@ -41,7 +41,7 @@ const probe = () => {
 // the dev server's own log (QA_DEVLOG, default /tmp/dev.log): a build/resolve error shows up here seconds before the page gives up
 const DEVLOG = process.env.QA_DEVLOG ?? "/tmp/dev.log";
 const devLogError = () => { try { const m = readFileSync(DEVLOG, "utf8").match(/^.*(Unable to resolve|Failed to resolve import|Module not found|Cannot find module|SyntaxError|Failed to compile|Transform failed|error during build)[^\n]*/im); return m ? m[0].trim().slice(0, 260) : null; } catch { return null; } };
-const browser = await chromium.launch({ args: ["--no-sandbox"] });
+const browser = await chromium.launch({ args: ["--no-sandbox", ...(process.env.QA_BROWSER_ARGS ? process.env.QA_BROWSER_ARGS.split(" ").filter(Boolean) : [])] });   // QA_BROWSER_ARGS: extra Chromium flags of the case (e.g. software WebGPU)
 // ---------------- phase 1: SMOKE (no video, stops at the first problem) ----------------
 {
   const ctx = await browser.newContext({ viewport: { width: VW, height: VH } }), page = await ctx.newPage();
@@ -79,11 +79,29 @@ summary.stage = "record";
     await page.goto(target, { waitUntil: "load", timeout: RENDER });
     await page.waitForFunction(() => { const b = document.body; return (b.innerText || "").trim().length > 0 || document.querySelectorAll("img,svg,canvas,button,input").length > 0; }, null, { timeout: RENDER }).catch(() => {});
     await page.waitForTimeout(1200);
-    const input = page.locator("input, textarea").first();
+    // QA_STEPS (JSON, set by the case's qa spec `steps`): the case's OWN interaction instead of "type into the first input, click the first button". Steps: {click:"<playwright selector>"} {fill:["sel","text"]} {wait:ms}
+    //   {drag:{sel:"<selector>",from:[0.2,0.5],to:[0.8,0.5]}} (mouse drag inside the element, fractions of its box) {shot:"name"} (png in /out) {text:"sel"} (read the text into summary.steps)
+    const STEPS = process.env.QA_STEPS ? JSON.parse(process.env.QA_STEPS) : null; summary.steps = [];
+    if (STEPS) {
+      for (const st of STEPS) {
+        try {
+          if (st.click) await page.locator(st.click).first().click({ timeout: 15000 });
+          else if (st.fill) await page.locator(st.fill[0]).first().fill(st.fill[1]);
+          else if (st.wait) await page.waitForTimeout(st.wait);
+          else if (st.drag) { const b = await page.locator(st.drag.sel).first().boundingBox(); if (!b) throw new Error("no box for " + st.drag.sel); const at = (f) => [b.x + b.width * f[0], b.y + b.height * f[1]];
+            const [x0, y0] = at(st.drag.from), [x1, y1] = at(st.drag.to); await page.mouse.move(x0, y0); await page.mouse.down(); await page.mouse.move((x0 + x1) / 2, (y0 + y1) / 2 - 20, { steps: 12 }); await page.mouse.move(x1, y1, { steps: 12 }); await page.mouse.up(); }
+          else if (st.shot) await page.screenshot({ path: join(OUT, st.shot.replace(/[^\w.-]/g, "_") + ".png") });
+          else if (st.eval) summary.steps.push({ eval: st.eval.slice(0, 80), value: JSON.stringify(await page.evaluate(st.eval)).slice(0, 300) });
+          else if (st.text) summary.steps.push({ text: st.text, value: (await page.locator(st.text).first().innerText()).trim().slice(0, 200) });
+          summary.steps.push({ ok: true, step: JSON.stringify(st).slice(0, 120) });
+        } catch (e) { summary.steps.push({ ok: false, step: JSON.stringify(st).slice(0, 120), error: String(e).slice(0, 160) }); summary.reasons.push("step failed: " + JSON.stringify(st).slice(0, 100) + ": " + String(e).slice(0, 120)); break; }
+      }
+    }
+    const input = STEPS ? { count: async () => 0 } : page.locator("input, textarea").first();
     if (await input.count()) { await input.click(); await input.pressSequentially(typeText, { delay: 120 }); summary.typed = typeText; await page.waitForTimeout(600); }
     summary.texts = (await page.locator("h1, h2, p, code, output, [id]").allInnerTexts()).map((t) => t.trim()).filter(Boolean).slice(0, 12);   // read BEFORE clicking anything
     await page.screenshot({ path: join(OUT, "qa.png") });
-    const button = page.locator("button").first();
+    const button = STEPS ? { count: async () => 0 } : page.locator("button").first();
     if (await button.count()) { await button.click(); summary.clicked = (await button.innerText()).trim(); await page.waitForTimeout(800); }
   } catch (e) { summary.reasons.push(String(e).slice(0, 200)); }
   await ctx.close();

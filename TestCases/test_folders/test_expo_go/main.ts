@@ -14,11 +14,12 @@ import { cases as sb } from "./examples/storybook.ts";
 import { cases as solarin } from "./demos/solarin.ts";
 import { cases as linear } from "./demos/linear_tab_bar.ts";
 import { cases as toast } from "./demos/enzo_clerk_toast.ts";
+import { cases as cherry } from "./demos/enzo_cherry.ts";
 import { cases as folio, SOURCE as FOLIO } from "./demos/folio.ts";
 import { cases as rework } from "./rework.ts";
 import { assertValid } from "./lib/check.ts";
 
 export const tags: TestTag[] = ["multi_ag", "coding", "split_task"];
-export const cases: Case[] = [...tw, ...sb, ...solarin, ...linear, ...toast, ...folio, ...rework];
+export const cases: Case[] = [...tw, ...sb, ...solarin, ...linear, ...toast, ...cherry, ...folio, ...rework];
 // Fails the import (so the harness cannot run a broken suite) when anything is out of line with lib/types.ts. See lib/check.ts.
 assertValid({ cases, tags, otherSources: [FOLIO] });

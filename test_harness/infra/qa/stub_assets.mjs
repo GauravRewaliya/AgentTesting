@@ -12,6 +12,7 @@ const walk = (d, o = []) => { for (const e of fs.readdirSync(d, { withFileTypes:
 let font = null; const findFont = (d) => { try { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) { const r = findFont(p); if (r) return r; } else if (/\.ttf$/i.test(e.name) && fs.statSync(p).size > 1000) return p; } } catch { /* ignore */ } return null; };
 const created = [];
 function ensure(p) {
+  if (!path.resolve(p).startsWith(path.resolve(root) + path.sep)) return;   // never create anything OUTSIDE the app copy (a string like "/assets/app-icons/x.png" in the code is a URL path, not a file at the container root: EACCES)
   if (fs.existsSync(p)) return;
   const e = path.extname(p).toLowerCase(); fs.mkdirSync(path.dirname(p), { recursive: true });
   if (e === ".png") fs.writeFileSync(p, PNG);

@@ -88,14 +88,15 @@ export class FixtureGate implements Runner {
     const log = (d: Omit<GateCall, "role" | "n" | "call">) => st.tx(() => st.ev("fixture.call", task, c.row.agent_id, { role, n, call: c.row.last_call_id ?? null, ...d }));
 
     // 5. LIMIT: `max_agent_calls` counts calls that DO something (served / corrected / real). A verify ask answered from the session table is free but capped (MAX_VERIFY) so a lead cannot loop on it for ever.
-    const used = mine.filter((m) => m.verdict !== "extra").length;
+    const sinceT = Number(st.evs("fixture.limit", task).pop()?.t ?? 0), cur = st.evs("fixture.call", task).filter((e) => e.t >= sinceT).map((e) => e.data as unknown as GateCall).filter((d) => d.role === role);   // the limit counts the calls of THIS case only (declared by it: `fixture.limit`): in a chain (`after`) the task is shared, so the phase before must not use up this phase's calls
+    const used = cur.filter((m) => m.verdict !== "extra").length;
     const refuse = (why: string): RunResult => {
       const reason = `call ${n} to '${role}' (${why}): the lead ${mine.some((m) => m.verdict === "served") ? "kept going back to the sub-agent after it was served" : "never made a valid request to it"}`;
       st.tx(() => st.ev("fixture.fail", task, c.row.agent_id, { role, n, call: c.row.last_call_id ?? null, reason }));
       return ret(`REFUSED: ${reason}. The case is marked FAILED.`, false, reason);
     };
     const charge = (): RunResult | null => (used + 1 > limit ? refuse(`limit ${limit}`) : null);   // call before anything that is NOT a free verify answer
-    if (mine.length + 1 > limit + MAX_VERIFY) return refuse(`limit ${limit} + ${MAX_VERIFY} verify asks`);
+    if (cur.length + 1 > limit + MAX_VERIFY) return refuse(`limit ${limit} + ${MAX_VERIFY} verify asks`);
     this.results ??= await loadResults(join(FIXTURES, "results"));
     const ws = join(c.cwd, "run_test"), allowReal = st.evs("fixture.allow_real", task).length > 0;
     // ── FLOW ── 1. session  2. prompt + fixture  3. no fixture: allow_real_subAg ? real call (--session-id) : error "FIXTURE NOT FOUND"

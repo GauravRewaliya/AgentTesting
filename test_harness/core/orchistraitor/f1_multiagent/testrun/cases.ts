@@ -3,6 +3,7 @@
 // Nothing is asserted from the model's words: a turn is judged by WHO the lead called (role, new or follow-up) against `expected_agents_res`, plus the guard (no distractor).
 // `expected.context` is shown beside the result for a human to read, as in the other harness.
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
+import { qaFailed, readQa } from "../harness/core/qa_loop.ts";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -15,7 +16,7 @@ export const AGENT_TESTING = resolve(HERE, "../../../../..");
 export const CASES_DIR = join(AGENT_TESTING, "TestCases", "test_folders");
 const FIXTURE_INDEX = join(FIXTURES, "index.json");   // the ONE fixture place (paths.ts)
 
-export interface RawCase { max_agent_calls?: number; allow_real_subAg?: boolean; id: string; title: string; after?: string; branch_from?: string; branch_auto?: boolean; agents: string[]; distractors?: string[]; router?: boolean; tags?: string[]; turns: { user: string; expected: { context: string; expected_agents_res: string[] } }[] }
+export interface RawCase { expect_qa?: "stop" | "give_up" | "failed"; max_agent_calls?: number; allow_real_subAg?: boolean; id: string; title: string; after?: string; branch_from?: string; branch_auto?: boolean; agents: string[]; distractors?: string[]; router?: boolean; tags?: string[]; turns: { user: string; expected: { context: string; expected_agents_res: string[] } }[] }
 export interface SuiteCase extends RawCase { suite: string; suiteTags: string[] }
 
 export async function loadSuites(): Promise<SuiteCase[]> {
@@ -74,8 +75,11 @@ export function judgeTurn(store: MStore, task: string, c: RawCase, i: number, ma
   const a = calls.map(key).sort(), b = exp.map(key).sort();
   const forbidden = new Set(c.distractors ?? []);
   const lead = store.notes.filter((n) => n.task_id === task && n.from === "lead" && n.to === "user" && !n.refs.includes("testrun"));   // not the copy the runner writes for the UI chat
+  const qs = store.file ? readQa(dirname(store.file)) : undefined, want = (c as { expect_qa?: "stop" | "give_up" | "failed" }).expect_qa;
+  // the master's QA repair loop ended failed (the same issue 3 times in a row = "stopped", or it gave up): the test is FAILED, whatever else matched. A case that EXPECTS that ending passes only when it happened.
+  const qaGate = want ? (qs && qaFailed(qs) && (want === "failed" || qs.status === (want === "stop" ? "stopped" : "gave_up")) ? undefined : `expected the QA loop to end with ${want}, it ended: ${qs?.status ?? "no loop"}`) : qs && qaFailed(qs) ? `QA loop ended failed: ${qs.reason}` : undefined;
   const reply_problem = replyProblem(c.turns[i]!.expected as { reply_must?: string[]; reply_forbid?: string[] }, lead[lead.length - 1]?.text ?? "");   // re-checked in run.ts when the reply comes from the lead's last answer instead of a note
-  return { reply_problem, gate, turn: i + 1, user: c.turns[i]!.user, expectedContext: c.turns[i]!.expected.context, expected: exp, calls, denied,
+  return { reply_problem, gate: gate ?? qaGate, turn: i + 1, user: c.turns[i]!.user, expectedContext: c.turns[i]!.expected.context, expected: exp, calls, denied,
     match: a.length === b.length && a.every((x, k) => x === b[k]), guard: mapped.some((x) => forbidden.has(x.role)), reply: lead[lead.length - 1]?.text ?? "", files: repoFiles };
 }
 

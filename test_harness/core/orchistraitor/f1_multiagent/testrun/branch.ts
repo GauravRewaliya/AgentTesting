@@ -1,5 +1,5 @@
 // branch_run: a case with `branch: "<parent>"` (TestCases/branch.ts) runs in a BRANCH of the parent's master session.
-//   <parent home>/branches/branch_<hex>/   = the parent's session folder WITHOUT `branches/`: it has its workspace, and its store WITHOUT record/ (and without the index)
+//   <parent home>/branches/branch_<hex>/   = the parent's session folder WITHOUT `branches/`: it has its workspace, and its store WITHOUT record/, the index and qa_state.json (a branch starts its own QA loop)
 //   <parent home>/store/index_session.json = the MAIN session's index of its branches: [{ branch, alias, original_claude_id, status }]
 //        alias = the case id; status starts `pending`.
 // The Claude session of the lead is NOT cloned when the branch is made. When the branch RUNS, `cloneIfPending` looks at its row: still `pending` -> the lead is forked on the fly
@@ -19,7 +19,7 @@ export function branchRun(o: { parentDir: string; alias: string }): { branch: st
   mkdirSync(dir, { recursive: true });   // copy entry by entry: a folder cannot be copied into a subfolder of itself
   for (const e of readdirSync(o.parentDir)) {
     if (e === "branches") continue;
-    cpSync(join(o.parentDir, e), join(dir, e), { recursive: true, filter: (src) => { const r = relative(o.parentDir, src).split(sep).join("/"); return !(r === "store/record" || r === "store/index_session.json"); } });
+    cpSync(join(o.parentDir, e), join(dir, e), { recursive: true, filter: (src) => { const r = relative(o.parentDir, src).split(sep).join("/"); return !(r === "store/record" || r === "store/index_session.json" || r === "store/qa_state.json"); } });   // qa_state.json is left out: a branch is a NEW QA loop (the parent's "gave_up" must not fail it before it starts)
   }
   const row: BranchRow = { branch, alias: o.alias, original_claude_id: null, status: "pending", created: new Date().toISOString() };
   writeIndex(o.parentDir, [...readIndex(o.parentDir), row]);

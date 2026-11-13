@@ -5,7 +5,8 @@ export default {
   id: "role-expo-go-eg_solarin_02_7371b88",
   title: "expo-go: solarin-my-app phase 2/3 (7371b88)",
   description: "Applies the real commit 7371b88 \"feat: enhance Rotate3d component; add support for dynamic front and back content, improve flipping logic, and integrate animated styles\" of expo.dev/demos/solarin-johnson -> Solarin-Johnson/my-app: app/3d-rotate/index.tsx, components/3dRotate.tsx",
-  match: { agent: "expo-go", keywords: ["my-app","phase 2 of 3"] },
+  // keywords are only "my-app" ON PURPOSE: the phase order is enforced by `after` (a lead that words the hand-over without "phase N of 3" must still be served; before it got FIXTURE NOT FOUND)
+  match: { agent: "expo-go", keywords: ["my-app"], after: "role-expo-go-eg_solarin_01_754eb25" },
   expected_input: { text: "Phase 2 of 3. Make Rotate3d usable: it takes dynamic front and back content, exposes an imperative handle (flip, flipTo('front'|'back')), uses animated styles for the flip. Then build the screen on top of it: a 'Flip Card' front with a forward button and a back with a back button, themed text, bounce-pressable buttons, a form-like layout (inputs, a slider).", guardrails_test: "hand-over must contain [\"my-app\",\"phase 2 of 3\"] plus run_test and PLAN.md (store/expo_go_rules.json), >= 120 chars" },
   run: (req) => applyPhase(req, {"name":"solarin-my-app","n":2,"dir":"my-app","skills":["expo-router","expo-animation"],"expo_go":"ok","blockers":[]}),
 } satisfies ResultModule;

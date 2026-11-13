@@ -25,7 +25,8 @@ export async function runLead(ctx: CallCtx & { store: MStore }, o: { task_id: st
   ${tools} ls [--path <dir>]                            (READ-ONLY: files in the shared workspace run_test/)
   ${tools} read_file --path <file> [--offset N --limit N]   (READ-ONLY: numbered lines of a file in run_test/)
   ${tools} grep --pattern <regex> [--path <dir>]        (READ-ONLY: matching lines in run_test/)
-  ${tools} qa_check --dir <app folder in run_test/>      (EARLY CHECK of a web/Expo app: type check + dev server + page errors, ~1 min, no video; run it before you report done, hand its reasons to the sub-agent)
+  ${tools} qa_check --dir <app folder in run_test/>      (EARLY CHECK of a web/Expo app: type check + dev server + page errors, ~1 min, no video. On a failure it commits a checkpoint and gives you a hand_over text for the sub-agent)
+  ${tools} qa_give_up --reason "<why>"                  (you may give up; the test is then marked failed. The same issue 3 times in a row also ends it)
   ${tools} apply_patches                                (puts finished writers' files into the project)
   ${tools} plan_answer --plan <id> --item <plan task id> --text "<answer>"   (an agent replied NEEDS_PARENT: you are its parent; answer it, the same agent continues)
   ${tools} agents_list

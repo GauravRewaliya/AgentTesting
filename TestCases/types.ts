@@ -43,6 +43,32 @@ export interface QaReq {
   /** the folders found in run_test (the function can pick one) */
   apps: string[];
 }
+/** What `Case.before_node_run` gets: the node (= one case run, a root, a main-line continuation or a BRANCH) is ready (workspace in place, branch copy made) and the lead has NOT started yet. */
+export interface NodeRunCtx {
+  case_id: string;
+  /** which hook this is: `before` the lead starts, or `after` the node PASSED */
+  phase: "before" | "after";
+  /** root = starts empty, main = continues its parent, branch = fork of `parent` (own folder) */
+  node: "root" | "main" | "branch";
+  parent?: string;
+  /** branch folder name when node is "branch" */
+  branch?: string;
+  /** the workspace of THIS node (git repo) and its run_test folder */
+  workspace: string;
+  run_test: string;
+  /** read a file under run_test (undefined if missing) / write one / replace text in one (false if `from` is not found). All paths are relative to run_test and may not leave it. */
+  read: (path: string) => string | undefined;
+  write: (path: string, text: string) => void;
+  patch: (path: string, from: string | RegExp, to: string) => boolean;
+  /** apply a git patch file (absolute path) inside run_test/<dir> with `git apply -p1`; returns the error text, or "" when it applied */
+  apply_patch: (patchFile: string, dir: string) => string;
+  /** AUTO RUN: mimic what the MASTER would do after the sub-agent node, without a model call: apply the stack of fix commits (git format-patch files in `fixDir`, in file-name order) to run_test/<dir>, make one git commit per patch in the workspace (author "auto_run (mimics the master)"), and write store/auto_run.json (what was found + the commits). Returns the commits, or an `error`. */
+  auto_run: (o: { dir: string; fixDir: string; found: string[] }) => { commits: { sha: string; subject: string; files: string[] }[]; error?: string };
+  /** start a NEW QA loop for this node (deletes store/qa_state.json): a phase of a chain is a new loop, the closed loop of the phase before must not block it */
+  reset_qa: () => void;
+  /** print a line in the run output, prefixed with the hook name */
+  log: (msg: string) => void;
+}
 /** How to record a QA video of a case, or why it cannot be recorded. Returned by `Case.qa(req)`.
  *  static    a plain web page: `app/index.html`, served by the recorder (no network).
  *  expo-web  an Expo app with web support: its own dev server in a container, then the recording (docs/QA_ISSUES.md).
@@ -50,6 +76,16 @@ export interface QaReq {
 export type QaSpec =
   | { enabled: false; why: string }
   | { enabled: true; kind: "static" | "expo-web" | "dev-server"; app: string; route?: string; viewport?: string; start?: string; port?: number; type?: string; note?: string;
+      /** type check stage of the QA run: "strict" (default: a type error stops it), "warn" (reported, the run goes on), "off". Use warn/off when only ONE part of a big repo is run (errors of the other demos must not block it). */
+      typecheck?: "strict" | "warn" | "off";
+      /** how long the page may stay blank while the dev server bundles (default 90 s) and how long the whole container run may take (default 300 s). A big repo (hundreds of demos) needs more. */
+      render_timeout_ms?: number; timeout_ms?: number;
+      /** regexes (strings) of native-only packages to replace, ON WEB ONLY, by an empty stub (every export renders nothing): iOS/Android-only modules (Nitro views, context menus) cannot be bundled for the browser. Added to the default list (^@expo/ui/swift-ui, jetpack-compose). */
+      native_only?: string[];
+      /** OPT-IN, for a big collection repo only: on web an unresolved bare package import becomes an empty stub instead of stopping the bundle (the stubbed names are printed in the dev log). Never use it for an app an agent built: it would hide a missing dependency. */
+      stub_unresolved?: boolean;
+      /** extra Chromium flags for the recording, e.g. software WebGPU: ["--enable-unsafe-webgpu", "--use-angle=swiftshader", "--use-webgpu-adapter=swiftshader"]. */
+      browser_args?: string[];
       /** extra GUIDANCE and COMMANDS about testing, appended to the first user message of the case when `--video` is on (e.g. "start the app with `pnpm exec expo start --web`, then open /3d-rotate"). Only a case that opts in gets it. */
       guide?: string };
 
@@ -77,7 +113,15 @@ export type Case = {
   /** false = no router system prompt (the lead works ALONE, e.g. SoLoWork); default true (the lead only delegates). */
   router?: boolean;
   /** How many times the lead may call a fixture agent (agent.json "fixtures": true) in this case before the case FAILS (default 2). The fixture gate (f1 harness/core/fixture_gate.ts) checks each request: a bad one is corrected and may be retried, a repeat is answered "already done"; the call after the limit fails the case. */
+  /** The case EXPECTS the master's QA repair loop to end failed: "stop" = the same issue 3 times in a row, "give_up" = the master gave up, "failed" = either (the master is free to give up earlier). It passes only when that happened (a normal case that ends so is FAILED). */
+  expect_qa?: "stop" | "give_up" | "failed";
+  /** true = the master's `qa_check` is switched OFF for this case (the tool answers "disabled" and the request says so). For cases that test the DELEGATION only, or whose recorded app is known to be broken (solarin) and has no fix fixture. */
+  no_qa_check?: true;
   max_agent_calls?: number;
+  /** Runs right BEFORE the lead of this node starts (like a fixture, a plain function): the place to put a fix, a broken file or any starting state into the branch's workspace (e.g. "the bug was fixed in the meantime"). Default (not set) = `defaultBeforeNodeRun` (TestCases/branch.ts): only prints what node this is. Not run with `--list`/`--fake`? It runs with `--fake` too (the workspace is real, the lead is not). */
+  before_node_run?: (ctx: NodeRunCtx) => void | Promise<void>;
+  /** Runs right AFTER the node, and ONLY when the node PASSED (a failed case never runs it, so a broken state is never post-processed): e.g. add a file for the next node of the chain, or log a checkpoint. Same ctx as `before_node_run` (`phase: "after"`). Default = prints. It runs before the video / session record, so they see its result. */
+  after_node_run?: (ctx: NodeRunCtx) => void | Promise<void>;
   /** true = a call to a mocked sub-agent that finds NO recorded fixture may go to the REAL sub-agent (a real `claude` call, with its --session-id). Without it, no fixture = the gate raises "FIXTURE NOT FOUND" and the case FAILS. Also marks cases that run without any recorded result (lead alone, real sub-agents, "must NOT call a sub-agent"). Flow: harness/core/fixture_gate.ts. */
   allow_real_subAg?: true;
   /** QA video (`--video` in testrun/run.ts, helper `orchistraitor/helper/video.ts`). A function of the request so it can look at what was built: `qa: (req) => ({ enabled: true, kind: "static", app: "qa-demo" })` says HOW to start and record; `({ enabled: false, why })` says why not. Absent = not declared: `--video` skips the case and says so. */

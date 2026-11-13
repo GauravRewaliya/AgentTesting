@@ -1,10 +1,13 @@
-// bun testrun/run.ts <suite> [case_id ...] [--list] [--fake] [--rerun] [--video]
+// bun testrun/run.ts <suite> [case_id ...] [--list] [--fake] [--rerun] [--video] [--no-planning] [--stop-pause] [--say="next"]
+//   --stop-pause   step mode, "next next next": the lead does ONE step (plan files -> layout wireframe -> themed UI), reports, and STOPS to wait for you. Only the first turn of the case runs; no qa_check, no full build.
+//   --say="next"  continues the case's EXISTING run (same task, same lead conversation, nothing is reset) with that message. Use with --stop-pause: `... <suite> <case> --real --stop-pause --say=next`.
+//   --no-planning  the lead may NOT call the planner (the planner is removed from its agents and the request says so): no plan files, no planning round, the work goes straight to the builders. Use it for a quick run without the planning flow.
 //   --record  write the session record (store/record/*.json) for every case; by default only a case that opts in through `qa` gets one
 //   --video  after each case THAT OPTS IN (Case.qa enabled; all others: nothing), record a QA video of the web page it built (helper/video.ts, Docker; native Expo apps cannot be recorded: it says so). Off by default.
 // Runs a TestCases/test_folders suite on the f1 multi-agent harness (real claude by default, haiku: cents per turn; --fake = scripted agents, no model calls).
 // State goes to test_harness/.state/<version>/<task>/{store,workspace} (one folder per master session, see LAYOUT below). Nothing here reads or writes f1's own ui/.ui-data any more.
 import { branchRun, cloneIfPending } from "./branch.ts";
-import { branchWarnings } from "../../../../../TestCases/branch.ts";
+import { branchWarnings, runBeforeNode } from "../../../../../TestCases/branch.ts";
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -23,14 +26,14 @@ import { agentsFor, declareGateLimit, judgeTurn, replyProblem, reconcileDead, lo
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), ".."), E = process.env, STATE_DIR = join(STATE2_BASE, STATE_VERSION);
 const argv = process.argv.slice(2), flags = new Set(argv.filter((a) => a.startsWith("--"))), [suite, ...want] = argv.filter((a) => !a.startsWith("--"));   // --video-route=/x is read from argv directly
 const STORE = E.UI_STORE ? resolve(E.UI_STORE) : "", REPO = E.UI_REPO ? resolve(E.UI_REPO) : "", EXP_DIR = join(STATE_DIR, "f1_exp");   // which case ran in which task (git-ignored)
-const fake = flags.has("--fake");
+const fake = flags.has("--fake"), noPlanning = flags.has("--no-planning"), stopPause = flags.has("--stop-pause") || flags.has("--stop_pause"), sayMsg = argv.find((a) => a.startsWith("--say="))?.slice(6);   // --say="next" (see header)
 // LAYOUT: one folder per MASTER SESSION (= the case's task id) under test_harness/.state/<version>/:
 //   <task>/store/       the store (store.json + .board), session records, QA videos (qa/): NOT part of the git workspace
 //   <task>/workspace/   the git workspace the agents work in (run_test/ lives here)
 // UI_STORE and UI_REPO (env, both) force ONE shared store and repo instead (one-off scripts).
 const perTask = !E.UI_STORE && !E.UI_REPO, homeOf = (task: string) => join(STATE_DIR, task);
 const storeOf = (task: string) => (perTask ? join(homeOf(task), "store", "store.json") : STORE), repoOf = (task: string) => (perTask ? join(homeOf(task), "workspace") : REPO);
-if (!suite) { console.log("usage: bun testrun/run.ts <suite> [case_id ...] [--list] [--fake] [--rerun] [--video] [--record] [--video-route=/screen]"); process.exit(1); }
+if (!suite) { console.log("usage: bun testrun/run.ts <suite> [case_id ...] [--list] [--fake] [--rerun] [--video] [--record] [--no-planning] [--video-route=/screen]"); process.exit(1); }
 const all = await loadSuites(), mine = all.filter((c) => c.suite === suite);
 for (const w of branchWarnings(all)) console.log("WARNING " + w);   // extra `after` siblings were turned into branches automatically; fix the file when convenient
 if (!mine.length) { console.log(`no suite "${suite}". Suites: ${[...new Set(all.map((c) => c.suite))].join(", ")}`); process.exit(1); }
@@ -61,50 +64,55 @@ const ctx = { store, defs, sessionCap: SESSION_CAP,
   runner: fake ? new ScriptRunner(async () => "(fake lead) done") : new RealRunner(600_000), transcriptExists: fake ? undefined : (_c: string, id: string) => transcriptExistsAnywhere(id) };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-let failed = 0;
+let failed = 0; const notPassed = new Set<string>();   // cases of THIS run that failed or were skipped: their children must not run (a child continues the parent's state)
 for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   const why = unsupported(c);
   if (why) { console.log(`\n## ${c.id}: SKIPPED  ${why}`); continue; }
   warnMissingFixtures(c);   // fixtures live in ONE place (agent_fixture); a case without one warns unless it says allow_real_subAg: true
+  if (c.after && (notPassed.has(c.after) || (exp[c.after] as { status?: string } | undefined)?.status === "fail")) { console.log(`\n## ${c.id}: SKIPPED  its parent "${c.after}" did not pass (a child continues the parent's state; fix the parent first)`); notPassed.add(c.id); failed++; continue; }
   if (c.after && !exp[c.after]?.done) { console.log(`\n## ${c.id}: needs "${c.after}" to run first (run the suite in order, or name both)`); failed++; continue; }
   const rerun = !!exp[c.id], planned = taskFor(c, all, exp), task = planned;   // a rerun never overwrites: it is a new task you can compare
-  if (rerun && !flags.has("--rerun")) { console.log(`\n## ${c.id}: already ran in task ${exp[c.id]!.task} (--rerun runs it again in a new task)`); continue; }
+  if (rerun && !flags.has("--rerun") && !sayMsg) { console.log(`\n## ${c.id}: already ran in task ${exp[c.id]!.task} (--rerun runs it again in a new task)`); continue; }
   // HOME of this run: a root case has its own; a case that CONTINUES its parent uses the parent's; a BRANCH (a second child of the same parent) starts from a COPY of the parent's session folder (same task id, so the parent's agents and sessions are still there)
   const parentEnt = c.after ? (exp[c.after] as { task: string; home?: string } | undefined) : undefined, isBranch = !!parentEnt && planned !== parentEnt.task, sfx = task.slice(planned.length);
   // a FRESH run (a root case or a branch) must never reuse a session folder that already exists: it holds the agents, sessions and served results of an earlier run (the planner would answer "already done")
   // a FRESH run (a root case or a branch) never reuses a session folder (it holds the agents, sessions and served results of an earlier run): the previous run is MOVED to old_data_bkp/v1_runs/ and the clean name (t_<case>) is used again
   const archive = (k: string) => { if (perTask && existsSync(homeOf(k))) { const to = join(STATE_DIR, "..", "..", "..", "old_data_bkp", "v1_runs", `${k}-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}`); mkdirSync(dirname(to), { recursive: true }); renameSync(homeOf(k), to); } return k; };
   const fresh = archive;
-  const runTask = isBranch ? parentEnt!.task : parentEnt ? task : fresh(task); let homeKey: string =  isBranch ? (perTask ? "" : fresh(planned + sfx)) : parentEnt ? (parentEnt.home ?? parentEnt.task) : runTask;
+  const runTask = isBranch ? parentEnt!.task : parentEnt ? task : sayMsg ? exp[c.id]!.task : fresh(task); let homeKey: string =  isBranch ? (perTask ? "" : fresh(planned + sfx)) : parentEnt ? (parentEnt.home ?? parentEnt.task) : sayMsg ? (exp[c.id]!.home ?? runTask) : runTask;
   // BRANCH (testrun/branch.ts): <parent home>/branches/branch_<hex>/ = workspace + store copy (no record/); its row in the MAIN session's index_session.json starts `pending`
   let branchInfo: { branch: string; parentDir: string } | undefined;
   if (perTask && isBranch) { const pk = parentEnt!.home ?? parentEnt!.task, b = branchRun({ parentDir: homeOf(pk), alias: c.id }); homeKey = pk + "/branches/" + b.branch; branchInfo = { branch: b.branch, parentDir: homeOf(pk) }; }
-  const ent = (exp[c.id] = { case: c.id, task: runTask, home: homeKey, suite, agents: agentsFor(c), marks: [] as number[], started: [] as number[], done: 0, at: Date.now() } as { case: string; task: string; suite: string; agents: string[]; marks: number[]; started: number[]; done: number; at: number });
+  const ent = (exp[c.id] = sayMsg ? (exp[c.id] as never) : { case: c.id, task: runTask, home: homeKey, suite, agents: agentsFor(c), marks: [] as number[], started: [] as number[], done: 0, at: Date.now() } as { case: string; task: string; suite: string; agents: string[]; marks: number[]; started: number[]; done: number; at: number });
   console.log(`\n## ${c.id}: ${c.title}   [task ${runTask}${homeKey !== runTask ? ", home " + homeKey : ""}, agents: ${ent.agents.join(", ")}]`);
   const store = perTask ? new MStore(storeOf(homeKey)) : gstore, REPO = repoOf(homeKey);   // this master session's own store and workspace (see LAYOUT)
   if (perTask) { mkdirSync(join(homeOf(homeKey), "store"), { recursive: true }); ensureRepo(REPO); }
-  if (!c.after) rmSync(join(REPO, "run_test"), { recursive: true, force: true });   // ISOLATION: a case that does not continue another starts with an empty workspace (the lead can now `ls` it: leftovers of the case before would mislead it)
-  { const seeded = c.after ? null : seedStart(c.turns[0]!.user, REPO); if (seeded) console.log(`   starting state   : ${seeded}`); }
-  if (!c.after && c.seed) { for (const [p, t] of Object.entries(c.seed)) { const f = join(REPO, "run_test", p); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, t); } console.log(`   starting state   : seed files ${Object.keys(c.seed).join(", ")}`); }
+  if (!c.after && !sayMsg) { rmSync(join(REPO, "run_test"), { recursive: true, force: true }); mkdirSync(join(REPO, "run_test"), { recursive: true }); }   // an EXISTING empty run_test: the first patch of a writer must find its folder (it was lost when the folder was missing)   // ISOLATION: a case that does not continue another starts with an empty workspace (the lead can now `ls` it: leftovers of the case before would mislead it)
+  { const seeded = c.after || sayMsg ? null : seedStart(c.turns[0]!.user, REPO); if (seeded) console.log(`   starting state   : ${seeded}`); }
+  if (!c.after && !sayMsg && c.seed) { for (const [p, t] of Object.entries(c.seed)) { const f = join(REPO, "run_test", p); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, t); } console.log(`   starting state   : seed files ${Object.keys(c.seed).join(", ")}`); }
+  // before_node_run: the case's own function (default = prints the node) puts any starting state into THIS node's workspace (e.g. "the bug was fixed meanwhile" in a branch), right before the lead starts
+  await runBeforeNode(c, { node: branchInfo ? "branch" : c.after ? "main" : "root", parent: c.after, branch: branchInfo?.branch, workspace: REPO });
+  { const flag = join(homeOf(homeKey), "store", "qa_disabled"); if ((c as { no_qa_check?: boolean }).no_qa_check) { mkdirSync(dirname(flag), { recursive: true }); writeFileSync(flag, "off by the test case (no_qa_check)\n"); console.log("   qa_check         : switched OFF for this case (no_qa_check)"); } else rmSync(flag, { force: true }); }
   // QA is OPT-IN per case (Case.qa): only a case whose qa function says enabled takes a video / writes a session record; every other case does neither. Its `guide` (testing guidance and commands) is added to the first message when --video is on.
   const qaReq = (apps: string[]) => ({ workspace: REPO, run_test: join(REPO, "run_test"), session: runTask, apps });
   const qaGuide = flags.has("--video") && c.qa ? (() => { const q = c.qa!(qaReq([])); return q.enabled ? q.guide : undefined; })() : undefined;
+  const turns = sayMsg ? [{ user: sayMsg, expected: { context: "(step: the person said \"" + sayMsg + "\")", expected_agents_res: [] as string[] } }] : stopPause ? c.turns.slice(0, 1) : c.turns;
   const judged = []; let cost = 0, leadCost = 0;
-  for (let i = 0; i < c.turns.length; i++) {
+  for (let i = 0; i < turns.length; i++) {
     store.reload(); ent.marks[i] = store.calls.filter((x) => x.task_id === runTask).length; ent.started[i] = Date.now(); saveExp(ent);
     declareGateLimit(store, runTask, c);
-    store.tx(() => { const n = say(store, runTask, "user", "lead", c.turns[i]!.user, ["testrun"], Infinity); n.read_by.push("lead"); });   // the chat of the UI (Experiment page) shows these notes: a test run has a conversation too
+    store.tx(() => { const n = say(store, runTask, "user", "lead", turns[i]!.user, ["testrun"], Infinity); n.read_by.push("lead"); });   // the chat of the UI (Experiment page) shows these notes: a test run has a conversation too
     // a branch's lead is a clone of the parent's lead session, made NOW (status pending -> cloned), not when the branch folder was made
     const forceSel = branchInfo && i === 0 ? cloneIfPending({ parentDir: branchInfo.parentDir, branch: branchInfo.branch, parentClaudeId: store.agentsOf(runTask).find((a) => a.name === "lead")?.session_id }) : undefined;
     if (forceSel) console.log(`   branch ${branchInfo!.branch}: lead session cloned from ${forceSel.fork_from!.slice(0, 8)} (index_session.json: pending -> cloned)`);
-    const out = await runLead({ ...ctx, store } as never, { forceSel, task_id: runTask, repo: REPO, request: c.turns[i]!.user + (i === 0 && qaGuide ? `\n\n[Testing guidance for this task]\n${qaGuide}` : ""), maxDepth: 4, runner: fake ? "fake" : "real", writerMode: "shared", agents: ent.agents });
+    const out = await runLead({ ...ctx, store } as never, { forceSel, task_id: runTask, repo: REPO, request: turns[i]!.user + ((c as { no_qa_check?: boolean }).no_qa_check ? "\n\n[Test setup] The automatic check (`qa_check`) is switched off for this task: do not run it. Judge only that the work was handed to the right agent with a good hand-over; do not send the agent back to polish or fix what it already delivered." : "") + (stopPause ? "\n\n[Test setup] STEP MODE: work ONE step at a time, then STOP and wait for the person to say 'next'. Steps: (1) the plan files, (2) the LAYOUT wireframe (clickable, no styling), (3) the exact UX/UI of the FE with one theme and the fake-data module. Do ONLY the next step that is not done yet (what the person says continues from where you stopped), tell them what you made and where (paths), and end your answer with: Say 'next' to continue. Do not do the whole thing, and do not run qa_check or tests." : "") + (noPlanning ? "\n\n[Test setup] Planning is switched off (--no-planning): do not call the planner and do not write plan files; hand the work straight to the builders." : "") + (i === 0 && qaGuide ? `\n\n[Testing guidance for this task]\n${qaGuide}` : ""), maxDepth: 4, runner: fake ? "fake" : "real", writerMode: "shared", agents: noPlanning ? ent.agents.filter((a: string) => a !== "planner") : ent.agents });
     store.reload();
     // let the sub-agents the lead left running (--async) finish before judging
     for (let w = 0; w < 600 && store.agentsOf(runTask).some((a) => a.status === "running" && a.name !== "lead"); w++) { await sleep(1000); store.reload(); }
     const files = existsSync(REPO) ? readdirSync(REPO).filter((f) => f !== ".git") : [];
-    const j = judgeTurn(store, runTask, c, i, ent.marks[i]!, undefined, files, new Set(defs.keys()));
+    const j = judgeTurn(store, runTask, { ...c, turns } as never, i, ent.marks[i]!, undefined, files, new Set(defs.keys()));
     if (!j.reply && out.ok) j.reply = out.reply;
-    j.reply_problem = replyProblem(c.turns[i]!.expected as { reply_must?: string[]; reply_forbid?: string[] }, j.reply);   // judge the FINAL reply (the fallback above fills it when the lead sent no note)
+    j.reply_problem = replyProblem(turns[i]!.expected as { reply_must?: string[]; reply_forbid?: string[] }, j.reply);   // judge the FINAL reply (the fallback above fills it when the lead sent no note)
     judged.push(j); ent.done = i + 1; saveExp(ent);
     if (j.reply) store.tx(() => { const n = say(store, runTask, "lead", "user", j.reply, ["testrun"], Infinity); n.read_by.push("user"); });   // the lead's final answer of this turn (the chat shows it)
     leadCost += (out as { cost?: number }).cost ?? 0; cost = leadCost + costOf(store, runTask, out.row.agent_id);   // the lead's own cost (claude total_cost_usd) + real sub-agents (fixtures cost 0)
@@ -116,7 +124,9 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
     for (const x of j.denied) console.log(`   REFUSED          : ${x.role} ${x.reason}`);
     console.log("   lead reply       : " + j.reply.replace(/\s+/g, " ").slice(0, 400));
   }
-  if (statusOf(judged) !== "pass") failed++;
+  (ent as { status?: string }).status = statusOf(judged); saveExp(ent);
+  if (statusOf(judged) !== "pass") { failed++; notPassed.add(c.id); }
+  else await runBeforeNode(c, { phase: "after", node: branchInfo ? "branch" : c.after ? "main" : "root", parent: c.after, branch: branchInfo?.branch, workspace: REPO });   // after_node_run: ONLY on a pass (default = prints)
   const runTestDir = join(REPO, "run_test"), qaEnd = c.qa ? c.qa(qaReq(existsSync(runTestDir) ? readdirSync(runTestDir) : [])) : null, takes = !!qaEnd?.enabled;   // the case's own function decides
   if (flags.has("--video") && takes) {   // a case that does not opt in does NOTHING here
     try { const route = argv.find((a) => a.startsWith("--video-route="))?.split("=")[1], v = await videoAfterRun({ workspace: REPO, storeDir: dirname(storeOf(homeKey)), route, qa: qaEnd });

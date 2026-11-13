@@ -17,6 +17,8 @@ Read this first so you do not have to rediscover the project. Keep it short and 
 | a suite in parallel | `bun testrun/par.ts <suite> --jobs=4` (`HARNESS_MAX_LEADS` caps leads) |
 | branch from a case | `testrun/branch.ts` |
 | video / session record | `--video` (only cases with `qa` on), `--record` (any case) |
+| no planner | `--no-planning`: the lead cannot call the planner (no plan files, straight to builders) |
+| step mode | `--stop-pause`: the lead does ONE step (plan -> layout -> themed UI), stops, waits. Continue the same run: `--say=next` (no reset). No qa_check, no full build |
 | real sub-agents | `--real` only for `allow_real_subAg` cases, always `HARNESS_SANDBOX=docker` |
 
 Run output: `.state/v1/<task>/{store,workspace}`; QA state in `store/qa_state.json`; the workspace is a git repo (`git log` shows QA checkpoints).

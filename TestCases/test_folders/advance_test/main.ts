@@ -100,4 +100,51 @@ export const cases: Case[] = [
       },
     }],
   },
+  {
+    ...base, id: "adv_6_stuck_fix_stops", qa: noUi("checked with qa_check"), tags: ["single_prompt"], max_agent_calls: 5, agents: ["stage-builder"], expect_qa: "failed",
+    title: "[NEGATIVE] the fix never works: the same issue 3 times in a row (or the master gives up) ends the QA loop and the test is marked failed (this case EXPECTS that ending)",
+    turns: [{
+      user: "Build a tiny Vite + React + TypeScript counter in run_test/counter-stuck, working from a PLAN.md in that folder (count shown, a button adds one). Before you tell me it is done, check that the app really works and have anything broken fixed.",
+      allowed: ["stage-builder"],
+      expected: {
+        context: "stage-builder says Done but src/App.tsx has TS2345. The lead runs qa_check (checkpoint commit, attempt 1 of 3) and hands the exact error to the builder; the builder's 'fix' only adds a comment, so the SAME issue comes back (attempt 2, then 3). At the 3rd identical failure qa_check says STOP, the test is marked failed and the lead must report honestly that it could not be fixed. The master may also give up earlier (allowed, never forced). The case passes only if the QA loop ended failed either way (expect_qa: failed).",
+        expected_agents_res: ["adv-stuck-build", "adv-stuck-fix"],
+      },
+    }],
+  },
+  // ── branches of adv_6: the same broken app, two futures. before_node_run (TestCases/types.ts NodeRunCtx) prepares the branch workspace, default = prints only. ──
+  {
+    ...base, id: "adv_6a_bug_remains_master_detects", branch_from: "adv_6_stuck_fix_stops", qa: noUi("checked with qa_check"), tags: ["single_prompt"], max_agent_calls: 10, agents: ["stage-builder"], expect_qa: "failed",
+    // no before_node_run: the default only prints; the bug REMAINS in this branch
+    title: "[NEGATIVE, branch of adv_6] the bug REMAINS: the master must see the builder cannot fix it, look deeper itself, and end the QA loop failed (3x same issue, or give up with evidence)",
+    turns: [{
+      user: "The stage-builder has been updated since your last try. Try again on run_test/counter-stuck (it still does not pass its check): hand the job to the stage-builder only (no other agent, work from the PLAN.md in that folder), then run the check to prove it before you tell me the result.",
+      allowed: ["stage-builder"],
+      expected: {
+        context: "The builder's 'fix' changes nothing that matters (fixture adv-stuck-fix, served for ANY hand-over about counter-stuck). After each fix the lead must re-run qa_check (same issue, count 1,2,3) and, when the same error returns, look into the file itself (read_file) and change its hand-over (exact line) instead of repeating it. The loop must END FAILED: stop at the 3rd identical failure, or a qa_give_up whose reason names the evidence. It must NEVER report the app as done.",
+        expected_agents_res: ["session:stage-builder#2"],   // the fix was already served in the parent: in this branch the same fixture answers from the session table (a replay, still no fix)
+        reply_forbid: ["works now", "now passes"],
+      },
+    }],
+  },
+  {
+    ...base, id: "adv_6b_bug_fixed_quick_video", branch_from: "adv_6_stuck_fix_stops", allow_real_subAg: true as const, agents: ["stage-builder"], tags: ["single_prompt"], max_agent_calls: 6,
+    // the bug was fixed "in the meantime": put the fix into THIS branch's workspace before the lead starts (a real two-line change, the same one adv-broken-fix makes)
+    before_node_run: (ctx) => {
+      const ok = ctx.patch("counter-stuck/src/App.tsx", /useState<number>\("0"\);[^\n]*/, "useState<number>(0);");
+      ctx.log(ok ? "applied the fix to counter-stuck/src/App.tsx (useState<number>(0))" : "WARNING: the bug line was not found (the parent run left a different file?)");
+    },
+    qa: () => ({ enabled: true, kind: "dev-server", app: "counter-stuck", start: "corepack pnpm exec vite --host 0.0.0.0 --port 5173", port: 5173, viewport: "1280x720", note: "the fixed counter: Count: 0, click the button, Count: 1",
+      guide: "To test: run `qa_check --dir counter-stuck` first (it must be healthy). The recording starts the Vite dev server (port 5173) and opens it in a browser." }),
+    title: "[branch of adv_6] the bug was FIXED meanwhile (before_node_run): a quick check must pass and, with --video, the QA session is recorded; no sub-agent needed",
+    turns: [{
+      user: "The type error in run_test/counter-stuck was fixed by hand. Run the check on it and tell me honestly whether it passes now. Do not change any code and do not call a sub-agent.",
+      allowed: [],
+      expected: {
+        context: "The lead alone: one qa_check on counter-stuck (healthy now: the branch workspace was patched by before_node_run, and the branch has a NEW QA loop). No sub-agent call. Final reply says it passes. With --video the dev-server recording is made (store/qa/) and the session record is written.",
+        expected_agents_res: [],
+        reply_forbid: ["still fails", "could not"],
+      },
+    }],
+  },
 ];

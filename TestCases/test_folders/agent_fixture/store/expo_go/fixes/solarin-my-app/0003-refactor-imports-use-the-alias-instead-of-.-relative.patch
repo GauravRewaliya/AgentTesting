@@ -1,0 +1,331 @@
+From f658d7c6712687dc9c33a113d3567726e9caceb2 Mon Sep 17 00:00:00 2001
+From: harness <h@l>
+Date: Fri, 13 Nov 2026 11:46:21 +0530
+Subject: [PATCH 3/3] refactor(imports): use the @/ alias instead of ../
+ relative imports
+
+No more ../ or ./../ imports inside the app: every cross-folder import is @/<path from the project root> (tsconfig paths '@/*' already existed and 35 files already used it). Easier to read and to move files later.
+---
+ app/keyboard-ctrl/index.tsx         | 2 +-
+ components/DrawerContent.tsx        | 2 +-
+ components/safari-bar/article.tsx   | 2 +-
+ components/safari-bar/bar.tsx       | 4 ++--
+ components/safari-bar/header.tsx    | 4 ++--
+ components/slack/banner.tsx         | 2 +-
+ components/slack/header.tsx         | 2 +-
+ components/slack/index.tsx          | 4 ++--
+ components/slack/message-bar.tsx    | 4 ++--
+ components/slack/message-box.tsx    | 4 ++--
+ components/stacked-input/input.tsx  | 4 ++--
+ components/stacked-input/switch.tsx | 2 +-
+ components/ui/Button.tsx            | 2 +-
+ components/ui/Logo.tsx              | 2 +-
+ components/ui/TextLink.tsx          | 2 +-
+ components/ui/glassy-view.tsx       | 2 +-
+ components/untitled/bottom-bar.tsx  | 6 +++---
+ components/untitled/button.tsx      | 4 ++--
+ components/untitled/card.tsx        | 4 ++--
+ components/untitled/header.tsx      | 2 +-
+ 20 files changed, 30 insertions(+), 30 deletions(-)
+
+diff --git a/app/keyboard-ctrl/index.tsx b/app/keyboard-ctrl/index.tsx
+index e9a693d..18711ee 100644
+--- a/app/keyboard-ctrl/index.tsx
++++ b/app/keyboard-ctrl/index.tsx
+@@ -1,5 +1,5 @@
+ import React from "react";
+-import BottomBar from "../../components/BottomBar";
++import BottomBar from "@/components/BottomBar";
+ 
+ export default function KeyboardCtrl() {
+   return <BottomBar />;
+diff --git a/components/DrawerContent.tsx b/components/DrawerContent.tsx
+index ac638dd..a5c6a92 100644
+--- a/components/DrawerContent.tsx
++++ b/components/DrawerContent.tsx
+@@ -92,7 +92,7 @@ const DrawerFooter = () => {
+     <View style={styles.footer}>
+       <View style={styles.cluster}>
+         <Image
+-          source={require("@/assets/images/dp.png")}
++          source={require("../assets/images/dp.png")}
+           style={styles.image}
+         />
+         <ThemedText style={styles.footerText}>Solarin</ThemedText>
+diff --git a/components/safari-bar/article.tsx b/components/safari-bar/article.tsx
+index bec9488..3c156bf 100644
+--- a/components/safari-bar/article.tsx
++++ b/components/safari-bar/article.tsx
+@@ -1,6 +1,6 @@
+ import React from "react";
+ import { View, StyleSheet } from "react-native";
+-import { ThemedText } from "../ThemedText";
++import { ThemedText } from "@/components/ThemedText";
+ 
+ type ArticleProps = {
+   title: string;
+diff --git a/components/safari-bar/bar.tsx b/components/safari-bar/bar.tsx
+index 7a3ae6f..bcedb8e 100644
+--- a/components/safari-bar/bar.tsx
++++ b/components/safari-bar/bar.tsx
+@@ -18,11 +18,11 @@ import Animated, {
+   useSharedValue,
+   withTiming,
+ } from "react-native-reanimated";
+-import ProgressiveFade from "../ProgressiveFade";
++import ProgressiveFade from "@/components/ProgressiveFade";
+ import { useSafeAreaInsets } from "react-native-safe-area-context";
+ import { GlassContainer, GlassView } from "expo-glass-effect";
+ import Ionicons from "@expo/vector-icons/Ionicons";
+-import { ThemedText, ThemedTextWrapper } from "../ThemedText";
++import { ThemedText, ThemedTextWrapper } from "@/components/ThemedText";
+ import Entypo from "@expo/vector-icons/Entypo";
+ 
+ const AnimatedGlassView = Animated.createAnimatedComponent(GlassView);
+diff --git a/components/safari-bar/header.tsx b/components/safari-bar/header.tsx
+index 254449b..6cf97da 100644
+--- a/components/safari-bar/header.tsx
++++ b/components/safari-bar/header.tsx
+@@ -1,8 +1,8 @@
+ import { View, TouchableOpacity, StyleSheet } from "react-native";
+ import { Ionicons } from "@expo/vector-icons";
+-import { ThemedText, ThemedTextWrapper } from "../ThemedText";
++import { ThemedText, ThemedTextWrapper } from "@/components/ThemedText";
+ import { useThemeColor } from "@/hooks/useThemeColor";
+-import ResponsiveText from "../ResponsiveText";
++import ResponsiveText from "@/components/ResponsiveText";
+ 
+ interface HeaderProps {
+   title: string;
+diff --git a/components/slack/banner.tsx b/components/slack/banner.tsx
+index 7eb231e..534438c 100644
+--- a/components/slack/banner.tsx
++++ b/components/slack/banner.tsx
+@@ -1,7 +1,7 @@
+ import { View, Text, StyleSheet } from "react-native";
+ import React from "react";
+ import { Image } from "expo-image";
+-import { ThemedText } from "../ThemedText";
++import { ThemedText } from "@/components/ThemedText";
+ import { DATA } from "./config";
+ 
+ export default function SlackBanner() {
+diff --git a/components/slack/header.tsx b/components/slack/header.tsx
+index 853ecd7..483d86f 100644
+--- a/components/slack/header.tsx
++++ b/components/slack/header.tsx
+@@ -2,7 +2,7 @@
+ import { Sparkles } from "lucide-react-native";
+ import { View, Text, StyleSheet, Modal, Pressable } from "react-native";
+ import { NativeStackHeaderRightProps } from "react-native-screen-transitions";
+-import { ThemedTextWrapper } from "../ThemedText";
++import { ThemedTextWrapper } from "@/components/ThemedText";
+ import { Button, ContextMenu, Host } from "@expo/ui/swift-ui";
+ import { useSafeAreaInsets } from "react-native-safe-area-context";
+ import { useState } from "react";
+diff --git a/components/slack/index.tsx b/components/slack/index.tsx
+index 04dffe1..83b8852 100644
+--- a/components/slack/index.tsx
++++ b/components/slack/index.tsx
+@@ -7,7 +7,7 @@ import {
+ } from "react-native";
+ import React, { ReactElement } from "react";
+ import { Image } from "expo-image";
+-import { ThemedText, ThemedTextWrapper } from "../ThemedText";
++import { ThemedText, ThemedTextWrapper } from "@/components/ThemedText";
+ import Animated, {
+   SharedValue,
+   useAnimatedStyle,
+@@ -20,7 +20,7 @@ import { Ellipsis, X } from "lucide-react-native";
+ import AntDesign from "@expo/vector-icons/AntDesign";
+ import Feather from "@expo/vector-icons/Feather";
+ import { useThemeColor } from "@/hooks/useThemeColor";
+-import { ThemedView } from "../ThemedView";
++import { ThemedView } from "@/components/ThemedView";
+ import Entypo from "@expo/vector-icons/Entypo";
+ // import { Button, ContextMenu, Host, Text as UIText } from "@expo/ui/swift-ui";
+ 
+diff --git a/components/slack/message-bar.tsx b/components/slack/message-bar.tsx
+index 5799ddb..b71324b 100644
+--- a/components/slack/message-bar.tsx
++++ b/components/slack/message-bar.tsx
+@@ -1,11 +1,11 @@
+ import { View, Text, StyleSheet, Pressable, TextInput } from "react-native";
+ import { GlassView } from "expo-glass-effect";
+ import { useSafeAreaInsets } from "react-native-safe-area-context";
+-import { ThemedTextWrapper } from "../ThemedText";
++import { ThemedTextWrapper } from "@/components/ThemedText";
+ import { Mic, Plus } from "lucide-react-native";
+ import { useThemeColor } from "@/hooks/useThemeColor";
+ import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+-import { ThemedView } from "../ThemedView";
++import { ThemedView } from "@/components/ThemedView";
+ 
+ export default function MessageBar() {
+   const { bottom } = useSafeAreaInsets();
+diff --git a/components/slack/message-box.tsx b/components/slack/message-box.tsx
+index 305f2cd..1af4d0d 100644
+--- a/components/slack/message-box.tsx
++++ b/components/slack/message-box.tsx
+@@ -1,7 +1,7 @@
+ import React from "react";
+ import { View, StyleSheet } from "react-native";
+ import { DATA } from "./config";
+-import { ThemedText } from "../ThemedText";
++import { ThemedText } from "@/components/ThemedText";
+ import { Image } from "expo-image";
+ import { Link } from "expo-router";
+ 
+@@ -22,7 +22,7 @@ const MessageBox = () => {
+     <View style={styles.container}>
+       <View style={styles.leftContainer}>
+         <Image
+-          source={require("@/assets/images/dp.png")}
++          source={require("../../assets/images/dp.png")}
+           style={styles.profileImage}
+         />
+       </View>
+diff --git a/components/stacked-input/input.tsx b/components/stacked-input/input.tsx
+index 1a18700..a4d750d 100644
+--- a/components/stacked-input/input.tsx
++++ b/components/stacked-input/input.tsx
+@@ -11,8 +11,8 @@ import Animated, {
+ import { useStackedInput } from "./provider";
+ import { BlurView } from "expo-blur";
+ import { scheduleOnRN } from "react-native-worklets";
+-import { ThemedView } from "../ThemedView";
+-import { ThemedTextWrapper } from "../ThemedText";
++import { ThemedView } from "@/components/ThemedView";
++import { ThemedTextWrapper } from "@/components/ThemedText";
+ 
+ const TRANSFORM_DISTANCE = -6;
+ const SCALE_FACTOR = 0.95;
+diff --git a/components/stacked-input/switch.tsx b/components/stacked-input/switch.tsx
+index bfa531a..8b1110f 100644
+--- a/components/stacked-input/switch.tsx
++++ b/components/stacked-input/switch.tsx
+@@ -6,7 +6,7 @@ import {
+   StyleSheet,
+ } from "react-native";
+ import React, { useState } from "react";
+-import { ThemedText } from "../ThemedText";
++import { ThemedText } from "@/components/ThemedText";
+ 
+ interface CustomSwitchProps extends SwitchProps {
+   title?: string;
+diff --git a/components/ui/Button.tsx b/components/ui/Button.tsx
+index ce994bf..dcd93a8 100644
+--- a/components/ui/Button.tsx
++++ b/components/ui/Button.tsx
+@@ -1,6 +1,6 @@
+ import React from "react";
+ import { Pressable, StyleSheet, ViewStyle, TextStyle } from "react-native";
+-import { ThemedText, ThemedTextProps } from "../ThemedText";
++import { ThemedText, ThemedTextProps } from "@/components/ThemedText";
+ 
+ interface ButtonProps {
+   title: string;
+diff --git a/components/ui/Logo.tsx b/components/ui/Logo.tsx
+index 1937811..426878a 100644
+--- a/components/ui/Logo.tsx
++++ b/components/ui/Logo.tsx
+@@ -1,6 +1,6 @@
+ import { View } from "react-native";
+ import React from "react";
+-import { LogoIcon } from "../icons";
++import { LogoIcon } from "@/components/icons";
+ import { useThemeColor } from "@/hooks/useThemeColor";
+ 
+ export default function Logo() {
+diff --git a/components/ui/TextLink.tsx b/components/ui/TextLink.tsx
+index e6655f2..e9bb66d 100644
+--- a/components/ui/TextLink.tsx
++++ b/components/ui/TextLink.tsx
+@@ -1,5 +1,5 @@
+ import { TouchableOpacity, TouchableOpacityProps } from "react-native";
+-import { ThemedText, ThemedTextProps, ThemedTextWrapper } from "../ThemedText";
++import { ThemedText, ThemedTextProps, ThemedTextWrapper } from "@/components/ThemedText";
+ import * as WebBrowser from "expo-web-browser";
+ import { isValidElement } from "react";
+ 
+diff --git a/components/ui/glassy-view.tsx b/components/ui/glassy-view.tsx
+index 3e0ed63..3e1ac22 100644
+--- a/components/ui/glassy-view.tsx
++++ b/components/ui/glassy-view.tsx
+@@ -2,7 +2,7 @@
+ import { StyleSheet, View } from "react-native";
+ import { GlassContainer, GlassView } from "expo-glass-effect";
+ import { Image } from "expo-image";
+-import { ThemedText } from "../ThemedText";
++import { ThemedText } from "@/components/ThemedText";
+ 
+ export default function GlassViewComponent() {
+   return (
+diff --git a/components/untitled/bottom-bar.tsx b/components/untitled/bottom-bar.tsx
+index b47eb67..b012758 100644
+--- a/components/untitled/bottom-bar.tsx
++++ b/components/untitled/bottom-bar.tsx
+@@ -7,12 +7,12 @@ import Animated, {
+   useAnimatedStyle,
+ } from "react-native-reanimated";
+ import Feather from "@expo/vector-icons/Feather";
+-import { ThemedView, ThemedViewWrapper } from "../ThemedView";
++import { ThemedView, ThemedViewWrapper } from "@/components/ThemedView";
+ import Ionicons from "@expo/vector-icons/Ionicons";
+ import { Colors } from "@/constants/Colors";
+ import { useThemeColor } from "@/hooks/useThemeColor";
+-import { ThemedText } from "../ThemedText";
+-import PressableBounce from "../PresableBounce";
++import { ThemedText } from "@/components/ThemedText";
++import PressableBounce from "@/components/PresableBounce";
+ 
+ const SPACING = 14;
+ const GAP = 10;
+diff --git a/components/untitled/button.tsx b/components/untitled/button.tsx
+index 142d9c8..6c721c0 100644
+--- a/components/untitled/button.tsx
++++ b/components/untitled/button.tsx
+@@ -1,8 +1,8 @@
+ import { View, Pressable, StyleSheet } from "react-native";
+ import React, { ReactElement } from "react";
+-import { ThemedTextWrapper } from "../ThemedText";
++import { ThemedTextWrapper } from "@/components/ThemedText";
+ import { useThemeColor } from "@/hooks/useThemeColor";
+-import PressableBounce from "../PresableBounce";
++import PressableBounce from "@/components/PresableBounce";
+ 
+ export default function UntitledButton({
+   children,
+diff --git a/components/untitled/card.tsx b/components/untitled/card.tsx
+index 6373481..c3cb44b 100644
+--- a/components/untitled/card.tsx
++++ b/components/untitled/card.tsx
+@@ -1,10 +1,10 @@
+ import { View, StyleSheet } from "react-native";
+ import React from "react";
+-import { ThemedText, ThemedTextWrapper } from "../ThemedText";
++import { ThemedText, ThemedTextWrapper } from "@/components/ThemedText";
+ import { Colors } from "@/constants/Colors";
+ import { Link } from "expo-router";
+ import Ionicons from "@expo/vector-icons/Ionicons";
+-import PressableBounce from "../PresableBounce";
++import PressableBounce from "@/components/PresableBounce";
+ 
+ export const UntitledCardMini = ({
+   name = "untitled project",
+diff --git a/components/untitled/header.tsx b/components/untitled/header.tsx
+index a48bab2..632c14f 100644
+--- a/components/untitled/header.tsx
++++ b/components/untitled/header.tsx
+@@ -1,7 +1,7 @@
+ import { View, StyleSheet, StyleProp, ViewStyle } from "react-native";
+ import React from "react";
+ import { useSafeAreaInsets } from "react-native-safe-area-context";
+-import { ThemedText } from "../ThemedText";
++import { ThemedText } from "@/components/ThemedText";
+ import Animated, {
+   interpolate,
+   useAnimatedStyle,
+-- 
+2.34.1
+

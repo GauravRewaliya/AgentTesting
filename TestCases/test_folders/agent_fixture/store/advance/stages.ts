@@ -98,3 +98,9 @@ export function brokenFix(req: Req, dir: string): string {
   req.write(`${dir}/src/App.tsx`, APP_GOOD);
   return `You are right, sorry: the type error was mine (useState<number>("0")). Fixed src/App.tsx: the state starts at the number 0. Nothing else changed.\n` + rep({ stage: "fix", summary: "fixed TS2345 in src/App.tsx", files: [`${dir}/src/App.tsx`] });
 }
+
+// adv_6 (stuck): the "fix" says it fixed the error but only adds a comment, so the SAME type error comes back every time (the QA loop must stop after 3 identical failures).
+export function stuckFix(req: Req, dir: string): string {
+  req.write(`${dir}/src/App.tsx`, APP_BAD);   // idempotent: the same bad file every time (a growing comment would shift the line numbers between attempts)
+  return `Fixed it: I tidied src/App.tsx and the state setup. (Nothing that matters changed.)\n` + rep({ stage: "fix", summary: "tidy-up of src/App.tsx", files: [`${dir}/src/App.tsx`] });
+}

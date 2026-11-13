@@ -9,6 +9,7 @@ HASH=$(sha1sum /src/package.json | cut -c1-16); LOCKD=/pnpm/locks/$HASH   # lock
 APP=/pnpm/app-$(hostname); trap "cd /; rm -rf $APP" EXIT   # PER CONTAINER (hostname = container id): several jobs run in parallel on the same volume and must not delete each other's copy
 : > /out/timing.txt; : > /out/added_deps.txt
 rm -rf $APP && cp -r /src $APP && cd $APP && rm -rf node_modules dist
+node -e 'const f="package.json",fs=require("fs"),j=JSON.parse(fs.readFileSync(f,"utf8"));if(j.packageManager){delete j.packageManager;fs.writeFileSync(f,JSON.stringify(j,null,2))}'   # we always install with pnpm (corepack refuses a repo that pins bun/yarn); only the throwaway COPY is changed
 printf 'node-linker=hoisted\nauto-install-peers=true\nstrict-peer-dependencies=false\nstrict-dep-builds=false\n' > .npmrc
 if grep -q '"expo"' package.json; then node /qa/web_only.mjs $APP | tee -a /out/added_deps.txt; fi   # the Expo web-only copy rules only apply to Expo apps (a Vite/React/Vue app is built as it is)
 if [ -f "$LOCKD/pnpm-lock.yaml" ]; then   # warm: no dependency resolution, no network, no add-and-retry

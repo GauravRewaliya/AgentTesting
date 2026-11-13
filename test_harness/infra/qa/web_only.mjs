@@ -20,11 +20,15 @@ fs.writeFileSync(mc, `const config = ${base};
 const NATIVE_ONLY = ${JSON.stringify(list)}.map((s) => new RegExp(s));
 const SINGLE_COPY = ${JSON.stringify(single)}.map((s) => new RegExp(s));
 const upstream = config.resolver.resolveRequest, hits = { single: 0, stub: 0, web: 0, other: 0 };
-process.on("exit", () => { console.error("[web_only] rule hits:", JSON.stringify(hits)); for (const k of global.__seen ?? []) console.error("[web_only] resolved:", k); });
+process.on("exit", () => { console.error("[web_only] rule hits:", JSON.stringify(hits)); for (const k of global.__seen ?? []) console.error("[web_only] resolved:", k); for (const k of global.__stubbed ?? []) console.error("[web_only] STUBBED (unresolved):", k); });
 config.resolver.resolveRequest = (ctx, name, platform) => {
   hits[platform === "web" ? "web" : "other"]++;
   if (platform === "web" && NATIVE_ONLY.some((r) => r.test(name))) { hits.stub++; return { type: "sourceFile", filePath: require("path").join(__dirname, "__web_stub.js") }; }
-  if (platform === "web" && SINGLE_COPY.some((r) => r.test(name))) { hits.single++; const r = ctx.resolveRequest({ ...ctx, originModulePath: require("path").join(__dirname, "package.json"), unstable_conditionNames: ["react-native", "browser", "require", "default"] }, name, platform); if (/drawer/.test(name)) { const k = String(ctx.originModulePath).split("node_modules/").pop().slice(0, 60) + "  ->  " + name + "  =>  " + String(r.filePath).split("node_modules/").pop().slice(0, 90); (global.__seen = global.__seen || new Set()).add(k); } return r; }   // one copy AND one BUILD: an app import (ESM build) and an expo-router require (CJS build) otherwise load the package twice and each gets its own React context
+  if (platform === "web" && SINGLE_COPY.some((r) => r.test(name))) { hits.single++; let r; try { r = ctx.resolveRequest({ ...ctx, originModulePath: require("path").join(__dirname, "package.json"), unstable_conditionNames: ["react-native", "browser", "require", "default"] }, name, platform); } catch (e) { r = (upstream ?? ctx.resolveRequest)(ctx, name, platform); }   /* not resolvable from the app root (a transitive package the app does not declare): resolve it normally */ if (/drawer/.test(name)) { const k = String(ctx.originModulePath).split("node_modules/").pop().slice(0, 60) + "  ->  " + name + "  =>  " + String(r.filePath).split("node_modules/").pop().slice(0, 90); (global.__seen = global.__seen || new Set()).add(k); } return r; }   // one copy AND one BUILD: an app import (ESM build) and an expo-router require (CJS build) otherwise load the package twice and each gets its own React context
+  if (platform === "web" && process.env.QA_STUB_UNRESOLVED === "1") {   // OPT-IN (case qa spec: stub_unresolved): a big collection repo has optional/native packages nobody installs for web; an unresolved bare package becomes an empty stub instead of stopping the bundle
+    try { return (upstream ?? ctx.resolveRequest)(ctx, name, platform); }
+    catch (e) { if (/^[@a-z]/i.test(name) && !name.startsWith(".")) { hits.stub++; (global.__stubbed = global.__stubbed || new Set()).add(name); return { type: "sourceFile", filePath: require("path").join(__dirname, "__web_stub.js") }; } throw e; }
+  }
   return (upstream ?? ctx.resolveRequest)(ctx, name, platform);
 };
 module.exports = config;

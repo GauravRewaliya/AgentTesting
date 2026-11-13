@@ -40,7 +40,7 @@ export async function videoAfterRun(o: { workspace: string; storeDir: string; ro
   if (o.qa && o.qa.enabled) {   // the case says HOW: record exactly that
     const spec = o.qa, app = join(o.workspace, "run_test", spec.app), out = join(o.storeDir, "qa", `${spec.app}-${Date.now()}`);
     if (!existsSync(app)) return noVideo(o.storeDir, `qa spec names run_test/${spec.app} but it does not exist (the agents did not build it)`, o.workspace);
-    const r = spec.kind === "static" ? recordQa({ appDir: app, out, route: spec.route ?? o.route, viewport: spec.viewport }) : recordExpoDev({ appDir: app, out, route: spec.route ?? o.route, viewport: spec.viewport, start: spec.start, port: spec.port, type: spec.type });
+    const r = spec.kind === "static" ? recordQa({ appDir: app, out, route: spec.route ?? o.route, viewport: spec.viewport }) : recordExpoDev({ appDir: app, out, route: spec.route ?? o.route, viewport: spec.viewport, start: spec.start, port: spec.port, type: spec.type, typecheck: spec.typecheck, render_timeout_ms: spec.render_timeout_ms, native_only: spec.native_only, stub_unresolved: spec.stub_unresolved, browser_args: spec.browser_args, timeoutMs: spec.timeout_ms });
     return r.ok && r.video ? { ok: true, videos: [r.video], notes: [] } : { ...noVideo(o.storeDir, `${spec.kind} QA of run_test/${spec.app} failed: ${r.error ?? "no video"}`, o.workspace), notes: [`stage ${(r as { stage?: string }).stage ?? "?"} (broken app caught BEFORE any video time)`, ...(((r as { reasons?: string[] }).reasons ?? [r.error ?? ""]).slice(0, 4))] };
   }
   const apps = findWebApps(o.workspace), notes: string[] = [];

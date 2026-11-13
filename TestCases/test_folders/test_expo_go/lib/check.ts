@@ -85,7 +85,9 @@ export function check(spec: SuiteSpec): Problem[] {
     const rid = resultId(c.id), kw = kwOf.get(rid);
     if (!kw) { add(`case ${c.id}`, `no recorded result ${rid} in agent_fixture/results (run build_results.ts)`); continue; }
     const user = c.turns[0].user, dir = user.match(/run_test\/([\w-]+)/)?.[1] ?? "", ideal = (`run_test/${dir} ` + user).toLowerCase();
-    const hits = [...kwOf].filter(([id, k]) => !afterOf.has(id) && k.every((w) => ideal.includes(w.toLowerCase()))).map(([id]) => id);
+    // what was already served when this case runs = the results of its ancestors (`after` chain); a result with `match.after` is eligible once that result was served; a served one never competes with the next step (pickRecorded prefers unserved)
+    const served = new Set<string>(); for (let p = c.after ? spec.cases.find((x) => x.id === c.after) : undefined; p; p = p.after ? spec.cases.find((x) => x.id === p!.after) : undefined) served.add(resultId(p.id));
+    const hits = [...kwOf].filter(([id, k]) => !served.has(id) && (!afterOf.has(id) || served.has(afterOf.get(id)!)) && k.every((w) => ideal.includes(w.toLowerCase()))).map(([id]) => id);
     if (hits.length !== 1 || hits[0] !== rid) add(`case ${c.id}`, `an ideal hand-over matches ${JSON.stringify(hits)} instead of only ["${rid}"]: keywords ${JSON.stringify(kw)} are ambiguous or too strict`);
   }
   for (const id of kwOf.keys()) {

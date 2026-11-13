@@ -1,0 +1,29 @@
+From bba752a72cffa3d0c518002a852c0dd4bd459cc6 Mon Sep 17 00:00:00 2001
+From: harness <h@l>
+Date: Fri, 13 Nov 2026 11:40:40 +0530
+Subject: [PATCH 2/3] fix(deps): declare @react-navigation/core, routers,
+ elements (used but not declared: Metro could not resolve them)
+
+---
+ package.json | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/package.json b/package.json
+index b2edff9..f71a001 100644
+--- a/package.json
++++ b/package.json
+@@ -15,8 +15,11 @@
+     "@expo/vector-icons": "^15.0.2",
+     "@react-native-masked-view/masked-view": "^0.3.2",
+     "@react-navigation/bottom-tabs": "^7.2.0",
++    "@react-navigation/core": "^7.0.0",
+     "@react-navigation/drawer": "^7.3.9",
++    "@react-navigation/elements": "^2.0.0",
+     "@react-navigation/native": "^7.2.6",
++    "@react-navigation/routers": "^7.0.0",
+     "expo": "^58.0.0-preview.7",
+     "expo-blur": "~58.0.1",
+     "expo-constants": "~58.0.7",
+-- 
+2.34.1
+

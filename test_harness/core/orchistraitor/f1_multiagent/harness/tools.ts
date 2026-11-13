@@ -24,6 +24,7 @@ import { customDef } from "./core/custom.ts";
 import { FixtureGate } from "./core/fixture_gate.ts";
 import { wsGrep, wsLs, wsRead } from "./core/workspace_read.ts";
 import { existsSync, readFileSync } from "node:fs";
+import { MAX_SAME, giveUp, qaFailed, readQa, recordCheck, writeQa } from "./core/qa_loop.ts";
 import { recordDevServer } from "../../../../infra/qa/web_dev_qa.ts";
 
 const MAX_WAVE = 4;
@@ -138,7 +139,9 @@ async function grant(req: CallReq, claim: boolean): Promise<CallRes> {
 }
 const lastReport = (agent: string) => [...store.reports].reverse().find((r) => r.task_id === task && r.agent_id === agent);
 
-if (cmd === "delegate") {
+if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
+  out({ ok: false, reason: `the QA loop ended (${readQa(dirname(file)).reason}); the test is marked failed. Do not delegate again: give your final answer and say it failed and why.` });
+} else if (cmd === "delegate") {
   const asyncMode = rest.includes("--async");
   const req: CallReq = { task_id: task, caller_agent_id: me, role: flag("role") ?? "", session_arg: flag("session"), mode: flag("mode") === "ask" ? "ask" : "work",
     objective: flag("objective"), output: flag("output"), boundaries: flag("boundaries"), writes: flag("writes")?.split(",").filter(Boolean), title: flag("title") };
