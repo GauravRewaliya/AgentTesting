@@ -1,5 +1,8 @@
 // bun testrun/run.ts <suite> [case_id ...] [--list] [--fake] [--rerun] [--video] [--no-planning] [--stop-pause] [--say="next"]
 //   --stop-pause   step mode, "next next next": the lead does ONE step (plan files -> layout wireframe -> themed UI), reports, and STOPS to wait for you. Only the first turn of the case runs; no qa_check, no full build.
+//   --last         RESUME the latest run of each named case instead of starting a new task (no --rerun): same task, same workspace, the lead conversation is resumed; the lead is told to carry on (or give your own words with --say="..."). Cases never run before start normally.
+//   --session=<id> RESUME this Claude session as the lead (the master session id of an earlier run, see .state/<task>/store) instead of the one the task remembers.
+//   --video-only   NO lead call at all: only the QA video / session record of the latest run of the case (needs --video for the video). Cheap way to redo a recording after fixing the QA tooling.
 //   --say="next"  continues the case's EXISTING run (same task, same lead conversation, nothing is reset) with that message. Use with --stop-pause: `... <suite> <case> --real --stop-pause --say=next`.
 //   --no-planning  the lead may NOT call the planner (the planner is removed from its agents and the request says so): no plan files, no planning round, the work goes straight to the builders. Use it for a quick run without the planning flow.
 //   --record  write the session record (store/record/*.json) for every case; by default only a case that opts in through `qa` gets one
@@ -26,7 +29,7 @@ import { agentsFor, declareGateLimit, judgeTurn, replyProblem, reconcileDead, lo
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), ".."), E = process.env, STATE_DIR = join(STATE2_BASE, STATE_VERSION);
 const argv = process.argv.slice(2), flags = new Set(argv.filter((a) => a.startsWith("--"))), [suite, ...want] = argv.filter((a) => !a.startsWith("--"));   // --video-route=/x is read from argv directly
 const STORE = E.UI_STORE ? resolve(E.UI_STORE) : "", REPO = E.UI_REPO ? resolve(E.UI_REPO) : "", EXP_DIR = join(STATE_DIR, "f1_exp");   // which case ran in which task (git-ignored)
-const fake = flags.has("--fake"), noPlanning = flags.has("--no-planning"), stopPause = flags.has("--stop-pause") || flags.has("--stop_pause"), sayMsg = argv.find((a) => a.startsWith("--say="))?.slice(6);   // --say="next" (see header)
+const fake = flags.has("--fake"), noPlanning = flags.has("--no-planning"), stopPause = flags.has("--stop-pause") || flags.has("--stop_pause"), sayArg = argv.find((a) => a.startsWith("--say="))?.slice(6), sessionArg = argv.find((a) => a.startsWith("--session="))?.slice(10), videoOnly = flags.has("--video-only");   // --say="next" (see header)
 // LAYOUT: one folder per MASTER SESSION (= the case's task id) under test_harness/.state/<version>/:
 //   <task>/store/       the store (store.json + .board), session records, QA videos (qa/): NOT part of the git workspace
 //   <task>/workspace/   the git workspace the agents work in (run_test/ lives here)
@@ -41,6 +44,9 @@ if (!mine.length) { console.log(`no suite "${suite}". Suites: ${[...new Set(all.
 const readExpDir = (): Record<string, ReturnType<typeof readExp>[string]> => { const o: Record<string, ReturnType<typeof readExp>[string]> = {}; if (existsSync(EXP_DIR)) for (const f of readdirSync(EXP_DIR)) { try { const j = JSON.parse(readFileSync(join(EXP_DIR, f), "utf8")); o[j.case] = j; } catch { /* half-written */ } } return o; };
 const saveExp = (e: { case: string }) => { mkdirSync(EXP_DIR, { recursive: true }); writeFileSync(join(EXP_DIR, e.case + ".json"), JSON.stringify(e)); };
 const exp = readExpDir();
+// --last / --video-only / --say all mean "continue the EXISTING run of the case" (same task, same workspace; nothing is reset); sayMsg is the message to the lead (videoOnly: a marker, no lead call)
+const wantIds = want.length ? want : mine.map((c) => c.id), resumable = (flags.has("--last") || videoOnly) && wantIds.every((w) => exp[w]);
+const sayMsg: string | undefined = sayArg ?? (videoOnly && resumable ? "(video only: no lead call)" : flags.has("--last") && resumable ? "Carry on with the task from where you stopped and finish it. Then tell me what changed since your last answer." : undefined);
 if (flags.has("--list")) { for (const c of mine) console.log(`${c.id}${c.after ? "  (after " + c.after + ")" : ""}  ${exp[c.id] ? "[ran]" : ""}${unsupported(c) ? "  [not supported: " + unsupported(c) + "]" : ""}  ${c.title}`); process.exit(0); }
 
 mkdirSync(STATE_DIR, { recursive: true });
@@ -96,14 +102,14 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   // QA is OPT-IN per case (Case.qa): only a case whose qa function says enabled takes a video / writes a session record; every other case does neither. Its `guide` (testing guidance and commands) is added to the first message when --video is on.
   const qaReq = (apps: string[]) => ({ workspace: REPO, run_test: join(REPO, "run_test"), session: runTask, apps });
   const qaGuide = flags.has("--video") && c.qa ? (() => { const q = c.qa!(qaReq([])); return q.enabled ? q.guide : undefined; })() : undefined;
-  const turns = sayMsg ? [{ user: sayMsg, expected: { context: "(step: the person said \"" + sayMsg + "\")", expected_agents_res: [] as string[] } }] : stopPause ? c.turns.slice(0, 1) : c.turns;
+  const turns = videoOnly ? [] : sayMsg ? [{ user: sayMsg, expected: { context: "(step: the person said \"" + sayMsg + "\")", expected_agents_res: [] as string[] } }] : stopPause ? c.turns.slice(0, 1) : c.turns;
   const judged = []; let cost = 0, leadCost = 0;
   for (let i = 0; i < turns.length; i++) {
     store.reload(); ent.marks[i] = store.calls.filter((x) => x.task_id === runTask).length; ent.started[i] = Date.now(); saveExp(ent);
     declareGateLimit(store, runTask, c);
     store.tx(() => { const n = say(store, runTask, "user", "lead", turns[i]!.user, ["testrun"], Infinity); n.read_by.push("lead"); });   // the chat of the UI (Experiment page) shows these notes: a test run has a conversation too
     // a branch's lead is a clone of the parent's lead session, made NOW (status pending -> cloned), not when the branch folder was made
-    const forceSel = branchInfo && i === 0 ? cloneIfPending({ parentDir: branchInfo.parentDir, branch: branchInfo.branch, parentClaudeId: store.agentsOf(runTask).find((a) => a.name === "lead")?.session_id }) : undefined;
+    const forceSel = sessionArg && i === 0 ? { id: sessionArg, resume: true } : branchInfo && i === 0 ? cloneIfPending({ parentDir: branchInfo.parentDir, branch: branchInfo.branch, parentClaudeId: store.agentsOf(runTask).find((a) => a.name === "lead")?.session_id }) : undefined;
     if (forceSel) console.log(`   branch ${branchInfo!.branch}: lead session cloned from ${forceSel.fork_from!.slice(0, 8)} (index_session.json: pending -> cloned)`);
     const out = await runLead({ ...ctx, store } as never, { forceSel, task_id: runTask, repo: REPO, request: turns[i]!.user + ((c as { no_qa_check?: boolean }).no_qa_check ? "\n\n[Test setup] The automatic check (`qa_check`) is switched off for this task: do not run it. Judge only that the work was handed to the right agent with a good hand-over; do not send the agent back to polish or fix what it already delivered." : "") + (stopPause ? "\n\n[Test setup] STEP MODE: work ONE step at a time, then STOP and wait for the person to say 'next'. Steps: (1) the plan files, (2) the LAYOUT wireframe (clickable, no styling), (3) the exact UX/UI of the FE with one theme and the fake-data module. Do ONLY the next step that is not done yet (what the person says continues from where you stopped), tell them what you made and where (paths), and end your answer with: Say 'next' to continue. Do not do the whole thing, and do not run qa_check or tests." : "") + (noPlanning ? "\n\n[Test setup] Planning is switched off (--no-planning): do not call the planner and do not write plan files; hand the work straight to the builders." : "") + (i === 0 && qaGuide ? `\n\n[Testing guidance for this task]\n${qaGuide}` : ""), maxDepth: 4, runner: fake ? "fake" : "real", writerMode: "shared", agents: noPlanning ? ent.agents.filter((a: string) => a !== "planner") : ent.agents });
     store.reload();
@@ -124,8 +130,8 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
     for (const x of j.denied) console.log(`   REFUSED          : ${x.role} ${x.reason}`);
     console.log("   lead reply       : " + j.reply.replace(/\s+/g, " ").slice(0, 400));
   }
-  (ent as { status?: string }).status = statusOf(judged); saveExp(ent);
-  if (statusOf(judged) !== "pass") { failed++; notPassed.add(c.id); }
+  const finalStatus = videoOnly ? "pass" : statusOf(judged); if (!videoOnly) { (ent as { status?: string }).status = finalStatus; saveExp(ent); }
+  if (finalStatus !== "pass") { failed++; notPassed.add(c.id); }
   else await runBeforeNode(c, { phase: "after", node: branchInfo ? "branch" : c.after ? "main" : "root", parent: c.after, branch: branchInfo?.branch, workspace: REPO });   // after_node_run: ONLY on a pass (default = prints)
   const runTestDir = join(REPO, "run_test"), qaEnd = c.qa ? c.qa(qaReq(existsSync(runTestDir) ? readdirSync(runTestDir) : [])) : null, takes = !!qaEnd?.enabled;   // the case's own function decides
   if (flags.has("--video") && takes) {   // a case that does not opt in does NOTHING here
@@ -133,9 +139,9 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
       console.log(v.videos.length ? `   video            : ${v.videos.join(", ")}` : `   video            : none (${v.skipped ?? v.notes.join("; ")})`); } catch (e) { console.log(`   video            : failed (${String(e).slice(0, 100)})`); }
   }
   if (takes || flags.has("--record")) {   // the session record (store/record/*.json) is opt-in too: --record for any case, or a case that takes QA
-    try { const where = await recordSession({ store, suite, caseId: c.id, title: c.title, task: runTask, status: statusOf(judged), cost, repo: REPO, localDir: perTask ? join(homeOf(homeKey), "store", "record") : undefined,
+    try { const where = await recordSession({ store, suite, caseId: c.id, title: c.title, task: runTask, status: finalStatus, cost, repo: REPO, localDir: perTask ? join(homeOf(homeKey), "store", "record") : undefined,
       turns: judged.map((j) => ({ turn: j.turn, user: j.user, expected: j.expected, actual: j.calls.map((x) => `${x.kind}:${x.role}`), match: j.match, guard: j.guard, gate: j.gate, reply: j.reply })) }); if (where) console.log(`   session record   : ${where}`); } catch (e) { console.log(`   (session not recorded: ${String(e).slice(0, 100)})`); }
   }
-  console.log(`=> ${c.id}: ${statusOf(judged).toUpperCase()} (judged by who was called; read EXPECTED context above for the rest)`);
+  console.log(`=> ${c.id}: ${finalStatus.toUpperCase()}${videoOnly ? " (video only, the lead was not called)" : ""} (judged by who was called; read EXPECTED context above for the rest)`);
 }
 process.exit(failed ? 1 : 0);
