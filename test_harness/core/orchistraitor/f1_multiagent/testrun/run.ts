@@ -143,6 +143,12 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
       if (!v.videos.length) videoFailed = true;
       console.log(v.videos.length ? `   video            : ${v.videos.join(", ")}` : `   video            : none (${v.skipped ?? v.notes.join("; ")})`); } catch (e) { videoFailed = true; console.log(`   video            : failed (${String(e).slice(0, 100)})`); }
   };
+  if (noLead && !takes) {   // NO VIDEO by design (the case's qa spec says enabled:false + why): nothing is started, nothing is judged; it is not a failure
+    const why = qaEnd && !qaEnd.enabled ? qaEnd.why : "the case has no qa spec";
+    console.log(`   video            : none, by design (${why})`);
+    (ent as { status?: string; done: number }).status = "skipped"; (ent as { done: number }).done = 1; saveExp(ent);
+    console.log(`=> ${c.id}: SKIPPED (no video: ${why})${shared ? " [shared workspace of " + c.after + "]" : ""}`); continue;
+  }
   if (noLead) await doVideo();   // the verdict of a no_lead node IS the video: it must exist (expect_video "ok") or be refused by the QA step (expect_video "fail": a known-negative)
   const wantFail = (c as { expect_video?: string }).expect_video === "fail";
   const finalStatus = noLead ? (takes && videoFailed === wantFail ? "pass" : "fail") : statusOf(judged);

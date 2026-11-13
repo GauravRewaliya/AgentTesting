@@ -1,4 +1,6 @@
 // Runs INSIDE the container. /work = the app folder (read-only mount, static mode) or QA_URL = an already running dev server. /out = the only writable folder.
+// RULE: CHECK FIRST, SHOOT ONLY A HEALTHY PAGE. A run that is broken, blank, shows an error overlay, or says it cannot run here (fail_on_text, e.g. "needs Skia Graphite") keeps ONLY the image qa.png + qa.json + REPORT.txt:
+//       a video of a broken page is useless and is never made. A demo that cannot run on web AT ALL is declared in its case (`qa: () => ({ enabled: false, why })`, flagged "no video"): then no container is started either.
 // Two phases, in this order (a broken app must NOT cost a video):
 //   1. SMOKE (no video): open the page once and stop at the FIRST problem: a page error, a framework error overlay (Expo / Vite / Next / "Uncaught Error"), a blank page, or the render timeout.
 //      Writes qa.png (the evidence) and qa.json { ok, stage, reasons[], page_errors, console_errors, overlay, texts }.
@@ -62,6 +64,10 @@ const browser = await chromium.launch({ args: ["--no-sandbox", ...(process.env.Q
   if (summary.page_errors.length) summary.reasons.push(`page error: ${summary.page_errors[0]}`);
   if (state.overlay) summary.reasons.push(`the app shows an error screen: ${state.overlay}`);
   if (!summary.page_errors.length && !state.overlay && state.shown === 0 && state.text === 0) summary.reasons.push(`blank page: nothing visible after ${Math.round((Date.now() - t0) / 1000)} s`);
+  // QA_FAIL_ON_TEXT (JSON list of regexes, from the case's qa spec `fail_on_text`): a page that RENDERS but says it cannot run here ("needs Skia Graphite", "not supported on web") is a FAILED run, not a video
+  if (process.env.QA_FAIL_ON_TEXT && !summary.reasons.length) {
+    try { await page.waitForTimeout(2500); const body = await page.evaluate(() => document.body.innerText || ""); for (const re of JSON.parse(process.env.QA_FAIL_ON_TEXT)) { const m = body.match(new RegExp(re, "i")); if (m) { summary.reasons.push(`the page says it cannot run here: "${m[0].slice(0, 120)}"`); break; } } } catch { /* page gone */ }
+  }
   summary.rendered = summary.reasons.length === 0; summary.seconds_to_verdict = Math.round((Date.now() - t0) / 1000);
   try { summary.title = await page.title(); summary.texts = (await page.locator("h1, h2, p, code, output, [id]").allInnerTexts()).map((t) => t.trim()).filter((t) => t && !OVERLAY.test(t)).slice(0, 12); } catch { /* page gone */ }
   await page.screenshot({ path: join(OUT, "qa.png") }).catch(() => {});

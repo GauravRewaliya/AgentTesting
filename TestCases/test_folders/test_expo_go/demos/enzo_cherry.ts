@@ -1,7 +1,7 @@
 // REF: https://github.com/enzomanuelmangano/demos -> src/animations/cherry-blossom-qrcode and src/animations/sculptures-in-words. THREE NODES on ONE workspace, nothing cloned twice:
 //   node 1  eg_demos_01_clone         the lead hands "clone the repo and set up both demos" to the mocked sub-agent `expo-go` (fixture: a real SPARSE clone at the pinned sha, one slim runner app per demo, PLAN.md). Runs nothing.
 //   node 2  eg_cherry_02_run_video    branch_from node 1 with `branch_share`: it runs IN node 1's workspace (no copy), no lead call (`no_lead`): the harness starts the slim cherry app on web and records the video.
-//   node 3  eg_sculpt_02_run_video    the same for sculptures-in-words, a KNOWN NEGATIVE (`expect_video: "fail"`): the demo draws "needs Skia Graphite" instead of the scene on web, the QA step catches it (`fail_on_text`), no video.
+//   node 3  eg_sculpt_02_run_video    sculptures-in-words: NO VIDEO by design. It needs Skia Graphite (native iOS/Android only; on web Skia is CanvasKit), so QA is disabled for it with that reason and the node is SKIPPED (flagged "no video"), never run.
 // The slim runner (agent_fixture/store/expo_go/slim_demo.ts) holds ONLY the demo folder + its packages: the whole repo (hundreds of demos, native packages) cannot be bundled for the browser in a small container.
 // Run: bun testrun/run.ts test_expo_go eg_demos_01_clone eg_cherry_02_run_video eg_sculpt_02_run_video      (the video nodes record by themselves; about 1 minute each, node 1 about 30 s)
 // Redo only one node later: ... eg_cherry_02_run_video --rerun (the parent is not run again).
@@ -38,9 +38,11 @@ export const cases: Case[] = [
     turns: [{ user: "(no lead) run run_test/cherry-blossom-qrcode-app on web in the workspace of node 1 and record the video", allowed: [], expected: { context: "No lead and no sub-agent: the harness installs and starts the slim app in a container (software WebGPU), opens it and records qa.webm. PASS = the video exists.", expected_agents_res: [] } }],
   },
   {
-    id: "eg_sculpt_02_run_video", branch_from: "eg_demos_01_clone", branch_share: true, no_lead: true, expect_video: "fail", allow_real_subAg: true as const, needs: [], agents: [], tags: ["multi_prompt"],
-    qa: slimQa("sculptures-in-words", "sculptures made of words (WebGPU + Skia Graphite); registered in src/animations/registry.ts", ["needs Skia Graphite"]),
-    title: "[ref github enzomanuelmangano/demos src/animations/sculptures-in-words] node 3 [NEGATIVE]: run the sculptures demo in node 1's workspace; it needs Skia Graphite on web, the QA step must catch that (no video)",
-    turns: [{ user: "(no lead) run run_test/sculptures-in-words-app on web in the workspace of node 1 and record the video", allowed: [], expected: { context: "No lead and no sub-agent. The page renders but says 'needs Skia Graphite' instead of the scene: the QA step catches it through fail_on_text and makes NO video. PASS = the QA step refused it (expect_video: fail).", expected_agents_res: [] } }],
+    id: "eg_sculpt_02_run_video", branch_from: "eg_demos_01_clone", branch_share: true, no_lead: true, allow_real_subAg: true as const, needs: [], agents: [], tags: ["multi_prompt"],
+    // NO VIDEO, by design: the demo shares ONE native GPU device between Skia and WebGPU (`Skia.getNativeDevice()` in hooks/use-portrait-renderer.ts) and says "needs Skia Graphite" without it.
+    // Skia Graphite exists only in the NATIVE iOS/Android builds; on web Skia is CanvasKit (no Graphite), so the scene can never draw in a browser. QA (and any preview) is switched off for it: nothing is started, it is flagged "no video".
+    qa: () => ({ enabled: false, why: "needs Skia Graphite (Skia.getNativeDevice shares one native GPU device with WebGPU): native iOS/Android only, it cannot render on web" }),
+    title: "[ref github enzomanuelmangano/demos src/animations/sculptures-in-words] node 3 [NO VIDEO]: native-only demo (needs Skia Graphite), QA is switched off for it",
+    turns: [{ user: "(no lead, no video) run_test/sculptures-in-words-app is native-only: it needs Skia Graphite, which exists only in the iOS/Android builds", allowed: [], expected: { context: "No lead, no sub-agent, no QA container: the case is flagged 'no video' with the reason and is SKIPPED, not failed.", expected_agents_res: [] } }],
   },
 ];
