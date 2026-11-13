@@ -10,7 +10,7 @@ const png = (f: string) => { try { return "data:image/png;base64," + readFileSyn
 export async function overview() {
   const st = await bc.status();
   return { ...st, saved: bc.savedEndpoint() ?? null, chrome: !!bc.chromeBin(), display: !!(process.env.DISPLAY || process.env.WAYLAND_DISPLAY), profile: bc.profileDir() ?? null, defaultPort: 9222,
-    howto: ["Easiest: press “Launch Chrome” (a visible Chrome with its own profile; log in to the sites you want agents to see, the logins stay).",
+    howto: ["Press “Launch Chrome”: a real, visible Chrome with its own profile opens so YOU can log in (the logins stay). Agents keep using the invisible headless Chrome (same pictures) until you switch “agents use it” ON; do that only when a page needs your login.",
       "Your own Chrome: start it with  google-chrome --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1 --user-data-dir=<a folder>  then press Connect (Chrome 136+ ignores the debug port on the default profile).",
       "Chrome on another machine: ssh -L 9222:127.0.0.1:9222 <that-machine>, then Connect to http://127.0.0.1:9222.",
       "Agents: browser_status, browse, ref_capture, ref_compare use the connected browser; `browse --tab \"<part of a url or title>\"` inspects a tab that is already open."] };

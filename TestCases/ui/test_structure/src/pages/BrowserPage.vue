@@ -40,7 +40,7 @@ onBeforeUnmount(() => clearInterval(timer));
           <button :disabled="!!busy" @click="connect">Connect</button>
           <button :disabled="!!busy || !o.chrome || !o.display" :title="o.display ? 'Starts a visible Chrome with its own profile (logins stay)' : 'This machine has no display'" @click="launch">Launch Chrome</button>
           <button :disabled="!!busy || o.mode !== 'attached'" @click="disconnect">Disconnect</button>
-          <label v-if="o.saved" class="switch" title="Agents use the connected browser only while this is ON (the connection is kept)"><input type="checkbox" :checked="o.mode === 'attached'" :disabled="!!busy" @change="toggle(($event.target as HTMLInputElement).checked)" /> agents use it</label>
+          <label v-if="o.saved" class="switch" title="OFF (default): agents use the invisible headless Chrome. ON: agents use this Chrome, with your logins, for pages that need them"><input type="checkbox" :checked="o.mode === 'attached'" :disabled="!!busy" @change="toggle(($event.target as HTMLInputElement).checked)" /> agents use it</label>
         </div>
         <p v-if="!o.chrome" class="err">No Chrome / Chromium found on this machine.</p>
         <p v-else-if="!o.display" class="mute">No display here: “Launch Chrome” is off. Start Chrome on your desktop and connect (see below).</p>

@@ -10,7 +10,9 @@ const AUDIT_JS = `(() => {
   const issues = [], add = (sev, what, fix, n = 1) => issues.push({ sev, what, fix, n });
   const vis = (e) => { const r = e.getBoundingClientRect(), s = getComputedStyle(e); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && +s.opacity > 0.05; };
   const T = (e, n = 30) => (e.innerText || e.getAttribute('aria-label') || e.alt || '').replace(/\\s+/g, ' ').trim().slice(0, n);
-  const lum = (c) => { const m = /(\\d+(?:\\.\\d+)?),\\s*(\\d+(?:\\.\\d+)?),\\s*(\\d+(?:\\.\\d+)?)(?:,\\s*([\\d.]+))?/.exec(c); if (!m) return null; const f = [m[1], m[2], m[3]].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return { l: 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2], a: m[4] === undefined ? 1 : +m[4] }; };
+  const cv = document.createElement('canvas'); cv.width = cv.height = 1; const cx = cv.getContext('2d', { willReadFrequently: true });   // the BROWSER normalises any css colour (rgb, color(srgb ..), color-mix results, lab, oklch ...): a hand-written parser misread color-mix() as 'unknown' and reported a button that passes (5.3:1) as 1.0:1
+  const rgba = (c) => { try { cx.clearRect(0, 0, 1, 1); cx.fillStyle = '#000'; cx.fillStyle = c; cx.fillRect(0, 0, 1, 1); const d = cx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255]; } catch (e) { return null; } };
+  const lum = (c) => { const p = rgba(c); if (!p) return null; const f = p.slice(0, 3).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return { l: 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2], a: p[3] }; };
   const bgOf = (e) => { for (let p = e; p; p = p.parentElement) { const st = getComputedStyle(p); if (st.backgroundImage && st.backgroundImage !== 'none') return null; const l = lum(st.backgroundColor); if (l && l.a > 0.9) return l.l; } return 1; };   // null = a gradient / picture is behind the text: its contrast cannot be measured from colours, do not guess
   if (!document.title || document.title.trim().length < 4) add('high', 'no meaningful <title>', 'Set a descriptive title (50-60 characters) on every page.');
   if (!document.querySelector('meta[name=viewport]')) add('high', 'no viewport meta', 'Add <meta name="viewport" content="width=device-width,initial-scale=1">.');
@@ -69,7 +71,7 @@ ${fmt(by("medium"))}
 ${fmt(by("low"))}
 `;
   writeFileSync(join(o.outDir, "AUDIT.md"), md); writeFileSync(join(o.outDir, "audit.json"), JSON.stringify({ score, issues: list }, null, 1));
-  return { ok: true, score, high: by("high").length, medium: by("medium").length, low: by("low").length, pages_checked: checked, top: [...by("high"), ...by("medium")].slice(0, 6).map((x) => `${x.sev}: ${x.what} [${x.pages.slice(0, 2).join(", ")}]`), report: `run_test/_audit/${o.name}/AUDIT.md`, next: list.length ? "Hand each HIGH and MEDIUM item to the builder that owns the page (the page list tells which file), then run site_audit again." : "Clean: nothing to improve in what the audit checks." };
+  return { ok: true, browser: results.some((x) => x.r.via === "connected") ? "connected Chrome" : "private headless Chrome", score, high: by("high").length, medium: by("medium").length, low: by("low").length, pages_checked: checked, top: [...by("high"), ...by("medium")].slice(0, 6).map((x) => `${x.sev}: ${x.what} [${x.pages.slice(0, 2).join(", ")}]`), report: `run_test/_audit/${o.name}/AUDIT.md`, next: list.length ? "Hand each HIGH and MEDIUM item to the builder that owns the page (the page list tells which file), then run site_audit again." : "Clean: nothing to improve in what the audit checks." };
 }
 export const projectRoutes = (dir: string): { id: string; file?: string }[] => { try { return JSON.parse(readFileSync(join(dir, "proto.json"), "utf8")).routes; } catch { return []; } };
 export { existsSync };

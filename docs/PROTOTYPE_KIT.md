@@ -102,7 +102,7 @@ lead: `ref_capture` (+ one per other page type) -> reads REF.md, decides pages /
 | agent / tool | does | does NOT |
 |---|---|---|
 | `researcher` | TEXT based: facts, docs, search, WebFetch | look at a site (a WebFetch is a model-written summary) |
-| **`lookup`** (new) | the visual UI/UX reference analyst: LOOKS at the section pictures of a studied site, writes `layouts/` and `briefs/` into the reference store | build pages |
+| **`lookup`** (new) | the visual UI/UX reference analyst: LOOKS at the section pictures of a studied site, writes `layouts/` and `briefs/` into the reference store; a big piece is split across COPIES of itself (see Part 4) | build pages |
 | `builder` | builds the pages of ONE screens file from its brief, verifies with `browse` | study the reference, run `ref_capture`, hunt for assets |
 | harness tools (no model) | `ref_capture`, `ref_assets`, `ref_store`, `ref_compare`, `browse`, `site_audit`, `proto_init`, `proto_check`, `preview`, `browser_*` | |
 Flow for a site clone: lead `ref_capture` (13 s, builds the whole store) -> reads STORE.md / MAP.md / REF.md and decides pages -> `proto_init --kind site` -> **lookup** writes the briefs (2-4 min) -> `fork_all` builders in parallel, each from `briefs/BRIEF.md` + `briefs/BRIEF_<file>.md` -> the lead reacts with `wait --any` as each finishes -> `ref_compare` -> `preview` -> `site_audit` for improvements.
@@ -133,3 +133,33 @@ Flow for a site clone: lead `ref_capture` (13 s, builds the whole store) -> read
 
 ## Tests
 `self_test/multi.ts --suite protokit` = PK1-PK21 (starter kits, site kit, theme and navigation in a real browser, connected browser attach / own tab / `--tab` / fallback / toggle, ref_assets, lookup agent definition, reference store and mind map, site audit on planted defects and a clean page). Real case: `real_site_clone`.
+
+---
+
+# Part 4 (2026-11-14): what the real runs showed, and what was simplified
+
+## Measured (real_site_clone, haiku, same request each time)
+| run | what | time | cost |
+|---|---|---|---|
+| no lookup, 3 builders | structure 100 but the blog was a card grid (the reference is a one-column list) | 2.6-7 min | $0.2-0.7 |
+| one lookup agent doing everything | read 17 pictures one by one, wrote 6 documents in a row, died on a missing command | 7.9 min | $1.25 |
+| lead skipped the pipeline ("one file, one builder, to stay fast") | no briefs, no checks | 2.2 min | $0.36 |
+| `site_build` pipeline | briefs 1.8 min (parallel), builders overlap, checks + fixes 2.6 min; blog is a faithful one-column list | 6.7 min | $1.75 |
+Split of the $1.75: lead $0.36, lookup calls $0.07, builders' first build $0.64, builders' FIX rounds $0.68. The fix rounds chased a FALSE alarm of my own audit (a `color-mix()` colour it could not read: 1.0:1 reported, 5.3:1 real). So: the separation itself is cheap ($0.07 for the lookups); the waste was the false alarm plus resumed big-context builders (4-5x the cost of a fresh small one).
+
+## Simplifications made
+- ONE `lookup` agent (the `lookup-page` role is gone): a role that lists itself in `agents[]` may start copies of itself, one level deep (`agent_call.ts`: `selfSplit`; `checkAgents` accepts the self-reference). It does a small job itself and splits a big one across at most 3 copies.
+- `site_build` (generated plan, runs by itself): ONE lookup call per screens file (the first also writes the design system), a builder per file that depends only on its own brief; ~2 pages per file; the output carries an ETA and `plan_status` says "healthy, nothing to do but wait". Works for sites and admin dashboards. A lone builder is REFUSED once a reference store exists.
+- Routing: any request with a URL / "like <product>" is RECIPE CLONE, also when it says "admin dashboard" (a real session skipped the lookup because it read "admin dashboard" as RECIPE APP). A login wall is reported, not silently cloned.
+- FIX policy for the lead: must-fix (dead link, missing slug, JS error, stub, missing section) goes to a NEW small builder; style findings (contrast, tap targets) are reported, not looped on; one fix round.
+- Audit: colours are normalised by the browser (canvas), no hand-written parser. Kit: `--accent-text` and the primary button reach WCAG 4.5:1 for any brand colour.
+- Plan validator: tasks that write DIFFERENT files are not "the same work given twice".
+- Capture: contact sheets (4 sections per picture, one browser for all), dark / mobile first screen only, clean capture (cookie dialogs, bars, chat widgets, ad slots, modal backdrops, fixed header pinned, no scrollbar), `--more` for several pages at once; a full capture is ~10-20 s.
+- Background jobs (`--async`) + `wait --any` for slow tools; polling every 0.4 s.
+
+## Browser modes (final)
+Agents use the PRIVATE HEADLESS Chrome by default (same engine, same pictures; nothing opens on your screen). The UI page "Browser": **Launch Chrome** opens a real visible Chrome with its own profile so the PERSON can log in; launching or connecting does NOT hand it to the agents. Switch **agents use it** ON only when a page needs your login (then agents work in a tab of their own and close it). Every look-at-pages tool reports which browser did the work (`browser`), the UI header shows a status chip, and nothing is ever started or restarted behind your back. Later: Claude-in-Chrome can sit behind the same `browser_*` commands.
+
+## Rules learned
+- Do not run real tests while the person is using the system: the machine-wide single lead slot made a user's session wait 303 s behind a test run.
+- The sandbox rule stays: agents with no sub-agents run in Docker. `lookup` now lists itself, so it runs like the lead and the builder (host), and only reads pictures and writes markdown in its own folder.

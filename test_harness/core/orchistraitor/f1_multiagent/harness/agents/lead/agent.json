@@ -8,7 +8,6 @@
  "agents": [
   "researcher",
   "lookup",
-  "lookup-page",
   "planner",
   "builder",
   "reviewer",

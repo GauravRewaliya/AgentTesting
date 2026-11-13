@@ -67,12 +67,14 @@ class Cdp {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export interface BrowseOpts { url: string; outDir: string; width?: number; height?: number; scheme?: "light" | "dark"; mobile?: boolean; steps?: Step[]; settleMs?: number; sectionShots?: number; tag?: string; tab?: string; endpoint?: string; prime?: boolean; clean?: boolean }
-export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: string; shots: string[]; outline?: Outline; results: unknown[]; console: string[]; cleaned?: string[] }> {
+export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: string; shots: string[]; outline?: Outline; results: unknown[]; console: string[]; cleaned?: string[]; via?: "connected" | "headless" }> {
   mkdirSync(o.outDir, { recursive: true });
   const shots: string[] = [], results: unknown[] = [], logs: string[] = [];
   let ep = o.endpoint ?? attachedEndpoint(), reuse = false, ownTab = "", proc: ChildProcess | undefined, dir = "", cdp: Cdp | undefined;
   // a CONNECTED browser (a person can see it, it keeps its logins): its own new tab per task, or a tab the person already has open (o.tab)
-  if (ep) { try { await fetch(ep + "/json/version", { signal: AbortSignal.timeout(2500) }); } catch { logs.push(`the connected browser at ${ep} does not answer: used the private headless Chrome instead (browser_status shows it)`); ep = undefined; } }
+  // the connected (visible) browser is an OPTIONAL extra: used only while it answers; otherwise the private headless Chrome does the work (same engine, same pictures). Nothing is ever started or restarted behind the person's back.
+  if (ep) { try { await fetch(ep + "/json/version", { signal: AbortSignal.timeout(2500) }); } catch { logs.push(`the connected browser at ${ep} does not answer: the private headless Chrome did the work`); ep = undefined; } }
+  const via: "connected" | "headless" = ep ? "connected" : "headless";
   const bin = chromeBin(); if (!ep && !bin) return { ok: false, reason: "no Chrome/Chromium on this machine and no connected browser", shots, results, console: logs };
   try {
     let wsUrl = "";
@@ -129,7 +131,7 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
       await save(`${tag}-full.png`, { x: 0, y: 0, width: w, height: Math.min(outline.doc_h, 9000) });
       for (const sec of outline.sections.slice(0, o.sectionShots)) await save(`${tag}-section-${String(sec.i + 1).padStart(2, "0")}.png`, { x: 0, y: sec.y, width: w, height: Math.min(sec.h, 2400) });
     }
-    return { ok: true, shots, outline, results, console: [...new Set(logs)].slice(0, 6), cleaned };
+    return { ok: true, shots, outline, results, console: [...new Set(logs)].slice(0, 6), cleaned, via };
   } catch (e) { return { ok: false, reason: String((e as Error).message).slice(0, 200), shots, results, console: logs }; }
   finally { cdp?.close(); proc?.kill("SIGKILL"); if (dir) rmSync(dir, { recursive: true, force: true }); if (ownTab && ep) { await fetch(ep + "/json/close/" + ownTab).catch(() => 0); for (let i = 0; i < 12; i++) { const gone = await fetch(ep + "/json/list").then((r) => r.json() as Promise<Tab[]>).then((l) => !l.some((t) => t.id === ownTab)).catch(() => true); if (gone) break; await sleep(150); } } }   // the person's browser is left exactly as it was: wait until our tab is really gone
 }

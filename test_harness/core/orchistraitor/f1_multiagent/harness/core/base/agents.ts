@@ -40,7 +40,8 @@ export function checkAgents(defs: Map<string, AgentDef>, maxDepth = 4): string[]
   const depth = (n: string, seen: string[]): number => {
     if (seen.includes(n)) { bad.push(`cycle: ${[...seen, n].join(" -> ")}`); return 0; }
     const d = defs.get(n); if (!d) return 0;
-    return 1 + Math.max(0, ...d.agents.map((a) => depth(a, [...seen, n])));
+    // an agent that lists ITSELF (opt-in: it may start copies of itself, one level deep) is not a cycle: it adds one level for the copy
+    return 1 + Math.max(d.agents.includes(n) ? 1 : 0, ...d.agents.filter((a) => a !== n).map((a) => depth(a, [...seen, n])));
   };
   for (const n of defs.keys()) if (depth(n, []) > maxDepth) bad.push(`${n}: call chain longer than ${maxDepth}`);
   return [...new Set(bad)];

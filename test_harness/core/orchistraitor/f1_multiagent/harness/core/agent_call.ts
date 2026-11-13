@@ -57,7 +57,9 @@ export function agentCall(store: Store, defs: Map<string, AgentDef>, policy: Pol
   if (!adHoc && !defs.get(req.role)?.ad_hoc && !callerDef.agents.includes(req.role)) return deny("not_declared", `${caller.name} may call: [${callerDef.agents.join(", ")}]`, level);
   // 4 no cycle: the callee may not already be on the chain above the caller
   const chain: string[] = []; for (let c: AgentRow | undefined = caller; c; c = c.caller_agent_id ? store.agent(req.task_id, c.caller_agent_id) : undefined) chain.push(c.name);
-  if (chain.includes(req.role)) return deny("cycle", `${chain.reverse().join(" -> ")} -> ${req.role}`, level);
+  // exception, opt-in and one level deep: a role that lists ITSELF in agents[] may start COPIES of itself to split a big job (lookup splits a big reference); a copy can never start copies (no recursion)
+  const callerParent = caller.caller_agent_id ? store.agent(req.task_id, caller.caller_agent_id) : undefined, selfSplit = caller.name === req.role && callerDef.agents.includes(req.role) && callerParent?.name !== req.role;
+  if (chain.includes(req.role) && !selfSplit) return deny("cycle", `${chain.reverse().join(" -> ")} -> ${req.role}`, level);
   // 5 fan-out
   const live = store.agentsOf(req.task_id).filter((a) => a.status === "running");
   if (live.filter((a) => a.caller_agent_id === caller.agent_id).length >= callerDef.max_children) return deny("fan_out", `${caller.agent_id} already has ${callerDef.max_children} live sub-agents (max_children)`, level);

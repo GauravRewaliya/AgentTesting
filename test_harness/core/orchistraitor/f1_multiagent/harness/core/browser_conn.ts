@@ -39,7 +39,7 @@ export async function status(): Promise<Status> {
 export async function connect(endpoint: string): Promise<Status | { ok: false; reason: string }> {
   const ep = endpoint.replace(/\/$/, ""); if (!/^https?:\/\/[\w.-]+:\d+$/.test(ep)) return { ok: false, reason: "give --url http://127.0.0.1:9222 (host and port of the Chrome debug port)" };
   try { await sessions(ep); } catch (e) { return { ok: false, reason: `nothing answers at ${ep} (${String((e as Error).message).slice(0, 60)}). Start Chrome with: google-chrome --remote-debugging-port=${ep.split(":").pop()} --user-data-dir=<a folder>, or run browser_launch.` }; }
-  mkdirSync(dirname(file()), { recursive: true }); writeFileSync(file(), JSON.stringify({ endpoint: ep, since: new Date().toISOString(), enabled: true })); return status();
+  mkdirSync(dirname(file()), { recursive: true }); writeFileSync(file(), JSON.stringify({ endpoint: ep, since: new Date().toISOString(), enabled: false })); return status();   // connecting / launching a Chrome does NOT hand it to the agents: they keep using the invisible headless Chrome until the person switches 'agents use it' ON (the Chrome is for logging in)
 }
 export function disconnect() { rmSync(file(), { force: true }); return { ok: true, note: "Disconnected: agents use the private headless Chrome again. (The browser itself keeps running.)" }; }
 /** Start a VISIBLE Chrome with a debug port and its own profile (so logins persist and the person can watch / log in), then connect to it. */

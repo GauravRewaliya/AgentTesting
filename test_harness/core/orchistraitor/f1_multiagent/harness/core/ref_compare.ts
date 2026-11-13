@@ -28,6 +28,6 @@ export async function refCompare(o: { refDir: string; url: string; outDir: strin
   const dead = me.links.filter((l) => !l.href || l.href === "#" || /^javascript:/i.test(l.href)); if (dead.length) gaps.push(`dead links (href="#"): ${dead.slice(0, 5).map((l) => `"${l.text}"`).join(", ")}`);
   const mob = M.outline; if (mob && mob.doc_h < 600) gaps.push("mobile: the page is almost empty at 390px width"); if (mob && L.outline && mob.sections.length < 2) gaps.push("mobile: sections collapsed");
   const score = Math.max(0, Math.round(100 - gaps.length * 9));
-  return { ok: true, score, verdict: gaps.length === 0 ? "MATCHES the reference structure" : gaps.length <= 2 ? "close: fix the gaps" : "NOT there yet: fix the gaps, then run ref_compare again", gaps, matches: good, console_errors: L.console, clone_pictures: [...L.shots, ...M.shots].map((f) => f.split("/").pop()!),
+  return { ok: true, browser: L.via === "connected" ? "connected Chrome" : "private headless Chrome", score, verdict: gaps.length === 0 ? "MATCHES the reference structure" : gaps.length <= 2 ? "close: fix the gaps" : "NOT there yet: fix the gaps, then run ref_compare again", gaps, matches: good, console_errors: L.console, clone_pictures: [...L.shots, ...M.shots].map((f) => f.split("/").pop()!),
     next: gaps.length ? "Fix each gap in the files you own, then ref_compare again. LOOK at clone-light-section-NN.png next to the reference's desktop-light-section-NN.png (Read)." : "Structure matches. Look at the pictures once more for spacing and polish, then report." };
 }
