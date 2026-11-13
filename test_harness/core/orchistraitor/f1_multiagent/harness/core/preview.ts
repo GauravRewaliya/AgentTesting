@@ -1,7 +1,7 @@
 // LIVE PREVIEW of an app folder = a background script (core/bg.ts) that runs its dev server on the HOST, in the task workspace, on a free port.
 // Same record, log, status and stop as every background script; `public_url` is what a browser on another machine opens (`PREVIEW_PUBLIC_HOST`, else this machine's LAN IP).
 //   - folder with package.json: `pnpm install` (CI=true for the install only: no prompts, the server itself keeps watch mode) then the `web` (Expo), `dev` or `start` script on {port}; Vite-style servers get `--host 0.0.0.0`, Expo takes `--port` only
-//   - folder with only index.html: static server (`pnpm dlx serve`)
+//   - folder with only index.html: static server (core/static_server.ts, no install)
 // Settings come from the environment, else from <repo>/.env (see .env.example): PREVIEW_PUBLIC_HOST, PREVIEW_BIND is not needed any more (the script binds itself), PREVIEW_PORT_FROM/TO.
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -43,7 +43,7 @@ export function detect(dir: string, storeDir = ""): { kind: "dev-server" | "stat
     }
     return { kind: "dev-server", cmd: `CI=true pnpm install --prefer-offline --no-frozen-lockfile && pnpm run ${s} ${isExpo ? "" : "--host 0.0.0.0 "}--port {port}` };
   }
-  if (existsSync(join(dir, "index.html"))) return { kind: "static", cmd: "pnpm dlx serve -l tcp://0.0.0.0:{port} ." };
+  if (existsSync(join(dir, "index.html"))) return { kind: "static", cmd: `bun ${q(join(import.meta.dir, "static_server.ts"))} {port} .` };   // zero dependencies: nothing is installed
   return { error: "no package.json and no index.html in the folder" };
 }
 /** "The server answers" is not "the page works": load the page in headless Chrome (host `google-chrome`, if installed) and report a blank page or the JavaScript errors. Takes up to ~`budgetMs` + 20 s. */

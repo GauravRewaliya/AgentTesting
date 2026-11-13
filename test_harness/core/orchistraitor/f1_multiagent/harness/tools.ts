@@ -1,12 +1,12 @@
 // The agents' tools as one command (plan 5.2 / 23.3):
-//   bun tools.ts <delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop|ls|read_file|grep|qa_check|qa_give_up|preview|preview_list|preview_stop|preview_restart|bg_start|bg_list|bg_log|bg_stop|proc_list|proc_stop> --flag value ...
+//   bun tools.ts <delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop|ls|read_file|grep|qa_check|proto_check|qa_give_up|preview|preview_list|preview_stop|preview_restart|bg_start|bg_list|bg_log|bg_stop|proc_list|proc_stop> --flag value ...
 //   ls / read_file / grep = READ-ONLY look at the shared workspace run_test/ (core/workspace_read.ts): the lead can check a result itself instead of asking a sub-agent to run commands.
 // A stand-in for the mod's registered tools: same rules (agent.call), same registry, one line of JSON out.
 // Identity comes from the environment set for THIS agent: HARNESS_STORE, HARNESS_TASK, HARNESS_AGENT, HARNESS_CWD, HARNESS_MAX_DEPTH, HARNESS_RUNNER.
 // `delegate --async` returns at once and runs the callee in a detached process (`_run`), so one agent can start several callees in parallel and `wait` for them.
 import { spawn, spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { agentCall, defaultPolicy, stopAgent, type CallReq, type CallRes } from "./core/agent_call.ts";
 import { DockerRunner } from "./core/base/docker_runner.ts";
@@ -261,6 +261,8 @@ if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
 } else if (cmd === "ls") { out(wsLs(join(cwd, "run_test"), flag("path")));
 } else if (cmd === "read_file") { out(wsRead(join(cwd, "run_test"), flag("path") ?? "", Number(flag("offset") ?? 1), Number(flag("limit") ?? 200)));
 } else if (cmd === "grep") { out(wsGrep(join(cwd, "run_test"), flag("pattern") ?? "", flag("path")));
+} else if (cmd === "proto_check") {   // a NO-BUILD prototype (index.html + plain scripts + Vue from a CDN): files exist, scripts parse, every screen / component used is defined. No install, no server: under a second.
+  const d = resolve(cwd, flag("dir") ?? ""); if (!d.startsWith(resolve(cwd))) { out({ ok: false, error: "the folder must be inside the workspace" }); } else { const { protoCheck } = await import("./core/proto_check.ts"); out(protoCheck(d)); }
 } else if (cmd === "qa_check") {   // EARLY CHECK while developing (no video): type check + dev server + page errors + dev log, in a throwaway Docker container (2 GB, 1 CPU). On a failure it first CHECKPOINTS the workspace (git commit), then tells the master what to hand to the sub-agent. Same issue 3 times in a row = STOP, the test is marked failed (harness/core/qa_loop.ts).
   const qdir = dirname(file), qs = readQa(qdir), dir = flag("dir") ?? "", pj = join(cwd, "run_test", dir.replace(/^run_test[\\/]?/, ""), "package.json");
   if (existsSync(join(qdir, "qa_disabled"))) out({ ok: false, disabled: true, next: "qa_check is switched off for this task by the test setup. Do not run it again and do not treat this as a failure: judge only the delegation, then give your final answer." });

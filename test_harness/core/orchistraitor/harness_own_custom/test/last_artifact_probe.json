@@ -1,0 +1,27 @@
+{
+ "at": "2026-11-13T12:32:09.680Z",
+ "cli": "2.1.323 (Claude Code)",
+ "available": false,
+ "results": [
+  {
+   "label": "tool list",
+   "reply": "Agent, Bash, Edit, Read, ReportFindings, ScheduleWakeup, Skill, ToolSearch, Write, CronCreate, CronDelete, CronList, DesignSync, EnterWorktree, ExitWorktree, Mo",
+   "has": false
+  },
+  {
+   "label": "--tools Artifact",
+   "reply": "",
+   "has": false
+  },
+  {
+   "label": "--allowedTools Artifact",
+   "reply": "",
+   "has": false
+  },
+  {
+   "label": "ToolSearch",
+   "reply": "No. ToolSearch with `select:Artifact` returned no matching deferred tools, so no Artifact tool is available in this session.",
+   "has": false
+  }
+ ]
+}

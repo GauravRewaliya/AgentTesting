@@ -17,6 +17,7 @@
    "Bash(bun *tools.ts read_file*)",
    "Bash(bun *tools.ts grep*)",
    "Bash(bun *tools.ts qa_check*)",
+   "Bash(bun *tools.ts proto_check*)",
    "Bash(bun *tools.ts qa_give_up*)",
    "Bash(bun *tools.ts preview*)",
    "Bash(bun *tools.ts proc_list*)",
