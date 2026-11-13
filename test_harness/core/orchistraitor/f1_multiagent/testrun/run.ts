@@ -47,7 +47,7 @@ const exp = readExpDir();
 // --last / --video-only / --say all mean "continue the EXISTING run of the case" (same task, same workspace; nothing is reset); sayMsg is the message to the lead (videoOnly: a marker, no lead call)
 const wantIds = want.length ? want : mine.map((c) => c.id), resumable = (!!resumeArg || videoOnly) && wantIds.every((w) => exp[w]);
 // A message the HARNESS made up (the --resume "Carry on ..." prompt, the --video-only marker) is an auto run: it is NOT a message of the person, so it is not mirrored into the session chat; its notes carry the ref "auto_run" (the UI chat hides them). A --fake run has no real answer ("(fake lead) done"): its reply is never put in the chat either.
-const autoRun = sayArg === undefined && (videoOnly || !!resumeArg), chatRefs = autoRun ? ["testrun", "auto_run"] : ["testrun"];
+const autoRun = flags.has("--auto") || (sayArg === undefined && (videoOnly || !!resumeArg)), chatRefs = autoRun ? ["testrun", "auto_run"] : ["testrun"];
 const sayMsg: string | undefined = sayArg ?? (videoOnly && resumable ? "(video only: no lead call)" : !!resumeArg && resumable ? "Carry on with the task from where you stopped and finish it. Then tell me what changed since your last answer." : undefined);
 if (flags.has("--list")) { for (const c of mine) console.log(`${c.id}${c.after ? "  (after " + c.after + ")" : ""}  ${exp[c.id] ? "[ran]" : ""}${unsupported(c) ? "  [not supported: " + unsupported(c) + "]" : ""}  ${c.title}`); process.exit(0); }
 
@@ -90,7 +90,9 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   const runTask = isBranch ? parentEnt!.task : parentEnt ? task : sayMsg ? exp[c.id]!.task : fresh(task); let homeKey: string =  isBranch ? (perTask ? "" : fresh(planned + sfx)) : parentEnt ? (parentEnt.home ?? parentEnt.task) : sayMsg ? (exp[c.id]!.home ?? runTask) : runTask;
   // BRANCH (testrun/branch.ts): <parent home>/branches/branch_<hex>/ = workspace + store copy (no record/); its row in the MAIN session's index_session.json starts `pending`
   let branchInfo: { branch: string; parentDir: string } | undefined;
-  if (perTask && isBranch) { const pk = parentEnt!.home ?? parentEnt!.task, b = branchRun({ parentDir: homeOf(pk), alias: c.id }); homeKey = pk + "/branches/" + b.branch; branchInfo = { branch: b.branch, parentDir: homeOf(pk) }; }
+  const shared = isBranch && !!(c as { branch_share?: boolean }).branch_share;   // branch_share: a separate test IN the parent's workspace and store: no copy, no fork
+  if (perTask && shared) homeKey = parentEnt!.home ?? parentEnt!.task;
+  else if (perTask && isBranch) { const pk = parentEnt!.home ?? parentEnt!.task, b = branchRun({ parentDir: homeOf(pk), alias: c.id }); homeKey = pk + "/branches/" + b.branch; branchInfo = { branch: b.branch, parentDir: homeOf(pk) }; }
   const ent = (exp[c.id] = sayMsg ? (exp[c.id] as never) : { case: c.id, task: runTask, home: homeKey, suite, agents: agentsFor(c), marks: [] as number[], started: [] as number[], done: 0, at: Date.now() } as { case: string; task: string; suite: string; agents: string[]; marks: number[]; started: number[]; done: number; at: number });
   console.log(`\n## ${c.id}: ${c.title}   [task ${runTask}${homeKey !== runTask ? ", home " + homeKey : ""}, agents: ${ent.agents.join(", ")}]`);
   const store = perTask ? new MStore(storeOf(homeKey)) : gstore, REPO = repoOf(homeKey);   // this master session's own store and workspace (see LAYOUT)
@@ -104,7 +106,7 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   // QA is OPT-IN per case (Case.qa): only a case whose qa function says enabled takes a video / writes a session record; every other case does neither. Its `guide` (testing guidance and commands) is added to the first message when --video is on.
   const qaReq = (apps: string[]) => ({ workspace: REPO, run_test: join(REPO, "run_test"), session: runTask, apps });
   const qaGuide = flags.has("--video") && c.qa ? (() => { const q = c.qa!(qaReq([])); return q.enabled ? q.guide : undefined; })() : undefined;
-  const turns = videoOnly ? [] : sayMsg ? [{ user: sayMsg, expected: sayArg ? { context: "(step: the person said \"" + sayMsg + "\")", expected_agents_res: [] as string[] } : c.turns[0]!.expected }]   /* --say: a free step (no calls expected); --resume: the case's own expectation */ : stopPause ? c.turns.slice(0, 1) : c.turns;
+  const noLead = videoOnly || !!(c as { no_lead?: boolean }).no_lead, turns = noLead ? [] : sayMsg ? [{ user: sayMsg, expected: sayArg ? { context: "(step: the person said \"" + sayMsg + "\")", expected_agents_res: [] as string[] } : c.turns[0]!.expected }]   /* --say: a free step (no calls expected); --resume: the case's own expectation */ : stopPause ? c.turns.slice(0, 1) : c.turns;
   const judged = []; let cost = 0, leadCost = 0;
   for (let i = 0; i < turns.length; i++) {
     store.reload(); ent.marks[i] = store.calls.filter((x) => x.task_id === runTask).length; ent.started[i] = Date.now(); saveExp(ent);
@@ -132,18 +134,26 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
     for (const x of j.denied) console.log(`   REFUSED          : ${x.role} ${x.reason}`);
     console.log("   lead reply       : " + j.reply.replace(/\s+/g, " ").slice(0, 400));
   }
-  const finalStatus = videoOnly ? "pass" : statusOf(judged); if (!videoOnly) { (ent as { status?: string }).status = finalStatus; saveExp(ent); }
-  if (finalStatus !== "pass") { failed++; notPassed.add(c.id); }
-  else await runBeforeNode(c, { phase: "after", node: branchInfo ? "branch" : c.after ? "main" : "root", parent: c.after, branch: branchInfo?.branch, workspace: REPO });   // after_node_run: ONLY on a pass (default = prints)
+  // QA video: a case that opts in (Case.qa enabled) records it when --video is on; a no_lead node ALWAYS does (the video is its whole test and its verdict)
   const runTestDir = join(REPO, "run_test"), qaEnd = c.qa ? c.qa(qaReq(existsSync(runTestDir) ? readdirSync(runTestDir) : [])) : null, takes = !!qaEnd?.enabled;   // the case's own function decides
-  if (flags.has("--video") && takes) {   // a case that does not opt in does NOTHING here
+  let videoFailed = false, videoDone = false;
+  const doVideo = async () => {
+    if (videoDone || !((flags.has("--video") || noLead) && takes)) return; videoDone = true;
     try { const route = argv.find((a) => a.startsWith("--video-route="))?.split("=")[1], v = await videoAfterRun({ workspace: REPO, storeDir: dirname(storeOf(homeKey)), route, qa: qaEnd });
-      console.log(v.videos.length ? `   video            : ${v.videos.join(", ")}` : `   video            : none (${v.skipped ?? v.notes.join("; ")})`); } catch (e) { console.log(`   video            : failed (${String(e).slice(0, 100)})`); }
-  }
+      if (!v.videos.length) videoFailed = true;
+      console.log(v.videos.length ? `   video            : ${v.videos.join(", ")}` : `   video            : none (${v.skipped ?? v.notes.join("; ")})`); } catch (e) { videoFailed = true; console.log(`   video            : failed (${String(e).slice(0, 100)})`); }
+  };
+  if (noLead) await doVideo();   // the verdict of a no_lead node IS the video: it must exist (expect_video "ok") or be refused by the QA step (expect_video "fail": a known-negative)
+  const wantFail = (c as { expect_video?: string }).expect_video === "fail";
+  const finalStatus = noLead ? (takes && videoFailed === wantFail ? "pass" : "fail") : statusOf(judged);
+  if (!videoOnly) { (ent as { status?: string }).status = finalStatus; saveExp(ent); }
+  if (finalStatus !== "pass") { failed++; notPassed.add(c.id); }
+  else await runBeforeNode(c, { phase: "after", node: shared ? "branch" : branchInfo ? "branch" : c.after ? "main" : "root", parent: c.after, branch: branchInfo?.branch, workspace: REPO });   // after_node_run: ONLY on a pass (default = prints)
+  if (!noLead) await doVideo();
   if (takes || flags.has("--record")) {   // the session record (store/record/*.json) is opt-in too: --record for any case, or a case that takes QA
     try { const where = await recordSession({ store, suite, caseId: c.id, title: c.title, task: runTask, status: finalStatus, cost, repo: REPO, localDir: perTask ? join(homeOf(homeKey), "store", "record") : undefined,
       turns: judged.map((j) => ({ turn: j.turn, user: j.user, expected: j.expected, actual: j.calls.map((x) => `${x.kind}:${x.role}`), match: j.match, guard: j.guard, gate: j.gate, reply: j.reply })) }); if (where) console.log(`   session record   : ${where}`); } catch (e) { console.log(`   (session not recorded: ${String(e).slice(0, 100)})`); }
   }
-  console.log(`=> ${c.id}: ${finalStatus.toUpperCase()}${videoOnly ? " (video only, the lead was not called)" : ""} (judged by who was called; read EXPECTED context above for the rest)`);
+  console.log(`=> ${c.id}: ${finalStatus.toUpperCase()}${noLead ? ` (no lead call; ${!takes ? "qa is not enabled for this case" : wantFail ? (videoFailed ? "the QA step refused it, as expected" : "EXPECTED the QA step to refuse it, but a video was made") : videoFailed ? "no video was made" : "video made"})` : ""}${shared ? " [shared workspace of " + c.after + "]" : ""} (judged by who was called; read EXPECTED context above for the rest)`);
 }
 process.exit(failed ? 1 : 0);

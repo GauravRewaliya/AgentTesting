@@ -86,6 +86,8 @@ export type QaSpec =
       stub_unresolved?: boolean;
       /** extra Chromium flags for the recording, e.g. software WebGPU: ["--enable-unsafe-webgpu", "--use-angle=swiftshader", "--use-webgpu-adapter=swiftshader"]. */
       browser_args?: string[];
+      /** regexes: if the rendered page contains one of them the run FAILS (no video), e.g. ["needs Skia Graphite"]: a page that loads but says it cannot run here is not a working demo. */
+      fail_on_text?: string[];
       /** extra GUIDANCE and COMMANDS about testing, appended to the first user message of the case when `--video` is on (e.g. "start the app with `pnpm exec expo start --web`, then open /3d-rotate"). Only a case that opts in gets it. */
       guide?: string };
 
@@ -98,6 +100,12 @@ export type Case = {
    * its saved sub-agent ids (labels) and its run_test workspace. Several cases with the same `after` = branches.
    */
   after?: string;
+  /** With `branch_from`: the branch runs IN the parent's workspace and store (no copy, no new session folder, no lead fork): a separate TEST on the same checkout. Use it for "node 1 clones/builds once, nodes 2 and 3 just run and record it". */
+  branch_share?: true;
+  /** The node makes NO lead / sub-agent call: the harness only records the QA video (Case.qa must be enabled) of the workspace it runs in. Needs `allow_real_subAg: true` (nothing is mocked). The case passes when the video was made. */
+  no_lead?: true;
+  /** For a `no_lead` node: "ok" (default) = the video must be made; "fail" = a known-negative: the QA step must CATCH the problem (e.g. qa spec `fail_on_text`), no video. */
+  expect_video?: "ok" | "fail";
   /** Fork instead of continue: the case runs in its own branch folder (workspace copy + a clone of the lead session made on the fly). Use it when 2+ cases share one parent; see TestCases/branch.ts. */
   branch_from?: string;
   /** helper/agents/<name>.ts passed to the lead (only these exist for it). */

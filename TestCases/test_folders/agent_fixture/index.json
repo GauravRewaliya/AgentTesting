@@ -513,16 +513,16 @@
   "text": "Which open-source harness uses an architect/editor split between two models and how does it work?"
  },
  {
-  "id": "role-expo-go-eg_cherry_01_clone_run",
+  "id": "role-expo-go-eg_demos_01_clone",
   "suite": "test_expo_go",
-  "file": "results/test_expo_go/role-expo-go-eg_cherry_01_clone_run.ts",
-  "title": "expo-go: clone enzomanuelmangano/demos and run the cherry-blossom-qrcode demo",
+  "file": "results/test_expo_go/role-expo-go-eg_demos_01_clone.ts",
+  "title": "expo-go: clone enzomanuelmangano/demos once and set up the cherry-blossom-qrcode and sculptures-in-words runners",
   "agent": "expo-go",
   "keywords": [
    "demos",
    "cherry"
   ],
-  "text": "Clone https://github.com/enzomanuelmangano/demos into run_test/demos and run the cherry-blossom-qrcode demo. Write the steps in PLAN.md first. Do nothing else."
+  "text": "Clone https://github.com/enzomanuelmangano/demos into run_test/demos and set up the cherry-blossom-qrcode and sculptures-in-words demos so each can be run. Write the steps in PLAN.md first. Do nothing else: do not run them."
  },
  {
   "id": "role-expo-go-eg_folio_01_engine",
@@ -739,18 +739,6 @@
    "phase 1 of 1"
   ],
   "text": "Phase 1 of 1. Create an Expo app with Storybook 7 (web): .storybook config, an App.js, a Button and a Gradient component (expo-linear-gradient) each with a stories file, a Configure.mdx, the storybook and build-storybook scripts, and a .gitignore."
- },
- {
-  "id": "role-expo-go-eg_sculpt_01_clone_run",
-  "suite": "test_expo_go",
-  "file": "results/test_expo_go/role-expo-go-eg_sculpt_01_clone_run.ts",
-  "title": "expo-go: clone enzomanuelmangano/demos and run the sculptures-in-words demo",
-  "agent": "expo-go",
-  "keywords": [
-   "demos",
-   "sculptures"
-  ],
-  "text": "Clone https://github.com/enzomanuelmangano/demos into run_test/demos and run the sculptures-in-words demo. Write the steps in PLAN.md first. Do nothing else."
  },
  {
   "id": "role-expo-go-eg_solarin_01_754eb25",

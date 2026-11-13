@@ -56,6 +56,7 @@ export function check(spec: SuiteSpec): Problem[] {
   const seen = new Map<string, number>();
   spec.cases.forEach((c, i) => {
     const w = `case ${c.id}`;
+    if ((c as { no_lead?: boolean }).no_lead) { if (!c.qa) add(w, "a no_lead node needs a qa spec (the video is its whole test)"); if (!c.title.startsWith("[ref ")) add(w, 'title must start with "[ref <source>]"'); return; }   // no lead, no sub-agent: none of the delegation rules below apply
     if (seen.has(c.id)) add(w, `duplicate id (also #${seen.get(c.id)})`); seen.set(c.id, i);
     if (!/^eg_[a-z0-9]+_/.test(c.id)) add(w, "id must start with eg_<key>_");
     if (c.after && !(seen.get(c.after) !== undefined && seen.get(c.after)! < i)) add(w, `after "${c.after}" is missing or comes later`);
@@ -82,6 +83,7 @@ export function check(spec: SuiteSpec): Problem[] {
     const aft = txt.match(/after: "([^"]+)"/)?.[1]; if (aft) afterOf.set(id, aft);
   }
   for (const c of spec.cases) {
+    if ((c as { no_lead?: boolean }).no_lead) continue;
     const rid = resultId(c.id), kw = kwOf.get(rid);
     if (!kw) { add(`case ${c.id}`, `no recorded result ${rid} in agent_fixture/results (run build_results.ts)`); continue; }
     const user = c.turns[0].user, dir = user.match(/run_test\/([\w-]+)/)?.[1] ?? "", ideal = (`run_test/${dir} ` + user).toLowerCase();
