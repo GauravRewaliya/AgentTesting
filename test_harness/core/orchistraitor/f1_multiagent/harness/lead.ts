@@ -19,7 +19,7 @@ export async function runLead(ctx: CallCtx & { store: MStore }, o: { task_id: st
   const env = { HARNESS_STORE: store.file!, HARNESS_TASK: o.task_id, HARNESS_AGENT: row.agent_id, HARNESS_CWD: o.repo, HARNESS_MAX_DEPTH: String(o.maxDepth), HARNESS_RUNNER: o.runner, HARNESS_WRITER_MODE: o.writerMode ?? "shared", HARNESS_MODELS: JSON.stringify(o.models ?? {}), HARNESS_MAX_INSTANCES: "12", ...(o.agents ? { HARNESS_LEAD_AGENTS: o.agents.join(",") } : {}) };
   const prompt = (first: boolean) => [`TASK ${o.task_id}${first ? "" : " (continuing)"}`, first ? conversationBlock(store, o.task_id, o.request) : "", first && store.agentsOf(o.task_id).length > 1 ? "THE TEAM RIGHT NOW:\n" + digest(store, o.task_id) : "", `REQUEST FROM THE PERSON:\n${o.request}`,
     ld.allow.some((a) => a.includes("delegate")) ? `COMMANDS (run them with Bash, one per call; each prints one line of JSON):
-  ${tools} delegate --role <role> --session new|<agent_id>|fork:<agent_id> --objective "<what>" --output "<format>" --boundaries "<limits>" [--async] [--mode ask] [--writes a,b] [--title "<what this agent is for>"]
+  ${tools} delegate --role <role> --session new|<agent_id>|fork:<agent_id> --objective "<what>" --output "<format>" --boundaries "<limits>" [--async] [--mode ask] [--writes a,b] [--title "<what this agent is for>"] [--model haiku]
   ${tools} wait --agents <id>,<id> [--timeout 90]     (after --async: waits and returns the answers)
   ${tools} ledger_get --report <report_id>              (the FULL answer of an agent; use it when wait shows truncated:true)
   ${tools} ls [--path <dir>]                            (READ-ONLY: files in the shared workspace run_test/)
@@ -32,7 +32,10 @@ export async function runLead(ctx: CallCtx & { store: MStore }, o: { task_id: st
   ${tools} agents_list
   ${tools} agent_update --agent <agent_id> --title "<short>" --description "<what it is for>"
   ${tools} say --to <agent_id> --text "<fact or question>"
-  ${tools} board_status` : "You have no delegate command: multi-agent is off for this task. Answer without sub-agents."].join("\n\n");
+  ${tools} agent_peek --agent <agent_id> [--n 8]        (READ-ONLY look inside a running agent: last tool calls, silence, held files, a hint: wait / answer / stop)
+  ${tools} cost                                         (what the team spent so far and what is left of the project budget)
+  PHASED WORK (code enforces "n+1 waits for n"): ${tools} plan_submit --tasks '<JSON [{id,role,objective,output,boundaries,deps?,writes?,phase:1|2|3..}]>' then plan_run --plan <id>; ${tools} plan_status --plan <id> --wait 90; when a phase's tasks are done and its exit check passed (qa_check healthy): ${tools} phase_pass --plan <id> --phase <n> --evidence "<checks run and what they showed>" (opens phase n+1); ${tools} phase_status --plan <id>
+  ${tools} board_status` :"You have no delegate command: multi-agent is off for this task. Answer without sub-agents."].join("\n\n");
   const out = await callAgent({ ...ctx, defs: new Map(defs).set("lead", ld) }, row, o.repo, prompt, o.forceSel, {}, { env });   // the launch copy: prompt = CLAUDE.md + the roles it may call
   store.tx(() => touchRun(store, o.task_id));   // the main agent's Claude session id is now on the run record
   return { row, ...out };

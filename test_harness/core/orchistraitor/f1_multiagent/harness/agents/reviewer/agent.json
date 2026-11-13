@@ -1,7 +1,7 @@
 {
  "role": "reviewer",
  "description": "Checks the work against the requests and the check command; raises findings",
- "model": "haiku",
+ "model": "sonnet",
  "session": "persistent",
  "writes": false,
  "max_children": 0,

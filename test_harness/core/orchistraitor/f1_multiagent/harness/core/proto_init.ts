@@ -4,7 +4,7 @@
 import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-export interface NavItem { id: string; label: string; icon?: string; group?: string; file?: string }
+export interface NavItem { id: string; label: string; icon?: string; group?: string; file?: string; hidden?: boolean }
 const KIT = join(import.meta.dir, "..", "kits", "proto");
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "x";
 const pascal = (s: string) => s.replace(/(^|[-_ ])(\w)/g, (_, _a, c) => c.toUpperCase());
@@ -25,7 +25,8 @@ export function parseNav(raw: string): NavItem[] {
   return uniq;
 }
 
-export function protoInit(dir: string, o: { title: string; nav: NavItem[]; user?: string; org?: string; rel?: string }): { ok: true; files: string[]; screens_files: Record<string, string[]>; next: string } | { ok: false; reason: string } {
+export function protoInit(dir: string, o: { title: string; nav: NavItem[]; user?: string; org?: string; rel?: string; kind?: "app" | "site"; extra?: NavItem[]; accent?: string; font?: string; bgDark?: string; tagline?: string }): { ok: true; files: string[]; screens_files: Record<string, string[]>; next: string } | { ok: false; reason: string } {
+  if (o.kind === "site") return siteInit(dir, o);
   if (!o.nav.length) return { ok: false, reason: "--nav needs at least one screen, for example --nav \"Overview, Apps, Logs\"" };
   if (existsSync(join(dir, "proto.json"))) return { ok: false, reason: `${dir} is already a prototype (proto.json exists): change its screens with a builder, do not start it again` };
   for (const d of ["css", "js/screens"]) mkdirSync(join(dir, d), { recursive: true });
@@ -74,4 +75,65 @@ Example table: \`<div class="table-wrap"><table class="table"><thead><tr><th>Nam
   written.push("index.html", "proto.json", "PROTO.md");
   return { ok: true, files: written, screens_files: Object.fromEntries(Object.entries(byFile).map(([f, i]) => [`js/screens/${f}.js`, i.map((x) => x.label)])),
     next: `The shell already runs. Now ONE builder per screens file, all at once: fork_all (no --from) with one task per file, writes ["${o.rel ?? dir}/js/screens/<file>.js","${o.rel ?? dir}/css/pages-<file>.css"]; then wait, proto_check, preview. (Up to ~4 screens: ONE builder owning all files is enough.)` };
+}
+
+// ---------------------------------------------------------------------------------------------------- SITE kind: a themeable marketing / blog WEBSITE (kits/site): header + footer + hash router built from the real route list, light/dark theme, scroll animations.
+type Opts = Parameters<typeof protoInit>[1];
+function siteInit(dir: string, o: Opts): ReturnType<typeof protoInit> {
+  const SK = join(import.meta.dir, "..", "kits", "site");
+  const pages = [...o.nav, ...(o.extra ?? []).filter((e) => !o.nav.some((n) => n.id === e.id))];
+  if (!o.nav.length) return { ok: false, reason: "--nav needs at least one page, for example --nav \"Home, Features, Blog, About\"" };
+  if (existsSync(join(dir, "proto.json"))) return { ok: false, reason: `${dir} is already a prototype (proto.json exists): change its pages with a builder, do not start it again` };
+  for (const d of ["css", "js/screens"]) mkdirSync(join(dir, d), { recursive: true });
+  copyFileSync(join(SK, "site.css"), join(dir, "css", "site.css")); copyFileSync(join(SK, "site.js"), join(dir, "js", "site.js"));
+  const accent = /^#[0-9a-f]{3,8}$/i.test(o.accent ?? "") ? o.accent! : "#10b981", font = (o.font ?? "").replace(/[^\w \-]/g, "").trim();
+  writeFileSync(join(dir, "css", "theme.css"), `/* BRAND TOKENS of this site (the kit reads them). Change colours / font / radius HERE, never in css/site.css. */\n:root{\n  --accent:${accent};\n${font ? `  --font:"${font}",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;\n` : ""}  --radius:14px;\n}\n${o.bgDark ? `:root[data-theme=dark]{\n  --bg:${o.bgDark};\n  --bg-soft:color-mix(in srgb,${o.bgDark} 95%,#fff);\n  --surface:color-mix(in srgb,${o.bgDark} 93%,#fff);\n  --header-bg:color-mix(in srgb,${o.bgDark} 78%,transparent);\n}\n` : ""}`);
+  if (pages.every((p) => !p.group)) pages.forEach((p, n) => { p.file = pages.length > 4 ? `part-${Math.floor(n / 4) + 1}` : "main"; });   // balanced files: ~4 pages per builder
+  const byFile: Record<string, NavItem[]> = {}; for (const i of pages) (byFile[i.file!] ??= []).push(i);
+  const written = ["css/site.css", "js/site.js", "css/theme.css"];
+  for (const [f, items] of Object.entries(byFile)) {
+    writeFileSync(join(dir, "css", `pages-${f}.css`), `/* classes only the pages of js/screens/${f}.js need (the kit has the rest) */\n`);
+    writeFileSync(join(dir, "js", "screens", `${f}.js`), items.map((i) => `// TODO: replace this stub (route #/${i.id})\nScreens.${pascal(i.id)} = {\n  template: \`<section class="section"><div class="container center"><h1>${i.label}</h1><p class="muted">TODO: this page is not built yet</p></div></section>\`\n};\n`).join("\n"));
+    written.push(`css/pages-${f}.css`, `js/screens/${f}.js`);
+  }
+  const files = Object.keys(byFile), title = o.title.replace(/["<>]/g, ""), ids = pages.map((p) => p.id), half = Math.ceil(pages.length / 2);
+  const footer = [{ title: "Explore", links: pages.slice(0, half).map((p) => ({ label: p.label, to: p.id })) }, ...(pages.length > half ? [{ title: "More", links: pages.slice(half).map((p) => ({ label: p.label, to: p.id })) }] : [])];
+  const cta = o.nav.length > 2 ? { label: o.nav[o.nav.length - 1]!.label, to: o.nav[o.nav.length - 1]!.id } : undefined;
+  const headerNav = cta ? o.nav.slice(0, -1) : o.nav;
+  writeFileSync(join(dir, "index.html"), `<!doctype html>
+<html lang="en" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
+${font ? `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${font.replace(/ /g, "+")}:wght@400;500;600;700;800&display=swap">\n` : ""}<link rel="stylesheet" href="css/site.css">
+<link rel="stylesheet" href="css/theme.css">
+${files.map((f) => `<link rel="stylesheet" href="css/pages-${f}.css">`).join("\n")}
+</head><body><div id="app"></div>
+<script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
+<script>window.Screens = {}; window.Components = {};</script>
+<script src="js/site.js"></script>
+${files.map((f) => `<script src="js/screens/${f}.js"></script>`).join("\n")}
+<script>Site.mount({ title: ${JSON.stringify(title)}, tagline: ${JSON.stringify(o.tagline ?? "Everything you need, nothing you don't.")}, home: ${JSON.stringify(o.nav[0]!.id)}, routes: ${JSON.stringify(ids)}, nav: ${JSON.stringify(headerNav.map(({ id, label }) => ({ id, label })))}, cta: ${JSON.stringify(cta)}, footer: ${JSON.stringify(footer)} });</script>
+</body></html>
+`);
+  writeFileSync(join(dir, "proto.json"), JSON.stringify({ kit: "site", title, routes: pages.map((i) => ({ id: i.id, label: i.label, file: i.file })) }, null, 1));
+  writeFileSync(join(dir, "PROTO.md"), `# ${title}: website contract
+A real multi-page WEBSITE (sections, themes, motion), no build, Vue 3 from a CDN. \`index.html\`, \`css/site.css\`, \`js/site.js\` are DONE: do not edit them. Brand tokens (accent, font, dark background) live in \`css/theme.css\`.
+
+## Pages (one file each group; the owner edits ONLY its file and its \`css/pages-<file>.css\`)
+| route | page | file |
+|---|---|---|
+${pages.map((i) => `| #/${i.id} | Screens.${pascal(i.id)} | js/screens/${i.file}.js |`).join("\n")}
+
+The header and footer already link to EVERY page above (the kit builds them from this list), the theme follows the system (light / dark) with a toggle, and \`.reveal\` content animates in on scroll. Replace every stub (it says TODO).
+
+## Linking rules (a dead link is a defect)
+- Every link is \`<a href="#/route">\` (a route above, or \`#/blog/<slug>\` for an article of the Blog page) or a full https URL. NEVER \`href="#"\`. A button goes somewhere (\`@click="$go('/features')"\`) or does something (\`$toast('Thanks')\`).
+- Detail pages live in the SAME page: \`#/blog/my-post\` shows \`Screens.Blog\` with \`this.$route.parts = ['blog','my-post']\`; branch in the template (\`v-if="post"\` article, \`v-else\` the list; an unknown slug shows "Article not found"). EVERY card / title / "Read more" of a list links to its own detail view, and the article links back and to related articles.
+- Sections of one page: they are stacked in the page itself; a nav item never needs an in-page anchor.
+
+## Page recipe (a finished, professional look)
+Each page = 3-6 \`<section class="section">\` (alternate \`.alt\`), each with \`.section-head\` (\`.eyebrow\`, h2, p) and real content: \`.hero\`, \`.grid-3 > .card.feature\` (\`.ico\` + h3 + p), \`.steps > .step\`, \`.stats > .stat\`, \`.logos > .logos-track\` (marquee, duplicate the items once), \`.grid-3 > .card.plan\` (\`.price\`, \`.checks\`), \`.card.quote\`, \`.faq > details > summary + p\`, \`.cta-band\`, \`.post-grid > a.card.post-card\` (\`.post-thumb-wrap > .post-thumb\`, \`.post-body\` with \`.post-meta\`, \`.post-title\`, \`.post-excerpt\`), \`.prose\` for article text, \`.form\` + \`.input\`. Add \`class="reveal"\` (and \`d1\`..\`d4\` for stagger) to cards and headings so they animate on scroll. Use \`.grad\` on one headline word. Icons: \`<ui-icon name="bolt">\` (arrow bell bolt chart check clock code cloud download file globe heart lock mail moon play search shield star sun users zap layers target).
+Buttons \`.btn .btn-primary .btn-lg .btn-ghost\`, \`.pill\`, \`.chip\`, \`.tag\`, \`.muted\`, \`.center\`, \`.row\`, \`.stack\`, \`.container\`, \`.narrow\`. Mock content is original, believable, specific (never lorem ipsum, never TODO); 4-8 posts with dates, authors, categories.
+`);
+  written.push("index.html", "proto.json", "PROTO.md");
+  return { ok: true, files: written, screens_files: Object.fromEntries(Object.entries(byFile).map(([f, i]) => [`js/screens/${f}.js`, i.map((x) => x.label)])),
+    next: `The site shell already runs (header, footer, theme, router). Now ONE builder per pages file, ALL AT ONCE: fork_all with one task per file, writes ["${o.rel ?? dir}/js/screens/<file>.js","${o.rel ?? dir}/css/pages-<file>.css"] (the objective names the reference: run_test/_ref/<name>/REF.md and its section pictures); then wait, ref_compare, preview.` };
 }

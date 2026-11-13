@@ -1,0 +1,3 @@
+#!/bin/sh
+# on the PATH of every agent: `ref_store ...` = `bun tools.ts ref_store ...`
+exec bun --smol "$(dirname "$0")/../tools.ts" ref_store "$@"

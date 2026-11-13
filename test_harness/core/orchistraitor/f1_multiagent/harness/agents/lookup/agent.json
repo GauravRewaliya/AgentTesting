@@ -1,0 +1,16 @@
+{
+ "role": "lookup",
+ "description": "UI/UX reference analyst: studies a real website in a real browser (pictures, sections, components, motion, assets) and writes the build briefs the builders work from in parallel",
+ "model": "haiku",
+ "session": "persistent",
+ "writes": true,
+ "max_children": 0,
+ "agents": [],
+ "tiers": [
+  "T1",
+  "T2",
+  "T3",
+  "T4"
+ ],
+ "timeout_s": 600
+}

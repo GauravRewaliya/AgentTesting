@@ -1,0 +1,22 @@
+{
+ "permissions": {
+  "allow": [
+   "Bash(bun *tools.ts plan_status*)",
+   "Bash(bun *tools.ts plan_show*)",
+   "Bash(bun *tools.ts plan_pause*)",
+   "Bash(bun *tools.ts plan_resume*)",
+   "Bash(bun *tools.ts plan_replan*)",
+   "Bash(bun *tools.ts agents_list*)",
+   "Bash(bun *tools.ts agent_info*)",
+   "Bash(bun *tools.ts board_status*)",
+   "Bash(bun *tools.ts ledger_get*)",
+   "Bash(bun *tools.ts say*)",
+   "Bash(bun *tools.ts agent_stop*)",
+   "Bash(bun *tools.ts plan_answer*)",
+   "Bash(bun *tools.ts phase_pass*)",
+   "Bash(bun *tools.ts phase_status*)",
+   "Bash(bun *tools.ts agent_peek*)",
+   "Bash(bun *tools.ts cost*)"
+  ]
+ }
+}

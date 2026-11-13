@@ -1,0 +1,1 @@
+{"permissions": {"allow": ["Read", "Glob", "Grep", "Bash(node *)", "Bash(cat *)", "Bash(ls *)", "Bash(cmp *)", "Bash(diff *)", "Bash(md5sum *)", "Bash(git status*)", "Bash(git diff*)", "Bash(git log*)", "Bash(git show*)", "Bash(sha256sum *)", "Bash(wc *)", "Bash(head *)", "Bash(tail *)", "Bash(test *)"]}}

@@ -1,7 +1,7 @@
 {
  "role": "ux-designer",
  "description": "Designs screens and flows: layout, components, states and copy, as a short written spec (markdown)",
- "model": "haiku",
+ "model": "sonnet",
  "session": "persistent",
  "writes": true,
  "max_children": 0,

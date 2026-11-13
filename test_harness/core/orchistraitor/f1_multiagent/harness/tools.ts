@@ -1,5 +1,5 @@
 // The agents' tools as one command (plan 5.2 / 23.3):
-//   bun tools.ts <proto_init|delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop|ls|read_file|grep|qa_check|proto_check|fork_all|qa_give_up|preview|preview_list|preview_stop|preview_restart|bg_start|bg_list|bg_log|bg_stop|proc_list|proc_stop> --flag value ...
+//   bun tools.ts <site_audit|ref_store|ref_assets|browser_status|browser_connect|browser_disconnect|browser_launch|browse|ref_compare|ref_capture|proto_init|delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop|ls|read_file|grep|qa_check|proto_check|fork_all|qa_give_up|preview|preview_list|preview_stop|preview_restart|bg_start|bg_list|bg_log|bg_stop|proc_list|proc_stop> --flag value ...
 //   ls / read_file / grep = READ-ONLY look at the shared workspace run_test/ (core/workspace_read.ts): the lead can check a result itself instead of asking a sub-agent to run commands.
 // A stand-in for the mod's registered tools: same rules (agent.call), same registry, one line of JSON out.
 // Identity comes from the environment set for THIS agent: HARNESS_STORE, HARNESS_TASK, HARNESS_AGENT, HARNESS_CWD, HARNESS_MAX_DEPTH, HARNESS_RUNNER.
@@ -19,6 +19,9 @@ import { launchDef } from "./core/launch.ts";
 import { release } from "./core/locks.ts";
 import { applyQueue } from "./core/patches.ts";
 import { depsBlock, replan, validatePlan, type PlanRow, type PlanTask } from "./core/plan.ts";
+import { gateBlock, passPhase, phaseRows, reopenGates } from "./core/phases.ts";
+import { peekAgent } from "./core/peek.ts";
+import { modelProblem } from "./core/models.ts";
 import { locksFromEnv } from "./core/lockapi.ts";
 import { customDef } from "./core/custom.ts";
 import { FixtureGate } from "./core/fixture_gate.ts";
@@ -33,6 +36,9 @@ const [cmd, ...rest] = process.argv.slice(2);
 const flag = (k: string) => { const i = rest.indexOf("--" + k); return i >= 0 ? rest[i + 1] : undefined; };
 const E = process.env, file = E.HARNESS_STORE!, task = flag("task") ?? E.HARNESS_TASK!, me = E.HARNESS_AGENT ?? "";
 const out = (o: unknown) => console.log(JSON.stringify(o));
+/** A project folder / file named by an agent, from wherever it stands: its own shell folder, the workspace, or run_test/ (agents wrote `--dir .`, `run_test/x`, `x`, absolute paths: each of them works). Always inside the workspace. */
+const inWs = (p: string) => p === resolve(cwd) || p.startsWith(resolve(cwd) + "/");
+const projPath = (x: string, mustHave = "index.html") => { const c = [resolve(process.cwd(), x), resolve(cwd, x), resolve(cwd, "run_test", x.replace(/^\.?\/?(run_test\/)?/, ""))].filter(inWs); return c.find((d) => existsSync(join(d, mustHave))) ?? c.find((d) => existsSync(d)) ?? c[0] ?? resolve(cwd, "run_test"); };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 if (!file || !task) { out({ ok: false, reason: "tool environment missing (HARNESS_STORE/TASK)" }); process.exit(0); }
 
@@ -41,7 +47,7 @@ const store = new MStore(file), defs = loadAgents(join(HDIR, "agents"));
 for (const [n, m] of Object.entries(JSON.parse(E.HARNESS_MODELS ?? "{}") as Record<string, string>)) { const d = defs.get(n); if (d) d.model = m; }
 { const only = E.HARNESS_LEAD_AGENTS, ld = defs.get("lead"); if (only !== undefined && ld) ld.agents = only.split(",").filter(Boolean); }   // a test case decides which agents its lead has
 const locks = locksFromEnv(store);
-const policy = defaultPolicy({ agentMaxDepth: Number(E.HARNESS_MAX_DEPTH ?? 1), maxInstancesPerRole: Number(E.HARNESS_MAX_INSTANCES ?? 4), externalLocks: locks.kind === "redis", lockTtlMs: Number(E.HARNESS_LOCK_TTL_MS ?? 1_200_000) });
+const policy = defaultPolicy({ agentMaxDepth: Number(E.HARNESS_MAX_DEPTH ?? 1), maxInstancesPerRole: Number(E.HARNESS_MAX_INSTANCES ?? 4), externalLocks: locks.kind === "redis", lockTtlMs: Number(E.HARNESS_LOCK_TTL_MS ?? 1_200_000), budgetUsd: Number(E.HARNESS_PROJECT_BUDGET_USD ?? 0) });
 const cwd = E.HARNESS_CWD ?? process.cwd();
 
 /** A writer called without --writes would be refused by the lock hook on its first Write and cost a second call: default to the run_test/<project> folder the objective names. */
@@ -64,7 +70,7 @@ async function runCall(call_id: string) {
   const inner: Runner = real ? (E.HARNESS_SANDBOX === "docker" ? new DockerRunner(600_000) : new RealRunner(600_000)) : new ScriptRunner(async (c) => { await sleep(Number(E.HARNESS_FAKE_DELAY_MS ?? 0)); if (c.prompt.includes("FAILME")) throw new Error("fake failure"); if (c.prompt.includes("ASKPARENT") && !c.prompt.includes("ANSWER FROM YOUR PARENT")) return "NEEDS_PARENT: which address should I use? I read the brief and found two."; return `FAKE REPLY from ${c.row.agent_id}: ${req.objective?.slice(0, 60)}`; });
   const runner: Runner = new FixtureGate(inner, () => store);   // agents with "fixtures": true are answered by recorded results (check_and_correction); every other agent runs as before
   if (!defs.has(req.role)) defs.set(req.role, customDef(req.role, req.title ?? req.role, !!req.writes?.length));   // a custom agent: rebuilt here from the call record
-  const def = launchDef(defs.get(req.role)!, defs, res.level, policy.agentMaxDepth, join(tmpdir(), "lf-launch"), TOOLS);
+  const def = launchDef(req.model ? { ...defs.get(req.role)!, model: req.model } : defs.get(req.role)!, defs, res.level, policy.agentMaxDepth, join(tmpdir(), "lf-launch"), TOOLS);
   const epoch0 = agent.epoch ?? 0;
   const guard = setInterval(() => { store.reload(); if (store.aborted() || (store.agent(call.task_id, call.callee_agent_id!)?.epoch ?? 0) !== epoch0) runner.killAll?.(); }, 1000);   // the watchdog flag, or a stop (replan / cancel), ends this callee at once
   const r = await runCallee({ store, runner, defs: new Map(defs).set(req.role, def), sessionCap: SESSION_CAP, transcriptExists: real ? (_c, id) => transcriptExistsAnywhere(id) : undefined }, policy, res, req, def,
@@ -96,7 +102,7 @@ async function applyPatchesCmd(): Promise<{ applied: number; rejected: unknown[]
 async function execPlan(plan_id: string) {
   const cur = () => store.plans.find((x) => x.task_id === task && x.plan_id === plan_id)!;
   const finishWith = (status: PlanRow["status"]) => store.tx(() => { cur().status = status; store.ev("plan.end", task, cur().owner, { plan_id, status }); });
-  const t0 = Date.now();
+  let t0 = Date.now();
   for (;;) {
     store.reload();
     if (store.aborted()) { finishWith("aborted"); return; }
@@ -108,15 +114,16 @@ async function execPlan(plan_id: string) {
       }
       for (const t of p.tasks) if (t.status === "pending") {   // 2. nothing will ever arrive for these
         const bad = (t.deps ?? []).find((d) => ["failed", "skipped", "cancelled"].includes(p.tasks.find((x) => x.id === d)?.status ?? ""));
-        if (bad) { t.status = "skipped"; t.error = `dependency ${bad} did not finish`; }
+        if (bad) { t.status = "skipped"; t.error = `dependency ${bad} did not finish`; continue; }
+        const gb = gateBlock(p, t); if (gb?.dead) { t.status = "skipped"; t.error = gb.reason; }   // an earlier phase failed: this phase can never start
       }
     });
     const p = cur();
     if (!p.paused) {   // 3. start what is ready
       const room = Math.max(0, MAX_WAVE - p.tasks.filter((t) => t.status === "running").length);
-      const ready = p.tasks.filter((t) => t.status === "pending" && (t.deps ?? []).every((d) => p.tasks.find((x) => x.id === d)?.status === "done")).slice(0, room);
+      const ready = p.tasks.filter((t) => t.status === "pending" && (t.deps ?? []).every((d) => p.tasks.find((x) => x.id === d)?.status === "done") && !gateBlock(p, t)).slice(0, room);   // a phase waits for the gate of the one before it (phases.ts)
       for (const t of ready) {
-        const req: CallReq = { task_id: task, caller_agent_id: p.owner, role: t.role, session_arg: t.session ?? "new", objective: (t.note ? t.note + "\n\n" : "") + t.objective + depsBlock(store, p, t), output: t.output, boundaries: t.boundaries, writes: t.writes, onBehalf: true };
+        const req: CallReq = { task_id: task, caller_agent_id: p.owner, role: t.role, session_arg: t.session ?? "new", objective: (t.note ? t.note + "\n\n" : "") + t.objective + depsBlock(store, p, t), output: t.output, boundaries: t.boundaries, writes: t.writes, model: t.model, onBehalf: true };
         const res = await grant(req, true);
         store.tx(() => { const tt = cur().tasks.find((x) => x.id === t.id)!; if (!res.ok) { tt.status = "failed"; tt.error = res.reason; return; } tt.agent_id = res.agent.agent_id; tt.call_id = res.call_id; tt.status = "running"; delete tt.note; });
         if (res.ok && !res.queued) spawnRun(res.call_id);
@@ -124,6 +131,7 @@ async function execPlan(plan_id: string) {
     }
     const q = cur(), active = q.tasks.some((t) => t.status === "running"), waiting = q.tasks.some((t) => t.status === "pending" || t.status === "blocked");   // a blocked task keeps the plan open until its parent answers
     if (!active && !waiting) break;
+    if (!active && q.tasks.some((t) => t.status === "pending" && gateBlock(q, t))) t0 += 500;   // waiting for the person / lead to pass a phase gate does not use up the plan's time limit
     if (Date.now() - t0 > 1_800_000) { finishWith("failed"); return; }
     await sleep(500);
   }
@@ -149,37 +157,55 @@ if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
 } else if (cmd === "delegate") {
   const asyncMode = rest.includes("--async");
   const req: CallReq = { task_id: task, caller_agent_id: me, role: flag("role") ?? "", session_arg: flag("session"), mode: flag("mode") === "ask" ? "ask" : "work",
-    objective: flag("objective"), output: flag("output"), boundaries: flag("boundaries"), writes: flag("writes")?.split(",").filter(Boolean), title: flag("title") };
+    objective: flag("objective"), output: flag("output"), boundaries: flag("boundaries"), writes: flag("writes")?.split(",").filter(Boolean), title: flag("title"), model: flag("model") };
+  const mp = modelProblem(req.role, req.model); if (mp) { out({ ok: false, reason: mp }); process.exit(0); }
   const res = await grant(withWrites(req), asyncMode);   // asyncMode: claimed at once, so it counts as live and cannot be double-called
   if (!res.ok) out({ ok: false, reason: res.reason });
   else if (res.queued) out({ ok: true, queued: true, agent_id: res.agent.agent_id, position: res.queued.position, waiting_for: res.queued.heldBy, note: "its locks are held; it starts by itself when they free; use wait" });
   else if (asyncMode) { spawnRun(res.call_id); out({ ok: true, async: true, agent_id: res.agent.agent_id, call_id: res.call_id, status: "running", note: "use wait --agents <ids> to get the answers" }); }
   else { const { r } = await runCall(res.call_id); out({ ok: r.ok, needs_parent: r.needs_parent, agent_id: res.agent.agent_id, session: res.kind, mode: r.mode, report_id: r.report_id, patch_id: r.patch_id, summary: r.summary, violations: r.violations, error: r.error }); }
 } else if (cmd === "fork_all") {   // N tasks for N agents, ALL STARTED AT ONCE (async): `fork_all --from builder#3 --role builder --tasks '[{"title":"..","writes":["run_test/p/js/pages/a.js"],"objective":".."}, ...]' [--output ..] [--boundaries ..]`, then ONE `wait --agents <ids>`. Parallel by construction: no per-call --async to forget.
-  let tasks: { title?: string; writes?: string[] | string; objective?: string; output?: string; boundaries?: string }[] = [];
+  let tasks: { title?: string; writes?: string[] | string; model?: string; objective?: string; output?: string; boundaries?: string }[] = [];
   try { tasks = JSON.parse(flag("tasks") ?? "[]"); } catch (e) { out({ ok: false, reason: "--tasks is not valid JSON: " + String(e).slice(0, 80) }); process.exit(0); }
   if (!Array.isArray(tasks) || !tasks.length) { out({ ok: false, reason: "--tasks must be a non-empty JSON array of {title, writes, objective}" }); process.exit(0); }
   const from = flag("from"), role = flag("role") ?? "builder", started: Record<string, unknown>[] = [];
   for (const t of tasks) {
     const req: CallReq = { task_id: task, caller_agent_id: me, role, session_arg: from ? `fork:${from}` : "new", mode: "work", objective: t.objective, output: t.output ?? flag("output") ?? "Reply in 3 lines: the files you wrote, what you could not do, what you did not check.", boundaries: t.boundaries ?? flag("boundaries") ?? "Write only the files in your writes; edit nothing else. No server, no tests, no npm/pnpm, no build.",
-      writes: (Array.isArray(t.writes) ? t.writes : String(t.writes ?? "").split(",")).map((w) => String(w).trim()).filter(Boolean), title: t.title };
+      writes: (Array.isArray(t.writes) ? t.writes : String(t.writes ?? "").split(",")).map((w) => String(w).trim()).filter(Boolean), title: t.title, model: t.model ?? flag("model") };
+    const mp = modelProblem(role, req.model); if (mp) { started.push({ title: t.title, ok: false, reason: mp }); continue; }
     const res = await grant(withWrites(req), true);
     if (!res.ok) started.push({ title: t.title, ok: false, reason: res.reason });
     else if (res.queued) started.push({ title: t.title, ok: true, queued: true, agent_id: res.agent.agent_id, waiting_for: res.queued.heldBy });
     else { spawnRun(res.call_id); started.push({ title: t.title, ok: true, agent_id: res.agent.agent_id, status: "running" }); }
   }
   const ids = started.filter((x) => x.ok).map((x) => String(x.agent_id));
-  out({ ok: started.every((x) => x.ok), started, next: ids.length ? `All started together. Now ONE: wait --agents ${ids.join(",")} (repeat it if it times out; at most 3 times, then answer the person).` : "Nothing started: fix the reasons above." });
+  out({ ok: started.every((x) => x.ok), started, next: ids.length ? `All started together. Now wait --any --agents ${ids.join(",")}: it returns as soon as ONE finishes, with a browser check of its pages; fix that builder at once if needed, then wait --any again with the ones still running (3 timeouts in a row: answer the person).` : "Nothing started: fix the reasons above." });
 } else if (cmd === "_run") {
   await runCall(flag("call")!);
 } else if (cmd === "wait") {
   const names = (flag("agents") ?? "").split(",").filter(Boolean), limit = Number(flag("timeout") ?? 90) * 1000, t0 = Date.now();
   const pending = () => names.filter((n) => { const a = store.agent(task, n); return !a || a.status === "running" || store.calls.some((c) => c.task_id === task && c.callee_agent_id === n && c.status === "granted"); });   // running, or granted and waiting for its locks
-  for (;;) { store.reload(); if (!pending().length || Date.now() - t0 > limit) break; await sleep(1500); }
+  // a message the person sent while this turn runs: stop waiting so the PostToolUse hook (activity.ts) hands it to the master NOW; it is not marked read here
+  const userMsgs = () => store.notes.filter((n) => n.task_id === task && n.from === "user" && (n.to === me || n.to === "all") && !n.read_by.includes(me)).length;
+  let interrupted = false;
+  const any = rest.includes("--any");   // --any: return as soon as ONE of them has finished (the master reacts to it at once while the others keep working), with the harness's own check of that agent's pages
+  for (;;) { store.reload(); const left = pending().length; if (any ? left < names.length : !left) break; if (Date.now() - t0 > limit) break; if (userMsgs()) { interrupted = true; break; } await sleep(1500); }
+  /** what a finished writer left behind, checked by the harness in a real browser (no model call): proto_check of its project + every page of ITS files opened (stub, dead link, JS error, undefined/NaN) */
+  const checkWork = async (n: string) => {
+    try {
+      const writes = store.calls.filter((c) => c.task_id === task && c.callee_agent_id === n).flatMap((c) => c.req?.writes ?? []), m = writes.map((w) => /^run_test\/([^/]+)\//.exec(w)).find(Boolean); if (!m) return undefined;
+      const proj = join(cwd, "run_test", m[1]!); if (!existsSync(join(proj, "index.html")) || existsSync(join(proj, "package.json"))) return undefined;
+      const { protoCheck } = await import("./core/proto_check.ts"), { smokeRoutes } = await import("./core/preview.ts"), pc = protoCheck(proj);
+      let routes: { id: string; file?: string }[] = [], all: string[] = []; try { const rr = JSON.parse(readFileSync(join(proj, "proto.json"), "utf8")).routes as { id: string; file?: string }[]; all = rr.map((r) => r.id); routes = rr.filter((r) => writes.some((w) => w.endsWith(`js/screens/${r.file}.js`))); } catch { /* not a kit prototype */ }
+      const bad = routes.length ? await smokeRoutes("file://" + join(proj, "index.html"), routes, 6_000, all) : [];
+      return { agent_id: n, project: "run_test/" + m[1], pages_checked: routes.map((r) => "#/" + r.id), proto_check: pc.ok ? "ok" : pc.problems.slice(0, 6), page_problems: bad.map((x) => `${x.route}: ${x.problems.join("; ")}`), verdict: pc.ok && !bad.length ? "CLEAN: its pages open and work" : "FIX: hand these problems to THIS builder now (delegate --session " + n + "), the others keep working" };
+    } catch { return undefined; }
+  };
   // when the agents are done, check every NO-BUILD prototype in run_test/ for the master (it does not have to remember to): files exist, scripts parse, screens/components defined, no unstyled classes
   let protos: { dir: string; ok: boolean; problems: string[] }[] | undefined;
   if (!pending().length) { try { const root = join(cwd, "run_test"), { protoCheck } = await import("./core/proto_check.ts"); protos = readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory() && existsSync(join(root, d.name, "index.html")) && !existsSync(join(root, d.name, "package.json"))).map((d) => { const r = protoCheck(join(root, d.name)); return { dir: "run_test/" + d.name, ok: r.ok, problems: r.problems.slice(0, 6) }; }); if (!protos.length) protos = undefined; } catch { /* no run_test yet */ } }
-  out({ proto_check: protos, timed_out: pending().length > 0, still_running: pending(), agents: names.map((n) => { const a = store.agent(task, n), r = lastReport(n); return { agent_id: n, status: a?.status ?? "unknown", needs_parent: a?.needs_parent ?? undefined, report_id: r?.id, summary: r?.summary.slice(0, 600) ?? null, ...((r?.summary.length ?? 0) > 600 ? { truncated: true, read_full_with: `ledger_get --report ${r!.id}` } : {}), patch: store.patches.filter((p) => p.task_id === task && p.agent_id === n).map((p) => `${p.id}:${p.state}`).join(",") || null }; }) });
+  const finishedNow = names.filter((n) => !pending().includes(n)), checks = any && finishedNow.length ? (await Promise.all(finishedNow.map(checkWork))).filter(Boolean) : undefined;
+  out({ ...(any ? { finished_now: finishedNow, checks, next_step: pending().length ? `React to ${finishedNow.join(", ")} NOW (a FIX verdict goes back to that builder at once; CLEAN needs nothing), then wait --any --agents ${pending().join(",")}` : "everyone is done: run ref_compare / preview" } : {}), ...(interrupted ? { interrupted: "user_message", note: "the person sent you a message: it follows in your context; answer it, then call wait again for the same agents" } : {}), proto_check: protos, timed_out: pending().length > 0 && !interrupted, still_running: pending(), agents: names.map((n) => { const a = store.agent(task, n), r = lastReport(n); return { agent_id: n, status: a?.status ?? "unknown", needs_parent: a?.needs_parent ?? undefined, report_id: r?.id, summary: r?.summary.slice(0, 600) ?? null, ...((r?.summary.length ?? 0) > 600 ? { truncated: true, read_full_with: `ledger_get --report ${r!.id}` } : {}), patch: store.patches.filter((p) => p.task_id === task && p.agent_id === n).map((p) => `${p.id}:${p.state}`).join(",") || null }; }) });
 } else if (cmd === "apply_patches") {
   await applyPatchesCmd();
 } else if (cmd === "plan_submit") {
@@ -213,7 +239,7 @@ if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
     const r = replan(p, wanted, reason, defs, store.agent(task, p.owner)?.name ?? "lead", policy, store, task);
     if (!r.ok) { store.ev("plan.replan_refused", task, me, { errors: r.errors.length }); o = { ok: false, errors: r.errors, note: "NOTHING was changed" }; return; }   // a bad change is refused whole
     const v = (p.version ?? 1) + 1;
-    p.tasks = r.tasks; p.version = v; (p.changes ??= []).push({ v, t: Date.now(), by: me, reason, summary: r.summary });
+    p.tasks = r.tasks; reopenGates(p) /* a passed phase with new open work is not passed any more */; p.version = v; (p.changes ??= []).push({ v, t: Date.now(), by: me, reason, summary: r.summary });
     for (const s2 of r.stop) { stopAgent(store, task, s2.agent_id); }   // running work that is no longer wanted stops now (its late result is discarded)
     stoppedCalls = store.calls.filter((c) => c.task_id === task && c.status === "failed" && c.reason === "stopped").map((c) => c.id);
     for (const a of r.affected_agents) say(store, task, me, a, `PLAN CHANGE ${r.summary}. Reason: ${reason}. Your task was changed or cancelled; read the new instruction you are given and drop work based on the old one.`);
@@ -250,6 +276,28 @@ if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
   for (;;) { store.reload(); const p = find(); if (!p || ["done", "failed", "aborted"].includes(p.status) || Date.now() - t0 > limit) break; await sleep(1200); }
   const p = find();
   out(p ? { plan_id: p.plan_id, status: p.status, waves: p.waves, tasks: p.tasks.map((t) => ({ id: t.id, role: t.role, status: t.status, agent_id: t.agent_id, error: t.error, question: t.question, answer: t.status === "done" ? store.reports.find((r) => r.id === t.report_id)?.summary.slice(0, 500) : undefined })) } : { ok: false, reason: "no such plan" });
+} else if (cmd === "phase_status") {   // the phases of a plan: state, done/total, gate evidence, what blocks the next one
+  store.reload(); const p = store.plans.find((x) => x.task_id === task && x.plan_id === flag("plan"));
+  out(p ? { ok: true, plan_id: p.plan_id, phases: phaseRows(p), note: "a task of phase N+1 starts only after phase N is finished AND its gate is passed (phase_pass)" } : { ok: false, reason: "no such plan" });
+} else if (cmd === "phase_pass") {   // the EXIT CHECK of a phase is done: record the gate so the scheduler may start the next phase. Refused while work is open or the last qa_check failed.
+  let o: unknown;
+  const qa = readQa(dirname(file)), last = qa.history[qa.history.length - 1], qaOk = !(last && !last.ok) && !qaFailed(qa);
+  store.tx(() => {
+    const p = store.plans.find((x) => x.task_id === task && x.plan_id === flag("plan")), n = Number(flag("phase"));
+    if (!p) { o = { ok: false, reason: "no such plan" }; return; }
+    if (!Number.isInteger(n)) { o = { ok: false, reason: "--phase must be a whole number" }; return; }
+    const r = passPhase(p, n, me || "lead", flag("evidence") ?? "", qaOk);
+    if (!r.ok) { store.ev("plan.phase_refused", task, me, { plan_id: p.plan_id, phase: n, errors: r.errors.length }); o = { ok: false, errors: r.errors, note: "the gate stays closed" }; return; }
+    if (!r.already) store.ev("plan.phase_passed", task, me, { plan_id: p.plan_id, phase: n });
+    o = { ok: true, phase: n, already: r.already, phases: phaseRows(p).map((x) => `${x.phase}:${x.state}`) };
+  });
+  out(o);
+} else if (cmd === "agent_peek") {   // read-only look inside an agent: recent tool calls, silence, held files, notes, and a hint (wait / answer / stop)
+  store.reload(); const r = peekAgent(store, task, flag("agent") ?? "", Number(flag("n") ?? 8)); out(r);
+} else if (cmd === "cost") {   // what the team has spent so far, per agent, against the project budget
+  store.reload();
+  const per = store.agentsOf(task).map((a) => ({ agent_id: a.agent_id, usd: Number(store.reports.filter((r) => r.task_id === task && r.agent_id === a.agent_id).reduce((s, r) => s + r.cost, 0).toFixed(4)) })).filter((x) => x.usd > 0);
+  const total = Number(per.reduce((s, x) => s + x.usd, 0).toFixed(4)); out({ ok: true, total_usd: total, budget_usd: policy.budgetUsd || null, left_usd: policy.budgetUsd ? Number(Math.max(0, policy.budgetUsd - total).toFixed(4)) : null, agents: per });
 } else if (cmd === "agents_list") {
   store.reload();
   out(store.agentsOf(task).map((a) => ({ agent_id: a.agent_id, role: a.role, title: a.title, description: a.description, status: a.status, activity: a.activity, session: a.session_id ? "live" : "none", session_id: a.session_id, resume_count: a.resume_count, ...sessionStats(store, task, a.agent_id), level: a.level, needs_parent: a.needs_parent ?? undefined, called_by: a.caller_agent_id, parent_type: a.parent_type, finished_at: a.finished_at ? new Date(a.finished_at).toISOString() : null })));
@@ -284,12 +332,42 @@ if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
 } else if (cmd === "ls") { out(wsLs(join(cwd, "run_test"), flag("path")));
 } else if (cmd === "read_file") { out(wsRead(join(cwd, "run_test"), flag("path") ?? "", Number(flag("offset") ?? 1), Number(flag("limit") ?? 200)));
 } else if (cmd === "grep") { out(wsGrep(join(cwd, "run_test"), flag("pattern") ?? "", flag("path")));
+} else if (cmd === "ref_capture") {   // REAL reference of a website (raw html + css tokens + screenshots, no model call) for a "ditto" clone, or a screenshot of a local preview to compare: --url <https://..> --name <short-name>
+  const url = flag("url") ?? "", nm = (flag("name") ?? new URL(url || "http://x").hostname).replace(/[^\w.-]+/g, "-");
+  if (!/^https?:\/\//.test(url)) out({ ok: false, reason: "--url must start with http:// or https://" });
+  else { const { refCapture } = await import("./core/ref_capture.ts"); out(await refCapture({ url, name: nm, dir: join(cwd, "run_test", "_ref", nm) })); }
+} else if (cmd === "browser_status" || cmd === "browser_connect" || cmd === "browser_disconnect" || cmd === "browser_launch" || cmd === "browser_toggle") {   // the CONNECTED browser (core/browser_conn.ts): a Chrome a person can see and log in to; agents use it instead of a private headless one
+  const bc = await import("./core/browser_conn.ts");
+  out(cmd === "browser_toggle" ? await bc.toggle(!rest.includes("--off")) : cmd === "browser_status" ? await bc.status() : cmd === "browser_disconnect" ? bc.disconnect() : cmd === "browser_connect" ? await bc.connect(flag("url") ?? `http://127.0.0.1:${flag("port") ?? 9222}`) : await bc.launch(Number(flag("port") ?? 9222), flag("open") ?? "about:blank"));
+} else if (cmd === "ref_assets") {   // pull the pictures a captured reference uses (logo, hero, icons, favicon, css backgrounds) into run_test/_ref/<name>/assets/ + assets.json (no model call): --name <name used in ref_capture> [--max 30]
+  const nm = (flag("name") ?? "").replace(/[^\w.-]+/g, "-"), rd = join(cwd, "run_test", "_ref", nm);
+  if (!nm || !(existsSync(join(rd, "raw", "page.html")) || existsSync(join(rd, "page.html")))) out({ ok: false, reason: "--name must be a reference made by ref_capture (run_test/_ref/<name>/raw/page.html)" });
+  else { const { refAssets } = await import("./core/ref_assets.ts"); out(await refAssets({ dir: rd, max: Number(flag("max") ?? 30) })); }
+} else if (cmd === "site_audit") {   // the real browser checks OUR OWN site (a project folder or a url) and lists what to improve: --dir run_test/<p> | --url <https://..> [--name <n>]
+  const { siteAudit, projectRoutes } = await import("./core/site_audit.ts"), u = flag("url"), proj = u ? "" : projPath(flag("dir") ?? ".");
+  if (!u && (!inWs(proj) || !existsSync(join(proj, "index.html")))) out({ ok: false, reason: "give --dir run_test/<project> (with index.html) or --url https://.." });
+  else { const nm = (flag("name") ?? (u ? new URL(u).hostname : proj.split("/").pop()!)).replace(/[^\w.-]+/g, "-"); out(await siteAudit({ base: u ?? "file://" + join(proj, "index.html"), routes: u ? [] : projectRoutes(proj), outDir: join(cwd, "run_test", "_audit", nm), name: nm })); }
+} else if (cmd === "ref_store") {   // (re)build the index STORE.md and the mind map MAP.md of a reference store after anything was added (layouts, briefs, assets): --name <name>
+  const nm = (flag("name") ?? "").replace(/[^\w.-]+/g, "-"), rd = join(cwd, "run_test", "_ref", nm);
+  if (!nm || !existsSync(rd)) out({ ok: false, reason: "no such reference store: run_test/_ref/<name>" });
+  else { const { buildStore } = await import("./core/ref_store.ts"); out({ ...buildStore(rd, nm), note: "STORE.md and MAP.md rebuilt" }); }
+} else if (cmd === "browse") {   // a REAL browser (Chrome DevTools Protocol): --url <http(s)://..> | --file run_test/<p>/index.html [--route "/blog"] [--scheme light|dark] [--mobile] [--shots <prefix>] [--steps '[{"scroll":900},{"click":"Features"},{"shot":"a.png"},{"eval":"document.title"},{"outline":true}]']
+  const { browse } = await import("./core/browse.ts"), { mkdirSync } = await import("node:fs"), f = flag("file"), outDir = join(cwd, "run_test", "_shots");
+  const ff = f ? projPath(f.replace(/\/?index\.html$/, "") || ".") : "", url = flag("url") ?? (f ? "file://" + join(ff, "index.html") + "#" + (flag("route") ?? "/") : "");
+  if ((!url && !flag("tab")) || (f && !inWs(ff))) out({ ok: false, reason: "give --url https://.. or --file run_test/<project>/index.html (inside the workspace)" });
+  else { mkdirSync(outDir, { recursive: true }); let steps: unknown[] = []; try { steps = JSON.parse(flag("steps") ?? "[]"); } catch { /* none */ }
+    const pre = flag("shots"), r = await browse({ url, tab: flag("tab"), outDir, scheme: flag("scheme") === "dark" ? "dark" : "light", mobile: rest.includes("--mobile"), steps: steps as never, sectionShots: pre ? 12 : 0, tag: pre ?? "page" });
+    out({ ok: r.ok, reason: r.reason, pictures_in: "run_test/_shots/ (open them with Read)", pictures: r.shots.map((x) => x.split("/").pop()), results: r.results, console_errors: r.console, outline: r.outline ? { theme: r.outline.theme, sections: r.outline.sections.map((x) => `#${x.i + 1} ${x.heading || x.tag} | ${x.cards ? x.cards + " cards" : "-"} | btn ${x.buttons.length} | img ${x.images}${x.animated ? " | animated" : ""}`), nav: r.outline.nav, fonts: r.outline.fonts } : undefined }); }
+} else if (cmd === "ref_compare") {   // does the clone match the reference captured by ref_capture? --ref <name> --dir run_test/<project> [--route "/"]
+  const nm = flag("ref") ?? "", proj = projPath(flag("dir") ?? "."), dirRel = proj.slice(resolve(cwd).length + 1), idx = join(proj, "index.html");
+  if (!nm || !inWs(proj) || !existsSync(idx)) out({ ok: false, reason: "--ref <name used in ref_capture> and --dir run_test/<project> (with index.html) are required" });
+  else { const { refCompare } = await import("./core/ref_compare.ts"); out(await refCompare({ refDir: join(cwd, "run_test", "_ref", nm), url: "file://" + idx + "#" + (flag("route") ?? "/"), outDir: join(cwd, "run_test", "_shots") })); }
 } else if (cmd === "proto_init") {   // the STARTER of a no-build prototype, made by the harness (no model call): design kit + shell + one stub screen per nav item + PROTO.md. Builders then only write screens.
   const rel = (flag("dir") ?? "").replace(/^run_test[\\/]?/, ""), d = resolve(cwd, "run_test", rel);
   if (!rel || rel.includes("..") || !d.startsWith(resolve(cwd, "run_test") + "/")) out({ ok: false, reason: "--dir must be run_test/<project>" });
-  else { const { protoInit, parseNav } = await import("./core/proto_init.ts"); out(protoInit(d, { title: flag("title") ?? rel, nav: parseNav(flag("nav") ?? ""), user: flag("user"), org: flag("org"), rel: "run_test/" + rel })); }
+  else { const { protoInit, parseNav } = await import("./core/proto_init.ts"); out(protoInit(d, { title: flag("title") ?? rel, nav: parseNav(flag("nav") ?? ""), user: flag("user"), org: flag("org"), rel: "run_test/" + rel, kind: flag("kind") === "site" ? "site" : "app", extra: flag("extra") ? parseNav(flag("extra")!) : undefined, accent: flag("accent"), font: flag("font"), bgDark: flag("bg-dark"), tagline: flag("tagline") })); }
 } else if (cmd === "proto_check") {   // a NO-BUILD prototype (index.html + plain scripts + Vue from a CDN): files exist, scripts parse, every screen / component used is defined. No install, no server: under a second.
-  const d = resolve(cwd, flag("dir") ?? ""); if (!d.startsWith(resolve(cwd))) { out({ ok: false, error: "the folder must be inside the workspace" }); } else { const { protoCheck } = await import("./core/proto_check.ts"); out(protoCheck(d)); }
+  const d = projPath(flag("dir") ?? "."); if (!inWs(d)) { out({ ok: false, error: "the folder must be inside the workspace" }); } else { const { protoCheck } = await import("./core/proto_check.ts"); out(protoCheck(d)); }
 } else if (cmd === "qa_check") {   // EARLY CHECK while developing (no video): type check + dev server + page errors + dev log, in a throwaway Docker container (2 GB, 1 CPU). On a failure it first CHECKPOINTS the workspace (git commit), then tells the master what to hand to the sub-agent. Same issue 3 times in a row = STOP, the test is marked failed (harness/core/qa_loop.ts).
   const qdir = dirname(file), qs = readQa(qdir), dir = flag("dir") ?? "", pj = join(cwd, "run_test", dir.replace(/^run_test[\\/]?/, ""), "package.json");
   if (existsSync(join(qdir, "qa_disabled"))) out({ ok: false, disabled: true, next: "qa_check is switched off for this task by the test setup. Do not run it again and do not treat this as a failure: judge only the delegation, then give your final answer." });

@@ -5,9 +5,10 @@ import { existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, sta
 import { dirname, join, resolve } from "node:path";
 import { bgOf, taskProcs } from "./preview.ts";
 import { reviewDue, touchBg } from "@core/orchistraitor/f1_multiagent/harness/core/bg.ts";
-import { MStore } from "@core/orchistraitor/f1_multiagent/harness/core/board.ts";
+import { MStore, say } from "@core/orchistraitor/f1_multiagent/harness/core/board.ts";
 import { claudeDirs } from "@core/orchistraitor/f1_multiagent/harness/core/base.ts";
-import { costOf } from "@core/orchistraitor/f1_multiagent/harness/core/agent_call.ts";
+import { costOf, stopAgent } from "@core/orchistraitor/f1_multiagent/harness/core/agent_call.ts";
+import { locksFromEnv } from "@core/orchistraitor/f1_multiagent/harness/core/lockapi.ts";
 import { judgeTurn, loadSuites, readExp, statusOf, unsupported, writeExp, type ExpEntry, type SuiteCase } from "@core/orchistraitor/f1_multiagent/testrun/cases.ts";
 import type { AgentDetail, AvailableAgent, ChatOut, SendIn, CaseResultOut, CaseState, ExpSuite, ExperimentOverview, LiveAgent, LiveSession, RunInfo, RunLog } from "../shared/experiment.ts";
 
@@ -126,7 +127,7 @@ export async function caseResult(id: string): Promise<CaseResultOut | null> {
 interface Side { task: string; agents: string[]; fake: boolean; case?: string; suite?: string; createdAt: number }
 const sideFile = (t: string) => join(SESS, t + ".json");
 const readSide = (t: string): Side | undefined => { try { return JSON.parse(readFileSync(sideFile(t), "utf8")); } catch { return undefined; } };
-interface Q { busy: boolean; error: string; queue: { id: string; text: string; t: number; caseId?: string; suite?: string; auto?: boolean }[] }
+interface Q { busy: boolean; stopped?: boolean; error: string; queue: { id: string; text: string; t: number; noSay?: boolean; caseId?: string; suite?: string; auto?: boolean }[] }
 const queues = new Map<string, Q>();
 const q = (t: string) => queues.get(t) ?? (queues.set(t, { busy: false, error: "", queue: [] }), queues.get(t)!);
 
@@ -140,7 +141,7 @@ export function availableAgents(): AvailableAgent[] {
 }
 
 /** Send a message to a session's master. No task = a new session. The master answers one message at a time; the rest wait in the queue. */
-export function send(b: SendIn & { auto?: boolean }): { task: string; queued: boolean } {
+export function send(b: SendIn & { auto?: boolean }): { task: string; queued: boolean; live?: boolean } {
   const text = String(b.text ?? "").trim(); if (!text) throw new Error("empty message");
   const names = new Set(availableAgents().map((a) => a.name));
   let task = b.task;
@@ -150,9 +151,24 @@ export function send(b: SendIn & { auto?: boolean }): { task: string; queued: bo
     writeFileSync(sideFile(task), JSON.stringify({ task, agents: b.agents.filter((a) => names.has(a)), fake: !!b.fake, case: b.caseId, suite: b.suite, createdAt: Date.now() } satisfies Side));
   } else if (!/^[\w-]+$/.test(task)) throw new Error("bad session id");
   const Qt = q(task), wasBusy = Qt.busy;
+  if (wasBusy && !b.caseId && !b.auto && sendLive(task, text)) return { task, queued: false, live: true };   // the master is mid-turn (maybe in `wait`): hand it over now, not after the turn
   Qt.queue.push({ id: "q" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), text, t: Date.now(), caseId: b.caseId, suite: b.suite, auto: b.auto });
   void pump(task);
   return { task, queued: wasBusy };
+}
+/** The master is busy: put the message straight into its inbox (the PostToolUse hook shows it at its next tool call, `wait` returns early for it). Returns false when the session store is not found. */
+function sendLive(task: string, text: string): boolean {
+  const e = Object.values(expAll()).find((x) => x.task === task), file = join(STATE_DIR, (e as { home?: string } | undefined)?.home ?? task, "store", "store.json");
+  if (!existsSync(file)) return false;
+  const s = new MStore(file); s.reload(); s.tx(() => { say(s, task, "user", "lead", text, ["live"], Infinity); }); return true;
+}
+/** After a turn: a live message the master never read (its turn ended first) becomes its next turn, without writing the message twice. */
+function unreadLive(task: string): string[] {
+  const e = Object.values(expAll()).find((x) => x.task === task), file = join(STATE_DIR, (e as { home?: string } | undefined)?.home ?? task, "store", "store.json");
+  if (!existsSync(file)) return [];
+  const s = new MStore(file); s.reload(); let out: string[] = [];
+  s.tx(() => { const ns = s.notes.filter((n) => n.task_id === task && n.from === "user" && n.to === "lead" && n.refs.includes("live") && !n.read_by.includes("lead")); for (const n of ns) n.read_by.push("lead"); out = ns.map((n) => n.text); });
+  return out;
 }
 async function pump(task: string) {
   const Qt = q(task); if (Qt.busy) return; Qt.busy = true;
@@ -161,16 +177,19 @@ async function pump(task: string) {
       const m = Qt.queue.shift()!, side = readSide(task), tf = join(SESS, task + "." + m.id + ".txt");
       writeFileSync(tf, m.text);
       const exp = expAll(), linked = side?.case, turn = linked && exp[linked]?.task === task ? exp[linked]!.done : 0;
-      const args = ["testrun/chat.ts", "--task", task, "--text-file", tf];
+      const args = ["testrun/chat.ts", "--task", task, "--text-file", tf]; if (m.noSay) args.push("--no-say");
       if (side) args.push("--agents", side.agents.length ? side.agents.join(",") : "-");   // "-" = no sub-agents
       if (side?.fake) args.push("--fake");
       if (m.auto) args.push("--auto");
       if (linked) args.push("--case", linked, "--turn", String(turn), "--suite", side?.suite ?? "");
+      Qt.stopped = false;
       Qt.error = await new Promise<string>((res) => {
         let out = ""; const p = spawn("bun", args, { cwd: F1, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
         p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
         p.on("error", (e) => res(String(e))); p.on("exit", (code) => res(code === 0 ? "" : out.trim().slice(-400) || `exit ${code}`));
       });
+      if (Qt.stopped) { Qt.error = "stopped by you"; Qt.stopped = false; }
+      else { const left = unreadLive(task); if (left.length) Qt.queue.unshift({ id: "q" + Date.now().toString(36), text: left.join("\n\n"), t: Date.now(), noSay: true }); }
       try { rmSync(tf, { force: true }); } catch { /* best effort */ }
     }
   } finally { Qt.busy = false; }
@@ -224,6 +243,29 @@ function killTree(all: Proc[], roots: Proc[]) {
   const out = new Set(roots.map((p) => p.pid)), todo = [...out];
   while (todo.length) { const id = todo.pop()!; for (const p of all) if (p.ppid === id && !out.has(p.pid)) { out.add(p.pid); todo.push(p.pid); } }
   let n = 0; for (const pid of out) { try { process.kill(pid, "SIGKILL"); n++; } catch { /* gone */ } } return n;
+}
+/** STOP the session's current work: drops queued messages, kills the master's turn (testrun/chat.ts) and every claude / tools.ts process of the session (sub-agents too). The session and its chat are kept; a new message continues it. */
+export async function stopSession(task: string) {
+  if (!/^[\w-]+$/.test(task)) throw new Error("bad session id");
+  const Qt = q(task), dropped = Qt.queue.length; Qt.queue.length = 0; Qt.stopped = true;   // pump() reads stopped: a killed turn is not a failure
+  const e = Object.values(expAll()).find((x) => x.task === task), file = join(STATE_DIR, (e as { home?: string } | undefined)?.home ?? task, "store", "store.json");
+  const own = existsSync(file) ? new MStore(file) : null;
+  // 1) registry first: every agent of the session (master and all sub-agents, any depth) -> stopped, epoch bumped (a late result is thrown away), granted calls -> failed
+  let stoppedAgents = 0, failedCalls: string[] = [];
+  if (own) { own.reload(); own.tx(() => { const lead = own.agentsOf(task).find((a) => a.name === "lead"); if (lead) stoppedAgents = stopAgent(own, task, lead.agent_id).length; for (const a of own.agentsOf(task)) if (a.status === "running" || a.status === "stalled") { a.status = "idle"; a.activity = "stopped"; a.epoch = (a.epoch ?? 0) + 1; stoppedAgents++; } failedCalls = own.calls.filter((c) => c.task_id === task && c.status === "failed" && c.reason === "stopped").map((c) => c.id); }); }
+  // 2) kill the processes, twice (the second pass catches a call that was starting while the first ran)
+  let killed = 0;
+  for (let pass = 0; pass < 2; pass++) {
+    const st = own ?? store(), sids = st.agents.filter((a) => a.task_id === task).map((a) => a.session_id).filter((x): x is string => !!x);
+    const callIds = st.calls.filter((c) => c.task_id === task).map((c) => c.id), all = psList();
+    killed += killTree(all, all.filter((p) => p.args.includes("testrun/chat.ts") && p.args.includes(`--task ${task} `)));
+    killed += killTree(all, all.filter((p) => /\bclaude\b/.test(p.args.slice(0, 160)) && sids.some((sid) => p.args.includes(`--session-id ${sid}`) || p.args.includes(`--resume ${sid}`))));
+    killed += killTree(all, all.filter((p) => p.args.includes("tools.ts") && callIds.some((c) => p.args.includes(`_run --call ${c}`))));
+    if (pass === 0) await new Promise((r) => setTimeout(r, 700));
+  }
+  // 3) free the locks the stopped calls held; nothing that was waiting for them is started (stopping means stopping)
+  if (own) { try { const locks = locksFromEnv(own); for (const c of failedCalls) await locks.release(task, c, 120_000); } catch { /* the lease ends by itself */ } }
+  return { ok: true, task, killed, dropped, stopped_agents: stoppedAgents };
 }
 export function deleteSession(task: string) {
   if (!/^[\w-]+$/.test(task)) throw new Error("bad session id");

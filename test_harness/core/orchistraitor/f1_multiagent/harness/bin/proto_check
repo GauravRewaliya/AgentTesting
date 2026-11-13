@@ -1,0 +1,3 @@
+#!/bin/sh
+# on the PATH of every agent: `proto_check ...` = `bun tools.ts proto_check ...` (the harness environment variables are already set)
+exec bun --smol "$(dirname "$0")/../tools.ts" proto_check "$@"

@@ -1,0 +1,3 @@
+#!/bin/sh
+# on the PATH of every agent: `site_audit ...` = `bun tools.ts site_audit ...`
+exec bun --smol "$(dirname "$0")/../tools.ts" site_audit "$@"

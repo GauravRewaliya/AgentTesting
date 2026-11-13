@@ -1,4 +1,7 @@
 .*/
+# agent prompts are code: keep every harness agent's .claude/CLAUDE.md + settings.json in git (vendored skills/ stay out)
+!test_harness/core/orchistraitor/f1_multiagent/harness/agents/*/.claude/
+test_harness/core/orchistraitor/f1_multiagent/harness/agents/*/.claude/skills/
 old_data_bkp/
 
 # local settings (see .env.example)

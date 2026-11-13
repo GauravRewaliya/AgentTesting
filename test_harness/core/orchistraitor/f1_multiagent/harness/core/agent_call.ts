@@ -4,13 +4,13 @@ import type { AgentDef, AgentRow, Store } from "./base.ts";
 import { customDef, isCustomName } from "./custom.ts";
 
 export const HARD_MAX_DEPTH = 4;
-export interface Policy { externalLocks?: boolean; agentMaxDepth: number; taskMaxAgents: number; maxInstancesPerRole: number; killSwitch: boolean; spendPaused: boolean; lockTtlMs: number }
+export interface Policy { externalLocks?: boolean; agentMaxDepth: number; taskMaxAgents: number; maxInstancesPerRole: number; killSwitch: boolean; spendPaused: boolean; lockTtlMs: number; budgetUsd?: number }
 /** Multi-agent is OFF by default: agentMaxDepth 1 means the lead (level 1) cannot call anyone. */
 export const defaultPolicy = (o: Partial<Policy> = {}): Policy => ({ agentMaxDepth: 1, taskMaxAgents: 24, maxInstancesPerRole: 4, killSwitch: false, spendPaused: false, lockTtlMs: 1_200_000, ...o });
 
 export interface CallReq {
   task_id: string; caller_agent_id: string; role: string; session_arg?: string; mode?: "work" | "ask";
-  objective?: string; output?: string; boundaries?: string; writes?: string[]; onBehalf?: boolean;
+  objective?: string; output?: string; boundaries?: string; model?: string; writes?: string[]; onBehalf?: boolean;
   title?: string;   // what an agent without a folder is FOR ("researcher: compare 3 bundlers"); used when the caller may make custom agents   // onBehalf: the plan scheduler calls for its owner after the owner's turn ended
 }
 export type CallRes =
@@ -29,6 +29,10 @@ export function agentCall(store: Store, defs: Map<string, AgentDef>, policy: Pol
   // 8 (first, it is cheapest): kill switch and spend guard
   if (policy.killSwitch) return deny("kill_switch", "the kill switch is on; no new agent may start");
   if (policy.spendPaused) return deny("spend_paused", "spending is paused for this team");
+  if (policy.budgetUsd && policy.budgetUsd > 0) {   // project budget: the real money spent by every agent of the task so far
+    const spent = store.reports.filter((r) => r.task_id === req.task_id).reduce((s, r) => s + r.cost, 0);
+    if (spent >= policy.budgetUsd) return deny("budget_exceeded", `the project budget is used up ($${spent.toFixed(2)} of $${policy.budgetUsd}); no new agent call may start. Tell the person and stop, or ask them to raise HARNESS_PROJECT_BUDGET_USD.`);
+  }
   // 1 caller is live and inside the task
   const caller = store.agent(req.task_id, req.caller_agent_id);
   if (!caller || (caller.status !== "running" && !(req.onBehalf && caller))) return deny("caller_not_live", `${req.caller_agent_id} is not a running agent of task ${req.task_id}`);

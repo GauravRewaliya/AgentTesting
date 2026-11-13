@@ -1,7 +1,7 @@
 {
  "role": "builder",
  "description": "Implements the plan, fixes findings, reports what it changed",
- "model": "haiku",
+ "model": "sonnet",
  "session": "persistent",
  "writes": true,
  "max_children": 2,

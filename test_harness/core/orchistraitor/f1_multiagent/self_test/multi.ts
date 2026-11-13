@@ -23,6 +23,11 @@ import { StoreLocks, locksFromEnv, type LockApi } from "../harness/core/lockapi.
 import { RedisLocks } from "../harness/core/locks_redis.ts";
 import { parseNav, protoInit } from "../harness/core/proto_init.ts";
 import { protoCheck } from "../harness/core/proto_check.ts";
+import { browse, chromeBin } from "../harness/core/browse.ts";
+import * as bconn from "../harness/core/browser_conn.ts";
+import { refAssets } from "../harness/core/ref_assets.ts";
+import { siteAudit } from "../harness/core/site_audit.ts";
+import { buildStore, initStore } from "../harness/core/ref_store.ts";
 import { applyQueue } from "../harness/core/patches.ts";
 import { addWorktree, auditWrites, patchOf, removeWorktree } from "../harness/core/worktree.ts";
 import { HARNESS_DIR, loadDefs } from "../harness/main.ts";
@@ -785,6 +790,73 @@ async function protoKitSuite() {
   writeFileSync(join(d, "js/screens/main.js"), stub.replace("Screens.Apps = {", "Screens.Apps = { template: '<div class=\"nope-class\">x</div>',"));
   t("PK6", "an unstyled class a builder invents is reported by proto_check", protoCheck(d).problems.some((x) => x.includes("nope-class")), "");
   rmSync(d, { recursive: true, force: true });
+  // ---- the SITE kit (marketing / blog websites): themes, scroll animations, every page linked
+  const sd = join(tmpdir(), "sitekit-" + randomUUID().slice(0, 6)), sr = protoInit(sd, { kind: "site", title: "Pingly", accent: "#10b981", font: "DM Sans", bgDark: "#0b0d10", nav: parseNav("Home, Features, Blog, Pricing, Get started"), extra: parseNav("Privacy, Terms"), rel: "run_test/pingly" });
+  const html = sr.ok ? readFileSync(join(sd, "index.html"), "utf8") : "", pj = sr.ok ? JSON.parse(readFileSync(join(sd, "proto.json"), "utf8")) : { routes: [] }, ids: string[] = pj.routes.map((r: { id: string }) => r.id);
+  t("PK7", "proto_init --kind site writes site.css, site.js, theme.css (accent, font, dark background), one stub per page (nav + extra), balanced files, proto.json kit=site", sr.ok && ["css/site.css", "js/site.js", "css/theme.css", "js/screens/part-1.js", "js/screens/part-2.js", "PROTO.md"].every((f) => existsSync(join(sd, f))) && readFileSync(join(sd, "css/theme.css"), "utf8").includes("#10b981") && readFileSync(join(sd, "css/theme.css"), "utf8").includes("#0b0d10") && html.includes("DM+Sans") && ids.length === 7 && pj.kit === "site", JSON.stringify(sr).slice(0, 160));
+  const foot = [...html.matchAll(/"to":"([\w-]+)"/g)].map((m) => m[1]!);
+  t("PK8", "the footer and the header button link ONLY to real routes, and every route is in the footer or the header (no page without a way in)", foot.length >= 6 && foot.every((x) => ids.includes(x)) && ids.every((x) => foot.includes(x) || html.includes(`"id":"${x}"`)), foot.join(","));
+  t("PK9", "the untouched site starter passes proto_check", protoCheck(sd).ok, protoCheck(sd).problems.join(" | "));
+  const { statSync } = await import("node:fs"), BIN = join(import.meta.dirname, "..", "harness", "bin"), cmds = ["proto_check", "proto_init", "browse", "ref_compare", "ref_capture", "preview"];
+  t("PK10", "every team command is a real executable on the agents' PATH (harness/bin): builders no longer hunt for `bun .../tools.ts` (it cost them ~6 steps)", cmds.every((c) => existsSync(join(BIN, c)) && (statSync(join(BIN, c)).mode & 0o111) !== 0 && readFileSync(join(BIN, c), "utf8").includes(`tools.ts" ${c}`)), "");
+  if (chromeBin()) {
+    const L = await browse({ url: `file://${sd}/index.html#/home`, outDir: sd, scheme: "light", steps: [{ outline: true }] }), D = await browse({ url: `file://${sd}/index.html#/home`, outDir: sd, scheme: "dark", steps: [{ outline: true }] });
+    const lum = (c: string) => { const m = /(\d+),\s*(\d+),\s*(\d+)/.exec(c) ?? []; return (+m[1]! + +m[2]! + +m[3]!) / 3; };
+    t("PK11", "REAL BROWSER: the site follows the system theme (light bg bright, dark bg dark), no JavaScript error", !!L.outline && !!D.outline && lum(L.outline.theme.bg) > 200 && lum(D.outline.theme.bg) < 60 && L.console.length === 0, `${L.outline?.theme.bg} / ${D.outline?.theme.bg} ${L.console}`);
+    const N = await browse({ url: `file://${sd}/index.html#/home`, outDir: sd, steps: [{ click: "Features" }, { eval: "location.hash" }, { click: "Switch to dark" }, { eval: "document.documentElement.getAttribute('data-theme')" }] });
+    t("PK12", "REAL BROWSER: clicking a nav item opens that route, the toggle switches the theme (the browser driver can click, scroll and evaluate like a person)", JSON.stringify(N.results.map((x) => (x as { eval?: string }).eval).filter(Boolean)) === JSON.stringify(["#/features", "dark"]), JSON.stringify(N.results));
+  } else t("PK11", "REAL BROWSER checks skipped: no Chrome on this machine", true, "");
+  rmSync(sd, { recursive: true, force: true });
+  // ---- the CONNECTED browser: a Chrome with a debug port that a person can see; agents attach to it, list its tabs, use a tab of their own (closed afterwards), or inspect one that is open
+  if (chromeBin()) {
+    const { spawn } = await import("node:child_process"), pd = join(tmpdir(), "cdpprof-" + randomUUID().slice(0, 6)), pg = join(tmpdir(), "cdppage-" + randomUUID().slice(0, 6) + ".html"), port = 9440 + Math.floor(Math.random() * 40), ep = `http://127.0.0.1:${port}`;
+    writeFileSync(pg, "<title>Open page</title><h1>Logged-in page</h1>");
+    const ch = spawn(chromeBin()!, ["--headless=new", "--no-sandbox", "--disable-gpu", "--allow-file-access-from-files", `--remote-debugging-port=${port}`, `--user-data-dir=${pd}`, "file://" + pg], { stdio: "ignore" }), saved = process.env.HARNESS_CDP_URL;
+    try {
+      for (let i = 0; i < 40; i++) { try { await fetch(ep + "/json/version"); break; } catch { await new Promise((r) => setTimeout(r, 250)); } }
+      delete process.env.HARNESS_CDP_URL; const before = await bconn.status();
+      process.env.HARNESS_CDP_URL = ep; const st = await bconn.status();
+      t("PK13", "connected browser: without an endpoint agents use the private headless Chrome; with one, browser_status says attached, names the browser and lists the open tabs", before.mode === "headless" && st.mode === "attached" && st.reachable === true && !!st.browser && (st.tabs ?? []).some((x) => x.title === "Open page"), JSON.stringify(st).slice(0, 160));
+      const tabsBefore = (await bconn.sessions(ep)).tabs.length, r = await browse({ url: "file://" + pg, outDir: sd, steps: [{ eval: "document.title" }] }), tabsAfter = (await bconn.sessions(ep)).tabs.length;
+      t("PK14", "browse through the connected browser opens its OWN tab, works, and closes it again (the person's tabs are left as they were)", r.ok && (r.results[0] as { eval?: string }).eval === "Open page" && tabsBefore === tabsAfter, `${tabsBefore} -> ${tabsAfter} ${r.reason ?? ""}`);
+      const re = await browse({ url: "", tab: "Open page", outDir: sd, steps: [{ eval: "document.querySelector('h1').innerText" }] }), none = await browse({ url: "", tab: "no-such-tab-xyz", outDir: sd, steps: [] });
+      t("PK15", "browse --tab attaches to a tab that is ALREADY open (reads its page without navigating) and says clearly when no tab matches", re.ok && (re.results[0] as { eval?: string }).eval === "Logged-in page" && !none.ok && /no open tab matches/.test(none.reason ?? ""), `${JSON.stringify(re.results)} ${none.reason}`);
+      const cfgFile = join(import.meta.dirname, "..", "..", "..", "..", ".state", "browser.json"), keep = existsSync(cfgFile) ? readFileSync(cfgFile, "utf8") : null;   // the toggle reads the saved connection: use it with a scratch file and put the real one back
+      delete process.env.HARNESS_CDP_URL; writeFileSync(cfgFile, JSON.stringify({ endpoint: ep, enabled: true })); const on = bconn.attachedEndpoint(); await bconn.toggle(false); const off = bconn.attachedEndpoint(), offSt = await bconn.status(); await bconn.toggle(true); const on2 = bconn.attachedEndpoint();
+      if (keep === null) rmSync(cfgFile, { force: true }); else writeFileSync(cfgFile, keep);
+      t("PK17", "the on/off toggle: OFF = agents use the private headless Chrome (the connection is remembered and says so), ON = the connected browser again", on === ep && off === undefined && offSt.mode === "headless" && /switched OFF/.test(offSt.note) && on2 === ep, `${on} ${off} ${on2}`);
+      process.env.HARNESS_CDP_URL = "http://127.0.0.1:9"; const dead = await bconn.status(), fb = await browse({ url: "file://" + pg, outDir: sd, steps: [{ eval: "document.title" }] });
+      t("PK16", "a connected browser that stops answering is reported (not reachable) and agents fall back to the private headless Chrome instead of failing", dead.mode === "attached" && dead.reachable === false && fb.ok && fb.console.some((x) => x.includes("does not answer")), JSON.stringify(dead).slice(0, 120));
+    } finally { if (saved === undefined) delete process.env.HARNESS_CDP_URL; else process.env.HARNESS_CDP_URL = saved; ch.kill("SIGKILL"); rmSync(pd, { recursive: true, force: true }); rmSync(pg, { force: true }); }
+  }
+  // ---- the LOOKUP agent (UI/UX reference analyst) and its asset puller
+  const ad = join(tmpdir(), "refassets-" + randomUUID().slice(0, 6)); mkdirSync(ad, { recursive: true });
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  const srv = Bun.serve({ port: 0, fetch: (q) => { const u = new URL(q.url).pathname; return u.endsWith(".png") && !u.includes("missing") ? new Response(png, { headers: { "content-type": "image/png" } }) : new Response("nope", { status: 404 }); } });
+  writeFileSync(join(ad, "page.html"), `<link rel="icon" href="/fav.png"><meta property="og:image" content="/og.png"><img src="/logo.png" alt="Brand logo"><img src="/hero.png" alt="Hero shot"><img src="/missing.png" alt="gone">`); writeFileSync(join(ad, "styles.css"), `.x{background:url(/bg.png)}`);
+  const ra = await refAssets({ dir: ad, url: `http://127.0.0.1:${srv.port}/` }) as { ok: boolean; downloaded?: number; assets?: string[] }, man = JSON.parse(readFileSync(join(ad, "assets.json"), "utf8")) as { assets: { role: string; width?: number }[]; skipped: string[] };
+  srv.stop(true);
+  t("PK18", "ref_assets pulls logo, hero image, favicon, social image and css background into assets/ with roles and pixel sizes, and reports (not crashes on) a missing file", ra.ok && ra.downloaded === 5 && ["logo", "favicon", "social-preview", "css-background", "image"].every((r) => man.assets.some((a) => a.role === r)) && man.assets.every((a) => a.width === 1) && man.skipped.length === 1, JSON.stringify(ra).slice(0, 200));
+  rmSync(ad, { recursive: true, force: true });
+  // ---- the reference STORE (fixed layout, mind map) and the SITE AUDIT of our own pages
+  const rs = join(tmpdir(), "refstore-" + randomUUID().slice(0, 6)); initStore(rs);
+  writeFileSync(join(rs, "outline.json"), JSON.stringify({ url: "https://x.test/", title: "X site", theme: { scheme: "light", bg: "rgb(255, 255, 255)", color: "rgb(0,0,0)", font: "DM Sans", accent: "rgb(16, 185, 129)" }, doc_h: 3000, nav: ["Home -> /"], fonts: [], keyframes: [], scrollReveal: true, links: [], sections: [{ i: 0, tag: "section", id: "hero", y: 0, h: 800, heading: "Big promise", headings: 1, bg: "rgb(255,255,255)", color: "", font: "DM Sans", h_size: "64px", h_weight: "700", buttons: ["Start"], links: 3, images: 2, cards: 0, lists: 0, forms: 0, inputs: 0, animated: true, radius: "", text: "Big promise ..." }, { i: 1, tag: "section", id: "feat", y: 800, h: 900, heading: "Features", headings: 2, bg: "rgb(247,248,250)", color: "", font: "DM Sans", h_size: "40px", h_weight: "700", buttons: [], links: 0, images: 6, cards: 6, lists: 0, forms: 0, inputs: 0, animated: false, radius: "16px", text: "Features" }] }));
+  writeFileSync(join(rs, "assets.json"), JSON.stringify({ assets: [{ file: "assets/logo/01-logo.png", role: "logo" }, { file: "assets/images/02-hero.webp", role: "image", width: 800, height: 600 }] })); writeFileSync(join(rs, "briefs", "BRIEF.md"), "x"); writeFileSync(join(rs, "layouts", "home.md"), "x");
+  buildStore(rs, "x"); const mm = readFileSync(join(rs, "MAP.md"), "utf8"), st = readFileSync(join(rs, "STORE.md"), "utf8");
+  t("PK20", "the reference store has a fixed layout (pictures/ raw/ assets/<role>/ layouts/ briefs/), a generated mind map (tree + Mermaid mindmap: sections, components, pictures, assets, layouts, briefs) and an index that says where everything is", ["pictures", "raw", "assets", "layouts", "briefs"].every((d) => existsSync(join(rs, d))) && mm.includes("```mermaid") && mm.includes("mindmap") && mm.includes("pictures/desktop-light-section-02.png") && mm.includes("6-item grid/list") && mm.includes("assets/logo/01-logo.png") && mm.includes("layouts/home.md") && mm.includes("briefs/BRIEF.md") && st.includes("MAP.md") && st.includes("assets/") && st.includes("../_ref/x/assets/"), mm.slice(0, 200));
+  rmSync(rs, { recursive: true, force: true });
+  if (chromeBin()) {
+    const bad = join(tmpdir(), "audit-bad-" + randomUUID().slice(0, 6) + ".html"), good = join(tmpdir(), "audit-good-" + randomUUID().slice(0, 6) + ".html"), ao = join(tmpdir(), "audit-out-" + randomUUID().slice(0, 6));
+    writeFileSync(bad, `<html><body style="margin:0"><p style="color:#bbb;background:#fff;font-size:16px">Pale grey text that nobody can read</p><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" width="40" height="40"><a href="#">Go nowhere</a><h2>Skipped</h2><h4>Heading levels</h4><div style="width:900px;height:20px;background:#eee">wide</div></body></html>`);
+    writeFileSync(good, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>A clean page for the audit</title><meta name="description" content="A clean page with every basic in place."><style>body{margin:0;font:16px system-ui;color:#101828;background:#fff}main{padding:24px;max-width:600px}a{color:#175cd3}</style></head><body><main><h1>Clean page</h1><p>Readable text with strong contrast on a plain background.</p><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="decorative dot" width="20" height="20"><p><a href="https://example.com/">A real link</a></p></main></body></html>`);
+    const rb = await siteAudit({ base: "file://" + bad, routes: [], outDir: ao, name: "bad" }) as { score: number; high: number; top: string[] }, rg = await siteAudit({ base: "file://" + good, routes: [], outDir: ao, name: "good" }) as { score: number; high: number; medium: number };
+    const md = readFileSync(join(ao, "AUDIT.md"), "utf8");
+    t("PK21", "site_audit (real browser) flags planted defects (low contrast, missing alt / lang / viewport / title, dead link, skipped headings, phone overflow) and passes a clean page", rb.high >= 2 && rb.score < 70 && rg.high === 0 && rg.medium === 0 && rg.score >= 90, `bad ${rb.score}/${rb.high} high; good ${rg.score}`);
+    rmSync(bad, { force: true }); rmSync(good, { force: true }); rmSync(ao, { recursive: true, force: true });
+  }
+  const lk = defs.get("lookup"), ld = defs.get("lead"), lp = readFileSync(join(import.meta.dirname, "..", "harness", "agents", "lookup", ".claude", "CLAUDE.md"), "utf8"), leadP = readFileSync(join(import.meta.dirname, "..", "harness", "agents", "lead", ".claude", "CLAUDE.md"), "utf8"), bp = readFileSync(join(import.meta.dirname, "..", "harness", "agents", "builder", ".claude", "CLAUDE.md"), "utf8");
+  t("PK19", "the lookup agent exists as a writer without sub-agents, the lead may call it, the researcher stays text based (no browser tools), builders are told the brief is their complete context", !!lk && lk.writes === true && lk.agents.length === 0 && !!ld && ld.agents.includes("lookup") && lp.includes("BRIEF_<file>.md") && lp.includes("ref_assets") && leadP.includes("--role lookup") && bp.includes("do NOT run `ref_capture`") && !(defs.get("researcher")?.tools ?? []).includes("Bash"), `${lk?.writes} ${ld?.agents}`);
+  rmSync(sd, { recursive: true, force: true });
 }
 async function slotsSuite() {
   setSuite("process slots: a waiting lead never takes a worker's place; time spent waiting for a slot is visible in the log (stand-in CLI with a delay)");

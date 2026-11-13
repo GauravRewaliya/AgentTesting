@@ -9,6 +9,7 @@ import * as exp from "./experiment.ts";
 import * as runs from "./runs.ts";
 import * as pv from "./preview.ts";
 import * as hub from "./hub.ts";
+import * as br from "./browser.ts";
 import { caseEvents } from "./data.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -56,12 +57,21 @@ Bun.serve({
       if (p === "/proc/stop" && m === "POST") { const b = (await req.json()) as { task: string; pid: number }; return send(pv.stopProc(b.task, Number(b.pid))); }
       if (p === "/bg/stop" && m === "POST") { const b = (await req.json()) as { task: string; id: string }; return send(pv.stopScript(b.task, b.id)); }
       if (p === "/bg/log" ) return send(pv.scriptLog(u.searchParams.get("task") ?? "", u.searchParams.get("id") ?? "", Number(u.searchParams.get("tail") ?? 80)));
+      if (p === "/browser") return send(await br.overview());
+      if (p === "/browser/connect" && m === "POST") return send(await br.connect(((await req.json()) as { url: string }).url));
+      if (p === "/browser/launch" && m === "POST") return send(await br.launch(Number(((await req.json()) as { port?: number }).port ?? 9222)));
+      if (p === "/browser/disconnect" && m === "POST") return send(br.disconnect());
+      if (p === "/browser/toggle" && m === "POST") return send(await br.toggle(!!((await req.json()) as { on: boolean }).on));
+      if (p === "/browser/open" && m === "POST") return send(await br.open(((await req.json()) as { url: string }).url));
+      if (p === "/browser/snapshot") return send(await br.snapshot(u.searchParams.get("tab") ?? ""));
+      if (p === "/browser/try" && m === "POST") { const b = (await req.json()) as { url: string; scheme?: "light" | "dark" }; return send(await br.tryIt(b.url, b.scheme)); }
       if (p === "/experiment") return send(await exp.overview());
       if (p === "/experiment/live") return send(exp.live());
       if (p === "/experiment/session/delete" && m === "POST") return send(exp.deleteSession(((await req.json()) as { task: string }).task));
       if ((r = p.match(/^\/experiment\/agent\/([\w.-]+)\/([^/]+)$/))) return send(exp.agentDetail(r[1]!, decodeURIComponent(r[2]!)));
       if (p === "/experiment/agents") return send(exp.availableAgents());
       if (p === "/experiment/send" && m === "POST") return send(exp.send((await req.json()) as never));
+      if (p === "/experiment/session/stop" && m === "POST") return send(await exp.stopSession(((await req.json()) as { task: string }).task));
       if (p === "/experiment/cancel" && m === "POST") { const b = (await req.json()) as { task: string; id: string }; return send(exp.cancelQueued(b.task, b.id)); }
       if ((r = p.match(/^\/experiment\/chat\/([\w-]+)$/))) return send(exp.chat(r[1]!));
       if (p === "/experiment/run" && m === "POST") return send(exp.startRun((await req.json()) as never));

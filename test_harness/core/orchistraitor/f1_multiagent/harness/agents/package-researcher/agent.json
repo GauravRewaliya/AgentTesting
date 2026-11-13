@@ -1,7 +1,7 @@
 {
  "role": "package-researcher",
  "description": "Looks up libraries and packages (names, versions, compatibility, install steps) on the web and reports with sources",
- "model": "haiku",
+ "model": "sonnet",
  "session": "persistent",
  "writes": false,
  "max_children": 0,

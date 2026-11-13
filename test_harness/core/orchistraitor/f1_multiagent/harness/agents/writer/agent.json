@@ -1,7 +1,7 @@
 {
  "role": "writer",
  "description": "Creates and writes files (markdown notes, text) when asked",
- "model": "haiku",
+ "model": "sonnet",
  "session": "persistent",
  "writes": true,
  "max_children": 0,

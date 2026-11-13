@@ -1,7 +1,7 @@
 {
  "role": "qa-reviewer",
  "description": "Checks finished work against the request and the design: runs the checks it is given and lists what is wrong or missing",
- "model": "haiku",
+ "model": "sonnet",
  "session": "persistent",
  "writes": false,
  "max_children": 0,

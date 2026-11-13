@@ -1,0 +1,33 @@
+# POINTS: what the f1 harness must have to run an IT-company style delivery (plan, artifacts, prototype, phased build, parallel team)
+
+Compared with Claude Code (2026-11-13). Status: **done** (code + test) | **partial** | **later** (scope kept open, not now). Out of scope on purpose: external integrations (Jira, Linear, CI, deploy) and memory across tasks: this is a harness test bed, not a product.
+
+## Already had (verified in code)
+parallel `delegate --async` / `wait` / `fork_all`; plan scheduler with dependencies (`plan.ts`, waves of 4); worktree + patch per writer; locks (store or Redis); board (`say` / `inbox` / `NEEDS_PARENT`); background processes with record (`bg.ts`); `preview`; own Chrome (CDP) browser (`browse`, `ref_capture`, `ref_compare`); `qa_check` loop; TS LSP plugin; prototype kit; Docker sandbox; custom agents on the fly (`custom.ts`).
+
+## Done in this round (tests: `bun self_test/power.ts`, 38 checks, no model calls)
+| # | point | what | where |
+|---|---|---|---|
+| 1 | **Phase gates in code** | a plan task has `phase: N`; the scheduler starts phase N+1 only after phase N is finished AND `phase_pass --plan --phase N --evidence "..."` is recorded. `phase_pass` is refused while a phase task is open, the evidence is empty, or the last `qa_check` failed. A failed phase makes later phases skipped (never hang). A replan that reopens work reopens the gate. Waiting on a gate does not use up the plan's 30 min. | `harness/core/phases.ts`, `tools.ts` (`phase_pass`, `phase_status`, `execPlan`), `plan.ts` (`phase`, `gates`) |
+| 2 | **Look inside a running agent** | `agent_peek --agent <id>`: last tool calls, silence in seconds, held files, patches, notes, cost, and a hint (wait / answer / nudge / stop). Free, read-only. Flags "stuck" after 180 s without a tool call. | `harness/core/peek.ts` |
+| 3 | **Project budget** | env `HARNESS_PROJECT_BUDGET_USD`: once the team's spend reaches it, every new agent call is refused with `budget_exceeded`. `cost` shows spent / left per agent. | `agent_call.ts` (`Policy.budgetUsd`), `tools.ts` (`cost`) |
+| 4 | **Slash commands** | `/help /status /agents /plan /phases /peek /cost /bg /pause /resume /stop /say`, answered by the harness with NO model call from the chat (`testrun/chat.ts`). Only known names count; paths and sentences starting with `/` go to the lead. Mutating ones run the same `tools.ts` commands an agent uses. | `harness/core/slash.ts` |
+| 5 | **Lead can drive phases** | the lead now has `plan_submit`, `plan_run`, `plan_status`, `plan_show`, `phase_*`, `agent_peek`, `cost` (allow list + command list + one rule in its `CLAUDE.md`); the PM has `phase_*`, `agent_peek`, `cost`. The plan table (`planTable`, `/status`) shows phases. | `lead.ts`, `agents/*/.claude/settings.json` |
+| 6 | **Model policy: sonnet everywhere, haiku for small jobs** | every real agent is `sonnet` in `agent.json`; a caller picks `haiku` for ONE call when the job is small: `delegate --model haiku`, `model` in `fork_all` / plan tasks. Allowed only for builder, researcher, writer, package-researcher; lead, planner, pm, reviewer always stay sonnet; any other name is refused. The mocked/test helpers (`expo-go`, `stage-*`, `lookup`, `web-setup`) stay haiku. Cheap test runs: `HARNESS_MODELS='{"lead":"haiku"}'` puts the lead back on haiku for one launch. | `harness/core/models.ts`, `tools.ts`, `lead/.claude/CLAUDE.md` |
+
+## Still open, in order (none blocks the next one)
+| # | point | status | note |
+|---|---|---|---|
+| 7 | LSP beyond TypeScript (Python, Vue) and a Python runtime in the sandbox image | later | `plugins/ts-lsp` is the pattern: one folder per language server; agents with `LSP` in `tools` get the plugin. **Space needed** (measured 2026-11-13): TypeScript LSP is already served from the sandbox image `agent-testing-claude:1` (3.1 GB, nothing installed on the host, `lsp.sh` starts it in a throwaway container). Adding Python = `pyright` ~20 MB unpacked (+ Python itself, ~50-100 MB in the image); Vue = `@vue/language-server` < 1 MB on top of the TypeScript one. Disk: well under 0.3 GB for all three. RAM is the real cost: a language server holds the project in memory, about 0.3-1 GB per project for tsserver, so keep one server per sandbox (the 2 GB / 1 CPU container fits one, not three at once). Host free disk was 7 GB at measuring time |
+| 8 | Wire LSP diagnostics into the builder loop (type errors before `qa_check`) | later | |
+| 9 | Deliverables registry (plan, spec, prototype, build) with versions and an approved state, and an Artifact page per phase | later | `Artifact` is allowed for the lead; nothing tracks versions yet. A human approval gate is `phase_pass` done by the person via `/say` today |
+| 10 | Git branch per phase and review before merge | later | worktrees + `apply_patches` exist; branch/PR flow does not |
+| 11 | Resume a plan after a crash or the 30 min cap | later | `execPlan` state is in the store, so a `_plan` restart is possible; not wired |
+| 12 | Store: SQLite/Postgres instead of JSON file + 500 ms polling; configurable `MAX_WAVE`; workers on other machines | later | single machine today (`MAX_WAVE=4`, `HARNESS_MAX_LEADS=1`) |
+| 13 | Quality evals with real sub-agents (judge the output, not only who was called) | later | the mocked fixtures judge hand-over only, on purpose (credits) |
+| 14 | Add flavours / skills / plugins to an agent on the fly | later, scope kept | today: a custom agent (`--role <name> --title`) built from `custom_agent/CLAUDE.md`, read-only or read-write. The way to extend: let `delegate --skills a,b` copy `agents/<role>/.claude/skills/<name>` (the expo-go agent already ships skills this way) into the launch folder, and `--plugin-dir` for a plugin (as `lspArgs` does) |
+
+## Known, not from this round
+- `bun self_test/multi.ts --suite sessions` fails SP1 here: the stand-in CLI's transcript is not found under `~/.claude-personal/projects/...`. It does not touch phases/peek/slash/budget (155/155 pass on every other suite); look at it separately.
+- Three-way note on the other suites: while this round was built, the `lookup` agent, `ref_assets`/`ref_store`/`site_audit` and the browser connector were added by other work in the same tree. `multi.ts` checks M1, M3c, NP3, PK18, MS4 (agent count "eight", the `lookup` folder's prompt, ref_assets) fail because of those, not because of phases, peek, slash, budget or models: re-baseline them when that work is finished.
+- Claude Code has no commands folder in this repo: the slash commands above are ours, for the person at the console, not Claude Code's own.

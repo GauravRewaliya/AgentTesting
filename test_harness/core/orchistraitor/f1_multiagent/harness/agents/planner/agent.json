@@ -1,2 +1,2 @@
-{ "role": "planner", "description": "Expert planner: for a big or unclear product it works the plan out with the user, has the FE team (ux-designer, builder) write the plan files and a quick prototype, and keeps the plan current; for small jobs it gives a short plan and triages the reviewer's findings", "model": "haiku",
+{ "role": "planner", "description": "Expert planner: for a big or unclear product it works the plan out with the user, has the FE team (ux-designer, builder) write the plan files and a quick prototype, and keeps the plan current; for small jobs it gives a short plan and triages the reviewer's findings", "model": "sonnet",
   "session": "persistent", "writes": false, "max_children": 2, "agents": ["ux-designer", "builder"], "tiers": ["T3", "T4"] }

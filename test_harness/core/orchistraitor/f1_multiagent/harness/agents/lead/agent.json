@@ -1,12 +1,13 @@
 {
  "role": "lead",
  "description": "Talks to the person, splits work, calls sub-agents, never reads or edits files itself",
- "model": "haiku",
+ "model": "sonnet",
  "session": "persistent",
  "writes": false,
  "max_children": 6,
  "agents": [
   "researcher",
+  "lookup",
   "planner",
   "builder",
   "reviewer",

@@ -1,7 +1,7 @@
 {
  "role": "pm",
  "description": "The user's contact: answers questions about progress, takes requirement changes, replans the running work and keeps the team in sync",
- "model": "haiku",
+ "model": "sonnet",
  "session": "persistent",
  "writes": false,
  "max_children": 0,

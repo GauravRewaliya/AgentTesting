@@ -2,15 +2,16 @@
 // validates the split, computes the waves that can run in parallel, runs them, and hands each task the results of the tasks it depends on.
 // A bad split is REJECTED up front with every reason and nothing is started.
 import { similar } from "./base.ts";
+import { modelProblem } from "./models.ts";
 import { overlaps } from "./locks.ts";
 import type { AgentDef, Store } from "./base.ts";
 import type { Policy } from "./agent_call.ts";
 
-export interface PlanTask { id: string; role: string; objective: string; output: string; boundaries: string; deps?: string[]; writes?: string[]; session?: string; note?: string; question?: string }
+export interface PlanTask { id: string; role: string; objective: string; output: string; boundaries: string; deps?: string[]; writes?: string[]; session?: string; note?: string; question?: string; phase?: number; model?: string }
 export type TaskState = "pending" | "running" | "done" | "failed" | "skipped" | "cancelled" | "blocked";   // blocked: its agent stopped to ask its parent
 export interface PlanRow {
   task_id: string; plan_id: string; owner: string; waves: string[][]; status: "submitted" | "running" | "done" | "failed" | "aborted"; created: number;
-  paused?: boolean; version?: number; changes?: { v: number; t: number; by: string; reason: string; summary: string }[];
+  paused?: boolean; gates?: Record<number, { t: number; by: string; evidence: string }>; version?: number; changes?: { v: number; t: number; by: string; reason: string; summary: string }[];
   tasks: (PlanTask & { status: TaskState; agent_id?: string; call_id?: string; report_id?: string; error?: string })[];
 }
 export const MAX_PLAN_TASKS = 12, MAX_WAVE = 4;
@@ -26,7 +27,10 @@ export function validatePlan(tasks: PlanTask[], defs: Map<string, AgentDef>, own
     else if (ids.has(t.id)) err(`duplicate task id "${t.id}"`); else ids.add(t.id);
   }
   for (const t of tasks) {
+    if (t.phase !== undefined && (!Number.isInteger(t.phase) || t.phase < 1 || t.phase > 20)) err(`${t.id}: phase must be a whole number from 1 to 20 (got ${JSON.stringify(t.phase)})`);
+    for (const dep of t.deps ?? []) { const dt = tasks.find((x) => x.id === dep); if (dt && t.phase && dt.phase && dt.phase > t.phase) err(`${t.id} (phase ${t.phase}) depends on ${dep} (phase ${dt.phase}): a task cannot wait for a later phase`); }
     const d = defs.get(t.role);
+    { const mp = modelProblem(t.role, t.model); if (mp) err(`${t.id}: ${mp}`); }
     if (!d) { err(`${t.id}: unknown role "${t.role}"`); continue; }
     if (!owner?.agents.includes(t.role)) err(`${t.id}: ${ownerName} may not call "${t.role}" (it may call: ${owner?.agents.join(", ")})`);
     for (const f of ["objective", "output", "boundaries"] as const) if (!t[f]?.trim()) err(`${t.id}: ${f} is empty`);
@@ -72,7 +76,7 @@ export function depsBlock(store: Store, plan: PlanRow, t: PlanTask): string {
 // ------------------------------------------------------------------------------------------------ replanning (the Project Manager's tool)
 export interface ReplanOk { ok: true; tasks: PlanRow["tasks"]; added: string[]; modified: string[]; cancelled: string[]; redo: string[]; stop: { task: string; agent_id: string; call_id?: string }[]; affected_agents: string[]; summary: string }
 export type ReplanRes = ReplanOk | { ok: false; errors: string[] };
-const sameTask = (a: PlanTask, b: PlanTask) => a.role === b.role && a.objective === b.objective && a.output === b.output && a.boundaries === b.boundaries && JSON.stringify(a.writes ?? []) === JSON.stringify(b.writes ?? []) && JSON.stringify([...(a.deps ?? [])].sort()) === JSON.stringify([...(b.deps ?? [])].sort());
+const sameTask = (a: PlanTask, b: PlanTask) => a.role === b.role && a.objective === b.objective && a.output === b.output && a.boundaries === b.boundaries && JSON.stringify(a.writes ?? []) === JSON.stringify(b.writes ?? []) && JSON.stringify([...(a.deps ?? [])].sort()) === JSON.stringify([...(b.deps ?? [])].sort()) && (a.phase ?? 0) === (b.phase ?? 0);
 
 /**
  * Pure: the PM lists the tasks it WANTS from now on (new, changed, kept). Finished tasks it does not list stay as history; unfinished ones it does not list are cancelled.

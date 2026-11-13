@@ -8,7 +8,7 @@ onMounted(async () => { try { ws.value = (await (await fetch("/api/health")).jso
 <template>
   <header class="top">
     <strong>Test_agent_3</strong>
-    <router-link to="/">Flow</router-link><router-link to="/subagents">Sub-agents</router-link><router-link to="/experiment">ExperimentRun</router-link>
+    <router-link to="/">Flow</router-link><router-link to="/subagents">Sub-agents</router-link><router-link to="/experiment">ExperimentRun</router-link><router-link to="/browser">Browser</router-link>
     <span v-if="ws" class="wsbadge mono" :title="ws.harness">.state/{{ ws.version }}/{{ ws.id }}<template v-if="ws.after"> · after {{ ws.after }}</template> · {{ ws.harness }}</span>
     <label class="dbgsw"><input v-model="debug" type="checkbox" /> Debug (D)</label>
     <button class="themebtn" :title="theme === 'dark' ? 'Switch to light' : 'Switch to dark'" :aria-label="'Theme: ' + theme" @click="toggleTheme">{{ theme === "dark" ? "☀ Light" : "☾ Dark" }}</button>

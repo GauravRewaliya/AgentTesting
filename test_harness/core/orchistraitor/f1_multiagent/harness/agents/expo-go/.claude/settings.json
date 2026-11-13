@@ -1,0 +1,31 @@
+{
+ "permissions": {
+  "allow": [
+   "Read",
+   "Write",
+   "Edit",
+   "Glob",
+   "Grep",
+   "Bash(node *)",
+   "Bash(ls *)",
+   "Bash(cat *)",
+   "Bash(cp *)",
+   "Bash(mkdir *)",
+   "Bash(cmp *)",
+   "Bash(diff *)",
+   "Bash(git status*)",
+   "Bash(git diff*)",
+   "Bash(git log*)",
+   "Bash(bun *tools.ts delegate*)",
+   "Bash(bun *tools.ts wait*)",
+   "Bash(bun *tools.ts agents_list*)",
+   "Bash(sha256sum *)",
+   "Bash(md5sum *)",
+   "Bash(wc *)",
+   "Bash(head *)",
+   "Bash(tail *)",
+   "Bash(test *)",
+   "Bash(bun *tools.ts agent_info*)"
+  ]
+ }
+}

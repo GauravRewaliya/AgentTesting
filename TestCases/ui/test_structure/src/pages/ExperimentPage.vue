@@ -96,6 +96,10 @@ async function send() {
   } catch (e) { say("send failed: " + (e as Error).message); } finally { sending.value = false; }
 }
 const onKey = (e: KeyboardEvent) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } };
+async function stopSession() {
+  if (!sel.value || !confirm("Stop this session? The master's turn and all its sub-agents are killed and queued messages are dropped. The chat is kept; send a message to continue.")) return;
+  await act(async () => { const r = await api.expStopSession(sel.value!); notice.value = `stopped: ${r.killed} process(es) killed, ${r.dropped} queued message(s) dropped`; return { ok: r.ok }; });
+}
 async function cancel(id: string) { if (sel.value) { await api.expCancel(sel.value, id); live.kick(); } }
 
 type Node = { a: LiveAgent; d: number };
@@ -149,7 +153,7 @@ const tree = (s: LiveSession): Node[] => {
                 <div v-if="x.status !== 'running'" class="muted">{{ x.status }}<template v-if="x.exit_code !== undefined"> · exit {{ x.exit_code }}</template><template v-if="x.stopped_by"> · by {{ x.stopped_by }}</template><template v-if="x.ended_at"> · {{ hm(x.ended_at) }}</template></div>
                 <pre v-if="logId === x.id" class="cmd">{{ logText || "(empty)" }}</pre>
               </div>
-            </div></span><button class="danger sp" @click="del(session)">Delete</button></div>
+            </div></span><button class="danger" :disabled="session.state === 'active'" title="kills the master turn and its sub-agents; the chat is kept" @click="stopSession">Stop</button><button class="danger sp" @click="del(session)">Delete</button></div>
 
         <div class="work">
           <!-- left of the work area: who is allowed, chat -->
@@ -185,8 +189,8 @@ const tree = (s: LiveSession): Node[] => {
 
             <form class="composer" @submit.prevent="send">
               <div v-if="nextPrompt && text.trim() !== nextPrompt.trim()" class="try"><button type="button" @click="text = nextPrompt">use {{ activeCase?.id }} · turn {{ creating ? 1 : (chat?.nextTurn ?? 0) + 1 }} prompt</button></div>
-              <div class="box"><textarea v-model="text" rows="2" :placeholder="creating || !session ? 'First message to the master agent…' : 'Message the master agent…'" @keydown="onKey" /><button class="go" type="submit" :disabled="!text.trim() || sending">{{ creating || !session ? "Start" : "Send" }}</button></div>
-              <div v-if="session && session.state === 'working'" class="muted small">The master is busy: what you send waits in the queue and is read when it finishes.</div>
+              <div class="box"><textarea v-model="text" rows="2" :placeholder="creating || !session ? 'First message to the master agent…' : 'Message the master agent…'" @keydown="onKey" /><button v-if="session && !creating && (session.state === 'working' || session.state === 'running')" class="stopbtn" type="button" aria-label="Stop" title="Stop the master and all its sub-agents (the chat is kept)" @click="stopSession">■</button><button class="go" type="submit" :disabled="!text.trim() || sending">{{ creating || !session ? "Start" : "Send" }}</button></div>
+              <div v-if="session && session.state === 'working'" class="muted small">The master is mid-turn: what you send goes into its inbox now and it reads it at its next step (a `wait` on sub-agents returns early for it). If the turn ends first, it becomes the next turn. The ■ button next to Send stops the master and all sub-agents now.</div>
             </form>
           </section>
 
@@ -297,6 +301,7 @@ select { font: inherit; color: inherit; background: var(--card); border: 1px sol
 .msg.user .bubble { background: var(--ink); color: var(--bg); border-bottom-right-radius: 4px; } .msg.lead .bubble { background: color-mix(in srgb, var(--ink) 8%, var(--card)); border-bottom-left-radius: 4px; }
 .ts { font-size: 11px; opacity: .65; margin-top: 3px; } .queued .bubble { background: transparent !important; color: var(--ink) !important; border: 1px dashed var(--mute); } .queued .lbl a { color: var(--fail); margin-left: 6px; }
 .strip { display: flex; gap: 8px; align-items: center; color: var(--mute); font-size: 13px; margin-bottom: 10px; } .note { text-align: center; margin-bottom: 10px; }
+.stopbtn { width: 34px; height: 34px; flex: none; border: 0; color: #fff; background: var(--fail); border-radius: 50%; font-size: 14px; line-height: 1; cursor: pointer; } .stopbtn:hover { filter: brightness(1.1); } 
 .composer { margin-top: 8px; display: grid; gap: 6px; } .try button { border-radius: 99px; font-size: 12px; color: var(--mute); }
 .box { display: flex; gap: 8px; align-items: flex-end; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 8px 8px 8px 12px; } .box textarea { border: 0; outline: 0; background: transparent; resize: none; padding: 4px 0; }
 .side { min-width: 0; min-height: 0; overflow-y: auto; } .side h4:first-child { margin-top: 0; }

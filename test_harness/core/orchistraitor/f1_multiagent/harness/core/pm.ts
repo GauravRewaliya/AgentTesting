@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { callAgent, levelOf, trace, type CallCtx, type CallOut } from "./base.ts";
 import { MStore, inbox, say, type NoteRow } from "./board.ts";
 import { ensureRun, touchRun } from "./session_run.ts";
+import { phaseText } from "./phases.ts";
 
 const HDIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const iso = (t?: number | null) => (t ? new Date(t).toISOString().slice(11, 19) : "-");
@@ -17,8 +18,8 @@ export function planTable(store: MStore, task: string): string {
     const head = `PLAN ${p.plan_id} v${p.version ?? 1} status=${p.status}${p.paused ? " PAUSED" : ""} (${p.tasks.filter((t) => t.status === "done").length}/${p.tasks.length} done)`;
     const rows = p.tasks.map((t) => { const a = t.agent_id ? store.agent(task, t.agent_id) : undefined;
       return `  ${t.id.padEnd(8)} [${t.role}] ${t.status.padEnd(9)} ${(t.agent_id ?? "-").padEnd(13)} ${a ? `"${a.title}" ${a.activity}`.slice(0, 50) : ""} deps=[${(t.deps ?? []).join(",")}]${t.error ? " (" + t.error.slice(0, 50) + ")" : ""}${t.status === "blocked" && t.question ? `  << ASKS ITS PARENT: "${t.question.replace(/\s+/g, " ").slice(0, 100)}" (answer with plan_answer)` : ""}`; });
-    const ch = (p.changes ?? []).slice(-3).map((c) => `  change ${c.summary} by ${c.by}: ${c.reason.slice(0, 80)}`);
-    return [head, ...rows, ...ch].join("\n");
+    const ph = phaseText(p), ch = (p.changes ?? []).slice(-3).map((c) => `  change ${c.summary} by ${c.by}: ${c.reason.slice(0, 80)}`);
+    return [head, ...rows, ...(ph ? ["  phases:", ph] : []), ...ch].join("\n");
   }).join("\n");
 }
 export function chatLog(store: MStore, task: string): NoteRow[] { return store.notes.filter((n) => n.task_id === task && (n.from === "user" || n.to === "user")); }

@@ -1,0 +1,3 @@
+#!/bin/sh
+# on the PATH of every agent: `browser_disconnect ...` = `bun tools.ts browser_disconnect ...`
+exec bun --smol "$(dirname "$0")/../tools.ts" browser_disconnect "$@"

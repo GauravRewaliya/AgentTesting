@@ -33,7 +33,14 @@ Some harnesses do these things internally; f1 does not, so the runner takes a fl
 | env `HARNESS_SANDBOX=docker` | real sub-agents (not the lead, not agents that delegate) run `claude -p` in a Docker container: compose service `sandbox`, image `agent-testing-claude:1`, 2 GB / 1 CPU, your claude-personal profile mounted | `harness/core/base/docker_runner.ts` |
 | `bun testrun/par.ts <suite> --jobs=4` | run the independent chains of a suite in parallel (all other flags go to run.ts). A case costs 20 to 70 s because the LEAD is a real model; sub-agents are fixtures. Env `HARNESS_MAX_LEADS` (default 1) is how many leads may run at once machine-wide; par.ts sets it | `testrun/par.ts` |
 | `--fake` | scripted lead, no model calls | built in |
+| env `HARNESS_CASE_CAP_USD` / `Case.max_cost_usd` | real-money cap per case (default $1): over it the case fails with a COST CAP gate | `testrun/run.ts` |
 | `--rerun` | run a case again in a new task | built in |
+
+### Power layer (phase gates, peek, slash commands, budget; see `docs/POINTS.md`)
+* Tools (`tools.ts`): `phase_pass --plan --phase --evidence`, `phase_status --plan`, `agent_peek --agent [--n]`, `cost`; `plan_submit` tasks take `phase: N`.
+* Chat slash commands (no model call): `/help /status /agents /plan /phases /peek /cost /bg /pause /resume /stop /say`.
+* Env `HARNESS_PROJECT_BUDGET_USD`: new agent calls are refused (`budget_exceeded`) once the team's spend reaches it.
+* Test: `bun self_test/power.ts` (38 checks, offline).
 
 ### testrun/ (runs the shared cases; OURS, see the table above)
 * `run.ts`   a suite, case by case, on the f1 lead. Real `claude` (haiku, cents per turn) by default; `--fake` = scripted agents, no model calls. State goes to `test_harness/.state/v1/<task>/{store,workspace}` (one folder per master session; it no longer touches `ui/.ui-data/`).

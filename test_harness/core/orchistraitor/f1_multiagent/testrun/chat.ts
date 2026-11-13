@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { RealRunner, ScriptRunner, loadAgents, transcriptExistsAnywhere } from "../harness/core/base.ts";
 import { MStore, say } from "../harness/core/board.ts";
 import { SESSION_CAP } from "../harness/core/session_run.ts";
+import { runSlash, slashName } from "../harness/core/slash.ts";
 import { runLead } from "../harness/lead.ts";
 import { STATE2_BASE, STATE_VERSION } from "@core/paths.ts";
 import { declareGateLimit, loadSuites, readExp, reconcileDead, writeExp } from "./cases.ts";
@@ -47,11 +48,16 @@ const ctx = { store, defs, sessionCap: SESSION_CAP,
 
 if (!fake) reconcileDead(store);
 store.reload();
+if (slashName(text) && !caseId) {   // /status, /peek, /cost ...: answered by the harness, no model call (harness/core/slash.ts)
+  const reply = runSlash({ store, task, storeFile: STORE, cwd: REPO }, text);
+  store.tx(() => { say(store, task, "user", "lead", text, [], Infinity); say(store, task, "lead", "user", reply, ["slash"], Infinity); });
+  console.log(reply); process.exit(0);
+}
 const sentAt = Date.now();
 const expFile = (id: string) => join(EXP_DIR, id + ".json");
 if (caseId) { let ent = known.find((e) => e.case === caseId); if (!ent) ent = { case: caseId, task, home: home ?? task, suite: arg("suite") ?? "", agents, marks: [], started: [], done: 0, at: sentAt };   // same file run.ts writes (f1_exp/<case>.json)
    ent.marks[turn] = store.calls.filter((x) => x.task_id === task).length; ent.started[turn] = sentAt; ent.at = sentAt; mkdirSync(EXP_DIR, { recursive: true }); writeFileSync(expFile(caseId), JSON.stringify(ent)); }
-store.tx(() => { const n = say(store, task, "user", "lead", text, process.argv.includes("--auto") ? ["auto_run"] : [], Infinity); n.t = sentAt; store.save(); });
+if (!process.argv.includes("--no-say")) store.tx(() => { const n = say(store, task, "user", "lead", text, process.argv.includes("--auto") ? ["auto_run"] : [], Infinity); n.t = sentAt; store.save(); });
 if (boundCase) declareGateLimit(store, task, boundCase);   // the same call limit / allow_real_subAg as run.ts
 const setup = boundCase?.no_qa_check ? "\n\n[Test setup] The automatic check (`qa_check`) is switched off for this task: do not run it. Judge only that the work was handed to the right agent with a good hand-over; do not send the agent back to polish or fix what it already delivered." : "";   // same note as run.ts
 const out = await runLead({ ...ctx, store } as never, { task_id: task, repo: REPO, request: text + setup, maxDepth: 4, runner: fake ? "fake" : "real", writerMode: WRITER, ...(useAgents ? { agents: useAgents } : {}) });
