@@ -28,6 +28,7 @@ import * as bconn from "../harness/core/browser_conn.ts";
 import { refAssets } from "../harness/core/ref_assets.ts";
 import { siteAudit } from "../harness/core/site_audit.ts";
 import { buildStore, initStore } from "../harness/core/ref_store.ts";
+import { contactSheets } from "../harness/core/ref_capture.ts";
 import { applyQueue } from "../harness/core/patches.ts";
 import { addWorktree, auditWrites, patchOf, removeWorktree } from "../harness/core/worktree.ts";
 import { HARNESS_DIR, loadDefs } from "../harness/main.ts";
@@ -854,6 +855,21 @@ async function protoKitSuite() {
     const md = readFileSync(join(ao, "AUDIT.md"), "utf8");
     t("PK21", "site_audit (real browser) flags planted defects (low contrast, missing alt / lang / viewport / title, dead link, skipped headings, phone overflow) and passes a clean page", rb.high >= 2 && rb.score < 70 && rg.high === 0 && rg.medium === 0 && rg.score >= 90, `bad ${rb.score}/${rb.high} high; good ${rg.score}`);
     rmSync(bad, { force: true }); rmSync(good, { force: true }); rmSync(ao, { recursive: true, force: true });
+  }
+  if (chromeBin()) {   // contact sheets: 4 section pictures per image, one browser for all of them, so a lookup agent Reads 3 images instead of 12
+    const cs = join(tmpdir(), "sheets-" + randomUUID().slice(0, 6)); mkdirSync(cs, { recursive: true });
+    const tiny = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+    for (let i = 1; i <= 6; i++) writeFileSync(join(cs, `desktop-light-section-${String(i).padStart(2, "0")}.png`), tiny);
+    const t0s = Date.now(), n = await contactSheets(cs), took = Date.now() - t0s;
+    t("PK23", "contact sheets: 6 section pictures become 2 overview images (4 + 2), made in ONE browser in a few seconds, the temporary html is removed", n === 2 && existsSync(join(cs, "overview-1.png")) && existsSync(join(cs, "overview-2.png")) && statSync(join(cs, "overview-1.png")).size > 200 && !existsSync(join(cs, "_sheets.html")) && took < 15_000, `${n} sheets in ${took} ms`);
+    rmSync(cs, { recursive: true, force: true });
+  }
+  if (chromeBin()) {   // clean capture: consent dialogs, promo / bottom bars, chat widgets, ad slots, modal backdrops are gone before a picture is taken; a fixed header shows once; no scrollbar
+    const mp = join(tmpdir(), "messy-" + randomUUID().slice(0, 6) + ".html"), mo = join(tmpdir(), "messyout-" + randomUUID().slice(0, 6));
+    writeFileSync(mp, `<!doctype html><title>m</title><style>body{margin:0}header{position:fixed;top:0;left:0;right:0;height:60px;background:#123}.sec{height:900px}.cookie-banner{position:fixed;left:0;right:0;bottom:0;height:90px;background:#222}.promo-bar{position:fixed;top:60px;left:0;right:0;height:40px;background:#f60;z-index:50}#chat-widget{position:fixed;right:20px;bottom:110px;width:60px;height:60px;background:#09f;z-index:98}.ads-slot{position:fixed;right:0;top:200px;width:160px;height:300px;background:#ccc;z-index:60}.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200}</style><header>H</header><div class="promo-bar">sale</div><div class="sec"><h1>Real content</h1></div><div class="sec"></div><div class="cookie-banner" id="cookie-consent">We use cookies <button onclick="document.getElementById('cookie-consent').remove()">Accept all</button></div><div id="chat-widget"></div><div class="ads-slot"></div><div class="backdrop" aria-modal="true"></div>`);
+    const cr = await browse({ url: "file://" + mp, outDir: mo, clean: true, steps: [{ eval: "JSON.stringify({sb: innerWidth - document.documentElement.clientWidth, hdr: getComputedStyle(document.querySelector('header')).position, cookie: !!document.getElementById('cookie-consent'), promo: getComputedStyle(document.querySelector('.promo-bar')).display, chat: getComputedStyle(document.getElementById('chat-widget')).display, ads: getComputedStyle(document.querySelector('.ads-slot')).display, bd: getComputedStyle(document.querySelector('.backdrop')).display})" }] }), st = JSON.parse((cr.results[0] as { eval: string }).eval) as Record<string, unknown>, raw = await browse({ url: "file://" + mp, outDir: mo, clean: false, steps: [{ eval: "getComputedStyle(document.querySelector('.backdrop')).display" }] });
+    t("PK24", "clean capture removes the cookie dialog (accepts it), promo bar, chat widget, ad slot and modal backdrop, pins the fixed header in the flow, hides the scrollbar, and says what it did; with clean off nothing is touched", st.sb === 0 && st.hdr === "absolute" && st.cookie === false && st.promo === "none" && st.chat === "none" && st.ads === "none" && st.bd === "none" && (cr.cleaned ?? []).length >= 5 && (raw.results[0] as { eval?: string }).eval === "block", JSON.stringify(st) + " " + JSON.stringify(cr.cleaned));
+    rmSync(mp, { force: true }); rmSync(mo, { recursive: true, force: true });
   }
   const lk = defs.get("lookup"), ld = defs.get("lead"), lp = readFileSync(join(import.meta.dirname, "..", "harness", "agents", "lookup", ".claude", "CLAUDE.md"), "utf8"), leadP = readFileSync(join(import.meta.dirname, "..", "harness", "agents", "lead", ".claude", "CLAUDE.md"), "utf8"), bp = readFileSync(join(import.meta.dirname, "..", "harness", "agents", "builder", ".claude", "CLAUDE.md"), "utf8");
   const lw = defs.get("lookup-page"), lwp = readFileSync(join(import.meta.dirname, "..", "harness", "agents", "lookup-page", ".claude", "CLAUDE.md"), "utf8");

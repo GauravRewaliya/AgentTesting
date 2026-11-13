@@ -1,6 +1,6 @@
 # Test 2: f_1_withmulti_ag (multi-agent on demand)
 
-Generated 2026-11-13T14:48:43.387Z. 29/30 passed.
+Generated 2026-11-13T15:04:14.565Z. 32/32 passed.
 
 Harness under test: `harness/` = the base harness (harness/core/base/) + agent.call, instances, locks, worktrees/patches, board, tools. Real suite NOT run.
 
@@ -8,7 +8,7 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 |---|---|---|---|
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP1 | who can call whom: only the lead, the planner (ux-designer, builder), the builder and the lookup coordinator (lookup-page workers) can call sub-agents; every other agent is a leaf; the call tool is REMOVED at level 4 and for everyone when multi-agent is off (max depth 1); every agent has at least one tool; every declared sub-agent exists | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP2 | and a caller is TOLD what it may call and what each one can do: the builder's launch text lists the researcher (web access) and the reviewer with their real tools | PASS |
-| stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP3 | every agent prompt says what to do when stuck (STOP, reply NEEDS_PARENT: with what is needed and what was done, the parent continues you in the same conversation); callers also say how to answer a child; the PM knows plan_answer | **FAIL** |
+| stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP3 | every agent prompt says what to do when stuck (STOP, reply NEEDS_PARENT: with what is needed and what was done, the parent continues you in the same conversation); callers also say how to answer a child; the PM knows plan_answer | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP4 | a callee that replies NEEDS_PARENT: is marked 'waiting for its parent': the question is on its row, in the event log, in the call result, and shown in the tree (ASKS ITS PARENT) | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP5 | when the parent continues the SAME agent with the answer, the question is cleared and the agent finishes (resumed, same session) | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP6 | PLAN: the task whose agent asked is BLOCKED with its question (not done); the task that needs its answer has NOT started (no builder exists); the plan stays open | PASS |
@@ -34,12 +34,7 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK18 | ref_assets pulls logo, hero image, favicon, social image and css background into assets/ with roles and pixel sizes, and reports (not crashes on) a missing file | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK20 | the reference store has a fixed layout (pictures/ raw/ assets/<role>/ layouts/ briefs/), a generated mind map (tree + Mermaid mindmap: sections, components, pictures, assets, layouts, briefs) and an index that says where everything is | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK21 | site_audit (real browser) flags planted defects (low contrast, missing alt / lang / viewport / title, dead link, skipped headings, phone overflow) and passes a clean page | PASS |
+| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK23 | contact sheets: 6 section pictures become 2 overview images (4 + 2), made in ONE browser in a few seconds, the temporary html is removed | PASS |
+| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK24 | clean capture removes the cookie dialog (accepts it), promo bar, chat widget, ad slot and modal backdrop, pins the fixed header in the flow, hides the scrollbar, and says what it did; with clean off nothing is touched | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK19 | the lookup is a COORDINATOR that may start lookup-page workers (a different role: an agent cannot call its own role) and the workers are leaf writers; the lead may call the lookup; the researcher stays text based; builders are told the brief is their complete context | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK22 | the lookup coordinator and its parallel workers hold disjoint files and ALL start at once (no queue); the same job under a whole-folder lock would block every worker (which is why the lead gives the coordinator only its own two files) | PASS |
-
-## Failures
-
-### NP3 every agent prompt says what to do when stuck (STOP, reply NEEDS_PARENT: with what is needed and what was done, the parent continues you in the same conversation); callers also say how to answer a child; the PM knows plan_answer
-```
-./lookup
-```

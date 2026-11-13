@@ -41,6 +41,23 @@ const OUTLINE_JS = `(() => {
     scrollReveal: /IntersectionObserver|data-aos|reveal/i.test(document.documentElement.outerHTML.slice(0, 400000)), links: [...document.querySelectorAll('a[href]')].slice(0, 80).map((a) => ({ text: T(a, 30), href: a.getAttribute('href') })) };
 })()`.replace("slice(0, 20),", "slice(0, 20),");
 
+/** CLEAN CAPTURE: what gets in the way of a good picture is removed before it is taken: consent / cookie dialogs (accepted or dismissed), full-screen layers and modal backdrops, bottom bars, chat widgets, ad frames and promo bars; a sticky / fixed header is pinned in the flow so it shows ONCE at the top instead of repeating over every section; scroll locks are lifted. Returns what it did (never silent). */
+const CLEAN_JS = `(() => {
+  const removed = [], hide = (e, why) => { if (!e || e.dataset.cleaned) return; e.dataset.cleaned = '1'; e.style.setProperty('display', 'none', 'important'); removed.push(why + ': ' + String(e.id || e.className || e.tagName).slice(0, 36)); };
+  const KW = /cookie|consent|gdpr|ccpa|onetrust|truste|cmp-|privacy-?banner|newsletter-?popup|popup|modal|overlay|backdrop|interstitial|paywall|adsbygoogle|advert|(^|[\\s_-])ads?([\\s_-]|$)|sponsor|intercom|drift|zendesk|crisp|hubspot|tawk|livechat|chat-?widget|notification-?bar|announcement|promo-?bar|smartbanner|beamer|launcher/i;
+  for (const b of document.querySelectorAll('button, a, [role=button]')) { const t = (b.innerText || b.getAttribute('aria-label') || '').trim().toLowerCase(); if (t.length && t.length < 28 && /^(accept( all)?( cookies)?|agree|i agree|got it|allow all|ok|okay|reject all|decline|no thanks|dismiss|continue)$/.test(t) && b.closest('[class*=cookie],[id*=cookie],[class*=consent],[id*=consent],[class*=gdpr],[class*=cmp],[role=dialog],[aria-modal]')) { try { b.click(); removed.push('clicked: ' + t); } catch (e) {} } }
+  for (const e of document.querySelectorAll('body *')) {
+    const s = getComputedStyle(e); if (s.position !== 'fixed' && s.position !== 'sticky') continue; const r = e.getBoundingClientRect(); if (!r.width || !r.height) continue;
+    const id = e.id + ' ' + e.className + ' ' + (e.getAttribute('aria-label') || ''), isHeader = e.matches('header, nav, [role=banner]') || (r.top <= 1 && r.height < 140 && /header|nav|topbar|menubar/i.test(id)), big = r.width * r.height > innerWidth * innerHeight * 0.25;
+    if (isHeader) continue;
+    if (KW.test(id) || e.matches('[aria-modal=true]')) hide(e, 'overlay'); else if (s.position === 'fixed' && big && (+s.zIndex || 0) > 10) hide(e, 'full-screen layer'); else if (s.position === 'fixed' && r.bottom >= innerHeight - 2 && r.height < 170 && r.width > innerWidth * 0.5) hide(e, 'bottom bar');
+  }
+  document.querySelectorAll('iframe[src*="doubleclick"], iframe[src*="googlesyndication"], iframe[id^="google_ads"], ins.adsbygoogle, [id^="div-gpt-ad"], iframe[src*="intercom"], iframe[title*="chat" i]').forEach((e) => hide(e, 'ad / chat frame'));
+  for (const e of document.querySelectorAll('header, nav, [role=banner]')) { const s = getComputedStyle(e); if (s.position === 'fixed') { const r = e.getBoundingClientRect(); e.style.setProperty('position', 'absolute', 'important'); e.style.setProperty('top', r.top + scrollY + 'px', 'important'); removed.push('header pinned: ' + String(e.className).slice(0, 24)); } else if (s.position === 'sticky') { e.style.setProperty('position', 'relative', 'important'); removed.push('header unstuck: ' + String(e.className).slice(0, 24)); } }
+  document.documentElement.style.setProperty('overflow', 'auto', 'important'); document.documentElement.style.setProperty('scroll-behavior', 'auto', 'important'); document.body.style.setProperty('overflow', 'visible', 'important'); document.body.style.removeProperty('filter');
+  return removed.slice(0, 14);
+})()`;
+
 class Cdp {
   private id = 0; private pend = new Map<number, (v: any) => void>(); private ws!: WebSocket;
   static async open(wsUrl: string) { const c = new Cdp(); c.ws = new WebSocket(wsUrl); await new Promise<void>((ok, bad) => { c.ws.onopen = () => ok(); c.ws.onerror = () => bad(new Error("cdp connect failed")); }); c.ws.onmessage = (m) => { const d = JSON.parse(String(m.data)); if (d.id && c.pend.has(d.id)) { c.pend.get(d.id)!(d); c.pend.delete(d.id); } }; return c; }
@@ -49,8 +66,8 @@ class Cdp {
 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export interface BrowseOpts { url: string; outDir: string; width?: number; height?: number; scheme?: "light" | "dark"; mobile?: boolean; steps?: Step[]; settleMs?: number; sectionShots?: number; tag?: string; tab?: string; endpoint?: string; prime?: boolean }
-export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: string; shots: string[]; outline?: Outline; results: unknown[]; console: string[] }> {
+export interface BrowseOpts { url: string; outDir: string; width?: number; height?: number; scheme?: "light" | "dark"; mobile?: boolean; steps?: Step[]; settleMs?: number; sectionShots?: number; tag?: string; tab?: string; endpoint?: string; prime?: boolean; clean?: boolean }
+export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: string; shots: string[]; outline?: Outline; results: unknown[]; console: string[]; cleaned?: string[] }> {
   mkdirSync(o.outDir, { recursive: true });
   const shots: string[] = [], results: unknown[] = [], logs: string[] = [];
   let ep = o.endpoint ?? attachedEndpoint(), reuse = false, ownTab = "", proc: ChildProcess | undefined, dir = "", cdp: Cdp | undefined;
@@ -83,7 +100,10 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
     if (!reuse) { await cdp.send("Page.navigate", { url: o.url }); await sleep(900); }
     for (let i = 0; i < 40; i++) { const r = await cdp.send("Runtime.evaluate", { expression: "document.readyState" }); if (r.result.value === "complete") break; await sleep(250); }
     await sleep(o.settleMs ?? 1500);
+    await cdp.send("Emulation.setScrollbarsHidden", { hidden: true }).catch(() => 0);   // no scrollbar in any picture (the private headless Chrome hides them by flag, a connected visible one does not)
+    let cleaned: string[] | undefined;
     const ev = async (js: string) => { const r = await cdp!.send("Runtime.evaluate", { expression: js, returnByValue: true, awaitPromise: true }); if (r.exceptionDetails) throw new Error(String(r.exceptionDetails.exception?.description ?? r.exceptionDetails.text).split("\n")[0]); return r.result.value; };
+    if (!reuse && (o.clean === true || (o.clean !== false && !/^file:/.test(o.url)))) { try { cleaned = await ev(CLEAN_JS) as string[]; if (cleaned.length) await sleep(450); } catch { /* a page that cannot be cleaned is still captured */ } }   // not for a person's own open tab, not for our own files
     const save = async (name: string, clip?: { x: number; y: number; width: number; height: number }) => { const r = await cdp!.send("Page.captureScreenshot", { format: "png", captureBeyondViewport: !!clip, ...(clip ? { clip: { ...clip, scale: 1 } } : {}) }); const f = join(o.outDir, name); writeFileSync(f, Buffer.from(r.data, "base64")); shots.push(f); return f; };
     // scroll through the page like a person: content that is revealed on scroll (IntersectionObserver) only exists once it was in view
     const prime = async () => { const dh = Math.min(Number(await ev("document.documentElement.scrollHeight")), 30000); for (let y = 0; y < dh; y += Math.round(h * 0.7)) { await ev(`window.scrollTo(0, ${y})`); await sleep(260); } await ev("window.scrollTo(0, 0)"); await sleep(500); };
@@ -109,7 +129,7 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
       await save(`${tag}-full.png`, { x: 0, y: 0, width: w, height: Math.min(outline.doc_h, 9000) });
       for (const sec of outline.sections.slice(0, o.sectionShots)) await save(`${tag}-section-${String(sec.i + 1).padStart(2, "0")}.png`, { x: 0, y: sec.y, width: w, height: Math.min(sec.h, 2400) });
     }
-    return { ok: true, shots, outline, results, console: [...new Set(logs)].slice(0, 6) };
+    return { ok: true, shots, outline, results, console: [...new Set(logs)].slice(0, 6), cleaned };
   } catch (e) { return { ok: false, reason: String((e as Error).message).slice(0, 200), shots, results, console: logs }; }
   finally { cdp?.close(); proc?.kill("SIGKILL"); if (dir) rmSync(dir, { recursive: true, force: true }); if (ownTab && ep) { await fetch(ep + "/json/close/" + ownTab).catch(() => 0); for (let i = 0; i < 12; i++) { const gone = await fetch(ep + "/json/list").then((r) => r.json() as Promise<Tab[]>).then((l) => !l.some((t) => t.id === ownTab)).catch(() => true); if (gone) break; await sleep(150); } } }   // the person's browser is left exactly as it was: wait until our tab is really gone
 }

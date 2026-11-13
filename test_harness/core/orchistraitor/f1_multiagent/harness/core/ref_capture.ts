@@ -15,11 +15,10 @@ const top = (m: Map<string, number>, n: number) => [...m].sort((a, b) => b[1] - 
 /** CONTACT SHEETS: 4 section pictures side by side in ONE picture (overview-1.png ...), so an agent looks at 3 images instead of 12 (each Read costs time and context; the single section pictures stay for detail). */
 export async function contactSheets(pics: string): Promise<number> {
   const files = readdirSync(pics).filter((f) => /^desktop-light-section-\d+\.png$/.test(f)).sort(), groups: string[][] = []; for (let i = 0; i < files.length; i += 4) groups.push(files.slice(i, i + 4));
-  await par(groups.map((g, k) => async () => {
-    const html = join(pics, `_sheet-${k + 1}.html`);
-    writeFileSync(html, `<body style="margin:0;background:#8a8f98;display:grid;grid-template-columns:1fr 1fr;gap:8px;width:1440px">${g.map((f) => `<div style="position:relative"><img src="${f}" style="width:100%;display:block"><b style="position:absolute;left:6px;top:6px;background:#000c;color:#fff;font:700 18px sans-serif;padding:2px 8px;border-radius:6px">#${Number(/(\d+)/.exec(f)![1])}</b></div>`).join("")}</body>`);
-    try { await browse({ url: "file://" + html, outDir: pics, settleMs: 500, steps: [{ shot: `overview-${k + 1}.png`, full: true }] }); } finally { rmSync(html, { force: true }); }
-  }));
+  if (!groups.length) return 0;
+  const html = join(pics, "_sheets.html");   // ONE page with every sheet stacked, ONE browser, no scrolling (the images are local): ~2 s for any number of sheets
+  writeFileSync(html, `<body style="margin:0;background:#8a8f98;width:1440px">${groups.map((g, k) => `<div id="s${k + 1}" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;background:#8a8f98;margin-bottom:12px">${g.map((f) => `<div style="position:relative"><img src="${f}" style="width:100%;display:block"><b style="position:absolute;left:6px;top:6px;background:#000c;color:#fff;font:700 18px sans-serif;padding:2px 8px;border-radius:6px">#${Number(/(\d+)/.exec(f)![1])}</b></div>`).join("")}</div>`).join("")}</body>`);
+  try { await browse({ url: "file://" + html, outDir: pics, settleMs: 400, steps: groups.map((_, k) => ({ shot: `overview-${k + 1}.png`, selector: `#s${k + 1}` })) }); } finally { rmSync(html, { force: true }); }
   return groups.length;
 }
 export async function refCapture(o: { url: string; dir: string; name: string }): Promise<Record<string, unknown>> {
@@ -47,13 +46,13 @@ export async function refCapture(o: { url: string; dir: string; name: string }):
   const heads = [...html.matchAll(/<(h[1-3])[^>]*>([\s\S]*?)<\/\1>/gi)].map((m) => `${m[1]}: ${strip(m[2]!).slice(0, 70)}`).filter((x) => x.length > 5).slice(0, 40);
   const title = strip((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) ?? ["", ""])[1]!), desc = (/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)/i.exec(html) ?? [])[1] ?? "";
   // a REAL browser looks at it (CDP): scrolls through, then one picture per section (desktop light + dark) and a mobile page, plus the outline of every section's components
-  const [L, D, M] = await par([() => browse({ url: o.url, outDir: pics, scheme: "light", sectionShots: 10, tag: "desktop-light" }), () => browse({ url: o.url, outDir: pics, scheme: "dark", sectionShots: 0, steps: [{ shot: "desktop-dark.png", full: true }] }), () => browse({ url: o.url, outDir: pics, scheme: "light", mobile: true, steps: [{ shot: "mobile.png", full: true }] })]);
+  const [L, D, M] = await par([() => browse({ url: o.url, outDir: pics, scheme: "light", sectionShots: 10, tag: "desktop-light" }), () => browse({ url: o.url, outDir: pics, scheme: "dark", sectionShots: 0, steps: [{ shot: "desktop-dark.png" }] }), () => browse({ url: o.url, outDir: pics, scheme: "light", mobile: true, steps: [{ shot: "mobile.png" }] })]);
   const nSheets = await contactSheets(pics).catch(() => 0);
   const ol: Outline | undefined = L.outline; if (ol) writeFileSync(join(o.dir, "outline.json"), JSON.stringify(ol, null, 1));
   const a = L.shots.length > 0, b = D.ok, c = M.ok, secs = ol?.sections ?? [];
   const secLines = secs.map((x) => `- #${x.i + 1} <${x.tag}${x.id ? " #" + x.id : ""}> y=${x.y} h=${x.h} | "${x.heading}" (${x.h_size}/${x.h_weight}) | bg ${x.bg} | ${x.cards ? x.cards + " cards" : "no card grid"}${x.buttons.length ? " | buttons: " + x.buttons.slice(0, 3).join(" / ") : ""} | ${x.images} icons/images | ${x.forms ? "form" : ""}${x.animated ? " | animated" : ""}${x.radius && x.radius !== "0px" ? " | radius " + x.radius : ""}  -> pictures/desktop-light-section-${String(x.i + 1).padStart(2, "0")}.png`).join("\n");
   const md = `# Reference: ${o.url} (captured by the harness, not a model summary)
-Use it as the LOOK to match: layout, spacing, type scale, colours, motion, theme behaviour. The brand name is renamed and every text is written fresh (original copy). LOOK at the pictures with Read (folder pictures/): FIRST overview-1.png ... (contact sheets: 4 sections each, numbered #N like the list below; ${nSheets} of them: 3 Reads instead of 12), then a single desktop-light-section-NN.png only where you need detail; desktop-light-full.png (whole page) (ONE PICTURE PER SECTION, the list below says which is which), desktop-dark.png, mobile.png. The store is organised: STORE.md (index), MAP.md (mind map), assets/ (real images by role), layouts/ and briefs/ (lookup agent).
+Use it as the LOOK to match: layout, spacing, type scale, colours, motion, theme behaviour. The brand name is renamed and every text is written fresh (original copy). LOOK at the pictures with Read (folder pictures/): FIRST overview-1.png ... (contact sheets: 4 sections each, numbered #N like the list below; ${nSheets} of them: 3 Reads instead of 12), then a single desktop-light-section-NN.png only where you need detail; desktop-light-full.png (whole page) (ONE PICTURE PER SECTION, the list below says which is which), desktop-dark.png and mobile.png (FIRST SCREEN only: fast, the colours and the phone header; the light contact sheets carry the layout). The store is organised: STORE.md (index), MAP.md (mind map), assets/ (real images by role), layouts/ and briefs/ (lookup agent).
 
 - title: ${title} | description: ${desc.slice(0, 160)}
 - theme: ${themed}${hasToggle ? "; has a theme toggle button" : ""}

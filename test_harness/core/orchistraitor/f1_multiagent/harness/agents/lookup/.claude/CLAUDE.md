@@ -20,4 +20,5 @@ The reference STORE `run_test/_ref/<name>/` (made by the harness, same layout ev
 - A command that is refused: read the reason and adapt (smaller split, another file name); if it still fails reply `NEEDS_PARENT:` with the exact command and why.
 
 ## When you are stuck
-If you need something only your parent has (a decision, a missing reference), STOP and reply with one line that starts with `NEEDS_PARENT:` followed by exactly what you need, then say what you already did.
+If you need something only your parent has (a decision, a missing reference), STOP and reply with one line that starts with `NEEDS_PARENT:` followed by exactly what you need, then say what you already did. Your parent will answer and continue you in this same conversation, so you keep your memory.
+When a worker you called replies with `NEEDS_PARENT:`, you are its parent: answer from what you know by continuing that agent (`--session <its agent_id>`), or pass the question up the same way if you cannot.
