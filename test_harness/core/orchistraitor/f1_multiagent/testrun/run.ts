@@ -50,7 +50,9 @@ const wantIds = want.length ? want : mine.map((c) => c.id), resumable = (!!resum
 // A message the HARNESS made up (the --resume "Carry on ..." prompt, the --video-only marker) is an auto run: it is NOT a message of the person, so it is not mirrored into the session chat; its notes carry the ref "auto_run" (the UI chat hides them). A --fake run has no real answer ("(fake lead) done"): its reply is never put in the chat either.
 const autoRun = flags.has("--auto") || (sayArg === undefined && (videoOnly || !!resumeArg)), chatRefs = autoRun ? ["testrun", "auto_run"] : ["testrun"];
 // --again: send the case's prompts AGAIN into its EXISTING session (same task, same workspace, same lead conversation: nothing is archived or reset) and judge the answers; this is what the UI's "Run" does for a case that already ran.
-const again = flags.has("--again"), reuse = (m: string | undefined) => !!m || again;
+const againFlag = flags.has("--again");
+let again = againFlag;   // per case (see the loop): a case with REAL sub-agents is never sent "again" into its old session, it runs in a fresh one
+const reuse = (m: string | undefined) => !!m || again;
 const sayMsg: string | undefined = sayArg ?? (videoOnly && resumable ? "(video only: no lead call)" : !!resumeArg && resumable ? "Carry on with the task from where you stopped and finish it. Then tell me what changed since your last answer." : undefined);
 if (flags.has("--list")) { for (const c of mine) console.log(`${c.id}${c.after ? "  (after " + c.after + ")" : ""}  ${exp[c.id] ? "[ran]" : ""}${unsupported(c) ? "  [not supported: " + unsupported(c) + "]" : ""}  ${c.title}`); process.exit(0); }
 
@@ -93,8 +95,12 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   warnMissingFixtures(c);   // fixtures live in ONE place (agent_fixture); a case without one warns unless it says allow_real_subAg: true
   if (c.after && (notPassed.has(c.after) || (exp[c.after] as { status?: string } | undefined)?.status === "fail")) { console.log(`\n## ${c.id}: SKIPPED  its parent "${c.after}" did not pass (a child continues the parent's state; fix the parent first)`); notPassed.add(c.id); failed++; continue; }
   if (c.after && !exp[c.after]?.done) { console.log(`\n## ${c.id}: needs "${c.after}" to run first (run the suite in order, or name both)`); failed++; continue; }
+  // --again into the OLD session is only a valid re-test when sub-agents are fixtures (nothing changes on disk). A case with real sub-agents (allow_real_subAg) leaves its work in the workspace and in the lead's memory:
+  // the lead then answers "already done", calls no builder, and the record of the first (valid) run is overwritten with "(none)". So that case gets a FRESH session instead (old one archived), as with --rerun.
+  again = againFlag && !(c.allow_real_subAg && !sayMsg);
+  if (againFlag && !again) console.log(`   (--again on a case with real sub-agents: running it in a fresh session; the old one is archived)`);
   const rerun = !!exp[c.id], planned = taskFor(c, all, exp), task = planned;   // a rerun never overwrites: it is a new task you can compare
-  if (rerun && !flags.has("--rerun") && !sayMsg && !again) { console.log(`\n## ${c.id}: already ran in task ${exp[c.id]!.task} (--rerun runs it again in a new task)`); continue; }
+  if (rerun && !flags.has("--rerun") && !sayMsg && !againFlag) { console.log(`\n## ${c.id}: already ran in task ${exp[c.id]!.task} (--rerun runs it again in a new task)`); continue; }
   // HOME of this run: a root case has its own; a case that CONTINUES its parent uses the parent's; a BRANCH (a second child of the same parent) starts from a COPY of the parent's session folder (same task id, so the parent's agents and sessions are still there)
   const parentEnt = c.after ? (exp[c.after] as { task: string; home?: string } | undefined) : undefined, isBranch = !!parentEnt && planned !== parentEnt.task, sfx = task.slice(planned.length);
   // a FRESH run (a root case or a branch) must never reuse a session folder that already exists: it holds the agents, sessions and served results of an earlier run (the planner would answer "already done")

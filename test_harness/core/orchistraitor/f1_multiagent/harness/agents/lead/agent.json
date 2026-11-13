@@ -23,5 +23,6 @@
   "T4"
  ],
  "session_cap": 60,
- "custom": true
+ "custom": true,
+ "timeout_s": 1800
 }
