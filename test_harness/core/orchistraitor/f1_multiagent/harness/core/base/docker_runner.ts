@@ -11,6 +11,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { LSP_PLUGIN_DIR, RealRunner, lspArgs, wantsLsp } from "./runner.ts";
 import type { RunCall, RunResult } from "./types.ts";
+import { cliErrorText } from "./parse.ts";
 
 export const sandboxable = (c: RunCall) => c.agent.role !== "lead" && c.agent.role !== "pm" && c.agent.agents.length === 0 && !c.agent.allow.some((a) => a.includes("tools.ts"));
 
@@ -42,7 +43,7 @@ export class DockerRunner extends RealRunner {
         clearTimeout(timer); this.live.delete(p); this.names.delete(name);
         try {
           const j = JSON.parse(out) as { result?: string; session_id?: string; total_cost_usd?: number; is_error?: boolean; subtype?: string };
-          resolve({ reply: j.result ?? "", session_id: j.session_id ?? c.session.id, cost: j.total_cost_usd ?? 0, ok: code === 0 && !j.is_error, error: j.is_error ? (j.subtype ?? "error") : undefined });
+          resolve({ reply: j.result ?? "", session_id: j.session_id ?? c.session.id, cost: j.total_cost_usd ?? 0, ok: code === 0 && !j.is_error, error: j.is_error ? cliErrorText(j) : undefined });
         } catch { resolve({ reply: "", session_id: c.session.id, cost: 0, ok: false, error: `docker exit ${code}: ${(err || out).slice(0, 300)}` }); }
       });
     });

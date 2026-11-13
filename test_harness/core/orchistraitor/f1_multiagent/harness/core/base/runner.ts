@@ -7,6 +7,10 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { RunCall, RunResult, Runner } from "./types.ts";
+import { cliErrorText, isAccountFatal } from "./parse.ts";
+
+/** Set when a call fails because the account is out of credits / logged out: new calls fail at once (no process, no waiting) until it expires. */
+let fatal: { error: string; until: number } | null = null;
 
 /** Where the CLI keeps sessions. The CLI follows CLAUDE_CONFIG_DIR (e.g. ~/.claude-personal), else ~/.claude. A run started from a shell with that variable and a run started by the UI server without it use DIFFERENT profiles,
  *  so a session made by one cannot be resumed by the other ("No conversation found"). `claudeDirs()` lists every profile that may hold sessions; `profileOfSession(id)` finds the one that holds a given session, and a resume is run IN that profile. */
@@ -43,10 +47,15 @@ export class RealRunner implements Runner {
   constructor(public timeoutMs = 240_000) {}
   async run(c: RunCall): Promise<RunResult> {
     this.calls.push(c);
+    if (fatal && Date.now() < fatal.until) return { reply: "", session_id: c.session.id, cost: 0, ok: false, error: fatal.error };   // fail fast: the account is out of credits
     // At most HARNESS_MAX_PROCS WORKERS at once. The project manager and the lead each have a slot of their own: they spend most of their turn waiting
     // for others, and a waiting parent must never take a worker's place (this cost a researcher 9 s in the first strict multi-agent run).
     const t0 = Date.now(), release = c.agent.role === "pm" ? await acquireSlot("pm", 1) : c.agent.role === "lead" ? await acquireSlot("lead", Math.max(1, Number(process.env.HARNESS_MAX_LEADS ?? 1)))   /* HARNESS_MAX_LEADS: how many leads may run at once machine-wide (default 1; testrun/par.ts raises it) */ : await acquireSlot("claude", maxProcs()), waited = Date.now() - t0;
-    try { const r = await this.spawnOne(c); return { ...r, waited_ms: waited }; } finally { release(); }
+    try {
+      const r = await this.spawnOne(c);
+      if (!r.ok && isAccountFatal(r.error)) { fatal = { error: r.error!, until: Date.now() + 120_000 }; this.killAll(); }   // stop every sibling run too; retry allowed after 2 min
+      return { ...r, waited_ms: waited };
+    } finally { release(); }
   }
   protected spawnOne(c: RunCall): Promise<RunResult> {   // protected: DockerRunner (docker_runner.ts) starts the same claude call inside a container
     const args = ["-p", c.prompt, "--output-format", "json", "--model", c.agent.model,
@@ -70,7 +79,7 @@ export class RealRunner implements Runner {
         try {
           const j = JSON.parse(out) as { result?: string; session_id?: string; total_cost_usd?: number; is_error?: boolean; subtype?: string };
           resolve({ reply: j.result ?? "", session_id: j.session_id ?? c.session.id, cost: j.total_cost_usd ?? 0,
-            ok: code === 0 && !j.is_error, error: j.is_error ? (j.subtype ?? "error") : undefined });
+            ok: code === 0 && !j.is_error, error: j.is_error ? cliErrorText(j) : undefined });
         } catch {
           resolve({ reply: "", session_id: c.session.id, cost: 0, ok: false, error: timedOut ? `timed out: ${c.agent.name} was still running after ${Math.round(limitMs / 1000)} s and was killed; its files are kept: continue the SAME agent (--session <its id>) with the rest (a lead that waits for a long sub-agent: answer the person and end the turn instead; the sub-agent keeps working)` : `exit ${code}: ${(err || out).slice(0, 300)}` });
         }
