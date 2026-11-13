@@ -1,6 +1,6 @@
 # Power layer: phase gates, agent_peek, slash commands, budget
 
-Generated 2026-11-13T14:41:09.323Z. 38/38 passed.
+Generated 2026-11-13T14:46:39.088Z. 42/42 passed.
 
 Offline: fake agents, real harness code, no model calls.
 
@@ -44,3 +44,7 @@ Offline: fake agents, real harness code, no model calls.
 | model policy (sonnet everywhere, haiku for small jobs) | M3 | a plan task may ask for haiku on a builder but not on a planner | PASS |
 | model policy (sonnet everywhere, haiku for small jobs) | M4 | delegate --model haiku to a planner is refused with the reason | PASS |
 | model policy (sonnet everywhere, haiku for small jobs) | M5 | delegate --model haiku to a researcher runs and the choice is kept on the call record | PASS |
+| active time (experiment page) | A1 | active time = union of agent work: 1..20 s overlapping once (19 s) + 2 s; the gap 20..30 s does not count | PASS |
+| active time (experiment page) | A2 | a call still running counts up to now | PASS |
+| active time (experiment page) | A3 | a call that ended without writing back counts only up to the agent's last event, not for ever | PASS |
+| active time (experiment page) | A4 | a task with no events is 0 | PASS |

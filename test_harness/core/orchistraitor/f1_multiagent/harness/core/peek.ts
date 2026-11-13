@@ -1,6 +1,7 @@
 // LOOK INSIDE A RUNNING AGENT (read-only, free): what it did last, how long it has been silent, which files it holds, what it said. The lead / PM uses it to
 // decide "stop it", "tell it something" or "wait" without spending a model call, and the slash command /peek prints the same.
 import type { MStore } from "./board.ts";
+import { spans } from "./base/trace.ts";
 
 export interface Peek {
   ok: true; agent_id: string; role: string; title: string; status: string; activity: string; running_s: number | null; silent_s: number | null; tool_calls: number;
@@ -33,3 +34,21 @@ export const peekText = (p: Peek): string => [
   `  now: ${p.activity || "-"}`, ...p.recent.map((r) => `  -${String(r.ago_s).padStart(4)}s ${r.tool} ${r.what}`),
   ...(p.writes.length ? [`  holds: ${p.writes.join(", ")}`] : []), ...(p.patches.length ? [`  patches: ${p.patches.join(", ")}`] : []),
   ...p.notes.map((x) => `  note ${x.from}->${x.to} (${x.ago_s}s ago): ${x.text}`), `  => ${p.hint}`].join("\n");
+
+/** How long a task was ACTIVE: the time at least one agent was working (parallel agents count once, gaps between turns do not count).
+ *  A call still open counts up to now while its agent is running, else up to that agent's last event (it ended without writing back). */
+export function activeMs(store: MStore, task: string, now = Date.now()): number {
+  const iv: [number, number][] = spans(store, task).map((s) => [s.start, s.start + Math.max(0, s.ms)]);
+  const closed = new Map<string, number>();
+  for (const s of spans(store, task)) closed.set(s.agent_id, (closed.get(s.agent_id) ?? 0) + 1);
+  const starts = new Map<string, number[]>();
+  for (const e of store.events) if (e.task_id === task && e.kind === "agent.start" && e.agent_id) starts.set(e.agent_id, [...(starts.get(e.agent_id) ?? []), e.t]);
+  for (const [id, ts] of starts) {   // starts after the closed ones are still open
+    const a = store.agent(task, id), last = Math.max(...store.events.filter((e) => e.task_id === task && e.agent_id === id).map((e) => e.t));
+    for (const t0 of ts.slice(closed.get(id) ?? 0)) iv.push([t0, a?.status === "running" ? now : Math.max(t0, last)]);
+  }
+  iv.sort((x, y) => x[0] - y[0]);
+  let total = 0, cur: [number, number] | undefined;
+  for (const [a, b] of iv) { if (!cur || a > cur[1]) { if (cur) total += cur[1] - cur[0]; cur = [a, b]; } else cur[1] = Math.max(cur[1], b); }
+  return cur ? total + cur[1] - cur[0] : total;
+}

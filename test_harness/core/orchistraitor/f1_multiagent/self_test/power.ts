@@ -119,5 +119,20 @@ setSuite("model policy (sonnet everywhere, haiku for small jobs)");
   const call = new MStore(file).calls.find((c) => (c.req as { model?: string } | undefined)?.model === "haiku");
   t("M5", "delegate --model haiku to a researcher runs and the choice is kept on the call record", good.ok !== false && !!call, JSON.stringify(good).slice(0, 200));
 }
+setSuite("active time (experiment page)");
+{
+  const { activeMs } = await import("../harness/core/peek.ts");
+  const st = new MStore(join(mkdtempSync(join(tmpdir(), "act-")), "s.json")), a = st.addAgent("t", defs.get("lead")!, { level: 1 }), b = st.addAgent("t", defs.get("builder")!, { level: 2 }), c = st.addAgent("t", defs.get("researcher")!, { level: 2 });
+  const ev = (kind: string, agent: string, t: number) => { st.ev(kind, "t", agent); st.events[st.events.length - 1]!.t = t; };
+  ev("agent.start", a.agent_id, 1000); ev("agent.done", a.agent_id, 11_000);                      // lead 10 s
+  ev("agent.start", b.agent_id, 5000); ev("agent.done", b.agent_id, 20_000);                      // builder 5..20 overlaps the lead 5..11
+  ev("agent.start", c.agent_id, 30_000); ev("agent.failed", c.agent_id, 32_000);                  // researcher 2 s after a gap
+  t("A1", "active time = union of agent work: 1..20 s overlapping once (19 s) + 2 s; the gap 20..30 s does not count", activeMs(st, "t", 100_000) === 21_000, String(activeMs(st, "t", 100_000)));
+  b.status = "running"; ev("agent.start", b.agent_id, 40_000);
+  t("A2", "a call still running counts up to now", activeMs(st, "t", 45_000) === 26_000, String(activeMs(st, "t", 45_000)));
+  b.status = "idle";
+  t("A3", "a call that ended without writing back counts only up to the agent's last event, not for ever", activeMs(st, "t", 9_000_000) === 21_000, String(activeMs(st, "t", 9_000_000)));
+  t("A4", "a task with no events is 0", activeMs(new MStore(), "none") === 0);
+}
 const failed = writeReport(join(import.meta.dirname, "power_report.md"), "Power layer: phase gates, agent_peek, slash commands, budget", "Offline: fake agents, real harness code, no model calls.");
 process.exit(failed ? 1 : 0);

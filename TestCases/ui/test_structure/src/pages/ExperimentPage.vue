@@ -38,6 +38,7 @@ const allCases = computed(() => (ov.value?.suites ?? []).flatMap((s) => s.cases.
 const caseOf = (id?: string) => allCases.value.find((c) => c.id === id);
 const color: Record<CaseState, string> = { pass: "var(--pass)", fail: "var(--fail)", partial: "var(--warn)", running: "var(--accent)", skipped: "var(--mute)", never_run: "var(--mute)" };
 const ago = (t?: number) => { if (!t) return "-"; const s = Math.max(0, Math.round((now.value - t) / 1000)); return s < 60 ? s + "s ago" : s < 3600 ? Math.floor(s / 60) + "m ago" : s < 86400 ? Math.floor(s / 3600) + "h ago" : Math.floor(s / 86400) + "d ago"; };
+const dur = (ms?: number) => { if (!ms || ms < 1000) return "0s"; const s = Math.round(ms / 1000); return s < 60 ? s + "s" : s < 3600 ? Math.floor(s / 60) + "m " + String(s % 60).padStart(2, "0") + "s" : Math.floor(s / 3600) + "h " + String(Math.floor((s % 3600) / 60)).padStart(2, "0") + "m"; };
 const hm = (t: number) => new Date(t).toTimeString().slice(0, 8);
 const usd = (n: number) => "$" + n.toFixed(4);
 const say = (m: string) => { notice.value = m; setTimeout(() => { if (notice.value === m) notice.value = ""; }, 8000); };
@@ -129,7 +130,7 @@ const tree = (s: LiveSession): Node[] => {
         <div v-for="s in shown" :key="s.task" class="srw">
           <button class="srow" :class="{ on: s.task === sel && !creating }" @click="open(s.task)">
             <div class="t1"><span class="dot" :class="s.state" /><span class="tt">{{ s.case ?? s.title }}</span></div>
-            <div class="t2">{{ ago(s.last) }} · {{ s.agents.length }} sub-agent(s)<template v-if="s.fixtures"> · fixture ×{{ s.fixtures }}</template></div>
+            <div class="t2" :title="'last activity ' + ago(s.last)">active {{ dur(s.activeMs) }}<template v-if="s.state !== 'active'"> (working)</template> · {{ s.agents.length }} sub-agent(s)<template v-if="s.fixtures"> · fixture ×{{ s.fixtures }}</template></div>
           </button>
           <button class="more" aria-label="session options" @click.stop="menu = menu === s.task ? null : s.task">⋮</button>
           <div v-if="menu === s.task" class="menu" @click.stop><button class="del" @click="del(s)">Delete session + sub-agents</button></div>

@@ -18,7 +18,7 @@ export interface LiveAgent {
 }
 export interface LiveSession {
   /** "experiment" = made on this page (＋ New session, free chat); "test" = made by a test run (testrun/run.ts, a case) */ kind: "experiment" | "test"; /** sub-agent answers served from a recorded fixture */ fixtures: number;
-  tags: string[]; task: string; agentsAllowed: string[]; fake: boolean; queued: number; busy: boolean; case?: string; suite?: string; title: string; last: number;
+  tags: string[]; task: string; agentsAllowed: string[]; fake: boolean; queued: number; busy: boolean; case?: string; suite?: string; title: string; last: number; /** ms at least one agent was working in this session (parallel agents count once) */ activeMs: number;
   state: "working" | "running" | "active" | "stalled"; cost: number;   // stalled = the master is marked running but no process is alive any more
   master: LiveAgent | null; agents: LiveAgent[];
 }

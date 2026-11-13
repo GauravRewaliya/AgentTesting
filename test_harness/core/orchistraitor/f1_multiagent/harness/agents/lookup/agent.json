@@ -4,13 +4,15 @@
  "model": "haiku",
  "session": "persistent",
  "writes": true,
- "max_children": 0,
- "agents": [],
+ "max_children": 4,
+ "agents": [
+  "lookup-page"
+ ],
  "tiers": [
   "T1",
   "T2",
   "T3",
   "T4"
  ],
- "timeout_s": 600
+ "timeout_s": 900
 }
