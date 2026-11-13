@@ -1,12 +1,12 @@
 # Test 2: f_1_withmulti_ag (multi-agent on demand)
 
-Generated 2026-11-13T14:36:10.708Z. 154/159 passed.
+Generated 2026-11-13T14:40:57.029Z. 157/159 passed.
 
 Harness under test: `harness/` = the base harness (harness/core/base/) + agent.call, instances, locks, worktrees/patches, board, tools. Real suite NOT run.
 
 | suite | id | check | result |
 |---|---|---|---|
-| offline: agent.call authority | M1 | agents:check passes; lead declares eight sub-agents in agent.json (and may call custom ones); .claude/agents is empty everywhere | **FAIL** |
+| offline: agent.call authority | M1 | agents:check passes; lead declares its sub-agents in agent.json (8 or more, lookup included) (and may call custom ones); .claude/agents is empty everywhere | PASS |
 | offline: agent.call authority | M1b | declarations are built at run time from the callees' agent.json and tell the lead their REAL tools: researcher has web access, builder can write but has NO web access | PASS |
 | offline: agent.call authority | M2a | multi-agent OFF (default depth 1): the lead cannot call anyone; the reason says so | PASS |
 | offline: agent.call authority | M2a2 | the default policy is off | PASS |
@@ -27,7 +27,7 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 | offline: agent.call authority | M2p | a writer must declare writes; a read-only agent may not; every call (granted or denied) leaves a call row with its reason | PASS |
 | offline: launch (tools per level, run-time declarations, native equivalents) | M3 | the delegate tool exists for the lead only when multi-agent is on, and is REMOVED at the last level and for leaves | PASS |
 | offline: launch (tools per level, run-time declarations, native equivalents) | M3b | the launch prompt = CLAUDE.md + the declarations when it may call; plain CLAUDE.md when it may not | PASS |
-| offline: launch (tools per level, run-time declarations, native equivalents) | M3c | backend N from the same files: --agents holds the eight declared agents; the native depth wall is 3 below the lead and capped at the hard limit | **FAIL** |
+| offline: launch (tools per level, run-time declarations, native equivalents) | M3c | backend N from the same files: --agents holds every declared agent; the native depth wall is 3 below the lead and capped at the hard limit | PASS |
 | offline: write locks and the queue | M4a | overlap/cover rules | PASS |
 | offline: write locks and the queue | M4b | all-or-none: B wants b.ts+c.ts, b.ts is held -> B queues at position 1 and holds NOTHING (c.ts stays free) | PASS |
 | offline: write locks and the queue | M4c | no deadlock: two writers wanting {x,y} and {y,x}: one gets both, the other waits holding nothing | PASS |
@@ -129,7 +129,7 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 | session runs: one id to come back to; resume after the processes died (the laptop was closed); NOT RUN YET when written, run with --suite runs | RN9 | the helper commands take the run id: `tree --run <id>` works like `--task`, and `runs` lists every run with its main agent and Claude session id | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP1 | who can call whom: only the lead, the planner (ux-designer, builder) and the builder can call sub-agents; every other agent is a leaf; the call tool is REMOVED at level 4 and for everyone when multi-agent is off (max depth 1); every agent has at least one tool; every declared sub-agent exists | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP2 | and a caller is TOLD what it may call and what each one can do: the builder's launch text lists the researcher (web access) and the reviewer with their real tools | PASS |
-| stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP3 | every agent prompt says what to do when stuck (STOP, reply NEEDS_PARENT: with what is needed and what was done, the parent continues you in the same conversation); callers also say how to answer a child; the PM knows plan_answer | **FAIL** |
+| stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP3 | every agent prompt says what to do when stuck (STOP, reply NEEDS_PARENT: with what is needed and what was done, the parent continues you in the same conversation); callers also say how to answer a child; the PM knows plan_answer | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP4 | a callee that replies NEEDS_PARENT: is marked 'waiting for its parent': the question is on its row, in the event log, in the call result, and shown in the tree (ASKS ITS PARENT) | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP5 | when the parent continues the SAME agent with the answer, the question is cleared and the agent finishes (resumed, same session) | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP6 | PLAN: the task whose agent asked is BLOCKED with its question (not done); the task that needs its answer has NOT started (no builder exists); the plan stays open | PASS |
@@ -147,48 +147,33 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK8 | the footer and the header button link ONLY to real routes, and every route is in the footer or the header (no page without a way in) | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK9 | the untouched site starter passes proto_check | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK10 | every team command is a real executable on the agents' PATH (harness/bin): builders no longer hunt for `bun .../tools.ts` (it cost them ~6 steps) | PASS |
-| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK11 | REAL BROWSER: the site follows the system theme (light bg bright, dark bg dark), no JavaScript error | PASS |
+| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK11 | REAL BROWSER: the site follows the system theme (light bg bright, dark bg dark), no JavaScript error | **FAIL** |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK12 | REAL BROWSER: clicking a nav item opens that route, the toggle switches the theme (the browser driver can click, scroll and evaluate like a person) | PASS |
-| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK13 | connected browser: without an endpoint agents use the private headless Chrome; with one, browser_status says attached, names the browser and lists the open tabs | PASS |
+| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK13 | connected browser: without an endpoint agents use the private headless Chrome; with one, browser_status says attached, names the browser and lists the open tabs | **FAIL** |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK14 | browse through the connected browser opens its OWN tab, works, and closes it again (the person's tabs are left as they were) | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK15 | browse --tab attaches to a tab that is ALREADY open (reads its page without navigating) and says clearly when no tab matches | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK17 | the on/off toggle: OFF = agents use the private headless Chrome (the connection is remembered and says so), ON = the connected browser again | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK16 | a connected browser that stops answering is reported (not reachable) and agents fall back to the private headless Chrome instead of failing | PASS |
-| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK18 | ref_assets pulls logo, hero image, favicon, social image and css background into assets/ with roles and pixel sizes, and reports (not crashes on) a missing file | **FAIL** |
+| prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK18 | ref_assets pulls logo, hero image, favicon, social image and css background into assets/ with roles and pixel sizes, and reports (not crashes on) a missing file | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK20 | the reference store has a fixed layout (pictures/ raw/ assets/<role>/ layouts/ briefs/), a generated mind map (tree + Mermaid mindmap: sections, components, pictures, assets, layouts, briefs) and an index that says where everything is | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK21 | site_audit (real browser) flags planted defects (low contrast, missing alt / lang / viewport / title, dead link, skipped headings, phone overflow) and passes a clean page | PASS |
 | prototype starter kit: proto_init makes a working shell in a blink (no model call), proto_check understands it, nothing is invented by a builder | PK19 | the lookup agent exists as a writer without sub-agents, the lead may call it, the researcher stays text based (no browser tools), builders are told the brief is their complete context | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS1 | the lead and the project manager are conversations, not tasks: their resume cap is far above a worker's (a real session rolled the lead on its 5th message with a cap of 3 and the lead told the person it had lost track) | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS2 | with the ui's cap of 3: six turns later the LEAD was never rolled (it keeps one session), while a worker was rolled at the 4th resume as designed | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS3 | if a master IS reset (or is new in a store that already has a chat), its brief carries the conversation from the record (not the message being answered), so it does not start blank | PASS |
-| masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS4 | a call by ROLE word ("research") works like a call by agent NAME ("researcher") where the two differ, and a truly wrong name is refused and told the valid names; the shipped definitions use one word for both | **FAIL** |
+| masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS4 | a call by ROLE word ("research") works like a call by agent NAME ("researcher") where the two differ, and a truly wrong name is refused and told the valid names; the shipped definitions use one word for both | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | CU1 | a lead marked custom can call a role with no folder: without --title it is refused and told to give one; with a title the agent is made, named and titled, read-only; continuing it works; a bad name is refused; a lead not marked custom still gets unknown_role | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | CU2 | a distractor agent (agent.json forbidden) is refused with code forbidden and an event is logged; a custom agent given --writes becomes a writer with write tools | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS5 | the lead's prompt carries the rules the real sessions called for: count what the person lists (one agent per item, cover each plausible reading), 'ask <agent>' means continue THAT agent, role value is the exact name, keep internals out of the answer | PASS |
 
 ## Failures
 
-### M1 agents:check passes; lead declares eight sub-agents in agent.json (and may call custom ones); .claude/agents is empty everywhere
+### PK11 REAL BROWSER: the site follows the system theme (light bg bright, dark bg dark), no JavaScript error
+```
+rgb(255, 255, 255) / rgb(11, 13, 16) the connected browser at http://127.0.0.1:9222 does not answer: used the private headless Chrome instead (browser_status shows it)
 ```
 
+### PK13 connected browser: without an endpoint agents use the private headless Chrome; with one, browser_status says attached, names the browser and lists the open tabs
 ```
-
-### M3c backend N from the same files: --agents holds the eight declared agents; the native depth wall is 3 below the lead and capped at the hard limit
-```
-{"CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH":"3","CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS":"4"}
-```
-
-### NP3 every agent prompt says what to do when stuck (STOP, reply NEEDS_PARENT: with what is needed and what was done, the parent continues you in the same conversation); callers also say how to answer a child; the PM knows plan_answer
-```
-./lookup
-```
-
-### PK18 ref_assets pulls logo, hero image, favicon, social image and css background into assets/ with roles and pixel sizes, and reports (not crashes on) a missing file
-```
-{"ok":true,"downloaded":6,"assets":["assets/logo/01-brand-logo.png (logo, 1x1)","assets/images/02-hero-shot.png (image, 1x1)","assets/images/03-gone.png (image, 1x1)","assets/icons/04-fav.png (favicon
-```
-
-### MS4 a call by ROLE word ("research") works like a call by agent NAME ("researcher") where the two differ, and a truly wrong name is refused and told the valid names; the shipped definitions use one word for both
-```
-researcher | unknown_role: no agent named "wizard". Use one of: researcher, lookup, planner, builder, reviewer, writer, package-researcher, ux-designer, qa-reviewer | roles=builder:builder,expo-go:expo-go,lead:lead,lookup:lookup,package-researcher:package-researcher,planner:planner,pm:pm,qa-reviewer:qa-reviewer,researcher:researcher,reviewer:reviewer,stage-builder:stage-builder,stage-planner:stage-planner,stage-qa:stage-qa,stage-reviewer:stage-reviewer,ux-designer:ux-designer,web-setup:web-setup,writer:writer
+{"mode":"attached","endpoint":"http://127.0.0.1:9462","reachable":true,"since":"2026-11-13T14:37:54.527Z","browser":"Chrome/148.0.7778.96","userAgent":"Mozilla/
 ```

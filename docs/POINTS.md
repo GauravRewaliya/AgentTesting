@@ -29,5 +29,5 @@ parallel `delegate --async` / `wait` / `fork_all`; plan scheduler with dependenc
 
 ## Known, not from this round
 - `bun self_test/multi.ts --suite sessions` fails SP1 here: the stand-in CLI's transcript is not found under `~/.claude-personal/projects/...`. It does not touch phases/peek/slash/budget (155/155 pass on every other suite); look at it separately.
-- Three-way note on the other suites: while this round was built, the `lookup` agent, `ref_assets`/`ref_store`/`site_audit` and the browser connector were added by other work in the same tree. `multi.ts` checks M1, M3c, NP3, PK18, MS4 (agent count "eight", the `lookup` folder's prompt, ref_assets) fail because of those, not because of phases, peek, slash, budget or models: re-baseline them when that work is finished.
+- `multi.ts` (all suites except `sessions`): 157 pass. M1, M3c, NP3, MS4 were stale after the `lookup` agent was added (agent count, its prompt, the valid-names message) and are fixed. PK11 and PK13 (connected browser) fail only while a `browser_connect` endpoint is saved that is not answering (127.0.0.1:9222/9448): they test the private-vs-attached browser and depend on that saved state, not on code; disconnect (`browser_disconnect`) and rerun.
 - Claude Code has no commands folder in this repo: the slash commands above are ours, for the person at the console, not Claude Code's own.

@@ -59,7 +59,7 @@ const code = (r: CallRes) => (r.ok ? "granted" : r.code);
 async function offline() {
   setSuite("offline: agent.call authority");
   { const bad = checkAgents(defs);
-    t("M1", "agents:check passes; lead declares eight sub-agents in agent.json (and may call custom ones); .claude/agents is empty everywhere", bad.length === 0 && defs.get("lead")!.agents.length === 8 && defs.get("lead")!.custom === true, bad.join("; "));
+    t("M1", "agents:check passes; lead declares its sub-agents in agent.json (8 or more, lookup included) (and may call custom ones); .claude/agents is empty everywhere", bad.length === 0 && defs.get("lead")!.agents.length >= 8 && defs.get("lead")!.agents.includes("lookup") && defs.get("lead")!.custom === true, bad.join("; "));
     const d = declarations(defs.get("lead")!, defs);
     t("M1b", "declarations are built at run time from the callees' agent.json and tell the lead their REAL tools: researcher has web access, builder can write but has NO web access", /researcher \(read-only; has web access; tools: [^)]*WebFetch/.test(d) && /builder \(can write; must declare --writes; NO web access; tools:/.test(d), d); }
   { const w = world({ agentMaxDepth: 1 });
@@ -132,7 +132,7 @@ async function offline() {
     const l1 = launchDef(lead, defs, 1, 4, dir), l0 = launchDef(lead, defs, 1, 1, dir);
     t("M3b", "the launch prompt = CLAUDE.md + the declarations when it may call; plain CLAUDE.md when it may not", readFileSync(l1.prompt_file, "utf8").includes("Sub-agents you may call") && !readFileSync(l0.prompt_file, "utf8").includes("Sub-agents you may call"), "");
     const nat = nativeAgentsJson(lead, defs), env = nativeEnv(9);
-    t("M3c", "backend N from the same files: --agents holds the eight declared agents; the native depth wall is 3 below the lead and capped at the hard limit", Object.keys(nat).length === 8 && env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH === "3" && nativeEnv(1).CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH === "0", JSON.stringify(env)); }
+    t("M3c", "backend N from the same files: --agents holds every declared agent; the native depth wall is 3 below the lead and capped at the hard limit", Object.keys(nat).length === defs.get("lead")!.agents.length && env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH === "3" && nativeEnv(1).CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH === "0", JSON.stringify(env)); }
 
   setSuite("offline: write locks and the queue");
   { const s = new MStore(), N = 1000, T = (agent: string, call_id: string, paths: string[], now = N) => acquire(s, { task_id: "t", agent_id: agent, call_id, paths, ttlMs: 500, now });
@@ -899,7 +899,7 @@ async function mastersSuite() {
     const w = world({}, split); w.lead.status = "running";
     const byRole = agentCall(w.store, w.d, w.policy, { ...base, role: "research" }), byName = agentCall(w.store, w.d, w.policy, { ...base, role: "researcher" }), wrong = agentCall(w.store, w.d, w.policy, { ...base, role: "wizard" });
     t("MS4", "a call by ROLE word (\"research\") works like a call by agent NAME (\"researcher\") where the two differ, and a truly wrong name is refused and told the valid names; the shipped definitions use one word for both",
-      byRole.ok && byRole.agent.name === "researcher" && byName.ok && !wrong.ok && /Use one of: researcher, planner, builder, reviewer/.test(wrong.reason) && [...defs.values()].every((d) => d.role === d.name || d.name === "lead" || d.name === "pm"), `${byRole.ok ? byRole.agent.name : byRole.reason} | ${wrong.ok ? "" : wrong.reason} | roles=${[...defs.values()].map((d) => d.name + ":" + d.role)}`); }
+      byRole.ok && byRole.agent.name === "researcher" && byName.ok && !wrong.ok && /Use one of: researcher, (lookup, )?planner, builder, reviewer/.test(wrong.reason) && [...defs.values()].every((d) => d.role === d.name || d.name === "lead" || d.name === "pm"), `${byRole.ok ? byRole.agent.name : byRole.reason} | ${wrong.ok ? "" : wrong.reason} | roles=${[...defs.values()].map((d) => d.name + ":" + d.role)}`); }
   { // custom sub-agents: a role with no folder, called with a title
     const w = world({}); w.lead.status = "running";
     const noTitle = agentCall(w.store, w.d, w.policy, { ...base, role: "market-researcher" });

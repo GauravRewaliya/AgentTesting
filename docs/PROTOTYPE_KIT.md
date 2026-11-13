@@ -93,3 +93,43 @@ lead: `ref_capture` (+ one per other page type) -> reads REF.md, decides pages /
 4. Real images: the clone uses gradients and inline svg; an optional `ref_capture --assets` could download the reference's images for the test to place, if licences allow.
 5. Keep the measured numbers: each real case writes time, cost and `ref_compare` score into `PROGRESS.md` (a regression shows at once).
 6. Idle waits: the lead still starts a `wait` per round; a harness-side "run all builders and return when `ref_compare` is clean" would save turns.
+
+---
+
+# Part 3 (2026-11-13, night): lookup agent, reference store, connected browser, audit, react-as-one-finishes
+
+## Roles after this change (who does what)
+| agent / tool | does | does NOT |
+|---|---|---|
+| `researcher` | TEXT based: facts, docs, search, WebFetch | look at a site (a WebFetch is a model-written summary) |
+| **`lookup`** (new) | the visual UI/UX reference analyst: LOOKS at the section pictures of a studied site, writes `layouts/` and `briefs/` into the reference store | build pages |
+| `builder` | builds the pages of ONE screens file from its brief, verifies with `browse` | study the reference, run `ref_capture`, hunt for assets |
+| harness tools (no model) | `ref_capture`, `ref_assets`, `ref_store`, `ref_compare`, `browse`, `site_audit`, `proto_init`, `proto_check`, `preview`, `browser_*` | |
+Flow for a site clone: lead `ref_capture` (13 s, builds the whole store) -> reads STORE.md / MAP.md / REF.md and decides pages -> `proto_init --kind site` -> **lookup** writes the briefs (2-4 min) -> `fork_all` builders in parallel, each from `briefs/BRIEF.md` + `briefs/BRIEF_<file>.md` -> the lead reacts with `wait --any` as each finishes -> `ref_compare` -> `preview` -> `site_audit` for improvements.
+
+## The reference store (fixed layout, one per studied site: `run_test/_ref/<name>/`)
+| path | what |
+|---|---|
+| `STORE.md` | index: what is where and how to reference it (start here) |
+| `MAP.md` | the mind map: site -> sections -> components -> pictures -> assets -> layouts -> briefs, as a markdown tree AND a Mermaid `mindmap` block |
+| `REF.md` | design tokens (fonts, colours, radius, css variables), motion, header / footer links, section list with the real computed styles |
+| `outline.json` | the measured outline (`ref_compare` reads it) |
+| `pictures/` | `desktop-light-full`, `desktop-light-section-NN` (one per section), `desktop-dark`, `mobile` |
+| `assets/<logo|icons|images|social|backgrounds>/` + `assets.json` | the real images the page uses (22 for upwatchr.io, 3 s), source url, size, role; local test clones only |
+| `raw/` | `page.html`, `styles.css` as served |
+| `layouts/`, `briefs/` | written by the lookup agent; `ref_store --name <n>` rebuilds STORE.md and MAP.md with them linked in |
+
+## Connected browser (UI page "Browser", CLI `browser_*`)
+`browser_status | browser_connect | browser_launch | browser_toggle --on/--off | browser_disconnect`; `browse --tab "<part of url or title>"` inspects a tab that is already open (a logged-in page). Agents use the connected browser only while it is switched ON; the private headless Chrome is the default and the fallback (also when the connected one stops answering). Own tab per task, closed afterwards (the driver waits until it is gone). The UI page shows status, connect / launch / toggle, the open tabs with a picture of each, and a "Try it" that shows what an agent sees (full page + section outline). Later: Claude-in-Chrome can replace the CDP attach behind the same commands.
+
+## Site audit (our own website)
+`site_audit --dir run_test/<p> | --url <https://..>` opens every page (desktop + phone) in the real browser and writes `run_test/_audit/<n>/AUDIT.md` (high / medium / low with a fix each, a score): contrast (WCAG, gradients are skipped, not guessed), alt text, names of icon-only controls, dead links and unknown routes, heading order, h1, meta / lang / viewport, tap targets and horizontal overflow on a phone, content stuck invisible, form labels, oversized images, too many fonts, console errors. First run on the real clone (tickwatch): score 52, 5 genuine high items (white text on the `#10b981` button = 2.5:1 and a status badge = 2.0:1); the kit button now mixes the accent toward black so white text reaches 4.5:1 for any brand colour.
+
+## Reacting while others work
+`wait --any --agents a,b,c` returns as soon as ONE finishes, with the harness's own browser check of that agent's pages (`checks`: stub, dead link, JS error, undefined / NaN; verdict CLEAN or FIX). The lead sends the FIX to that builder at once or hands the free slot the next piece. Found in session t_real_site_clone: builder#2 finished at 2.2 min while the lead only saw it at 5.9 min.
+
+## Known gap (found by looking at the result, not by the score)
+`ref_compare` scores structure (sections, card grids, CTAs, icons, animation, height): the real clone scored 100 on the blog page although the reference lists articles in ONE column and the clone made a 3-column card grid. The lookup briefs now state the layout in words and numbers per section, and the next step is a per-section layout signature (columns of the repeating items) inside `ref_compare`.
+
+## Tests
+`self_test/multi.ts --suite protokit` = PK1-PK21 (starter kits, site kit, theme and navigation in a real browser, connected browser attach / own tab / `--tab` / fallback / toggle, ref_assets, lookup agent definition, reference store and mind map, site audit on planted defects and a clean page). Real case: `real_site_clone`.

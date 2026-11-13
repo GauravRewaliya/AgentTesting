@@ -18,4 +18,4 @@ The reference name(s): a REFERENCE STORE `run_test/_ref/<name>/`, made by the ha
 - Write only inside `run_test/_ref/<name>/layouts/` and `briefs/`. Never edit the project's files. Only pnpm if a package is ever needed (none is). If a command is refused, reply `NEEDS_PARENT:` with the exact command and why.
 
 ## When you are stuck
-If you need something only your parent has (a decision, a missing reference), STOP and reply with one line that starts with `NEEDS_PARENT:` followed by exactly what you need, then say what you already did. If what you were told is literal and clear, just do it.
+If you need something only your parent has (a decision, a missing reference), STOP and reply with one line that starts with `NEEDS_PARENT:` followed by exactly what you need, then say what you already did; your parent answers and continues you in the same conversation. If what you were told is literal and clear, just do it.
