@@ -46,6 +46,8 @@ const saveExp = (e: { case: string }) => { mkdirSync(EXP_DIR, { recursive: true 
 const exp = readExpDir();
 // --last / --video-only / --say all mean "continue the EXISTING run of the case" (same task, same workspace; nothing is reset); sayMsg is the message to the lead (videoOnly: a marker, no lead call)
 const wantIds = want.length ? want : mine.map((c) => c.id), resumable = (!!resumeArg || videoOnly) && wantIds.every((w) => exp[w]);
+// A message the HARNESS made up (the --resume "Carry on ..." prompt, the --video-only marker) is an auto run: it is NOT a message of the person, so it is not mirrored into the session chat; its notes carry the ref "auto_run" (the UI chat hides them). A --fake run has no real answer ("(fake lead) done"): its reply is never put in the chat either.
+const autoRun = sayArg === undefined && (videoOnly || !!resumeArg), chatRefs = autoRun ? ["testrun", "auto_run"] : ["testrun"];
 const sayMsg: string | undefined = sayArg ?? (videoOnly && resumable ? "(video only: no lead call)" : !!resumeArg && resumable ? "Carry on with the task from where you stopped and finish it. Then tell me what changed since your last answer." : undefined);
 if (flags.has("--list")) { for (const c of mine) console.log(`${c.id}${c.after ? "  (after " + c.after + ")" : ""}  ${exp[c.id] ? "[ran]" : ""}${unsupported(c) ? "  [not supported: " + unsupported(c) + "]" : ""}  ${c.title}`); process.exit(0); }
 
@@ -102,12 +104,12 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   // QA is OPT-IN per case (Case.qa): only a case whose qa function says enabled takes a video / writes a session record; every other case does neither. Its `guide` (testing guidance and commands) is added to the first message when --video is on.
   const qaReq = (apps: string[]) => ({ workspace: REPO, run_test: join(REPO, "run_test"), session: runTask, apps });
   const qaGuide = flags.has("--video") && c.qa ? (() => { const q = c.qa!(qaReq([])); return q.enabled ? q.guide : undefined; })() : undefined;
-  const turns = videoOnly ? [] : sayMsg ? [{ user: sayMsg, expected: { context: "(step: the person said \"" + sayMsg + "\")", expected_agents_res: [] as string[] } }] : stopPause ? c.turns.slice(0, 1) : c.turns;
+  const turns = videoOnly ? [] : sayMsg ? [{ user: sayMsg, expected: sayArg ? { context: "(step: the person said \"" + sayMsg + "\")", expected_agents_res: [] as string[] } : c.turns[0]!.expected }]   /* --say: a free step (no calls expected); --resume: the case's own expectation */ : stopPause ? c.turns.slice(0, 1) : c.turns;
   const judged = []; let cost = 0, leadCost = 0;
   for (let i = 0; i < turns.length; i++) {
     store.reload(); ent.marks[i] = store.calls.filter((x) => x.task_id === runTask).length; ent.started[i] = Date.now(); saveExp(ent);
     declareGateLimit(store, runTask, c);
-    store.tx(() => { const n = say(store, runTask, "user", "lead", turns[i]!.user, ["testrun"], Infinity); n.read_by.push("lead"); });   // the chat of the UI (Experiment page) shows these notes: a test run has a conversation too
+    store.tx(() => { const n = say(store, runTask, "user", "lead", turns[i]!.user, chatRefs, Infinity); n.read_by.push("lead"); });   // (auto run: tagged auto_run, hidden in the chat)   // the chat of the UI (Experiment page) shows these notes: a test run has a conversation too
     // a branch's lead is a clone of the parent's lead session, made NOW (status pending -> cloned), not when the branch folder was made
     const forceSel = sessionArg && i === 0 ? { id: sessionArg, resume: true } : branchInfo && i === 0 ? cloneIfPending({ parentDir: branchInfo.parentDir, branch: branchInfo.branch, parentClaudeId: store.agentsOf(runTask).find((a) => a.name === "lead")?.session_id }) : undefined;
     if (forceSel) console.log(sessionArg && i === 0 ? `   resume           : the lead continues Claude session ${sessionArg.slice(0, 8)} (--resume=<id>)` : `   branch ${branchInfo!.branch}: lead session cloned from ${forceSel.fork_from!.slice(0, 8)} (index_session.json: pending -> cloned)`);
@@ -120,7 +122,7 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
     if (!j.reply && out.ok) j.reply = out.reply;
     j.reply_problem = replyProblem(turns[i]!.expected as { reply_must?: string[]; reply_forbid?: string[] }, j.reply);   // judge the FINAL reply (the fallback above fills it when the lead sent no note)
     judged.push(j); ent.done = i + 1; saveExp(ent);
-    if (j.reply) store.tx(() => { const n = say(store, runTask, "lead", "user", j.reply, ["testrun"], Infinity); n.read_by.push("user"); });   // the lead's final answer of this turn (the chat shows it)
+    if (j.reply && !fake) store.tx(() => { const n = say(store, runTask, "lead", "user", j.reply, chatRefs, Infinity); n.read_by.push("user"); });   // the lead's final answer of this turn (the chat shows it)
     leadCost += (out as { cost?: number }).cost ?? 0; cost = leadCost + costOf(store, runTask, out.row.agent_id);   // the lead's own cost (claude total_cost_usd) + real sub-agents (fixtures cost 0)
     console.log(`-- turn ${i + 1}  ${j.match && !j.guard && !j.gate && !j.reply_problem ? "MATCH" : "DIFFERS"}${j.guard ? "  GUARD: a distractor was called" : ""}${j.gate ? "  GATE FAILED: " + j.gate : ""}   lead_ok=${out.ok}   cost so far=$${cost.toFixed(4)} (lead $${leadCost.toFixed(4)})${j.reply_problem ? "   REPLY: " + j.reply_problem : ""}`);
     console.log("   EXPECTED context : " + j.expectedContext);
