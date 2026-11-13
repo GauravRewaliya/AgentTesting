@@ -6,7 +6,7 @@ import { customDef, isCustomName } from "./custom.ts";
 export const HARD_MAX_DEPTH = 4;
 export interface Policy { externalLocks?: boolean; agentMaxDepth: number; taskMaxAgents: number; maxInstancesPerRole: number; killSwitch: boolean; spendPaused: boolean; lockTtlMs: number }
 /** Multi-agent is OFF by default: agentMaxDepth 1 means the lead (level 1) cannot call anyone. */
-export const defaultPolicy = (o: Partial<Policy> = {}): Policy => ({ agentMaxDepth: 1, taskMaxAgents: 12, maxInstancesPerRole: 4, killSwitch: false, spendPaused: false, lockTtlMs: 120_000, ...o });
+export const defaultPolicy = (o: Partial<Policy> = {}): Policy => ({ agentMaxDepth: 1, taskMaxAgents: 24, maxInstancesPerRole: 4, killSwitch: false, spendPaused: false, lockTtlMs: 120_000, ...o });
 
 export interface CallReq {
   task_id: string; caller_agent_id: string; role: string; session_arg?: string; mode?: "work" | "ask";
@@ -63,7 +63,7 @@ export function agentCall(store: Store, defs: Map<string, AgentDef>, policy: Pol
   // 6 session rules
   const s = req.session_arg?.trim();
   if (!s) return deny("session_required", 'pass --session "new", "<agent_id>" (continue it) or "fork:<agent_id>" (start from a copy of its memory)', level);
-  const sameRole = () => store.agentsOf(req.task_id).filter((a) => a.name === req.role).length;
+  const sameRole = () => store.agentsOf(req.task_id).filter((a) => a.name === req.role && a.status !== "failed").length;   // a failed (killed) agent does not use up the quota: forks of one base agent need room
   let target: AgentRow | undefined, kind: "new" | "resume" | "fork" = "new", forkFrom: AgentRow | undefined;
   if (s === "new") { if (sameRole() >= policy.maxInstancesPerRole) return deny("instance_limit", `${sameRole()} ${req.role} agents already exist (limit ${policy.maxInstancesPerRole}); continue one instead`, level); }
   else if (s.startsWith("fork:")) {

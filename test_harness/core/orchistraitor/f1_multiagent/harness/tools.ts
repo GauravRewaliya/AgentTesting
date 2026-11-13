@@ -1,5 +1,5 @@
 // The agents' tools as one command (plan 5.2 / 23.3):
-//   bun tools.ts <delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop|ls|read_file|grep|qa_check|proto_check|qa_give_up|preview|preview_list|preview_stop|preview_restart|bg_start|bg_list|bg_log|bg_stop|proc_list|proc_stop> --flag value ...
+//   bun tools.ts <delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop|ls|read_file|grep|qa_check|proto_check|fork_all|qa_give_up|preview|preview_list|preview_stop|preview_restart|bg_start|bg_list|bg_log|bg_stop|proc_list|proc_stop> --flag value ...
 //   ls / read_file / grep = READ-ONLY look at the shared workspace run_test/ (core/workspace_read.ts): the lead can check a result itself instead of asking a sub-agent to run commands.
 // A stand-in for the mod's registered tools: same rules (agent.call), same registry, one line of JSON out.
 // Identity comes from the environment set for THIS agent: HARNESS_STORE, HARNESS_TASK, HARNESS_AGENT, HARNESS_CWD, HARNESS_MAX_DEPTH, HARNESS_RUNNER.
@@ -150,6 +150,21 @@ if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
   else if (res.queued) out({ ok: true, queued: true, agent_id: res.agent.agent_id, position: res.queued.position, waiting_for: res.queued.heldBy, note: "its locks are held; it starts by itself when they free; use wait" });
   else if (asyncMode) { spawnRun(res.call_id); out({ ok: true, async: true, agent_id: res.agent.agent_id, call_id: res.call_id, status: "running", note: "use wait --agents <ids> to get the answers" }); }
   else { const { r } = await runCall(res.call_id); out({ ok: r.ok, needs_parent: r.needs_parent, agent_id: res.agent.agent_id, session: res.kind, mode: r.mode, report_id: r.report_id, patch_id: r.patch_id, summary: r.summary, violations: r.violations, error: r.error }); }
+} else if (cmd === "fork_all") {   // N tasks for N agents, ALL STARTED AT ONCE (async): `fork_all --from builder#3 --role builder --tasks '[{"title":"..","writes":["run_test/p/js/pages/a.js"],"objective":".."}, ...]' [--output ..] [--boundaries ..]`, then ONE `wait --agents <ids>`. Parallel by construction: no per-call --async to forget.
+  let tasks: { title?: string; writes?: string[] | string; objective?: string; output?: string; boundaries?: string }[] = [];
+  try { tasks = JSON.parse(flag("tasks") ?? "[]"); } catch (e) { out({ ok: false, reason: "--tasks is not valid JSON: " + String(e).slice(0, 80) }); process.exit(0); }
+  if (!Array.isArray(tasks) || !tasks.length) { out({ ok: false, reason: "--tasks must be a non-empty JSON array of {title, writes, objective}" }); process.exit(0); }
+  const from = flag("from"), role = flag("role") ?? "builder", started: Record<string, unknown>[] = [];
+  for (const t of tasks) {
+    const req: CallReq = { task_id: task, caller_agent_id: me, role, session_arg: from ? `fork:${from}` : "new", mode: "work", objective: t.objective, output: t.output ?? flag("output"), boundaries: t.boundaries ?? flag("boundaries"),
+      writes: (Array.isArray(t.writes) ? t.writes : String(t.writes ?? "").split(",")).map((w) => String(w).trim()).filter(Boolean), title: t.title };
+    const res = await grant(req, true);
+    if (!res.ok) started.push({ title: t.title, ok: false, reason: res.reason });
+    else if (res.queued) started.push({ title: t.title, ok: true, queued: true, agent_id: res.agent.agent_id, waiting_for: res.queued.heldBy });
+    else { spawnRun(res.call_id); started.push({ title: t.title, ok: true, agent_id: res.agent.agent_id, status: "running" }); }
+  }
+  const ids = started.filter((x) => x.ok).map((x) => String(x.agent_id));
+  out({ ok: started.every((x) => x.ok), started, next: ids.length ? `All started together. Now ONE: wait --agents ${ids.join(",")} (repeat it if it times out; at most 3 times, then answer the person).` : "Nothing started: fix the reasons above." });
 } else if (cmd === "_run") {
   await runCall(flag("call")!);
 } else if (cmd === "wait") {

@@ -27,6 +27,12 @@ export function protoCheck(dir: string): ProtoReport {
   for (const u of useScreens) if (!defScreens.has(u)) problems.push(`Screens.${u} is used (route / template) but no file defines it (Screens.${u} = { ... })`);
   const known = new Set([...defComps].map(kebab)), ignore = new Set(["router-view", "router-link", "font-face", "color-profile", "missing-glyph", "annotation-xml"]);
   for (const t of tags) if (!known.has(t) && !ignore.has(t)) problems.push(`<${t}> is used in a template but Components.${t.replace(/(^|-)(\w)/g, (_, _a, c) => c.toUpperCase())} is not defined`);
+  // CSS contract: a class used in a template / html must exist in some .css file (a missing one = an unstyled element: the "looks unfinished" problem)
+  const cssDefs = new Set<string>(); for (const f of all.filter((x) => x.endsWith(".css"))) for (const m of readFileSync(f, "utf8").matchAll(/\.(-?[a-zA-Z_][\w-]*)/g)) cssDefs.add(m[1]!);
+  const usedCls = new Map<string, string>(), scan = (name: string, text: string) => { for (const m of text.matchAll(/\bclass(?:Name)?\s*[=:]\s*(?:"([^"]*)"|'([^']*)'|`([^`]*)`)/g)) for (const c of (m[1] ?? m[2] ?? m[3] ?? "").split(/\s+/)) if (c && /^[a-zA-Z_-][\w-]*$/.test(c) && !usedCls.has(c)) usedCls.set(c, name); };
+  for (const [rel, text] of Object.entries(src)) scan(rel, text); scan("index.html", html);
+  const noCss = [...usedCls].filter(([c]) => !cssDefs.has(c)).map(([c, f]) => `${c} (${f})`);
+  if (noCss.length) problems.push(`CSS classes used but defined in no .css file (unstyled): ${noCss.slice(0, 12).join(", ")}${noCss.length > 12 ? ` ... +${noCss.length - 12} more` : ""}`);
   const ok = problems.length === 0;
   return { ok, files: all.length, screens: [...defScreens].sort(), components: [...defComps].sort(), problems: problems.slice(0, 25),
     next: ok ? "Healthy: now `preview --dir <folder>` and give the person the public_url." : "Give each problem to the agent that owns that file (continue the same agent), then run proto_check again." };
