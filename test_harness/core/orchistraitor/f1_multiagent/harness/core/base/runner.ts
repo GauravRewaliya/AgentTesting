@@ -61,7 +61,7 @@ export class RealRunner implements Runner {
       this.live.add(p); try { setPriority(p.pid!, 10); } catch { /* low priority is best effort */ }
       let out = "", err = "";
       p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));
-      let timedOut = false; const timer = setTimeout(() => { timedOut = true; p.kill("SIGKILL"); }, this.timeoutMs);
+      const limitMs = c.agent.timeout_s ? c.agent.timeout_s * 1000 : this.timeoutMs; let timedOut = false; const timer = setTimeout(() => { timedOut = true; p.kill("SIGKILL"); }, limitMs);
       p.on("close", (code) => {
         clearTimeout(timer); this.live.delete(p);
         try {
@@ -69,7 +69,7 @@ export class RealRunner implements Runner {
           resolve({ reply: j.result ?? "", session_id: j.session_id ?? c.session.id, cost: j.total_cost_usd ?? 0,
             ok: code === 0 && !j.is_error, error: j.is_error ? (j.subtype ?? "error") : undefined });
         } catch {
-          resolve({ reply: "", session_id: c.session.id, cost: 0, ok: false, error: timedOut ? `timed out: ${c.agent.name} was still running after ${Math.round(this.timeoutMs / 1000)} s and was killed (a lead that waits for a long sub-agent: answer the person and end the turn instead; the sub-agent keeps working)` : `exit ${code}: ${(err || out).slice(0, 300)}` });
+          resolve({ reply: "", session_id: c.session.id, cost: 0, ok: false, error: timedOut ? `timed out: ${c.agent.name} was still running after ${Math.round(limitMs / 1000)} s and was killed; its files are kept: continue the SAME agent (--session <its id>) with the rest (a lead that waits for a long sub-agent: answer the person and end the turn instead; the sub-agent keeps working)` : `exit ${code}: ${(err || out).slice(0, 300)}` });
         }
       });
     });

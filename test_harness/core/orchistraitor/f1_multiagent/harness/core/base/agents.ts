@@ -15,7 +15,7 @@ export function loadAgents(agentsDir: string): Map<string, AgentDef> {
     const tools = [...new Set(allow.map((a) => a.replace(/\(.*$/, "")))];
     m.set(name, {
       name, role: j.role ?? "", description: j.description ?? "", model: j.model ?? "haiku", session: j.session ?? "persistent",
-      writes: j.writes ?? false, max_children: j.max_children ?? 0, agents: j.agents ?? [], tiers: j.tiers ?? [], session_cap: j.session_cap, forbidden: j.forbidden, custom: j.custom, fixtures: j.fixtures,
+      writes: j.writes ?? false, max_children: j.max_children ?? 0, agents: j.agents ?? [], tiers: j.tiers ?? [], session_cap: j.session_cap, timeout_s: j.timeout_s, forbidden: j.forbidden, custom: j.custom, fixtures: j.fixtures,
       allow, tools, dir, prompt_file: join(dir, ".claude", "CLAUDE.md"),
     });
   }

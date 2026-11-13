@@ -37,7 +37,7 @@ export class DockerRunner extends RealRunner {
       const p = spawn("docker", dockerArgs(c, name, claudeArgs), { stdio: ["ignore", "pipe", "pipe"] });
       this.live.add(p);
       let out = "", err = ""; p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));
-      const timer = setTimeout(() => { spawnSync("docker", ["kill", name], { timeout: 20_000 }); p.kill("SIGKILL"); }, this.timeoutMs);
+      const timer = setTimeout(() => { spawnSync("docker", ["kill", name], { timeout: 20_000 }); p.kill("SIGKILL"); }, c.agent.timeout_s ? c.agent.timeout_s * 1000 : this.timeoutMs);
       p.on("close", (code) => {
         clearTimeout(timer); this.live.delete(p); this.names.delete(name);
         try {

@@ -9,6 +9,7 @@ export interface AgentDef {
   /** agent.json "fixtures": true = test mode: the agent first looks up a RECORDED result for its task (tools.ts fixture lookup) and runs the command it recommends. */ fixtures?: boolean;
   /** This agent may call a role that has no folder: the harness makes a generic sub-agent named and titled as asked (agent.json "custom": true). */ custom?: boolean;
   /** Made at run time by core/custom.ts, not loaded from a folder. */ ad_hoc?: boolean;   // resumes before a new session; a conversation (lead, pm) needs far more than a worker
+  /** agent.json "timeout_s": how long ONE call of this agent may run before it is killed (default: the runner's, 600 s). A builder writing many files needs more. */ timeout_s?: number;
   allow: string[]; tools: string[]; dir: string; prompt_file: string;
 }
 export interface AgentRow {
