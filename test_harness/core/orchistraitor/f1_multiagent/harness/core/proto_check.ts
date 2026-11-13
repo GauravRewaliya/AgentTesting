@@ -13,23 +13,31 @@ export function protoCheck(dir: string): ProtoReport {
   if (/vue(\.global|\.esm-browser)?(\.prod)?\.js/.test(html) === false && !/unpkg|jsdelivr|cdnjs/.test(html)) problems.push("index.html does not load Vue from a CDN");
   const defScreens = new Set<string>(), useScreens = new Set<string>(), defComps = new Set<string>(), tags = new Set<string>(), src: Record<string, string> = {};
   const tr = new Bun.Transpiler({ loader: "js" });
-  for (const f of js) {
-    const s = readFileSync(f, "utf8"), rel = relative(dir, f); src[rel] = s;
+  // single-file prototype (an artifact-style index.html): inline <script> blocks are checked like files, inline <style> counts as CSS
+  const inlineCss: string[] = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1]!);
+  const inlineJs: [string, string][] = [...html.matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/gi)].filter((m) => !/type=["'](?!module|text\/javascript)/i.test(m[1]!)).map((m, i) => [`index.html <script #${i + 1}>`, m[2]!] as [string, string]);
+  const sources: [string, string][] = [...js.map((f) => [relative(dir, f), readFileSync(f, "utf8")] as [string, string]), ...inlineJs];
+  for (const [rel, s] of sources) {
+    src[rel] = s;
     try { tr.transformSync(s); } catch (e) { problems.push(`${rel}: syntax error: ${String((e as Error).message).split("\n")[0]!.slice(0, 140)}`); }
     if (/^\s*import\s[^'"]*from\s+['"][^./'"]/m.test(s) || /\brequire\(['"][^./]/.test(s)) problems.push(`${rel}: imports an npm package: a no-build prototype has none (use the CDN globals)`);
     for (const m of s.matchAll(/\bScreens\.(\w+)\s*=(?!=)/g)) defScreens.add(m[1]!);
     for (const m of s.matchAll(/\bScreens\.(\w+)\b(?!\s*=(?!=))/g)) useScreens.add(m[1]!);
     for (const m of s.matchAll(/\bComponents\.(\w+)\s*=(?!=)/g)) defComps.add(m[1]!);
     for (const m of s.matchAll(/<([a-z][a-z0-9]*(?:-[a-z0-9]+)+)[\s>/]/g)) tags.add(m[1]!);
+    for (const m of s.matchAll(/\.component\(\s*['"]([\w-]+)['"]/g)) defComps.add(m[1]!.replace(/(^|-)(\w)/g, (_, _a, c) => c.toUpperCase()));
   }
   for (const f of all) if (/\.(vue|ts|tsx)$/.test(f)) problems.push(`${relative(dir, f)}: .vue / TypeScript needs a build: write plain .js`);
   if (existsSync(join(dir, "package.json"))) problems.push("package.json present: a no-build prototype has none (it would be installed and built)");
   for (const u of useScreens) if (!defScreens.has(u)) problems.push(`Screens.${u} is used (route / template) but no file defines it (Screens.${u} = { ... })`);
+  // a component counts as defined when its PascalCase name is assigned / keyed / registered anywhere in a script (Components.X =, Components['X'], { X: ... }, Object.assign(Components, ...), app.component('x-y', ...)), or its kebab name is passed to .component(...)
+  const allJs = Object.values(src).join("\n"), pascal = (t: string) => t.replace(/(^|-)(\w)/g, (_, _a, c) => c.toUpperCase());
   const known = new Set([...defComps].map(kebab)), ignore = new Set(["router-view", "router-link", "font-face", "color-profile", "missing-glyph", "annotation-xml"]);
-  for (const t of tags) if (!known.has(t) && !ignore.has(t)) problems.push(`<${t}> is used in a template but Components.${t.replace(/(^|-)(\w)/g, (_, _a, c) => c.toUpperCase())} is not defined`);
+  const isDefined = (t: string) => known.has(t) || ignore.has(t) || new RegExp(`(?:\\b${pascal(t)}\\b\\s*[:=(,}]|['"\`]${pascal(t)}['"\`]|component\\(\\s*['"\`]${t}['"\`])`).test(allJs);
+  for (const t of tags) if (!isDefined(t)) problems.push(`<${t}> is used in a template but nothing defines ${pascal(t)} (Components.${pascal(t)} = { ... })`);
   // CSS contract: a class used in a template / html must exist in some .css file (a missing one = an unstyled element: the "looks unfinished" problem)
-  const cssDefs = new Set<string>(); for (const f of all.filter((x) => x.endsWith(".css"))) for (const m of readFileSync(f, "utf8").matchAll(/\.(-?[a-zA-Z_][\w-]*)/g)) cssDefs.add(m[1]!);
-  const usedCls = new Map<string, string>(), scan = (name: string, text: string) => { for (const m of text.matchAll(/\bclass(?:Name)?\s*[=:]\s*(?:"([^"]*)"|'([^']*)'|`([^`]*)`)/g)) for (const c of (m[1] ?? m[2] ?? m[3] ?? "").split(/\s+/)) if (c && /^[a-zA-Z_-][\w-]*$/.test(c) && !usedCls.has(c)) usedCls.set(c, name); };
+  const cssDefs = new Set<string>(); for (const text of [...all.filter((x) => x.endsWith(".css")).map((f) => readFileSync(f, "utf8")), ...inlineCss]) for (const m of text.matchAll(/\.(-?[a-zA-Z_][\w-]*)/g)) cssDefs.add(m[1]!);
+  const usedCls = new Map<string, string>(), scan = (name: string, text: string) => { for (const m of text.matchAll(/(?<![:@.\w-])class\s*=\s*(?:\\?"([^"\\]*)\\?"|\\?'([^'\\]*)\\?'|`([^`]*)`)/g)) for (const c of (m[1] ?? m[2] ?? m[3] ?? "").split(/\s+/)) if (c && /^[a-zA-Z_-][\w-]*$/.test(c) && !usedCls.has(c)) usedCls.set(c, name); };
   for (const [rel, text] of Object.entries(src)) scan(rel, text); scan("index.html", html);
   const noCss = [...usedCls].filter(([c]) => !cssDefs.has(c)).map(([c, f]) => `${c} (${f})`);
   if (noCss.length) problems.push(`CSS classes used but defined in no .css file (unstyled): ${noCss.slice(0, 12).join(", ")}${noCss.length > 12 ? ` ... +${noCss.length - 12} more` : ""}`);

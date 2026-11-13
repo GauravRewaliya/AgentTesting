@@ -21,7 +21,7 @@ export class StoreLocks implements LockApi {
   async acquire(o: { task_id: string; agent_id: string; call_id: string; paths: string[]; ttlMs: number }) { return this.store.tx(() => acquire(this.store, { ...o, now: Date.now() })); }
   async release(task_id: string, call_id: string, ttlMs: number) { return this.store.tx(() => release(this.store, call_id, ttlMs, Date.now())); }
   async renew(task_id: string, agent_id: string, ttlMs: number) { this.store.tx(() => renew(this.store, agent_id, ttlMs, Date.now())); }
-  async guard(task_id: string, agent_id: string, target: string, ttlMs = 120_000): Promise<GuardRes> {
+  async guard(task_id: string, agent_id: string, target: string, ttlMs = 1_200_000): Promise<GuardRes> {
     return this.store.tx(() => (target.startsWith("@") ? guardResource(this.store, task_id, agent_id, target, Date.now(), ttlMs) : guardEdit(this.store, task_id, agent_id, target, Date.now(), ttlMs)));
   }
   async waiting(task_id: string) { return this.store.waiters.filter((w) => w.task_id === task_id).map((w) => ({ agent_id: w.agent_id, call_id: w.call_id, paths: w.paths })); }

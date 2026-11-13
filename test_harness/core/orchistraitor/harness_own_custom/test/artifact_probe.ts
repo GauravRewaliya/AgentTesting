@@ -6,7 +6,7 @@ import { join } from "node:path";
 const cwd = mkdtempSync(join(tmpdir(), "art-probe-"));
 const base = ["-p", "--setting-sources", "", "--strict-mcp-config", "--model", "haiku", "--output-format", "text"];
 async function ask(label: string, prompt: string, extra: string[]) {
-  const p = Bun.spawn(["claude", ...base, ...extra, prompt], { cwd, stdin: "ignore", stdout: "pipe", stderr: "pipe", env: { ...process.env, CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" } });
+  const p = Bun.spawn(["claude", ...base, ...extra, prompt], { cwd, stdin: "ignore", stdout: "pipe", stderr: "pipe", env: { ...process.env, CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", CLAUDE_CODE_ENTRYPOINT: "cli-interactive" } });
   const out = (await new Response(p.stdout).text()).trim(); await p.exited;
   return { label, reply: out.slice(0, 160), has: /^yes\b/i.test(out) || (/\bartifact\b/i.test(out) && label === "tool list" && /(^|[ ,])Artifact([ ,]|$)/.test(out)) };
 }

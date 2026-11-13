@@ -36,7 +36,7 @@ const fixtureAgent = (() => { try { return new Map((JSON.parse(readFileSync(FIXT
 export const expectedCalls = (ids: string[]) => ids.map((e) => (e.startsWith("session:") ? { kind: "resume" as const, role: e.slice(8).split("#")[0]! } : { kind: "new" as const, role: fixtureAgent.get(e) ?? "?" }));
 
 /** Why this harness cannot run a case at all (or undefined). */
-export const unsupported = (c: RawCase) => (c.router === false ? "router:false means the lead works ALONE; the f1 lead never WRITES files and only reads run_test/ (ls, read_file, grep): it delegates" : undefined);
+export const unsupported = (c: RawCase) => (c.router === false ? (c.needs ?? []).includes("artifact.publish") ? "solo artifact case: run it with testrun/artifact_run.ts (real Artifact tool)" : "router:false means the lead works ALONE; the f1 lead never WRITES files and only reads run_test/ (ls, read_file, grep): it delegates" : undefined);
 
 /** The task id a case runs in, given the chain. */
 export function taskFor(c: SuiteCase, all: SuiteCase[], exp: Record<string, ExpEntry> = {}): string {

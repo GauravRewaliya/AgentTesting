@@ -23,7 +23,7 @@ import { locksFromEnv } from "./core/lockapi.ts";
 import { customDef } from "./core/custom.ts";
 import { FixtureGate } from "./core/fixture_gate.ts";
 import { wsGrep, wsLs, wsRead } from "./core/workspace_read.ts";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { MAX_SAME, giveUp, qaFailed, readQa, recordCheck, writeQa } from "./core/qa_loop.ts";
 import { recordDevServer } from "../../../../infra/qa/web_dev_qa.ts";
 
@@ -41,7 +41,7 @@ const store = new MStore(file), defs = loadAgents(join(HDIR, "agents"));
 for (const [n, m] of Object.entries(JSON.parse(E.HARNESS_MODELS ?? "{}") as Record<string, string>)) { const d = defs.get(n); if (d) d.model = m; }
 { const only = E.HARNESS_LEAD_AGENTS, ld = defs.get("lead"); if (only !== undefined && ld) ld.agents = only.split(",").filter(Boolean); }   // a test case decides which agents its lead has
 const locks = locksFromEnv(store);
-const policy = defaultPolicy({ agentMaxDepth: Number(E.HARNESS_MAX_DEPTH ?? 1), maxInstancesPerRole: Number(E.HARNESS_MAX_INSTANCES ?? 4), externalLocks: locks.kind === "redis", lockTtlMs: Number(E.HARNESS_LOCK_TTL_MS ?? 120_000) });
+const policy = defaultPolicy({ agentMaxDepth: Number(E.HARNESS_MAX_DEPTH ?? 1), maxInstancesPerRole: Number(E.HARNESS_MAX_INSTANCES ?? 4), externalLocks: locks.kind === "redis", lockTtlMs: Number(E.HARNESS_LOCK_TTL_MS ?? 1_200_000) });
 const cwd = E.HARNESS_CWD ?? process.cwd();
 
 function spawnRun(call_id: string) {   // a detached process runs the callee; it survives the Bash call that started it
@@ -171,7 +171,10 @@ if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
   const names = (flag("agents") ?? "").split(",").filter(Boolean), limit = Number(flag("timeout") ?? 90) * 1000, t0 = Date.now();
   const pending = () => names.filter((n) => { const a = store.agent(task, n); return !a || a.status === "running" || store.calls.some((c) => c.task_id === task && c.callee_agent_id === n && c.status === "granted"); });   // running, or granted and waiting for its locks
   for (;;) { store.reload(); if (!pending().length || Date.now() - t0 > limit) break; await sleep(1500); }
-  out({ timed_out: pending().length > 0, still_running: pending(), agents: names.map((n) => { const a = store.agent(task, n), r = lastReport(n); return { agent_id: n, status: a?.status ?? "unknown", needs_parent: a?.needs_parent ?? undefined, report_id: r?.id, summary: r?.summary.slice(0, 600) ?? null, ...((r?.summary.length ?? 0) > 600 ? { truncated: true, read_full_with: `ledger_get --report ${r!.id}` } : {}), patch: store.patches.filter((p) => p.task_id === task && p.agent_id === n).map((p) => `${p.id}:${p.state}`).join(",") || null }; }) });
+  // when the agents are done, check every NO-BUILD prototype in run_test/ for the master (it does not have to remember to): files exist, scripts parse, screens/components defined, no unstyled classes
+  let protos: { dir: string; ok: boolean; problems: string[] }[] | undefined;
+  if (!pending().length) { try { const root = join(cwd, "run_test"), { protoCheck } = await import("./core/proto_check.ts"); protos = readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory() && existsSync(join(root, d.name, "index.html")) && !existsSync(join(root, d.name, "package.json"))).map((d) => { const r = protoCheck(join(root, d.name)); return { dir: "run_test/" + d.name, ok: r.ok, problems: r.problems.slice(0, 6) }; }); if (!protos.length) protos = undefined; } catch { /* no run_test yet */ } }
+  out({ proto_check: protos, timed_out: pending().length > 0, still_running: pending(), agents: names.map((n) => { const a = store.agent(task, n), r = lastReport(n); return { agent_id: n, status: a?.status ?? "unknown", needs_parent: a?.needs_parent ?? undefined, report_id: r?.id, summary: r?.summary.slice(0, 600) ?? null, ...((r?.summary.length ?? 0) > 600 ? { truncated: true, read_full_with: `ledger_get --report ${r!.id}` } : {}), patch: store.patches.filter((p) => p.task_id === task && p.agent_id === n).map((p) => `${p.id}:${p.state}`).join(",") || null }; }) });
 } else if (cmd === "apply_patches") {
   await applyPatchesCmd();
 } else if (cmd === "plan_submit") {

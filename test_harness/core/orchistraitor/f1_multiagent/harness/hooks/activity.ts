@@ -7,7 +7,7 @@ const input = JSON.parse(readFileSync(0, "utf8") || "{}") as { tool_name?: strin
 const { HARNESS_STORE: file, HARNESS_TASK: task, HARNESS_AGENT: agent } = process.env;
 if (!file || !task || !agent) process.exit(0);
 const store = new MStore(file);
-try { await locksFromEnv(store).renew(task, agent, 120_000); } catch { /* the guard fails closed; a missed renewal only shortens the lease */ }
+try { await locksFromEnv(store).renew(task, agent, 1_200_000); } catch { /* the guard fails closed; a missed renewal only shortens the lease */ }
 const notes = store.tx(() => {
   const row = store.agent(task, agent);
   if (row) {

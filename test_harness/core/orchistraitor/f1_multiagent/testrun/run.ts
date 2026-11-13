@@ -25,6 +25,7 @@ import { warnMissingFixtures } from "@core/fixture_policy.ts";
 import { FIXTURES, STATE2_BASE, STATE_VERSION } from "@core/paths.ts";
 import { videoAfterRun } from "../../helper/video.ts";
 import { recordSession } from "../../../../infra/record_session.ts";
+import { runArtifactCases } from "./artifact_run.ts";
 import { agentsFor, declareGateLimit, judgeTurn, replyProblem, reconcileDead, loadSuites, readExp, statusOf, taskFor, unsupported, writeExp } from "./cases.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), ".."), E = process.env, STATE_DIR = join(STATE2_BASE, STATE_VERSION);
@@ -91,7 +92,10 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 let failed = 0; const notPassed = new Set<string>();   // cases of THIS run that failed or were skipped: their children must not run (a child continues the parent's state)
 for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   const why = unsupported(c);
-  if (why) { console.log(`\n## ${c.id}: SKIPPED  ${why}`); continue; }
+  if (why) {   // a case we cannot run is a FAILURE, never a quiet skip (that is how the artifact suite went unnoticed)
+    if ((c as any).needs?.includes?.("artifact.publish") && !fake) { const n = await runArtifactCases([c]); if (n) { failed++; notPassed.add(c.id); } continue; }
+    console.log(`\n## ${c.id}: FAIL  cannot be run here: ${why}`); failed++; notPassed.add(c.id); continue;
+  }
   warnMissingFixtures(c);   // fixtures live in ONE place (agent_fixture); a case without one warns unless it says allow_real_subAg: true
   if (c.after && (notPassed.has(c.after) || (exp[c.after] as { status?: string } | undefined)?.status === "fail")) { console.log(`\n## ${c.id}: SKIPPED  its parent "${c.after}" did not pass (a child continues the parent's state; fix the parent first)`); notPassed.add(c.id); failed++; continue; }
   if (c.after && !exp[c.after]?.done) { console.log(`\n## ${c.id}: needs "${c.after}" to run first (run the suite in order, or name both)`); failed++; continue; }

@@ -6,7 +6,7 @@ import { customDef, isCustomName } from "./custom.ts";
 export const HARD_MAX_DEPTH = 4;
 export interface Policy { externalLocks?: boolean; agentMaxDepth: number; taskMaxAgents: number; maxInstancesPerRole: number; killSwitch: boolean; spendPaused: boolean; lockTtlMs: number }
 /** Multi-agent is OFF by default: agentMaxDepth 1 means the lead (level 1) cannot call anyone. */
-export const defaultPolicy = (o: Partial<Policy> = {}): Policy => ({ agentMaxDepth: 1, taskMaxAgents: 24, maxInstancesPerRole: 4, killSwitch: false, spendPaused: false, lockTtlMs: 120_000, ...o });
+export const defaultPolicy = (o: Partial<Policy> = {}): Policy => ({ agentMaxDepth: 1, taskMaxAgents: 24, maxInstancesPerRole: 4, killSwitch: false, spendPaused: false, lockTtlMs: 1_200_000, ...o });
 
 export interface CallReq {
   task_id: string; caller_agent_id: string; role: string; session_arg?: string; mode?: "work" | "ask";

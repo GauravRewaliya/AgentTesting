@@ -69,7 +69,7 @@ export function renew(store: Store, agent_id: string, ttlMs: number, now: number
 
 export type Guard = { allow: true } | { allow: false; reason: string };
 /** The PreToolUse decision for a Bash command: every resource family it touches must be held by THIS agent. */
-export function guardResource(store: Store, task_id: string, agent_id: string, resource: string, now: number, ttlMs = 120_000): Guard {
+export function guardResource(store: Store, task_id: string, agent_id: string, resource: string, now: number, ttlMs = 1_200_000): Guard {
   reap(store, now);
   if (store.locks.some((l) => l.task_id === task_id && l.agent_id === agent_id && l.path === resource)) { renew(store, agent_id, ttlMs, now); return { allow: true }; }
   const other = store.locks.find((l) => l.task_id === task_id && l.agent_id !== agent_id && l.path === resource);
@@ -80,7 +80,7 @@ export function guardResource(store: Store, task_id: string, agent_id: string, r
     : { allow: false, reason: `NOT DECLARED: this command needs ${resource} and you did not declare it. Stop and report it; the lead must call again with ${resource} in writes.` };
 }
 /** The PreToolUse decision for Write/Edit/MultiEdit/NotebookEdit: allowed only inside paths this agent holds. */
-export function guardEdit(store: Store, task_id: string, agent_id: string, file: string, now: number, ttlMs = 120_000): Guard {
+export function guardEdit(store: Store, task_id: string, agent_id: string, file: string, now: number, ttlMs = 1_200_000): Guard {
   reap(store, now);
   const mine = store.locks.filter((l) => l.task_id === task_id && l.agent_id === agent_id && !isResource(l.path));
   if (mine.some((l) => covers(l.path, file))) { renew(store, agent_id, ttlMs, now); return { allow: true }; }
