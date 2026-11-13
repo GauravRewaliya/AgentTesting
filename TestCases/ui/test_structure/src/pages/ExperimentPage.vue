@@ -38,7 +38,7 @@ const allCases = computed(() => (ov.value?.suites ?? []).flatMap((s) => s.cases.
 const caseOf = (id?: string) => allCases.value.find((c) => c.id === id);
 const color: Record<CaseState, string> = { pass: "var(--pass)", fail: "var(--fail)", partial: "var(--warn)", running: "var(--accent)", skipped: "var(--mute)", never_run: "var(--mute)" };
 const ago = (t?: number) => { if (!t) return "-"; const s = Math.max(0, Math.round((now.value - t) / 1000)); return s < 60 ? s + "s ago" : s < 3600 ? Math.floor(s / 60) + "m ago" : s < 86400 ? Math.floor(s / 3600) + "h ago" : Math.floor(s / 86400) + "d ago"; };
-const dur = (ms?: number) => { if (!ms || ms < 1000) return "0s"; const s = Math.round(ms / 1000); return s < 60 ? s + "s" : s < 3600 ? Math.floor(s / 60) + "m " + String(s % 60).padStart(2, "0") + "s" : Math.floor(s / 3600) + "h " + String(Math.floor((s % 3600) / 60)).padStart(2, "0") + "m"; };
+const dur = (ms?: number) => { if (ms === undefined) return "-"; if (ms < 1000) return "0s"; const s = Math.round(ms / 1000); return s < 60 ? s + "s" : s < 3600 ? Math.floor(s / 60) + "m " + String(s % 60).padStart(2, "0") + "s" : Math.floor(s / 3600) + "h " + String(Math.floor((s % 3600) / 60)).padStart(2, "0") + "m"; };
 const hm = (t: number) => new Date(t).toTimeString().slice(0, 8);
 const usd = (n: number) => "$" + n.toFixed(4);
 const say = (m: string) => { notice.value = m; setTimeout(() => { if (notice.value === m) notice.value = ""; }, 8000); };
