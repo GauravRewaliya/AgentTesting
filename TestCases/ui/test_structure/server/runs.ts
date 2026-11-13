@@ -1,32 +1,14 @@
-// Runs of the fixture-mock runner: `bun core/run.ts <suite> <case...>` in test_harness (real lead on haiku, sub-agents answered from agent_fixture, state in test_harness/.state/<version>).
-// The second kind of run, next to the f1 harness behind the ExperimentRun page (server/experiment.ts). One at a time: both share run_test/.
-import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, openSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+// Runs of the f1 runner: `bun testrun/run.ts <suite> <case...>` in f1_multiagent: real lead (haiku), sub-agents answered from agent_fixture. The CLI, the Experiment page and the Flow page ALL start and read the SAME runs
+// (server/experiment.ts: run list + logs; f1_exp/<case>.json + .state/<v>/<home>/store: results). The Flow page only adds the chain: starting a case runs its missing `after` ancestors first.
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { currentWorkspace, HARNESS, workspaceDir } from "@core/paths.ts";
-import { loadSuites } from "./data.ts";
-import type { CaseRuns, RunSummary, SessionRun, StateRun, StateRunLog } from "../shared/types.ts";
+import { HARNESS } from "@core/paths.ts";
+import { loadSuites, readLast } from "./data.ts";
+import * as exp from "./experiment.ts";
+import type { CaseRuns, RunSummary, SessionRun, StateRun } from "../shared/types.ts";
 
-const runsDir = () => join(workspaceDir(), "runs");   // per request: follows the pointer
-const meta = (id: string) => join(runsDir(), id + ".json"), logf = (id: string) => join(runsDir(), id + ".log"), exitf = (id: string) => join(runsDir(), id + ".exit");
-const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
-
-function read(id: string): StateRun | undefined {
-  try {
-    const r = JSON.parse(readFileSync(meta(id), "utf8")) as StateRun;
-    if (r.status === "running" && !alive(r.pid)) {   // the shell wrapper writes `$?` to the exit file BEFORE it exits; an empty/missing file = not written yet (or it was killed)
-      const txt = existsSync(exitf(id)) ? readFileSync(exitf(id), "utf8").trim() : "";
-      const code = txt === "" ? null : Number(txt);
-      if (code === null && Date.now() - r.startedAt < 3000) return r;   // just started / just ending: do not guess
-      r.exitCode = code; r.status = code === 0 ? "done" : "failed"; r.endedAt ??= Date.now(); writeFileSync(meta(id), JSON.stringify(r));
-    }
-    return r;
-  } catch { return undefined; }
-}
-export function listRuns(): StateRun[] {
-  if (!existsSync(runsDir())) return [];   // never create a workspace folder just by looking
-  return readdirSync(runsDir()).filter((f) => f.endsWith(".json")).map((f) => read(f.slice(0, -5))).filter((x): x is StateRun => !!x).sort((a, b) => b.startedAt - a.startedAt).slice(0, 30);
-}
+const asRun = (r: exp.RunInfoLike): StateRun => ({ id: r.id, suite: r.suite, cases: r.cases, rerun: r.rerun, startedAt: r.startedAt, endedAt: r.endedAt, pid: r.pid, status: r.status, exitCode: r.exitCode });
+export const listRuns = (): StateRun[] => exp.listRuns().map(asRun);
 
 /** Every step of the chain a case belongs to, in run order: its ancestors (`after`) from the first step, the case itself, then everything that continues from it. A case with no links is just itself. */
 export function chainOf(cases: { id: string; after?: string }[], id: string): string[] {
@@ -37,54 +19,32 @@ export function chainOf(cases: { id: string; after?: string }[], id: string): st
   return cases.filter((c) => inChain.has(c.id)).map((c) => c.id);
 }
 
-/** Run ALL steps of the case's chain, in order, in one go (a step that already has a result is skipped unless `rerun`; then every step runs again and its old result is archived). */
-export async function startRun(b: { case: string; rerun?: boolean }): Promise<StateRun> {
+/** "Run" = the same command as the CLI. A case that already ran gets its prompts sent AGAIN into its existing session (`--again`: no archive, no new task) and the answers are judged; a case that never ran starts its chain at the first missing ancestor. */
+export async function startRun(b: { case: string }): Promise<StateRun> {
   if (!/^[\w-]+$/.test(b.case)) throw new Error("bad case id");
-  if (listRuns().some((r) => r.status === "running")) throw new Error("a run is already going; wait for it or stop it (two runs share run_test/)");
   const suites = await loadSuites(), s = suites.find((x) => x.cases.some((c) => c.id === b.case));
   if (!s) throw new Error(`unknown case ${b.case}`);
-  const chain = chainOf(s.cases, b.case);
-  mkdirSync(runsDir(), { recursive: true });
-  const id = "r" + Date.now().toString(36), fd = openSync(logf(id), "a");
-  const p = spawn("sh", ["-c", 'bun "$@"; echo $? > "$RUN_EXIT_FILE"', "sh", "core/run.ts", s.suite, ...chain, ...(b.rerun ? ["--rerun"] : [])], { cwd: HARNESS, detached: true, stdio: ["ignore", fd, fd], env: { ...process.env, RUN_EXIT_FILE: exitf(id) } });
-  p.unref();
-  const run: StateRun = { id, suite: s.suite, cases: chain, rerun: !!b.rerun, startedAt: Date.now(), pid: p.pid ?? 0, status: "running" };
-  writeFileSync(meta(id), JSON.stringify(run));
-  return run;
+  const ran = !!exp.caseEntry(b.case)?.done;
+  return asRun(exp.startRun({ suite: s.suite, cases: ran ? [b.case] : chainOf(s.cases, b.case), again: ran }));
 }
-export function stopRun(id: string): StateRun {
-  const r = read(id); if (!r) throw new Error("no such run");
-  if (r.status === "running") { try { process.kill(-r.pid, "SIGTERM"); } catch { try { process.kill(r.pid, "SIGTERM"); } catch { /* gone */ } } r.status = "stopped"; r.endedAt = Date.now(); writeFileSync(meta(id), JSON.stringify(r)); }
-  return r;
-}
-export function runLog(id: string): StateRunLog {
-  const run = read(id); if (!run) throw new Error("no such run");
-  let log = ""; try { log = readFileSync(logf(id), "utf8"); } catch { /* not written yet */ }
-  return { run, log: log.length > 30000 ? "…\n" + log.slice(-30000) : log };
-}
+export const stopRun = (id: string): StateRun => asRun(exp.stopRun(id));
+export const runLog = (id: string) => { const x = exp.runLog(id); return { run: asRun(x.run), log: x.log }; };
 
-// ---- what the page shows: the current result of a case in THIS workspace, its archived earlier results, and the session runs (UI triggers) that included it
-type LastFile = { at: string; status: string; warnings?: string[]; turns?: { match: boolean; guard: boolean; notfound: boolean; cost: number }[] };
-const readLast = (f: string): LastFile | undefined => { try { return JSON.parse(readFileSync(f, "utf8")); } catch { return undefined; } };
-const summarize = (j: LastFile, n: number, source: RunSummary["source"]): RunSummary => ({
-  source, n, at: j.at, status: j.status, ok: j.status === "ran" && !!j.turns?.length && j.turns.every((t) => t.match && !t.guard && !t.notfound),
-  cost: (j.turns ?? []).reduce((s, t) => s + (t.cost ?? 0), 0), turns: j.turns?.length ?? 0, notes: j.warnings ?? []
-});
-const subState = (caseId: string): "ok" | "fail" | "not_run" => { const j = readLast(join(workspaceDir(), "last", caseId + ".json")); return !j ? "not_run" : summarize(j, 0, "now").ok ? "ok" : "fail"; };
-const withSub = (r: StateRun): SessionRun => ({ ...r, sub: r.cases.map((c) => ({ caseId: c, state: subState(c) })) });
-
+// ---- what the page shows: the result of a case (f1_exp), and the runs that included it or one of its ancestors
+const okOf = (id: string): "ok" | "fail" | "skipped" | "not_run" => { const l = readLast(id); return !l ? "not_run" : l.verdict ? (l.verdict === "pass" ? "ok" : l.verdict === "skipped" ? "skipped" : "fail") : l.turns.length && l.turns.every((t) => t.match && !t.guard && !t.notfound) ? "ok" : "fail"; };
+const withSub = (r: StateRun): SessionRun => ({ ...r, sub: r.cases.map((c) => ({ caseId: c, state: okOf(c) })) });
 export const sessionRuns = (): SessionRun[] => listRuns().map(withSub);
+const summary = (id: string): RunSummary | null => { const l = readLast(id); if (!l) return null; return { at: l.at, status: l.status, ok: okOf(id) === "ok", cost: l.turns.reduce((x, t) => x + (t.cost ?? 0), 0), turns: l.turns.length, notes: [] }; };
+/** The left panel of a selected case: its chain (ancestors first), its result, and the runs that touched this chain (the parent's run counts: the child continues its state). */
 export async function caseRuns(caseId: string): Promise<CaseRuns> {
   if (!/^[\w-]+$/.test(caseId)) throw new Error("bad case id");
-  const last = readLast(join(workspaceDir(), "last", caseId + ".json")), cache = join(workspaceDir(), "cache");
-  const history = !existsSync(cache) ? [] : readdirSync(cache).map((d) => ({ d, m: d.match(new RegExp("^" + caseId + "\\.(\\d+)$")) })).filter((x) => x.m).map((x) => ({ n: Number(x.m![1]), j: readLast(join(cache, x.d, "last.json")) }))
-    .filter((x): x is { n: number; j: LastFile } => !!x.j).sort((a, b) => b.n - a.n).map((x) => summarize(x.j, x.n, "archived"));
-  const s = (await loadSuites()).find((x) => x.cases.some((c) => c.id === caseId));
-  return { chain: s ? chainOf(s.cases, caseId) : [caseId], workspace: currentWorkspace(), current: last ? summarize(last, 0, "now") : null, history, sessionRuns: sessionRuns().filter((r) => r.cases.includes(caseId)) };
+  await exp.refreshF1();
+  const s = (await loadSuites()).find((x) => x.cases.some((c) => c.id === caseId)), chain = s ? chainOf(s.cases, caseId) : [caseId], mine = new Set(chain.slice(0, chain.indexOf(caseId) + 1));
+  return { chain, steps: chain.map((c) => ({ caseId: c, state: okOf(c), at: readLast(c)?.at })), workspace: exp.f1Home(caseId) ?? "(not run yet)", current: summary(caseId), sessionRuns: sessionRuns().filter((r) => r.cases.some((c) => mine.has(c))).slice(0, 8) };
 }
 
 /** `claude -p` as the judge: it reads the run log (EXPECTED vs ACTUAL lines the runner prints) and says per case PASS/FAIL and why. Saved next to the run so it is judged once. */
-const judgef = (id: string) => join(runsDir(), id + ".judge.txt");
+const judgef = (id: string) => join(exp.runsDir(), id + ".judge.txt");
 export async function judgeRun(id: string, again = false): Promise<{ id: string; verdict: string }> {
   if (!/^[\w-]+$/.test(id)) throw new Error("bad run id");
   const { run, log } = runLog(id);

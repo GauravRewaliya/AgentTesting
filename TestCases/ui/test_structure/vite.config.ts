@@ -13,5 +13,5 @@ export default defineConfig({
       "@": at("./src"),
     },
   },
-  server: { proxy: { "/api": "http://127.0.0.1:5189" } },
+  server: { proxy: { "/api": { target: `http://127.0.0.1:${process.env.API_PORT ?? 5189}`, ws: true } } },
 });

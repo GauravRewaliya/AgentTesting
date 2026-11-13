@@ -1,5 +1,5 @@
 // The agents' tools as one command (plan 5.2 / 23.3):
-//   bun tools.ts <delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop|ls|read_file|grep|qa_check> --flag value ...
+//   bun tools.ts <delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop|ls|read_file|grep|qa_check|qa_give_up|preview|preview_list|preview_stop|preview_restart|bg_start|bg_list|bg_log|bg_stop|proc_list|proc_stop> --flag value ...
 //   ls / read_file / grep = READ-ONLY look at the shared workspace run_test/ (core/workspace_read.ts): the lead can check a result itself instead of asking a sub-agent to run commands.
 // A stand-in for the mod's registered tools: same rules (agent.call), same registry, one line of JSON out.
 // Identity comes from the environment set for THIS agent: HARNESS_STORE, HARNESS_TASK, HARNESS_AGENT, HARNESS_CWD, HARNESS_MAX_DEPTH, HARNESS_RUNNER.
@@ -261,14 +261,90 @@ if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
 } else if (cmd === "ls") { out(wsLs(join(cwd, "run_test"), flag("path")));
 } else if (cmd === "read_file") { out(wsRead(join(cwd, "run_test"), flag("path") ?? "", Number(flag("offset") ?? 1), Number(flag("limit") ?? 200)));
 } else if (cmd === "grep") { out(wsGrep(join(cwd, "run_test"), flag("pattern") ?? "", flag("path")));
-} else if (cmd === "qa_check") {   // EARLY CHECK while developing (no video): type check + dev server + page errors/overlay/blank page, in a throwaway Docker container (2 GB, 1 CPU). Same check the QA video runs first.
-  const dir = flag("dir") ?? "", pj = join(cwd, "run_test", dir.replace(/^run_test[\\/]?/, ""), "package.json");
-  if (!dir || dir.startsWith("/") || dir.includes("..") || !existsSync(pj)) out({ ok: false, reason: `--dir must be an app folder inside run_test/ with a package.json (got "${dir}")` });
+} else if (cmd === "qa_check") {   // EARLY CHECK while developing (no video): type check + dev server + page errors + dev log, in a throwaway Docker container (2 GB, 1 CPU). On a failure it first CHECKPOINTS the workspace (git commit), then tells the master what to hand to the sub-agent. Same issue 3 times in a row = STOP, the test is marked failed (harness/core/qa_loop.ts).
+  const qdir = dirname(file), qs = readQa(qdir), dir = flag("dir") ?? "", pj = join(cwd, "run_test", dir.replace(/^run_test[\\/]?/, ""), "package.json");
+  if (existsSync(join(qdir, "qa_disabled"))) out({ ok: false, disabled: true, next: "qa_check is switched off for this task by the test setup. Do not run it again and do not treat this as a failure: judge only the delegation, then give your final answer." });
+  else if (qaFailed(qs)) out({ ok: false, stop: true, reason: `the QA loop already ended (${qs.status}): ${qs.reason}. The test is marked failed. Do not call anything else: give your final answer and say it failed and why.` });
+  else if (!dir || dir.startsWith("/") || dir.includes("..") || !existsSync(pj)) out({ ok: false, reason: `--dir must be an app folder inside run_test/ with a package.json (got "${dir}")` });
   else {
     const pk = JSON.parse(readFileSync(pj, "utf8")), deps = { ...pk.dependencies, ...pk.devDependencies };
     const kind = deps.expo ? { start: undefined, port: undefined } : deps.next ? { start: "corepack pnpm exec next dev -p 3000", port: 3000 } : deps.vite ? { start: "corepack pnpm exec vite --host 0.0.0.0 --port 5173", port: 5173 } : { start: pk.scripts?.dev ? "corepack pnpm run dev" : "corepack pnpm start", port: 3000 };
-    const o = join(dirname(file), "qa", "check-" + Date.now());
+    const o = join(qdir, "qa", "check-" + Date.now());
     const r = recordDevServer({ appDir: dirname(pj), out: o, mode: "check", route: flag("route") ?? "/", ...kind });
-    out({ ok: r.ok, stage: r.stage, reasons: (r.reasons ?? []).slice(0, 8), seconds: r.seconds, screenshot: r.screenshot ? "qa.png in " + o : undefined, next: r.ok ? "healthy: report done" : "NOT healthy: hand these exact reasons to the sub-agent to fix, then run qa_check again" });
+    let checkpoint: string | undefined;
+    if (!r.ok) {   // BEFORE any fix: commit what is there now, so every attempt can be compared with / returned to this state
+      const g = (a: string[]) => spawnSync("git", ["-C", cwd, "-c", "user.name=harness", "-c", "user.email=harness@local", ...a], { encoding: "utf8" });
+      g(["add", "-A"]); g(["commit", "-qm", `qa checkpoint before fix: ${r.stage ?? "?"}: ${(r.reasons?.[0] ?? "").slice(0, 80)}`]);
+      checkpoint = g(["rev-parse", "--short", "HEAD"]).stdout.trim() || undefined;
+    }
+    const v = recordCheck(qs, { ok: r.ok, stage: r.stage ?? "?", reasons: r.reasons ?? [], checkpoint }); writeQa(qdir, qs);
+    const reasons = (r.reasons ?? []).slice(0, 8);
+    if (r.ok) out({ ok: true, stage: r.stage, seconds: r.seconds, screenshot: r.screenshot ? "qa.png in " + o : undefined, next: "healthy: you may report done" });
+    else if (v.stop) out({ ok: false, stop: true, stage: r.stage, reasons, same_issue_count: v.n, checkpoint, next: `STOP: the same issue failed ${v.n} times in a row. The test is marked failed. Do not delegate again: give your final answer, say it failed, and name the error.` });
+    else out({ ok: false, stage: r.stage, reasons, seconds: r.seconds, attempt: v.n, of: MAX_SAME, checkpoint,
+      hand_over: `The app in run_test/${dir} fails its automatic check (${r.stage}). Fix THIS, whoever caused it (pre-existing code counts: the app must pass). Errors: ${reasons.join(" | ")}. Change only what is needed; do not delete features. Say which files you changed. (Checkpoint before your change: git ${checkpoint ?? "?"}.)`,
+      next: `NOT healthy (the same issue ${v.n} of ${MAX_SAME}). Delegate the fix with the hand_over text (add PLAN.md and the folder as your agent needs), then run qa_check again. A DIFFERENT error next time is fine. If you judge it cannot be fixed, run qa_give_up --reason "...": that is allowed, the test is then marked failed.` });
   }
+} else if (cmd === "proc_list" || cmd === "proc_stop") {   // the host processes inside THIS workspace (dev servers, installs, leftover shells): any agent of the team may look at them and stop one (core/procs.ts)
+  const pc = await import("./core/procs.ts");
+  out(cmd === "proc_list" ? { ok: true, processes: pc.listTaskProcs(cwd) } : pc.stopTaskProc(cwd, Number(flag("pid"))));
+} else if (cmd === "bg_start" || cmd === "bg_list" || cmd === "bg_log" || cmd === "bg_stop" || cmd === "preview" || cmd === "preview_list" || cmd === "preview_stop" || cmd === "preview_restart") {
+  // BACKGROUND SCRIPTS (core/bg.ts), run by the harness on the host in this workspace, with a record: status running | succeeded | failed | stopped | interrupted, exit code, log file.
+  // `preview` = a dev server as a background script with a free port and a public_url (core/preview.ts). The master sees only the RUNNING ones by default; finished ones with `bg_list --all` or `bg_log --id`.
+  const bgm = await import("./core/bg.ts"), pv = await import("./core/preview.ts"), sdir = dirname(file), by = flag("by") ?? (me || "master");
+  const brief = (r: import("./core/bg.ts").BgRow) => ({ user_requested: r.user_requested || undefined, last_checked: r.reviewed_at ? new Date(r.reviewed_at).toISOString() : undefined, closes_at: r.status === "running" && r.expires_at ? new Date(r.expires_at).toISOString() : undefined, id: r.id, kind: r.kind, status: r.status, label: r.label, cmd: r.cmd.slice(0, 120), dir: r.dir.slice(cwd.length + 1) || ".", pid: r.pid, started: new Date(r.started).toISOString(), ended: r.ended_at ? new Date(r.ended_at).toISOString() : undefined, exit_code: r.exit_code, stopped_by: r.stopped_by, public_url: r.public_url, log_bytes: r.log_bytes });
+  // THE PREVIEW IS CHECKED, not just started: a server that answers can still show a blank page. A failed preview (script ended, JavaScript error, blank page) goes through the SAME repair loop as qa_check:
+  // recorded with a signature, checkpointed (git), the broken preview stopped, a hand_over for the sub-agent returned; the same issue 3 times in a row ends the loop and the test is marked failed; qa_give_up closes it with evidence.
+  const previewGate = (r: Extract<Awaited<ReturnType<typeof pv.startPreview>>, { ok: true }>, dirRel: string) => {
+    const qdir = dirname(file), qs = readQa(qdir);
+    if (qaFailed(qs)) return { ok: false, stop: true, reason: `the QA loop already ended (${qs.status}): ${qs.reason}. The test is marked failed. Do not delegate again: give your final answer and say it failed and why.` };
+    const run = bgm.getBg(sdir, r.id), reasons: string[] = [];
+    if (run && run.status !== "running") reasons.push(`the preview script ended: ${run.status}${run.exit_code !== undefined ? ` (exit ${run.exit_code})` : ""}. ${(bgm.bgLog(sdir, r.id, 25) ?? "").split("\n").filter((x) => /error|ERR_|failed|cannot find|not found|unable/i.test(x)).slice(-4).join(" | ")}`);
+    else if (r.page?.checked && r.page.renders === false) reasons.push(...(r.page.errors.length ? r.page.errors : [r.page.why ?? "the page is blank"]));
+    else if (!r.ready) return undefined;   // still starting (install can take minutes): no verdict yet
+    if (!reasons.length) { recordCheck(qs, { ok: true, stage: "preview", reasons: [] }); writeQa(qdir, qs); return undefined; }
+    const g = (a: string[]) => spawnSync("git", ["-C", cwd, "-c", "user.name=harness", "-c", "user.email=harness@local", ...a], { encoding: "utf8" });
+    g(["add", "-A"]); g(["commit", "-qm", `preview checkpoint before fix: ${reasons[0]!.slice(0, 80)}`]);
+    const checkpoint = g(["rev-parse", "--short", "HEAD"]).stdout.trim() || undefined, v = recordCheck(qs, { ok: false, stage: "preview", reasons, checkpoint }); writeQa(qdir, qs);
+    bgm.stopBg(sdir, r.id, "harness", { userAsked: true });   // a broken preview is not left running
+    if (v.stop) return { ok: false, stop: true, stage: "preview", reasons, same_issue_count: v.n, checkpoint, next: `STOP: the same issue failed ${v.n} times in a row. The test is marked failed. Do not delegate again: give your final answer, say it failed, why, and what you tried.` };
+    return { ok: false, stage: "preview", reasons, attempt: v.n, of: MAX_SAME, checkpoint, preview_stopped: true,
+      hand_over: `The app in run_test/${dirRel} starts, but it is BROKEN in a browser (${reasons.join(" | ")}). Fix THIS, whoever caused it (pre-existing code counts: the app must work). Native-only packages (react-native-pulsar, keyboard-controller) are already stubbed on web by the preview, so look for the cause in the app code or its imports. Change only what is needed; do not delete features. Say which files you changed and why.`,
+      next: `The preview is NOT working (attempt ${v.n} of ${MAX_SAME}): do not give the person a link or call it done. Delegate the fix with hand_over (add PLAN.md and the folder), then run preview --dir ${dirRel} again. A DIFFERENT error next time is fine. If you judge it cannot be fixed, run qa_give_up --reason "<evidence>": that records it as an error you caught.` };
+  };
+  if (cmd === "bg_list" || cmd === "preview_list") {
+    const all = bgm.listBg(sdir, { all: true }), shown = flag("all") !== undefined || rest.includes("--all") ? all : all.filter((r) => r.status === "running");
+    bgm.touchBg(sdir, all.filter((r) => r.status === "running").map((r) => r.id));   // the master looked: the 10-minute check clock restarts
+    // a running PREVIEW is shown with a live browser check: "running" is not "works" (a blank page, a JavaScript error)
+    const withPage = shown.map((r) => ({ ...brief(r), page_check: r.kind === "preview" && r.status === "running" && r.port && pv.cfg("PREVIEW_PAGE_CHECK", "1") !== "0" ? (() => { const c = pv.checkPage(`http://127.0.0.1:${r.port}`, 12_000); return { renders: c.renders, errors: c.errors, why: c.why }; })() : undefined }));
+    const broken = withPage.filter((x) => x.page_check && x.page_check.renders === false);
+    out({ ok: true, scripts: withPage, broken_previews: broken.length ? broken.map((x) => x.id) : undefined, warning: broken.length ? "A preview is running but its page is BROKEN in a browser (see page_check). Do not present it as working: run preview --dir <folder> again for the repair loop (it returns a hand_over for the sub-agent), or qa_give_up with the evidence." : undefined, running: all.filter((r) => r.status === "running").length, finished: all.filter((r) => r.status !== "running").length, next: shown.length === all.length ? undefined : "Only running scripts are shown. `bg_list --all` also shows finished ones (succeeded/failed/stopped/interrupted); `bg_log --id <id>` reads any script's log." });
+  } else if (cmd === "bg_log") { const r = bgm.getBg(sdir, flag("id") ?? ""); if (r) bgm.touchBg(sdir, [r.id]); out(r ? { ok: true, ...brief(r), log: bgm.bgLog(sdir, r.id, Number(flag("tail") ?? 60)) ?? "" } : { ok: false, reason: "no such background script (bg_list --all shows every one)" }); }
+  else if (cmd === "bg_stop" || cmd === "preview_stop") out(bgm.stopBg(sdir, flag("id") ?? "", by, { userAsked: rest.includes("--user-asked") }));
+  else if (cmd === "bg_start") {
+    const d = flag("dir") ?? "run_test", full = d.startsWith("/") ? d : join(cwd, d.replace(/^\.?\//, ""));
+    if (d.includes("..") || !(full === cwd || full.startsWith(cwd + "/"))) out({ ok: false, reason: "--dir must be a folder inside the workspace" });
+    else if (!flag("cmd")) out({ ok: false, reason: "--cmd is required" });
+    else {
+      const port = flag("port") ? await bgm.freePort(Number(pv.cfg("PREVIEW_PORT_FROM", "5300")), Number(pv.cfg("PREVIEW_PORT_TO", "5399"))) : undefined;
+      const m = bgm.startBg(sdir, { task, cmd: flag("cmd")!, dir: full, by, port, publicHost: pv.publicHost(), label: flag("label"), timeoutMin: flag("timeout") !== undefined ? Number(flag("timeout")) : undefined, userRequested: rest.includes("--user-asked") });
+      out({ ok: true, id: m.id, pid: m.pid, public_url: m.public_url, closes_at: m.expires_at ? new Date(m.expires_at).toISOString() : undefined, next: `Running in the background (recorded); it closes itself at ${m.expires_at ? new Date(m.expires_at).toISOString() : "never"} (default 20 min, --timeout <minutes> up to 120; there is no unlimited run). bg_log --id ${m.id} reads its output, bg_list shows it, bg_stop --id ${m.id} ends it.${port ? " The command's {port} (also env PORT) is " + port + "." : ""}` });
+    }
+  } else if (cmd === "preview") {
+    const d = flag("dir") ?? "", rel = d.replace(/^run_test[\\/]?/, "");
+    if (!d || d.includes("..")) out({ ok: false, reason: "--dir must be an app folder inside run_test/ (or the workspace), no .." });
+    else {
+      const full = d.startsWith("/") ? d : existsSync(join(cwd, "run_test", rel)) ? join(cwd, "run_test", rel) : join(cwd, rel);
+      const r = await pv.startPreview({ storeDir: sdir, task, dir: full, allowedRoot: cwd, by, waitSec: Number(flag("wait") ?? 90), timeoutMin: flag("timeout") !== undefined ? Number(flag("timeout")) : undefined, userRequested: !rest.includes("--master-own") });
+      out((r.ok ? previewGate(r, rel) : undefined) ?? (r.ok ? { ok: true, id: r.id, page_check: r.page ? { renders: r.page.renders, errors: r.page.errors, why: r.page.why, checked: r.page.checked, webgpu_adapter: r.page.webgpu_adapter, note: r.page.note } : undefined, closes_at: r.expires_at ? new Date(r.expires_at).toISOString() : "never", public_url: r.public_url, url: r.url, status: r.status, ready: r.ready, log_tail: r.ready ? undefined : r.log,
+        next: r.ready ? `Give the person public_url (${r.public_url}): it works from another machine; url (localhost) only on this one. Browser features that need a secure context (WebGPU, camera, clipboard) only work on url (http://localhost:<port>, on the machine that runs the preview) or over HTTPS: public_url is plain http on a LAN address, so a WebGPU/3D scene stays empty there; say that. READ page_check: if renders is false the page is BLANK or broken in a browser even though the server answers: tell the person that plainly with the errors, do not call it working. It runs as background script ${r.id} and closes itself at ${r.expires_at ? new Date(r.expires_at).toLocaleTimeString() : "never"} (20 min default, --timeout <minutes> up to 120). Leave it running, close it with bg_stop --id ${r.id} when the person asks.` : r.status === "running" ? `Still starting (install can take minutes): tell the person public_url ${r.public_url}, read bg_log --id ${r.id} and check again.` : `The script ended (${r.status}): read bg_log --id ${r.id} and tell the person why.` } : r));
+    }
+  } else {   // preview_restart
+    const old = bgm.getBg(sdir, flag("id") ?? "");
+    if (!old || old.kind !== "preview") out({ ok: false, reason: "no such preview (bg_list --all shows them)" });
+    else { bgm.stopBg(sdir, old.id, by); await new Promise((ok) => setTimeout(ok, 800)); const r = await pv.startPreview({ storeDir: sdir, task, dir: old.dir, allowedRoot: cwd, by, waitSec: Number(flag("wait") ?? 90), userRequested: old.user_requested }); out((r.ok ? previewGate(r, old.dir.slice(cwd.length + 1).replace(/^run_test\//, "")) : undefined) ?? (r.ok ? { ok: true, restarted: true, id: r.id, public_url: r.public_url, ready: r.ready, status: r.status, log_tail: r.ready ? undefined : r.log } : r)); }
+  }
+} else if (cmd === "qa_give_up") {   // the master is never forced to keep trying
+  const qdir = dirname(file), qs = readQa(qdir); giveUp(qs, flag("reason") ?? "no reason given"); writeQa(qdir, qs);
+  out({ ok: true, recorded: true, next: "The test is marked failed. Give your final answer now: say it failed and why." });
 } else out({ ok: false, reason: `unknown command ${cmd}` });

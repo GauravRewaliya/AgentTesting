@@ -8,16 +8,32 @@ import { RealRunner, ScriptRunner, loadAgents, transcriptExistsAnywhere } from "
 import { MStore, say } from "../harness/core/board.ts";
 import { SESSION_CAP } from "../harness/core/session_run.ts";
 import { runLead } from "../harness/lead.ts";
+import { STATE2_BASE, STATE_VERSION } from "@core/paths.ts";
 import { declareGateLimit, loadSuites, readExp, reconcileDead, writeExp } from "./cases.ts";
+import { readdirSync } from "node:fs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), ".."), DATA = join(ROOT, "ui", ".ui-data"), E = process.env;
 const arg = (k: string) => { const i = process.argv.indexOf("--" + k); return i >= 0 ? process.argv[i + 1] : undefined; };
 // --agents "-" means no sub-agents at all; leaving --agents out keeps the lead's default team.
 const task = arg("task"), file = arg("text-file"), agents = (arg("agents") ?? "").split(",").filter((x) => x && x !== "-"), setAgents = arg("agents") !== undefined, fake = process.argv.includes("--fake"), caseId = arg("case"), turn = Number(arg("turn") ?? 0);
 if (!task || !file) { console.error("usage: bun testrun/chat.ts --task <id> --text-file <f> [--agents a,b] [--fake] [--case id --turn n]"); process.exit(2); }
-const STORE = resolve(E.UI_STORE ?? join(DATA, "store.json")), REPO = resolve(E.UI_REPO ?? join(DATA, "repo")), EXP = join(DATA, "exp.json"), text = readFileSync(file, "utf8").trim();
-const WRITER = E.UI_WRITER_MODE === "shared" ? "shared" : "worktree";
-mkdirSync(DATA, { recursive: true });
+// ONE RUNNER for the UI and for testrun/run.ts: every master session (a test case's or one made on the Experiment page: that is only a tag) lives in .state/<version>/<home>/{store,workspace}
+// (<home> = the task, or <task>/branches/<b>), runs with writerMode "shared", the SAME agent team and gate limits the case declares, and the same [Test setup] note as run.ts.
+// Only UI_STORE / UI_REPO (env, one-off scripts) force the old shared ui/.ui-data store.
+const STATE_DIR = join(STATE2_BASE, STATE_VERSION), EXP_DIR = join(STATE_DIR, "f1_exp"), perTask = !E.UI_STORE && !E.UI_REPO;
+type Ent = { case: string; task: string; home?: string; suite?: string; agents: string[]; at?: number; marks: number[]; started: number[]; done: number };
+const entries = (t: string): Ent[] => { const o: Ent[] = []; try { for (const f of readdirSync(EXP_DIR)) if (f.endsWith(".json")) { const j = readExp(join(EXP_DIR, f)) as unknown as Ent; if (j?.task === t) o.push(j); } } catch { /* no exp files */ } return o.sort((x, y) => (y.at ?? 0) - (x.at ?? 0)); };
+const hasStore = (h: string) => existsSync(join(STATE_DIR, h, "store", "store.json"));
+const given = arg("home"), known = entries(task);
+const home = !perTask ? undefined : given && /^[\w/-]+$/.test(given) && !given.includes("..") && hasStore(given) ? given : (known.map((e) => e.home ?? e.task).find(hasStore) ?? task);
+const STORE = resolve(E.UI_STORE ?? join(STATE_DIR, home ?? task, "store", "store.json")), REPO = resolve(E.UI_REPO ?? (home ? join(STATE_DIR, home, "workspace") : join(DATA, "repo"))), EXP = join(DATA, "exp.json"), text = readFileSync(file, "utf8").trim();
+console.log(home ? `session home: ${home} (its own store and workspace)` : "session home: the shared ui/.ui-data store (UI_STORE/UI_REPO)");
+const WRITER = perTask || E.UI_WRITER_MODE === "shared" ? "shared" : "worktree";   // run.ts always uses "shared"
+// the case this session belongs to (the latest one that has a lead; a no_lead node only records a video): its agents, gate limits and test-setup note
+const allCases = await loadSuites(), caseOf = (e: Ent) => allCases.find((x) => x.id === e.case) as (typeof allCases)[number] & { no_qa_check?: boolean; no_lead?: boolean } | undefined;
+const bound = known.find((e) => !caseOf(e)?.no_lead) ?? known[0], boundCase = caseId ? allCases.find((x) => x.id === caseId) : bound ? caseOf(bound) : undefined;
+const useAgents = setAgents ? agents : bound?.agents;   // undefined = the lead's default team
+mkdirSync(DATA, { recursive: true }); mkdirSync(join(STORE, ".."), { recursive: true });
 if (!existsSync(join(REPO, ".git"))) {
   mkdirSync(REPO, { recursive: true }); writeFileSync(join(REPO, "README.md"), "# scratch project\nThe agents work here.\n");
   const g = (...a: string[]) => execFileSync("git", ["-C", REPO, "-c", "user.name=ui", "-c", "user.email=ui@local", ...a], { stdio: "ignore" });
@@ -31,13 +47,15 @@ const ctx = { store, defs, sessionCap: SESSION_CAP,
 if (!fake) reconcileDead(store);
 store.reload();
 const sentAt = Date.now();
-if (caseId) { const exp = readExp(EXP); let ent = exp[caseId]; if (!ent || ent.task !== task) ent = exp[caseId] = { case: caseId, task, suite: arg("suite") ?? "", agents, marks: [], started: [], done: 0, at: sentAt };   // a new task for a case replaces the old entry (the old session stays)
-   ent.marks[turn] = store.calls.filter((x) => x.task_id === task).length; ent.started[turn] = sentAt; ent.at = sentAt; writeExp(EXP, exp); }
-store.tx(() => { const n = say(store, task, "user", "lead", text, [], Infinity); n.t = sentAt; store.save(); });
-if (caseId) { const c = (await loadSuites()).find((x) => x.id === caseId); if (c) declareGateLimit(store, task, c); }
-const out = await runLead({ ...ctx, store } as never, { task_id: task, repo: REPO, request: text, maxDepth: 4, runner: fake ? "fake" : "real", writerMode: WRITER, ...(setAgents ? { agents } : {}) });
+const expFile = (id: string) => join(EXP_DIR, id + ".json");
+if (caseId) { let ent = known.find((e) => e.case === caseId); if (!ent) ent = { case: caseId, task, home: home ?? task, suite: arg("suite") ?? "", agents, marks: [], started: [], done: 0, at: sentAt };   // same file run.ts writes (f1_exp/<case>.json)
+   ent.marks[turn] = store.calls.filter((x) => x.task_id === task).length; ent.started[turn] = sentAt; ent.at = sentAt; mkdirSync(EXP_DIR, { recursive: true }); writeFileSync(expFile(caseId), JSON.stringify(ent)); }
+store.tx(() => { const n = say(store, task, "user", "lead", text, process.argv.includes("--auto") ? ["auto_run"] : [], Infinity); n.t = sentAt; store.save(); });
+if (boundCase) declareGateLimit(store, task, boundCase);   // the same call limit / allow_real_subAg as run.ts
+const setup = boundCase?.no_qa_check ? "\n\n[Test setup] The automatic check (`qa_check`) is switched off for this task: do not run it. Judge only that the work was handed to the right agent with a good hand-over; do not send the agent back to polish or fix what it already delivered." : "";   // same note as run.ts
+const out = await runLead({ ...ctx, store } as never, { task_id: task, repo: REPO, request: text + setup, maxDepth: 4, runner: fake ? "fake" : "real", writerMode: WRITER, ...(useAgents ? { agents: useAgents } : {}) });
 store.reload();
-store.tx(() => { say(store, task, "lead", "user", out.ok ? out.reply : `(the lead could not answer: ${out.error})`, [], Infinity); });
-if (caseId) { const exp = readExp(EXP), ent = exp[caseId]; if (ent) { ent.done = Math.max(ent.done, turn + 1); writeExp(EXP, exp); } }
+store.tx(() => { say(store, task, "lead", "user", out.ok ? out.reply : `(the lead could not answer: ${out.error})`, process.argv.includes("--auto") ? ["auto_run"] : [], Infinity); });
+if (caseId) { try { const ent = JSON.parse(readFileSync(expFile(caseId), "utf8")) as Ent; ent.done = Math.max(ent.done, turn + 1); writeFileSync(expFile(caseId), JSON.stringify(ent)); } catch { /* no entry */ } }
 console.log(out.ok ? "ok" : "failed: " + out.error);
 process.exit(out.ok ? 0 : 1);

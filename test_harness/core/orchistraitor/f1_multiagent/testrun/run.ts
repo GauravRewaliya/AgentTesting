@@ -1,4 +1,5 @@
-// bun testrun/run.ts <suite> [case_id ...] [--list] [--fake] [--rerun] [--video] [--no-planning] [--stop-pause] [--say="next"]
+// bun testrun/run.ts <suite> [case_id ...] [--again] [--list] [--fake] [--rerun] [--video] [--no-planning] [--stop-pause] [--say="next"]
+//   --again        send the case's prompts AGAIN into its existing session (same task + workspace + lead conversation; nothing archived) and judge the answers. The UI's "Run" on a case that already ran.
 //   --stop-pause   step mode, "next next next": the lead does ONE step (plan files -> layout wireframe -> themed UI), reports, and STOPS to wait for you. Only the first turn of the case runs; no qa_check, no full build.
 //   --resume       RESUME the latest run of each named case instead of starting a new task (no --rerun): same task, same workspace, the lead conversation is resumed; the lead is told to carry on (or give your own words with --say="..."). Cases never run before start normally.
 //   --resume=<id>  the same, but the lead is resumed from THIS Claude session id (the master session of an earlier run, see .state/<task>/store) instead of the one the task remembers.
@@ -12,7 +13,7 @@
 import { branchRun, cloneIfPending } from "./branch.ts";
 import { branchWarnings, runBeforeNode } from "../../../../../TestCases/branch.ts";
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync, readdirSync } from "node:fs";
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { RealRunner, ScriptRunner, loadAgents, transcriptExistsAnywhere } from "../harness/core/base.ts";
@@ -48,10 +49,23 @@ const exp = readExpDir();
 const wantIds = want.length ? want : mine.map((c) => c.id), resumable = (!!resumeArg || videoOnly) && wantIds.every((w) => exp[w]);
 // A message the HARNESS made up (the --resume "Carry on ..." prompt, the --video-only marker) is an auto run: it is NOT a message of the person, so it is not mirrored into the session chat; its notes carry the ref "auto_run" (the UI chat hides them). A --fake run has no real answer ("(fake lead) done"): its reply is never put in the chat either.
 const autoRun = flags.has("--auto") || (sayArg === undefined && (videoOnly || !!resumeArg)), chatRefs = autoRun ? ["testrun", "auto_run"] : ["testrun"];
+// --again: send the case's prompts AGAIN into its EXISTING session (same task, same workspace, same lead conversation: nothing is archived or reset) and judge the answers; this is what the UI's "Run" does for a case that already ran.
+const again = flags.has("--again"), reuse = (m: string | undefined) => !!m || again;
 const sayMsg: string | undefined = sayArg ?? (videoOnly && resumable ? "(video only: no lead call)" : !!resumeArg && resumable ? "Carry on with the task from where you stopped and finish it. Then tell me what changed since your last answer." : undefined);
 if (flags.has("--list")) { for (const c of mine) console.log(`${c.id}${c.after ? "  (after " + c.after + ")" : ""}  ${exp[c.id] ? "[ran]" : ""}${unsupported(c) ? "  [not supported: " + unsupported(c) + "]" : ""}  ${c.title}`); process.exit(0); }
 
 mkdirSync(STATE_DIR, { recursive: true });
+// EVERY run leaves a run record (the runs list of the UI: ui/.ui-data/web_runs/<id>.json + .log), whoever started it. A run started by the UI already has its record (env HARNESS_RUN_RECORDED), a manual one makes its own and copies its output into the log.
+if (!E.HARNESS_RUN_RECORDED && !fake && !flags.has("--auto")) {
+  const dir = join(ROOT, "ui", ".ui-data", "web_runs"), id = "r" + Date.now().toString(36), meta = join(dir, id + ".json"), logf = join(dir, id + ".log");
+  mkdirSync(dir, { recursive: true });
+  const rec = { id, suite, cases: wantIds, fake: false, rerun: flags.has("--rerun"), startedAt: Date.now(), pid: process.pid, status: "running" as string, by: "cli", endedAt: undefined as number | undefined, exitCode: undefined as number | null | undefined };
+  const save = () => { try { writeFileSync(meta, JSON.stringify(rec)); } catch { /* best effort */ } };
+  save();
+  const log = console.log.bind(console); console.log = (...a: unknown[]) => { log(...a); try { appendFileSync(logf, a.map(String).join(" ") + "\n"); } catch { /* best effort */ } };
+  process.on("exit", (code) => { rec.status = code === 0 ? "done" : "failed"; rec.exitCode = code; rec.endedAt = Date.now(); save(); });
+  process.on("SIGINT", () => process.exit(130)); process.on("SIGTERM", () => process.exit(143));
+}
 /** A case that says "Starting point: fixture <name> ... set up in run_test/<dir> for you" must really find it there: copy store/expo_go/bases/<name> into run_test/<dir> before the lead starts
  *  (the lead can `ls` the workspace now, so a promise that only the sub-agent's run would keep makes it refuse: seen on eg_solarin_01). */
 function seedStart(user: string, repo: string): string | null {
@@ -80,26 +94,27 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   if (c.after && (notPassed.has(c.after) || (exp[c.after] as { status?: string } | undefined)?.status === "fail")) { console.log(`\n## ${c.id}: SKIPPED  its parent "${c.after}" did not pass (a child continues the parent's state; fix the parent first)`); notPassed.add(c.id); failed++; continue; }
   if (c.after && !exp[c.after]?.done) { console.log(`\n## ${c.id}: needs "${c.after}" to run first (run the suite in order, or name both)`); failed++; continue; }
   const rerun = !!exp[c.id], planned = taskFor(c, all, exp), task = planned;   // a rerun never overwrites: it is a new task you can compare
-  if (rerun && !flags.has("--rerun") && !sayMsg) { console.log(`\n## ${c.id}: already ran in task ${exp[c.id]!.task} (--rerun runs it again in a new task)`); continue; }
+  if (rerun && !flags.has("--rerun") && !sayMsg && !again) { console.log(`\n## ${c.id}: already ran in task ${exp[c.id]!.task} (--rerun runs it again in a new task)`); continue; }
   // HOME of this run: a root case has its own; a case that CONTINUES its parent uses the parent's; a BRANCH (a second child of the same parent) starts from a COPY of the parent's session folder (same task id, so the parent's agents and sessions are still there)
   const parentEnt = c.after ? (exp[c.after] as { task: string; home?: string } | undefined) : undefined, isBranch = !!parentEnt && planned !== parentEnt.task, sfx = task.slice(planned.length);
   // a FRESH run (a root case or a branch) must never reuse a session folder that already exists: it holds the agents, sessions and served results of an earlier run (the planner would answer "already done")
   // a FRESH run (a root case or a branch) never reuses a session folder (it holds the agents, sessions and served results of an earlier run): the previous run is MOVED to old_data_bkp/v1_runs/ and the clean name (t_<case>) is used again
   const archive = (k: string) => { if (perTask && existsSync(homeOf(k))) { const to = join(STATE_DIR, "..", "..", "..", "old_data_bkp", "v1_runs", `${k}-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}`); mkdirSync(dirname(to), { recursive: true }); renameSync(homeOf(k), to); } return k; };
   const fresh = archive;
-  const runTask = isBranch ? parentEnt!.task : parentEnt ? task : sayMsg ? exp[c.id]!.task : fresh(task); let homeKey: string =  isBranch ? (perTask ? "" : fresh(planned + sfx)) : parentEnt ? (parentEnt.home ?? parentEnt.task) : sayMsg ? (exp[c.id]!.home ?? runTask) : runTask;
+  const runTask = isBranch ? parentEnt!.task : parentEnt ? task : reuse(sayMsg) && exp[c.id] ? exp[c.id]!.task : fresh(task); let homeKey: string =  isBranch ? (perTask ? "" : fresh(planned + sfx)) : parentEnt ? (parentEnt.home ?? parentEnt.task) : reuse(sayMsg) && exp[c.id] ? (exp[c.id]!.home ?? runTask) : runTask;
   // BRANCH (testrun/branch.ts): <parent home>/branches/branch_<hex>/ = workspace + store copy (no record/); its row in the MAIN session's index_session.json starts `pending`
   let branchInfo: { branch: string; parentDir: string } | undefined;
   const shared = isBranch && !!(c as { branch_share?: boolean }).branch_share;   // branch_share: a separate test IN the parent's workspace and store: no copy, no fork
-  if (perTask && shared) homeKey = parentEnt!.home ?? parentEnt!.task;
+  if (again && exp[c.id]?.home) homeKey = exp[c.id]!.home!;   // the same session as before (a branch keeps its own folder)
+  else if (perTask && shared) homeKey = parentEnt!.home ?? parentEnt!.task;
   else if (perTask && isBranch) { const pk = parentEnt!.home ?? parentEnt!.task, b = branchRun({ parentDir: homeOf(pk), alias: c.id }); homeKey = pk + "/branches/" + b.branch; branchInfo = { branch: b.branch, parentDir: homeOf(pk) }; }
-  const ent = (exp[c.id] = sayMsg ? (exp[c.id] as never) : { case: c.id, task: runTask, home: homeKey, suite, agents: agentsFor(c), marks: [] as number[], started: [] as number[], done: 0, at: Date.now() } as { case: string; task: string; suite: string; agents: string[]; marks: number[]; started: number[]; done: number; at: number });
+  const ent = (exp[c.id] = reuse(sayMsg) && exp[c.id] ? (exp[c.id] as never) : { case: c.id, task: runTask, home: homeKey, suite, agents: agentsFor(c), marks: [] as number[], started: [] as number[], done: 0, at: Date.now() } as { case: string; task: string; suite: string; agents: string[]; marks: number[]; started: number[]; done: number; at: number });
   console.log(`\n## ${c.id}: ${c.title}   [task ${runTask}${homeKey !== runTask ? ", home " + homeKey : ""}, agents: ${ent.agents.join(", ")}]`);
   const store = perTask ? new MStore(storeOf(homeKey)) : gstore, REPO = repoOf(homeKey);   // this master session's own store and workspace (see LAYOUT)
   if (perTask) { mkdirSync(join(homeOf(homeKey), "store"), { recursive: true }); ensureRepo(REPO); }
-  if (!c.after && !sayMsg) { rmSync(join(REPO, "run_test"), { recursive: true, force: true }); mkdirSync(join(REPO, "run_test"), { recursive: true }); }   // an EXISTING empty run_test: the first patch of a writer must find its folder (it was lost when the folder was missing)   // ISOLATION: a case that does not continue another starts with an empty workspace (the lead can now `ls` it: leftovers of the case before would mislead it)
-  { const seeded = c.after || sayMsg ? null : seedStart(c.turns[0]!.user, REPO); if (seeded) console.log(`   starting state   : ${seeded}`); }
-  if (!c.after && !sayMsg && c.seed) { for (const [p, t] of Object.entries(c.seed)) { const f = join(REPO, "run_test", p); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, t); } console.log(`   starting state   : seed files ${Object.keys(c.seed).join(", ")}`); }
+  if (!c.after && !reuse(sayMsg)) { rmSync(join(REPO, "run_test"), { recursive: true, force: true }); mkdirSync(join(REPO, "run_test"), { recursive: true }); }   // an EXISTING empty run_test: the first patch of a writer must find its folder (it was lost when the folder was missing)   // ISOLATION: a case that does not continue another starts with an empty workspace (the lead can now `ls` it: leftovers of the case before would mislead it)
+  { const seeded = c.after || reuse(sayMsg) ? null : seedStart(c.turns[0]!.user, REPO); if (seeded) console.log(`   starting state   : ${seeded}`); }
+  if (!c.after && !reuse(sayMsg) && c.seed) { for (const [p, t] of Object.entries(c.seed)) { const f = join(REPO, "run_test", p); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, t); } console.log(`   starting state   : seed files ${Object.keys(c.seed).join(", ")}`); }
   // before_node_run: the case's own function (default = prints the node) puts any starting state into THIS node's workspace (e.g. "the bug was fixed meanwhile" in a branch), right before the lead starts
   await runBeforeNode(c, { node: branchInfo ? "branch" : c.after ? "main" : "root", parent: c.after, branch: branchInfo?.branch, workspace: REPO });
   { const flag = join(homeOf(homeKey), "store", "qa_disabled"); if ((c as { no_qa_check?: boolean }).no_qa_check) { mkdirSync(dirname(flag), { recursive: true }); writeFileSync(flag, "off by the test case (no_qa_check)\n"); console.log("   qa_check         : switched OFF for this case (no_qa_check)"); } else rmSync(flag, { force: true }); }
@@ -107,6 +122,7 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   const qaReq = (apps: string[]) => ({ workspace: REPO, run_test: join(REPO, "run_test"), session: runTask, apps });
   const qaGuide = flags.has("--video") && c.qa ? (() => { const q = c.qa!(qaReq([])); return q.enabled ? q.guide : undefined; })() : undefined;
   const noLead = videoOnly || !!(c as { no_lead?: boolean }).no_lead, turns = noLead ? [] : sayMsg ? [{ user: sayMsg, expected: sayArg ? { context: "(step: the person said \"" + sayMsg + "\")", expected_agents_res: [] as string[] } : c.turns[0]!.expected }]   /* --say: a free step (no calls expected); --resume: the case's own expectation */ : stopPause ? c.turns.slice(0, 1) : c.turns;
+  if (again && !sayMsg) { ent.marks = []; ent.started = []; ent.done = 0; ent.at = Date.now(); saveExp(ent); console.log("   again            : the prompts are sent again into the existing session (nothing is archived or reset)"); }
   const judged = []; let cost = 0, leadCost = 0;
   for (let i = 0; i < turns.length; i++) {
     store.reload(); ent.marks[i] = store.calls.filter((x) => x.task_id === runTask).length; ent.started[i] = Date.now(); saveExp(ent);

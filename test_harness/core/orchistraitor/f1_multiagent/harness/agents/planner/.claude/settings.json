@@ -4,7 +4,9 @@
    "Read",
    "Glob",
    "Grep",
-   "LSP"
+   "LSP",
+   "Bash(bun *tools.ts preview*)",
+   "Bash(bun *tools.ts proc_list*)"
   ]
  }
 }

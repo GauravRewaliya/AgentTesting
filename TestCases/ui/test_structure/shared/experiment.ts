@@ -40,3 +40,13 @@ export interface AvailableAgent { name: string; description: string; writes: boo
 export interface ChatMsg { id: string; from: "user" | "lead"; text: string; t: number }
 export interface ChatOut { task: string; messages: ChatMsg[]; queued: { id: string; text: string; t: number }[]; busy: boolean; error: string; nextTurn: number | null }
 export interface SendIn { task?: string; text: string; agents: string[]; fake: boolean; caseId?: string; suite?: string }
+
+/** What a click on a card (master or sub-agent) on the Experiment page shows: the commands it ran, the briefs it got, its answer, and the live previews. */
+export interface AgentDetail {
+  id: string; name: string; status: string; activity: string; session?: string;
+  tools: { t: number; tool: string; text: string }[];            // its tool calls (Bash, Edit ...), newest last: the full command text the store kept
+  briefs: { id: string; from: string | null; to: string | null; role: string; status: string; objective: string; output: string; boundaries: string; t: number }[];   // calls it received (sub-agent) or made (master)
+  answer: string;                                                  // its last reply / report
+  scripts: { id: string; kind: string; status: string; label: string; cmd: string; dir: string; pid: number; started: number; ended_at?: number; exit_code?: number; by: string; stopped_by?: string; public_url: string; expires_at?: number; user_requested?: boolean }[];   // background scripts of the session (running first)
+  processes: { pid: number; elapsed: string; cmd: string }[];     // host processes of this task (dev servers, installs)
+}

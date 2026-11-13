@@ -4,7 +4,7 @@ export { archiveTranscript, restoreFromArchive, findArchive, findTranscript, arc
 export { Store, levelOf } from "./base/store.ts";
 export { loadAgents, checkAgents } from "./base/agents.ts";
 export { callAgent, type CallCtx, type CallOut } from "./base/call.ts";
-export { RealRunner, ScriptRunner, projectDirFor, transcriptFor, transcriptExistsIn, transcriptExistsAnywhere, projectsRoot } from "./base/runner.ts";
+export { RealRunner, ScriptRunner, projectDirFor, transcriptFor, transcriptExistsIn, transcriptExistsAnywhere, projectsRoot, claudeDirs, profileOfSession } from "./base/runner.ts";
 export { chooseSession, afterRun, type Selection } from "./base/sessions.ts";
 export { runTask, roleRow } from "./base/loop.ts";
 export * as trace from "./base/trace.ts";

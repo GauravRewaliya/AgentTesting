@@ -1,16 +1,15 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
-import { loadCards, loadSubagents, state } from "@/store/dashboard";
+import { activeHead, loadCards, loadSubagents, selectHead, state } from "@/store/dashboard";
 import DebugFrame from "@/components/common/DebugFrame.vue";
 import HeadPicker from "@/components/flow/HeadPicker.vue";
 import FlowCanvas from "@/components/flow/FlowCanvas.vue";
 import SubAgentPanel from "@/components/panels/SubAgentPanel.vue";
-import { isRunning, resumeRuns, runCase, runsCase } from "@/store/runs";
+import { busyElsewhere, chainPlan, isRunning, resumeRuns, runCase, runsHere } from "@/store/runs";
 import { computed } from "vue";
 import type { Status } from "@/types";
-const stepsOf = (id: string) => state.cards.find((c) => c.cases.some((r) => r.caseId === id))?.cases.length ?? 1;
 const picked = computed(() => state.cards.flatMap((c) => c.cases).find((r) => r.caseId === state.selectedCaseId) ?? null);
-onMounted(() => { loadCards(); loadSubagents(); void resumeRuns(); });
+onMounted(async () => { await loadCards(); loadSubagents(); void resumeRuns(); if (!state.selectedCaseId && activeHead.value) selectHead(activeHead.value); });   // the first head is picked at start: its first node is selected
 const statuses: Status[] = ["pass", "fail", "skipped", "never_run"];
 const toggle = (s: Status) => (state.statusFilter.has(s) ? state.statusFilter.delete(s) : state.statusFilter.add(s));
 </script>
@@ -18,9 +17,11 @@ const toggle = (s: Status) => (state.statusFilter.has(s) ? state.statusFilter.de
   <DebugFrame name="FlowPage">
     <HeadPicker />
     <div class="bar runbar">
-      <button class="primary" :disabled="!picked || isRunning" :title="picked ? 'run the selected case (fixture runner)' : 'select a case first'" @click="picked && runCase(picked.caseId, picked.ran)">{{ isRunning ? "running…" : picked ? (picked.ran ? "↻ Run all again: " : "▶ Run all: ") + picked.caseId + (stepsOf(picked.caseId) > 1 ? ` (${stepsOf(picked.caseId)} steps)` : "") : "▶ Run (select a case)" }}</button>
-      <span v-if="picked" class="mono small" :style="{ color: picked.status === 'pass' ? 'var(--pass)' : picked.status === 'fail' ? 'var(--fail)' : 'var(--mute)' }">{{ picked.ran ? picked.status + " · result in the current workspace" + (picked.at ? " · " + picked.at.slice(5, 16).replace("T", " ") : "") : "not run in the current workspace yet" }}</span>
-      <span v-if="runsCase(picked?.caseId ?? '')" class="muted small">running — see the runs tab on the right</span>
+      <button class="primary" :disabled="!picked || isRunning" :title="picked ? 'same runner as the CLI (testrun/run.ts)' : 'select a case first'" @click="picked && runCase(picked.caseId)">{{ runsHere ? "running…" : !picked ? "▶ Run (select a node)" : picked.ran ? "▶ Run: " + picked.caseId : "▶ Run" + (chainPlan.n > 1 ? ` all (${chainPlan.n} steps): ` : ": ") + picked.caseId }}</button>
+      <span v-if="picked" class="mono small" :style="{ color: picked.status === 'pass' ? 'var(--pass)' : picked.status === 'fail' ? 'var(--fail)' : 'var(--mute)' }">{{ picked.ran ? picked.status + (picked.at ? " · " + picked.at.slice(5, 16).replace("T", " ") : "") : "not run yet" }}</span>
+      <span v-if="picked && chainPlan.n > 1" class="muted small mono">chain {{ chainPlan.done }}/{{ chainPlan.n }} ran</span>
+      <span v-if="runsHere" class="muted small">running — see the runs tab on the right</span>
+      <span v-else-if="busyElsewhere" class="muted small">another run is going on a different chain (one run at a time)</span>
     </div>
     <div class="bar">
       <input v-model="state.query" placeholder="filter cases…" style="max-width:260px" />

@@ -5,7 +5,7 @@ import { computed, onMounted, ref } from "vue";
 import { api } from "@/store/api";
 import type { WorkspaceSnap } from "@/types";
 import DebugFrame from "@/components/common/DebugFrame.vue";
-const props = defineProps<{ caseId: string; leadSessionId: string | null }>();
+const props = defineProps<{ caseId: string; leadSessionId: string | null; home?: string | null }>();
 const snap = ref<WorkspaceSnap | null>(null), err = ref(""), open = ref<{ path: string; text: string } | null>(null);
 const newPath = ref(""), newText = ref("");
 const guard = async (f: () => Promise<WorkspaceSnap>) => { try { err.value = ""; snap.value = await f(); } catch (e) { err.value = (e as Error).message; } };
@@ -23,7 +23,7 @@ const prompt = computed(() => {
 <template>
   <DebugFrame name="WorkspacePanel">
     <div class="ws">
-      <p class="muted">Saved workspace: <code>.state/…/sessions/fx_{{ caseId }}/workspace</code> (read-only). Changes below go to a scratch copy.</p>
+      <p class="muted">Saved workspace: <code>.state/…/{{ props.home ?? "(not run yet)" }}/workspace</code> (read-only). Changes below go to a scratch copy.</p>
       <p v-if="err" style="color:var(--fail)">{{ err }}</p>
       <template v-if="snap">
         <div v-for="f in snap.current" :key="f" class="f"><code :class="{ ed: snap.edited.includes(f), ad: snap.added.includes(f) }">{{ f }}</code>

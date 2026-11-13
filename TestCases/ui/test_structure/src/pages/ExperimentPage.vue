@@ -4,22 +4,40 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { api } from "@/store/api";
+import { useLive } from "@/store/live";
 import DebugFrame from "@/components/common/DebugFrame.vue";
-import type { AvailableAgent, CaseResultOut, CaseState, ChatOut, ExpCase, ExperimentOverview, LiveAgent, LiveSession } from "../../shared/experiment";
+import type { AvailableAgent, CaseState, LiveAgent, LiveSession } from "../../shared/experiment";
 
 const route = useRoute();
 let wantCase = typeof route.query.case === "string" ? route.query.case : "";   // from a Runs link: open that case's session
-const ov = ref<ExperimentOverview | null>(null), sessions = ref<LiveSession[]>([]), avail = ref<AvailableAgent[]>([]), err = ref(""), notice = ref("");
+// everything that changes comes over ONE WebSocket (store/live.ts); this page only sends actions and tells the server what it looks at
+const live = useLive(), { ov, sessions, chat, result, bg } = live;
+const avail = ref<AvailableAgent[]>([]), err = ref(""), notice = ref("");
 const sel = ref<string | null>(null), creating = ref(true), menu = ref<string | null>(null), navOpen = ref(false);
 const picked = reactive(new Set<string>()), fake = ref(false), caseId = ref(""), text = ref(""), sending = ref(false);
-const chat = ref<ChatOut | null>(null), result = ref<CaseResultOut | null>(null), resultErr = ref("");
-const showResult = ref(true), expanded = reactive(new Set<string>());
+const showResult = ref(true);
+const resultErr = computed(() => (session.value?.case && !result.value ? "this case has not run yet" : ""));
 
+// click on the master or a sub-agent card: show what it ran (commands), its briefs, its answer, and the live previews (public_url)
+const detailId = ref(""), actErr = ref("");
+const detail = computed(() => { const d = live.detail.value; return d && !("error" in d) ? d : null; });
+const detailErr = computed(() => actErr.value || (live.detail.value && "error" in live.detail.value ? live.detail.value.error : ""));
+const openDetail = (id: string) => { detailId.value = detailId.value === id ? "" : id; };
+async function act(fn: () => Promise<{ ok: boolean; reason?: string }>) { actErr.value = ""; try { const r = await fn(); if (!r.ok) actErr.value = r.reason ?? "failed"; } catch (e) { actErr.value = String(e); } live.kick(); }
+// "bg running" in the header: previews + host processes of this session; the list shows on hover
+const bgCount = computed(() => bg.value?.scripts.filter((x) => x.status === "running").length ?? 0), bgDone = computed(() => bg.value?.scripts.filter((x) => x.status !== "running").length ?? 0);
+const logId = ref(""), logText = ref("");
+async function showLog(id: string) { if (logId.value === id) { logId.value = ""; return; } logId.value = id; logText.value = ""; try { logText.value = (await api.bgLog(sel.value!, id)).log; } catch (e) { logText.value = String(e); } }
+const now = ref(Date.now());   // "5s ago" labels move on a local clock: no request
+const clock = setInterval(() => (now.value = Date.now()), 15_000);
+// tell the server what this page looks at (the session and the open agent card); it pushes exactly that
+watch([sel, creating, detailId], () => live.watch({ task: creating.value ? undefined : sel.value ?? undefined, detail: detailId.value || undefined }));
+watch(sel, () => { detailId.value = ""; logId.value = ""; text.value = ""; scrollDown(); });
 const session = computed(() => sessions.value.find((s) => s.task === sel.value) ?? null);
 const allCases = computed(() => (ov.value?.suites ?? []).flatMap((s) => s.cases.map((c) => ({ ...c, suite: s.suite }))));
 const caseOf = (id?: string) => allCases.value.find((c) => c.id === id);
 const color: Record<CaseState, string> = { pass: "var(--pass)", fail: "var(--fail)", partial: "var(--warn)", running: "var(--accent)", skipped: "var(--mute)", never_run: "var(--mute)" };
-const ago = (t?: number) => { if (!t) return "-"; const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? s + "s ago" : s < 3600 ? Math.floor(s / 60) + "m ago" : s < 86400 ? Math.floor(s / 3600) + "h ago" : Math.floor(s / 86400) + "d ago"; };
+const ago = (t?: number) => { if (!t) return "-"; const s = Math.max(0, Math.round((now.value - t) / 1000)); return s < 60 ? s + "s ago" : s < 3600 ? Math.floor(s / 60) + "m ago" : s < 86400 ? Math.floor(s / 3600) + "h ago" : Math.floor(s / 86400) + "d ago"; };
 const hm = (t: number) => new Date(t).toTimeString().slice(0, 8);
 const usd = (n: number) => "$" + n.toFixed(4);
 const say = (m: string) => { notice.value = m; setTimeout(() => { if (notice.value === m) notice.value = ""; }, 8000); };
@@ -28,24 +46,18 @@ const say = (m: string) => { notice.value = m; setTimeout(() => { if (notice.val
 const activeCase = computed(() => caseOf(creating.value ? caseId.value : session.value?.case));
 const nextPrompt = computed(() => { const c = activeCase.value; if (!c) return ""; const n = creating.value ? 0 : (chat.value?.nextTurn ?? 0); return c.prompts[n] ?? ""; });
 
-async function refresh() {
-  try {
-    err.value = ""; ov.value = await api.expOverview(); sessions.value = await api.expLive();
-    if (wantCase) {
-      const w = sessions.value.filter((x) => x.case === wantCase).sort((a, b) => (b.last ?? 0) - (a.last ?? 0))[0];
-      if (w) { open(w.task); say(`opened session of ${wantCase}`); } else say(`no Experiment session exists for ${wantCase} yet (the UI run does not create one): pick it in ＋ New session > Test case`);
-      wantCase = "";
-    }
-    if (!avail.value.length) { avail.value = await api.expAgents(); for (const a of avail.value) if (a.byDefault) picked.add(a.name); }
-    if (sel.value && !sessions.value.some((s) => s.task === sel.value)) { sel.value = null; creating.value = true; chat.value = null; }
-    if (sel.value) { const was = chat.value?.messages.length ?? 0; chat.value = await api.expChat(sel.value); if ((chat.value?.messages.length ?? 0) !== was) scrollDown(); }
-    await loadResult();
-  } catch (e) { err.value = (e as Error).message; }
-}
-async function loadResult() {
-  const c = session.value?.case; if (!c) { result.value = null; resultErr.value = ""; return; }
-  try { result.value = await api.expResult(c); resultErr.value = ""; } catch (e) { result.value = null; resultErr.value = (e as Error).message; }
-}
+// the page reacts to what the server pushes
+const seen = new Set<string>();   // a session that was listed and is gone now was deleted elsewhere; one not listed yet is just new
+watch(sessions, (list) => {
+  list.forEach((x) => seen.add(x.task));
+  if (wantCase) {
+    const w = list.filter((x) => x.case === wantCase).sort((a, b) => (b.last ?? 0) - (a.last ?? 0))[0];
+    if (w) { open(w.task); say(`opened session of ${wantCase}`); } else say(`no Experiment session exists for ${wantCase} yet (the UI run does not create one): pick it in ＋ New session > Test case`);
+    wantCase = "";
+  }
+  if (sel.value && seen.has(sel.value) && !list.some((s) => s.task === sel.value)) { sel.value = null; creating.value = true; }
+});
+watch(() => chat.value?.messages.length, scrollDown);
 const msgsEl = ref<HTMLElement>();
 // sidebar filter: sessions made on this page (experiment) or by a test run (test); the choice is remembered per browser
 type Kind = "experiment" | "test";
@@ -53,12 +65,10 @@ const kind = ref<Kind>((() => { try { return localStorage.getItem("exp_kind") ==
 const setKind = (k: Kind) => { kind.value = k; try { localStorage.setItem("exp_kind", k); } catch { /* private mode */ } };
 const countOf = (k: Kind) => sessions.value.filter((s) => s.kind === k).length;
 const shown = computed(() => sessions.value.filter((s) => s.kind === kind.value));
-const scrollDown = () => nextTick(() => { const el = msgsEl.value; if (el) el.scrollTop = el.scrollHeight; });
-let timer: ReturnType<typeof setInterval>;
+function scrollDown() { void nextTick(() => { const el = msgsEl.value; if (el) el.scrollTop = el.scrollHeight; }); }
 const closeMenu = () => (menu.value = null);
-onMounted(() => { refresh(); timer = setInterval(refresh, 1500); document.addEventListener("click", closeMenu); });
-onUnmounted(() => { clearInterval(timer); document.removeEventListener("click", closeMenu); });
-watch(sel, () => { chat.value = null; result.value = null; resultErr.value = ""; text.value = ""; refresh(); scrollDown(); });
+onMounted(async () => { live.start(); document.addEventListener("click", closeMenu); try { avail.value = await api.expAgents(); for (const a of avail.value) if (a.byDefault) picked.add(a.name); } catch (e) { err.value = (e as Error).message; } });
+onUnmounted(() => { live.stop(); clearInterval(clock); document.removeEventListener("click", closeMenu); });
 watch(caseId, (id) => {   // optional: a test case fills the message and ticks the agents it needs
   const c = caseOf(id); if (!c) return;
   text.value = c.prompts[0] ?? ""; picked.clear(); for (const a of c.agents.concat(c.distractors)) if (avail.value.some((x) => x.name === a)) picked.add(a);
@@ -69,7 +79,7 @@ const newSession = () => { sel.value = null; creating.value = true; setKind("exp
 async function del(s: LiveSession) {
   menu.value = null;
   if (!confirm(`Delete session "${s.case ?? s.task}" (${s.task})?\n\nThis stops it and permanently removes the master, all ${s.agents.length} sub-agent(s), chat, reports, archived logs and the Claude transcripts. It cannot be undone.`)) return;
-  try { await api.expDelete(s.task); if (sel.value === s.task) { sel.value = null; creating.value = true; } say(`session ${s.task} deleted`); await refresh(); }
+  try { await api.expDelete(s.task); if (sel.value === s.task) { sel.value = null; creating.value = true; } say(`session ${s.task} deleted`); live.kick(); }
   catch (e) { say("delete failed: " + (e as Error).message); }
 }
 
@@ -81,12 +91,12 @@ async function send() {
     const r = await api.expSend(creating.value
       ? { text: t, agents: [...picked], fake: fake.value, ...(usesCase ? { caseId: c!.id, suite: (c as { suite?: string }).suite } : {}) }
       : { task: sel.value!, text: t, agents: [], fake: false });
-    text.value = ""; if (creating.value) { caseId.value = ""; await refresh(); open(r.task); } else await refresh();
+    text.value = ""; if (creating.value) { caseId.value = ""; open(r.task); } live.kick();
     scrollDown();
   } catch (e) { say("send failed: " + (e as Error).message); } finally { sending.value = false; }
 }
 const onKey = (e: KeyboardEvent) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } };
-async function cancel(id: string) { if (sel.value) { await api.expCancel(sel.value, id); await refresh(); } }
+async function cancel(id: string) { if (sel.value) { await api.expCancel(sel.value, id); live.kick(); } }
 
 type Node = { a: LiveAgent; d: number };
 const tree = (s: LiveSession): Node[] => {
@@ -124,7 +134,22 @@ const tree = (s: LiveSession): Node[] => {
 
       <main class="main">
         <h3 v-if="creating || !session">New session</h3>
-        <div v-else class="sh"><span class="pill" :class="session.state"><span class="dot" :class="session.state" />{{ session.state }}</span><b>{{ session.case ?? "Master session" }}</b><span class="muted small mono">{{ session.task }}<template v-if="session.suite"> · {{ session.suite }}</template> · {{ session.fake ? "fake" : "real" }} · {{ usd(session.cost) }}</span><button class="danger sp" @click="del(session)">Delete</button></div>
+        <div v-else class="sh"><span class="pill" :class="session.state"><span class="dot" :class="session.state" />{{ session.state }}</span><b>{{ session.case ?? "Master session" }}</b><span class="muted small mono">{{ session.task }}<template v-if="session.suite"> · {{ session.suite }}</template> · {{ session.fake ? "fake" : "real" }} · {{ usd(session.cost) }}</span>
+          <span class="bgb" :class="{ on: bgCount }" tabindex="0"><span class="dot" :class="bgCount ? 'running' : ''" /> bg running {{ bgCount }}<span v-if="bgDone" class="muted"> · {{ bgDone }} finished</span>
+            <div class="pop">
+              <div v-if="!bg?.scripts.length" class="muted small">no background scripts yet</div>
+              <div v-for="x in bg?.scripts ?? []" :key="x.id" class="scr small" :class="x.status">
+                <div class="row1"><span class="st" :class="x.status">{{ x.status }}</span><b>{{ x.label }}</b><span v-if="x.user_requested" class="st" title="you asked for it: the master will not stop it on its own">asked by you</span><span class="muted mono">{{ x.id }}</span>
+                  <button v-if="x.status === 'running'" class="link danger" @click="act(() => api.bgStop(session!.task, x.id))">stop</button>
+                  <button v-else-if="x.kind === 'preview' || x.cmd" class="link" @click="act(() => api.bgRestart(session!.task, x.id))">restart</button>
+                  <button class="link" @click="showLog(x.id)">{{ logId === x.id ? "hide log" : "log" }}</button></div>
+                <div class="mono muted">{{ x.cmd }}</div>
+                <div v-if="x.public_url" class="mono"><a :href="x.public_url" target="_blank">{{ x.public_url }}</a></div>
+                <div v-if="x.status === 'running' && x.expires_at" class="muted">closes itself at {{ hm(x.expires_at) }} (20 min default, max 120)</div>
+                <div v-if="x.status !== 'running'" class="muted">{{ x.status }}<template v-if="x.exit_code !== undefined"> · exit {{ x.exit_code }}</template><template v-if="x.stopped_by"> · by {{ x.stopped_by }}</template><template v-if="x.ended_at"> · {{ hm(x.ended_at) }}</template></div>
+                <pre v-if="logId === x.id" class="cmd">{{ logText || "(empty)" }}</pre>
+              </div>
+            </div></span><button class="danger sp" @click="del(session)">Delete</button></div>
 
         <div class="work">
           <!-- left of the work area: who is allowed, chat -->
@@ -168,7 +193,7 @@ const tree = (s: LiveSession): Node[] => {
           <!-- right: master + sub-agents -->
           <aside v-if="session && !creating" class="side">
             <h4>Master agent</h4>
-            <div v-if="session.master" class="card" :class="'s-' + session.master.status">
+            <div v-if="session.master" class="card clk" :class="'s-' + session.master.status" title="click: commands, briefs, answer, previews" @click="openDetail(session.master.id)">
               <div class="top"><span class="tag t-master">MASTER</span><span class="nm">{{ session.master.id }}</span><span class="st">{{ session.master.status }}</span></div>
               <div class="muted small">{{ session.master.activity || "idle" }}</div>
               <div class="muted small mono">{{ session.master.runs }} turn(s) · {{ usd(session.master.cost) }} incl. sub-agents · {{ ago(session.master.lastEventAt) }}</div>
@@ -178,12 +203,30 @@ const tree = (s: LiveSession): Node[] => {
 
             <h4>Sub-agent sessions <span class="muted small">{{ session.agents.length }}</span></h4>
             <p v-if="!session.agents.length" class="muted small">No sub-agents yet. The master starts them when the task needs them.</p>
-            <div v-for="{ a, d } in tree(session)" :key="a.id" class="card sub" :class="'s-' + (a.needsParent ? 'stalled' : a.status)" :style="{ marginLeft: Math.min(d, 3) * 14 + 'px' }">
+            <div v-for="{ a, d } in tree(session)" :key="a.id" class="card sub clk" title="click: commands, briefs, answer" @click="openDetail(a.id)" :class="'s-' + (a.needsParent ? 'stalled' : a.status)" :style="{ marginLeft: Math.min(d, 3) * 14 + 'px' }">
               <div class="top"><span class="dot" :class="a.needsParent ? 'stalled' : a.status" /><span class="tag" :class="'t-' + a.name">{{ a.name.toUpperCase() }}</span><span v-if="a.fixture" class="tag" title="answer served from agent_fixture, no model ran">FIXTURE</span><span class="nm">{{ a.title }}</span><span class="st">{{ a.needsParent ? "waiting for parent" : a.status }}</span></div>
               <div v-if="a.activity" class="muted small mono">▸ {{ a.activity }}</div>
               <div v-if="a.needsParent" class="warn small">asked: {{ a.needsParent.split("\n")[0] }}</div>
               <div class="muted small mono">{{ a.id }} · L{{ a.level }} · {{ a.runs }} run(s) · {{ usd(a.cost) }} · {{ ago(a.lastEventAt) }}</div>
             </div>
+
+            <section v-if="detailId" class="detail">
+              <h4>{{ detailId }} <span class="muted small">{{ detail?.status }}</span> <button class="link" @click="openDetail(detailId)">close</button></h4>
+              <p v-if="detailErr" class="warn small">{{ detailErr }}</p>
+              <template v-if="detail">
+                <div v-if="detail.scripts.length" class="lbl">background scripts of this session (hover the bg badge in the header for logs)</div>
+                <div v-for="x in detail.scripts" :key="x.id" class="small"><span class="st" :class="x.status">{{ x.status }}</span> <span class="mono">{{ x.label }}</span> <a v-if="x.public_url" :href="x.public_url" target="_blank" class="mono">{{ x.public_url }}</a></div>
+                <div v-if="detail.processes.length" class="lbl">bash sessions / processes running in this workspace (the master and the team can list and stop them too: proc_list, proc_stop)</div>
+                <div v-for="x in detail.processes" :key="x.pid" class="mono small">{{ x.pid }} · {{ x.elapsed }} · {{ x.cmd }} <button class="link danger" @click="act(() => api.procStop(sel!, x.pid))">stop</button></div>
+                <div class="lbl">commands / tool calls ({{ detail.tools.length }})</div>
+                <p v-if="!detail.tools.length" class="muted small">none recorded for this agent</p>
+                <pre v-for="(x, i) in detail.tools" :key="i" class="cmd"><b>{{ x.tool }}</b> <span class="muted">{{ hm(x.t) }}</span>
+{{ x.text }}</pre>
+                <div v-if="detail.briefs.length" class="lbl">briefs (calls)</div>
+                <div v-for="b in detail.briefs" :key="b.id" class="brief small"><span class="mono">{{ b.from }} → {{ b.to }} · {{ b.role }} · {{ b.status }}</span><div class="txt">{{ b.objective }}</div><div v-if="b.output" class="muted">output: {{ b.output }}</div><div v-if="b.boundaries" class="muted">boundaries: {{ b.boundaries }}</div></div>
+                <div class="lbl">last answer</div><pre class="cmd">{{ detail.answer || "(none yet)" }}</pre>
+              </template>
+            </section>
 
             <template v-if="session.case">
               <h4 class="clk" @click="showResult = !showResult">{{ showResult ? "▾" : "▸" }} Verdict · {{ session.case }}<span v-if="result" :style="{ color: color[result.state] }"> · {{ result.state }} · {{ result.done }}/{{ result.total }}</span></h4>
@@ -257,4 +300,12 @@ select { font: inherit; color: inherit; background: var(--card); border: 1px sol
 .composer { margin-top: 8px; display: grid; gap: 6px; } .try button { border-radius: 99px; font-size: 12px; color: var(--mute); }
 .box { display: flex; gap: 8px; align-items: flex-end; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 8px 8px 8px 12px; } .box textarea { border: 0; outline: 0; background: transparent; resize: none; padding: 4px 0; }
 .side { min-width: 0; min-height: 0; overflow-y: auto; } .side h4:first-child { margin-top: 0; }
+.clk { cursor: pointer; } .card.clk:hover { border-color: var(--accent); }
+.detail { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin: 8px 0; background: var(--card); display: grid; gap: 4px; }
+.cmd { margin: 0; font: 11px/1.4 ui-monospace, monospace; white-space: pre-wrap; word-break: break-all; max-height: 160px; overflow: auto; background: color-mix(in srgb, var(--ink) 5%, transparent); border-radius: 6px; padding: 5px 7px; }
+.brief { border-left: 3px solid var(--mute); padding-left: 8px; margin-bottom: 4px; }
+.sh { position: relative; } .bgb { position: relative; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 10px; border: 1px solid var(--line); border-radius: 99px; color: var(--mute); cursor: default; } .bgb.on { color: var(--ink); border-color: var(--accent); }
+.bgb .pop { display: none; position: absolute; top: 100%; left: 0; z-index: 20; min-width: 360px; max-width: 70vw; max-height: 50vh; overflow: auto; padding: 8px 10px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.3); font-weight: 400; color: var(--ink); } .bgb:hover .pop, .bgb:focus-within .pop { display: block; }
+.st { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 5px; text-transform: uppercase; background: color-mix(in srgb, var(--mute) 20%, transparent); } .st.running { color: var(--accent); } .st.succeeded { color: var(--pass); } .st.failed, .st.interrupted { color: var(--fail); }
+.scr { border-top: 1px solid var(--line); padding: 5px 0; display: grid; gap: 2px; } .scr .row1 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 </style>

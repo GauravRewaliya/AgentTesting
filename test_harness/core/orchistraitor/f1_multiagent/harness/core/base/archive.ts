@@ -3,13 +3,13 @@
 // log next to the registry: <registry folder>/logs/<task>/<agent>.<session>.jsonl. If Claude's copy is missing when the agent is continued, it is put back.
 import { copyFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { projectDirFor, projectsRoot } from "./runner.ts";
+import { claudeDirs, projectDirFor } from "./runner.ts";
 
 export const archiveFile = (storeFile: string, task: string, agent: string, sid: string) => join(dirname(storeFile), "logs", task, `${agent.replace(/[^A-Za-z0-9_-]/g, "_")}.${sid}.jsonl`);
 /** Claude's own copy of a session: in the folder of `cwd` first, then in any project folder (the CLI itself looks everywhere on --resume). */
 export function findTranscript(sid: string, cwd?: string): string | null {
   if (cwd) { const f = join(projectDirFor(cwd), sid + ".jsonl"); if (existsSync(f)) return f; }
-  try { for (const d of readdirSync(projectsRoot())) { const f = join(projectsRoot(), d, sid + ".jsonl"); if (existsSync(f)) return f; } } catch { /* no projects folder */ }
+  for (const dir of claudeDirs()) { const root = join(dir, "projects"); try { for (const d of readdirSync(root)) { const f = join(root, d, sid + ".jsonl"); if (existsSync(f)) return f; } } catch { /* no projects folder in this profile */ } }
   return null;
 }
 /** Find a copy by session id alone (any task, any agent): for readers that only know the session. */

@@ -8,7 +8,7 @@ export function caseOut(m: Model, id: string): CaseOut {
   const { raw: c, suite, tags } = m.cases.get(id)!;
   const last = m.last.get(id), ck = m.ckpt.get(id), parent = c.after ? m.ckpt.get(c.after) : undefined;
   const turns = c.turns.map((t, i) => ({ user: t.user, expectedAgents: t.expected.expected_agents_res, actualAgents: last?.turns[i]?.actual ?? [], match: last?.turns[i]?.match, notfound: last?.turns[i]?.notfound, guard: last?.turns[i]?.guard }));
-  const status = !last ? "never_run" : last.status === "skipped" ? "skipped" : turns.every((t) => t.match !== false && !t.guard) ? "pass" : "fail";
+  const status = !last ? "never_run" : last.status === "skipped" || last.verdict === "skipped" ? "skipped" : last.verdict ? last.verdict : turns.every((t) => t.match !== false && !t.guard) ? "pass" : "fail";
   return {
     profile: m.profile(id), caseId: id, suite, title: c.title, after: c.after, tags: [...tags, ...(c.tags ?? [])], status, ran: !!last, at: last?.at, sessionId: ck?.sessionId,
     relation: !c.after ? "root" : parent?.sessionId && ck?.sessionId === parent.sessionId ? "same_session" : "cloned",

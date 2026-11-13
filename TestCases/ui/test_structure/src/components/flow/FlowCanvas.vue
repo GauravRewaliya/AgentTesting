@@ -2,7 +2,7 @@
 // Draws layout(): strict levels top to bottom (see layout.ts). vue-flow gives pan, zoom and drag.
 import { computed, ref } from "vue";
 import { VueFlow, type Edge, type Node } from "@vue-flow/core";
-import { visibleCards } from "@/store/dashboard";
+import { state, visibleCards } from "@/store/dashboard";
 import DebugFrame from "@/components/common/DebugFrame.vue";
 import RunsSidebar from "@/components/detail/RunsSidebar.vue";
 import CaseNode from "./CaseNode.vue";
@@ -26,8 +26,8 @@ const onReady = (i: { fitView: (o: { padding: number }) => void }) => i.fitView(
   <DebugFrame name="FlowCanvas" hint="vue-flow, strict levels">
     <div class="canvas">
       <aside class="runs" :class="{ closed: !runsOpen }">
-        <button class="tgl" :title="runsOpen ? 'collapse runs' : 'show session runs'" @click="runsOpen = !runsOpen">{{ runsOpen ? "‹ runs" : "› runs" }}</button>
-        <div v-show="runsOpen" class="body"><RunsSidebar /></div>
+        <button class="tgl" :title="runsOpen ? 'collapse runs' : 'show the runs of the selected node'" @click="runsOpen = !runsOpen">{{ runsOpen ? "‹ runs" : "› runs" }}</button>
+        <div v-show="runsOpen" class="body"><RunsSidebar :case-id="state.selectedCaseId ?? undefined" /></div>
       </aside>
       <VueFlow :nodes="graph.nodes" :edges="graph.edges" :min-zoom="0.15" :max-zoom="1.5"
         @pane-ready="onReady">

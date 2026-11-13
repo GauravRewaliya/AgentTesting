@@ -3,11 +3,13 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { bgOf, taskProcs } from "./preview.ts";
+import { reviewDue, touchBg } from "@core/orchistraitor/f1_multiagent/harness/core/bg.ts";
 import { MStore } from "@core/orchistraitor/f1_multiagent/harness/core/board.ts";
-import { projectsRoot } from "@core/orchistraitor/f1_multiagent/harness/core/base.ts";
+import { claudeDirs } from "@core/orchistraitor/f1_multiagent/harness/core/base.ts";
 import { costOf } from "@core/orchistraitor/f1_multiagent/harness/core/agent_call.ts";
 import { judgeTurn, loadSuites, readExp, statusOf, unsupported, writeExp, type ExpEntry, type SuiteCase } from "@core/orchistraitor/f1_multiagent/testrun/cases.ts";
-import type { AvailableAgent, ChatOut, SendIn, CaseResultOut, CaseState, ExpSuite, ExperimentOverview, LiveAgent, LiveSession, RunInfo, RunLog } from "../shared/experiment.ts";
+import type { AgentDetail, AvailableAgent, ChatOut, SendIn, CaseResultOut, CaseState, ExpSuite, ExperimentOverview, LiveAgent, LiveSession, RunInfo, RunLog } from "../shared/experiment.ts";
 
 const F1 = resolve(import.meta.dir, "../../../../test_harness/core/orchistraitor/f1_multiagent");
 const DATA = join(F1, "ui", ".ui-data"), STORE = resolve(process.env.UI_STORE ?? join(DATA, "store.json")), REPO = resolve(process.env.UI_REPO ?? join(DATA, "repo"));
@@ -45,23 +47,29 @@ const metaFile = (id: string) => join(RUNS, id + ".json"), logFile = (id: string
 const readRun = (id: string): RunInfo | undefined => {
   try {
     const r = JSON.parse(readFileSync(metaFile(id), "utf8")) as RunInfo;
-    if (r.status === "running" && !alive(r.pid)) { r.status = r.exitCode === 0 ? "done" : r.status === "running" ? "failed" : r.status; r.endedAt ??= Date.now(); writeFileSync(metaFile(id), JSON.stringify(r)); }
+    if (r.status === "running" && !alive(r.pid)) {   // the process is gone: its exit code is in <id>.exit (written by the shell wrapper of a UI run, or by run.ts itself for a manual one)
+      const ef = join(RUNS, id + ".exit"), txt = existsSync(ef) ? readFileSync(ef, "utf8").trim() : "";
+      if (txt === "" && r.exitCode === undefined && Date.now() - r.startedAt < 3000) return r;   // just started / just ending: do not guess
+      const code = txt === "" ? r.exitCode ?? null : Number(txt);
+      r.exitCode = code; r.status = code === 0 ? "done" : "failed"; r.endedAt ??= Date.now(); writeFileSync(metaFile(id), JSON.stringify(r));
+    }
     return r;
   } catch { return undefined; }
 };
-const listRuns = (): RunInfo[] => readdirSync(RUNS).filter((f) => f.endsWith(".json")).map((f) => readRun(f.slice(0, -5))).filter((x): x is RunInfo => !!x).sort((a, b) => b.startedAt - a.startedAt).slice(0, 30);
+export const listRuns = (): RunInfo[] => readdirSync(RUNS).filter((f) => f.endsWith(".json")).map((f) => readRun(f.slice(0, -5))).filter((x): x is RunInfo => !!x).sort((a, b) => b.startedAt - a.startedAt).slice(0, 30);
 
-export function startRun(b: { suite: string; cases?: string[]; fake?: boolean; rerun?: boolean }): RunInfo {
+export function startRun(b: { suite: string; cases?: string[]; fake?: boolean; rerun?: boolean; again?: boolean }): RunInfo {
   if (!/^[\w-]+$/.test(b.suite)) throw new Error("bad suite name");
   const cases = (b.cases ?? []).filter((c) => /^[\w-]+$/.test(c));
   if (listRuns().some((r) => r.status === "running")) throw new Error("a run is already going; stop it first (two runs would write the same store)");
-  const id = "r" + Date.now().toString(36), args = ["testrun/run.ts", b.suite, ...cases, ...(b.fake ? ["--fake"] : []), ...(b.rerun ? ["--rerun"] : [])];
+  const id = "r" + Date.now().toString(36), args = ["testrun/run.ts", b.suite, ...cases, ...(b.fake ? ["--fake"] : []), ...(b.rerun ? ["--rerun"] : []), ...(b.again ? ["--again"] : [])];
   const fd = openSync(logFile(id), "a");
-  const p = spawn("bun", args, { cwd: F1, detached: true, stdio: ["ignore", fd, fd], env: process.env });
+  const p = spawn("sh", ["-c", 'bun "$@"; echo $? > "$RUN_EXIT_FILE"', "sh", ...args], { cwd: F1, detached: true, stdio: ["ignore", fd, fd], env: { ...process.env, HARNESS_RUN_RECORDED: "1", RUN_EXIT_FILE: join(RUNS, id + ".exit") } });   // the UI writes the record itself
   p.unref();
   const run: RunInfo = { id, suite: b.suite, cases, fake: !!b.fake, rerun: !!b.rerun, startedAt: Date.now(), pid: p.pid ?? 0, status: "running" };
   writeFileSync(metaFile(id), JSON.stringify(run));
-  p.on("exit", (code, sig) => { const r = readRun(id); if (!r) return; if (r.status === "running") r.status = sig ? "stopped" : code === 0 ? "done" : "failed"; r.exitCode = code; r.endedAt = Date.now(); writeFileSync(metaFile(id), JSON.stringify(r)); void syncLater(); });
+  p.on("exit", (_c, sig) => { const r = JSON.parse(readFileSync(metaFile(id), "utf8")) as RunInfo, ef = join(RUNS, id + ".exit"), code = existsSync(ef) ? Number(readFileSync(ef, "utf8").trim()) : null;   // the wrapper shell always exits 0: the real code is in the exit file
+    if (r.status === "running") r.status = sig ? "stopped" : code === 0 ? "done" : "failed"; r.exitCode = code; r.endedAt = Date.now(); writeFileSync(metaFile(id), JSON.stringify(r)); });
   return run;
 }
 export function stopRun(id: string): RunInfo {
@@ -115,7 +123,7 @@ export async function caseResult(id: string): Promise<CaseResultOut | null> {
 interface Side { task: string; agents: string[]; fake: boolean; case?: string; suite?: string; createdAt: number }
 const sideFile = (t: string) => join(SESS, t + ".json");
 const readSide = (t: string): Side | undefined => { try { return JSON.parse(readFileSync(sideFile(t), "utf8")); } catch { return undefined; } };
-interface Q { busy: boolean; error: string; queue: { id: string; text: string; t: number; caseId?: string; suite?: string }[] }
+interface Q { busy: boolean; error: string; queue: { id: string; text: string; t: number; caseId?: string; suite?: string; auto?: boolean }[] }
 const queues = new Map<string, Q>();
 const q = (t: string) => queues.get(t) ?? (queues.set(t, { busy: false, error: "", queue: [] }), queues.get(t)!);
 
@@ -129,7 +137,7 @@ export function availableAgents(): AvailableAgent[] {
 }
 
 /** Send a message to a session's master. No task = a new session. The master answers one message at a time; the rest wait in the queue. */
-export function send(b: SendIn): { task: string; queued: boolean } {
+export function send(b: SendIn & { auto?: boolean }): { task: string; queued: boolean } {
   const text = String(b.text ?? "").trim(); if (!text) throw new Error("empty message");
   const names = new Set(availableAgents().map((a) => a.name));
   let task = b.task;
@@ -139,7 +147,7 @@ export function send(b: SendIn): { task: string; queued: boolean } {
     writeFileSync(sideFile(task), JSON.stringify({ task, agents: b.agents.filter((a) => names.has(a)), fake: !!b.fake, case: b.caseId, suite: b.suite, createdAt: Date.now() } satisfies Side));
   } else if (!/^[\w-]+$/.test(task)) throw new Error("bad session id");
   const Qt = q(task), wasBusy = Qt.busy;
-  Qt.queue.push({ id: "q" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), text, t: Date.now(), caseId: b.caseId, suite: b.suite });
+  Qt.queue.push({ id: "q" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), text, t: Date.now(), caseId: b.caseId, suite: b.suite, auto: b.auto });
   void pump(task);
   return { task, queued: wasBusy };
 }
@@ -153,6 +161,7 @@ async function pump(task: string) {
       const args = ["testrun/chat.ts", "--task", task, "--text-file", tf];
       if (side) args.push("--agents", side.agents.length ? side.agents.join(",") : "-");   // "-" = no sub-agents
       if (side?.fake) args.push("--fake");
+      if (m.auto) args.push("--auto");
       if (linked) args.push("--case", linked, "--turn", String(turn), "--suite", side?.suite ?? "");
       Qt.error = await new Promise<string>((res) => {
         let out = ""; const p = spawn("bun", args, { cwd: F1, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
@@ -160,7 +169,6 @@ async function pump(task: string) {
         p.on("error", (e) => res(String(e))); p.on("exit", (code) => res(code === 0 ? "" : out.trim().slice(-400) || `exit ${code}`));
       });
       try { rmSync(tf, { force: true }); } catch { /* best effort */ }
-      void syncLater(task);
     }
   } finally { Qt.busy = false; }
 }
@@ -168,7 +176,7 @@ export function cancelQueued(task: string, id: string) { const Qt = q(task), i =
 export function chat(task: string): ChatOut {
   if (!/^[\w-]+$/.test(task)) throw new Error("bad session id");
   const st = store(), Qt = q(task), side = readSide(task), e = side?.case ? expAll()[side.case] : undefined;
-  const messages = st.notes.filter((n) => n.task_id === task && (n.from === "user" || n.to === "user")).map((n) => ({ id: n.id, from: (n.from === "user" ? "user" : "lead") as "user" | "lead", text: n.text, t: n.t }));
+  const messages = st.notes.filter((n) => n.task_id === task && (n.from === "user" || n.to === "user") && !n.refs.includes("auto_run")).map((n) => ({ id: n.id, from: (n.from === "user" ? "user" : "lead") as "user" | "lead", text: n.text, t: n.t }));
   return { task, messages, queued: Qt.queue.map((m) => ({ id: m.id, text: m.text, t: m.t })), busy: Qt.busy, error: Qt.error, nextTurn: side?.case ? (e && e.task === task ? e.done : 0) : null };
 }
 
@@ -227,7 +235,7 @@ export function deleteSession(task: string) {
   let killed = killTree(all, all.filter((p) => /\bclaude\b/.test(p.args.slice(0, 160)) && sids.some((sid) => p.args.includes(`--session-id ${sid}`) || p.args.includes(`--resume ${sid}`))));
   killed += killTree(all, all.filter((p) => p.args.includes("tools.ts") && callIds.some((c) => p.args.includes(`_run --call ${c}`))));
   let transcripts = 0;
-  try { const root = projectsRoot(); for (const d of readdirSync(root)) for (const sid of sids) { const f = join(root, d, sid + ".jsonl"); if (existsSync(f)) { rmSync(f, { force: true }); transcripts++; } } } catch { /* none */ }
+  for (const dir of claudeDirs()) try { const root = join(dir, "projects"); for (const d of readdirSync(root)) for (const sid of sids) { const f = join(root, d, sid + ".jsonl"); if (existsSync(f)) { rmSync(f, { force: true }); transcripts++; } } } catch { /* none */ }
   rmSync(logDir, { recursive: true, force: true }); rmSync(sideFile(task), { force: true }); queues.delete(task);
   if (perTask) { rmSync(home, { recursive: true, force: true }); try { for (const f of readdirSync(EXP_DIR)) if (readExp(join(EXP_DIR, f)) && (readExp(join(EXP_DIR, f)) as unknown as ExpEntry).task === task) rmSync(join(EXP_DIR, f), { force: true }); } catch { /* none */ } }
   const st0 = perTask ? null : legacyStore();
@@ -240,5 +248,75 @@ export function deleteSession(task: string) {
 /** raw events of one session (for .state/…/events.jsonl) */
 export const sessionEvents = (task: string) => store().events.filter((e) => e.task_id === task).map((e) => ({ t: e.t, kind: e.kind, agent: e.agent_id || undefined, data: e.data }));
 
-/** copy the result into .state (the runner itself is untouched); dynamic import: state2.ts imports this file */
-async function syncLater(task?: string) { try { const m = await import("./state2.ts"); if (task) await m.syncExperimentSession(task); else await m.syncAll(); } catch (e) { console.error("state2 sync failed:", (e as Error).message); } }
+
+/** Details for a click on a card: everything the master/sub-agent has in the store. Read-only. */
+export function agentDetail(task: string, id: string): AgentDetail | { error: string } {
+  const st = store(), a = st.agentsOf(task).find((x) => x.agent_id === id);
+  if (!a) return { error: "no such agent in this session" };
+  const clip = (v: unknown, n = 4000) => String(v ?? "").slice(0, n);
+  const tools = st.events.filter((e) => e.task_id === task && e.agent_id === id && e.kind === "tool.used").slice(-80).map((e) => ({ t: e.t, tool: String((e.data as { tool?: string }).tool ?? ""), text: clip((e.data as { activity?: string }).activity, 1500) }));
+  const briefs = st.calls.filter((c) => c.task_id === task && (c.callee_agent_id === id || c.caller_agent_id === id)).slice(-12).map((c) => { const r = (c.req ?? {}) as Record<string, string>; return { id: c.id, from: c.caller_agent_id ?? null, to: c.callee_agent_id ?? null, role: c.role, status: c.status, objective: clip(r.objective), output: clip(r.output, 600), boundaries: clip(r.boundaries, 600), t: c.t }; });
+  const rep = [...st.reports].reverse().find((r) => r.task_id === task && r.agent_id === id);
+  const proc = taskProcs(task);
+  return { id, name: a.name, status: a.status, activity: a.activity ?? "", session: a.session_id ?? undefined, tools, briefs, answer: clip(rep?.reply ?? rep?.summary ?? a.final_response, 6000), scripts: bgOf(task).scripts, processes: proc };
+}
+
+// ---- the 10-MINUTE CHECK of background scripts: a running script nobody looked at for 10 minutes makes the master look at it (and at its sub-agents), so a stuck or buggy script is found and stopped.
+// A queued message tagged auto_run (hidden in the chat), sent only when the master is idle. Runs while this API is up; a script's own timeout (max 120 min) ends it anyway.
+export function startBgWatch(everyMs = 60_000) {
+  const tick = () => {
+    try {
+      for (const t of readdirSync(STATE_DIR).filter((x) => /^[\w-]+$/.test(x))) {
+        const sd = join(STATE_DIR, t, "store");
+        if (!existsSync(join(sd, "bg")) || readSide(t)?.fake) continue;
+        const due = reviewDue(sd); if (process.env.BG_WATCH_DEBUG) console.error("bgWatch tick", t, "due", due.length, "busy", q(t).busy); if (!due.length || q(t).busy || q(t).queue.length) continue;
+        const mins = (r: (typeof due)[number]) => Math.round((Date.now() - r.started) / 60_000);
+        const text = "[Automatic check, every 10 minutes] Background scripts running for you: " + due.map((r) => `${r.id} (${r.label}, running ${mins(r)} min${r.user_requested ? ", the person asked for it" : ""})`).join("; ") +
+          ". Please: (1) tools.ts bg_list and bg_log for each, and your sub-agents (agents_list / board_status). (2) If something is stuck, looping, failing, or no longer needed, stop it (bg_stop for a script, agent_stop for a sub-agent). Do NOT stop a script the person asked for unless the person asks you to. (3) Answer in two lines: what you checked and what you stopped.";
+        const e = Object.values(expAll()).find((x) => x.task === t);   // a TEST CASE session (testrun/run.ts) is reached with run.ts --say; a session made on the Experiment page with the chat runner
+        if (e) { if (psList().some((p) => p.args.includes(e.case) && !p.args.startsWith("ps "))) continue; spawn("bun", ["testrun/run.ts", e.suite, e.case, "--say=" + text, "--auto"], { cwd: F1, env: process.env, detached: true, stdio: "ignore" }).unref(); }
+        else send({ task: t, auto: true, agents: [], fake: false, text });
+        touchBg(sd, due.map((r) => r.id));   // the check is sent: restart the clock so the master is not asked again at once
+      }
+    } catch (e) { console.error("bgWatch:", (e as Error).message); /* never let the watcher crash the API */ }
+  };
+  const h = setInterval(tick, everyMs); h.unref?.(); return h;
+}
+
+// ---- ONE runner, ONE record: the Flow page reads exactly what testrun/run.ts wrote (f1_exp/<case>.json + .state/<v>/<home>/store). Nothing is copied.
+// A case = its f1_exp entry; its session = <home>/store + <home>/workspace; a chain (`after`) shares ONE home, so each case owns the window from its own first turn to the first turn of the next case in that home.
+const homeOf = (e: ExpEntry) => (e as { home?: string }).home ?? e.task;
+export const f1Home = (id: string): string | undefined => { const e = expAll()[id]; return e ? homeOf(e) : undefined; };
+export const f1WsDir = (id: string) => { const h = f1Home(id); return h ? join(STATE_DIR, h, "workspace") : join(STATE_DIR, "-no-session-", id); };
+export interface F1Turn { actual: string[]; expected: string[]; match: boolean; guard: boolean; notfound: boolean; calls: number; cost: number; reply?: string }
+export interface F1Last { at: string; status: "ran" | "skipped"; verdict?: "pass" | "fail" | "skipped"; title: string; task: string; home: string; warnings: string[]; turns: F1Turn[] }
+export interface F1Snap { last: Map<string, F1Last>; ckpt: Map<string, { sessionId: string; ids: Record<string, string> }>; fixtureOf: Map<string, Record<string, string>>; events: Map<string, { t: number; kind: string; agent?: string; text?: string; fixture?: string | null }[]> }
+let snap: F1Snap = { last: new Map(), ckpt: new Map(), fixtureOf: new Map(), events: new Map() };
+export const f1 = () => snap;
+export async function refreshF1(): Promise<F1Snap> {
+  const all = await loadSuites(), exp = expAll(), k = known(), stores = new Map<string, MStore | undefined>(), n: F1Snap = { last: new Map(), ckpt: new Map(), fixtureOf: new Map(), events: new Map() };
+  const open = (h: string) => { if (!stores.has(h)) { const f = join(STATE_DIR, h, "store", "store.json"); stores.set(h, existsSync(f) ? new MStore(f) : undefined); } return stores.get(h); };
+  for (const c of all) {
+    const e = exp[c.id]; if (!e) continue;
+    const h = homeOf(e), s = open(h); if (!s) continue;
+    const noLead = !!(c as { no_lead?: boolean }).no_lead, status = (e as { status?: string }).status as "pass" | "fail" | "skipped" | undefined;
+    const next = Object.values(exp).filter((o) => homeOf(o) === h && o.case !== e.case && (o.started?.[0] ?? 0) > (e.started?.[0] ?? 0)).sort((a, b) => a.started[0]! - b.started[0]!)[0];   // the case that continues in this home
+    const turns = noLead ? [] : judgeAll(s, c, e);
+    const cost = s.agentsOf(e.task).reduce((x, a) => x + costOf(s, e.task, a.agent_id), 0);   // the whole session so far (a chain shares one session)
+    n.last.set(c.id, { at: new Date(e.at).toISOString(), status: status === "skipped" ? "skipped" : "ran", verdict: status, title: c.title, task: e.task, home: h, warnings: [],
+      turns: turns.map((j, i) => ({ actual: j.calls.map((x) => `${x.kind}:${x.role}`), expected: j.expected.map((x) => `${x.kind}:${x.role}`), match: j.match && !j.gate && !j.reply_problem, guard: j.guard, notfound: false, calls: j.calls.length, cost: i === 0 ? cost : 0, reply: j.reply })) });
+    const endIdx = next?.marks?.[0] ?? Infinity, endT = next?.started?.[0] ?? Infinity, startT = e.started?.[0] ?? 0;
+    const calls = s.calls.filter((x) => x.task_id === e.task).slice(0, endIdx), seen = new Set<string>(), perRole = new Map<string, number>(), ids: Record<string, string> = {}, fx: Record<string, string> = {};
+    for (const x of calls) { const a = x.callee_agent_id && !seen.has(x.callee_agent_id) ? s.agent(e.task, x.callee_agent_id) : undefined; if (!a || a.name === "lead") continue; seen.add(a.agent_id); const i = (perRole.get(a.name) ?? 0) + 1; perRole.set(a.name, i); ids[`${a.name}#${i}`] = a.agent_id; }
+    const callee = new Map(calls.map((x) => [x.id, x.callee_agent_id]));
+    for (const ev of s.events) if (ev.task_id === e.task && ev.kind === "fixture.call" && ev.t < endT) { const d = ev.data as { call?: string; verdict?: string; result?: string }; const who = callee.get(String(d.call)); if (who && d.verdict === "served" && d.result) fx[who] = d.result; }
+    n.ckpt.set(c.id, { sessionId: s.agentsOf(e.task).find((a) => a.name === "lead")?.session_id ?? "", ids });
+    n.fixtureOf.set(c.id, fx);
+    n.events.set(c.id, s.events.filter((ev) => ev.task_id === e.task && ev.t >= startT && ev.t < endT).map((ev) => ({ t: ev.t, kind: ev.kind, agent: ev.agent_id ?? "", text: JSON.stringify(ev.data ?? {}), fixture: ev.kind === "fixture.call" ? String((ev.data as { result?: string })?.result ?? "") || null : null })));
+  }
+  return (snap = n);
+}
+
+export type RunInfoLike = RunInfo;
+export const runsDir = () => RUNS;
+export const caseEntry = (id: string): { at: number; done: number; status?: string; task: string } | undefined => { const e = expAll()[id]; return e ? { at: e.at, done: e.done, status: (e as { status?: string }).status, task: e.task } : undefined; };

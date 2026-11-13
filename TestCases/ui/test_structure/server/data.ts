@@ -3,9 +3,9 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { CASES, FIXTURES, HELPER_AGENTS, ROOT, currentWorkspace } from "@core/paths.ts";
+import { CASES, FIXTURES, HELPER_AGENTS, ROOT } from "@core/paths.ts";
 import { normalizeBranches } from "../../../branch.ts";
-import { readSession, sessionDir, wsPath } from "@core/state2/store.ts";
+import { f1, f1WsDir } from "./experiment.ts";
 export { ROOT };
 const json = <T>(p: string): T | undefined => (existsSync(p) ? (JSON.parse(readFileSync(p, "utf8")) as T) : undefined);
 
@@ -26,14 +26,14 @@ export async function loadSuites() {
   return out;
 }
 
-// Everything the pages read about a run comes from .state/<version>/ (the one place runs are stored).
-const fx = (id: string) => readSession(currentWorkspace(), "fx_" + id);
-export const readLast = (id: string) => json<Last & { title: string }>(join(wsPath(currentWorkspace()), "last", `${id}.json`));
-export const readCkpt = (id: string): Ckpt | undefined => { const m = fx(id)?.session; return m?.master ? { sessionId: m.master.claude_session ?? "", ids: Object.fromEntries(m.agents.map((a) => [a.label, a.agent_id])) } : undefined; };
-export const fixtureOf = (id: string) => Object.fromEntries((fx(id)?.session.agents ?? []).filter((a) => a.fixture).map((a) => [a.agent_id, a.fixture!]));   // sub-session id -> result that answered it
-export const caseEvents = (id: string) => fx(id)?.events ?? [];
-/** the files the agents left after this case: sessions/fx_<case>/workspace in .state */
-export const wsDir = (id: string) => { const s = fx(id)?.session; return s ? join(sessionDir(s.workspace, s.task, s.parent), "workspace") : join(wsPath(currentWorkspace()), "-no-session-", id); };
+// Everything the pages read about a run is what the f1 runner (testrun/run.ts: CLI, Experiment page and Flow page all use it) wrote: f1_exp/<case>.json + .state/<v>/<home>/store. See server/experiment.ts (refreshF1).
+// The snapshot is refreshed by buildModel() at the start of every request that needs it.
+export const readLast = (id: string): (Last & { title: string; verdict?: "pass" | "fail" | "skipped" }) | undefined => f1().last.get(id);
+export const readCkpt = (id: string): Ckpt | undefined => f1().ckpt.get(id);
+export const fixtureOf = (id: string) => f1().fixtureOf.get(id) ?? {};   // sub-session id -> result that answered it
+export const caseEvents = (id: string) => f1().events.get(id) ?? [];
+/** the files the agents left after this case: .state/<v>/<home>/workspace */
+export const wsDir = (id: string) => f1WsDir(id);
 
 export const agentDefs = async () => {
   const dir = HELPER_AGENTS;

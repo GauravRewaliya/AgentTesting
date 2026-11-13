@@ -31,8 +31,15 @@ export function launchDef(def: AgentDef, defs: Map<string, AgentDef>, level: num
   ${toolsCmd} wait --agents <id>,<id> [--timeout 90]     (after --async calls: waits until they finish and returns their answers)
   ${toolsCmd} agents_list
 To ask an agent that already worked on a topic for more, continue it with --session <its agent_id>: it remembers what it did.` : "") : "";
+  const shared = toolsCmd && def.agents.length > 0 && def.allow.some((a) => a === "Bash" || a.includes("tools.ts preview")) ? `\n\n# Shared team tools (every command prints one line of JSON; anyone on the team may use them; scripts run on the host, recorded with status + log)
+  ${toolsCmd} preview --dir <app folder in run_test/>       dev server as a background script -> public_url (give THIS to people), url (localhost)
+  ${toolsCmd} bg_start --cmd "<shell command>" [--dir <folder, default run_test>] [--port] [--timeout <min, default 20, max 120>] [--user-asked]   any background script (keeps running; --port gives {port}/$PORT)
+  ${toolsCmd} bg_list [--all]                                running scripts (--all: finished ones too: succeeded / failed / stopped / interrupted)
+  ${toolsCmd} bg_log --id <id> [--tail 60]                   output of any script, finished or not
+  ${toolsCmd} bg_stop --id <id> | preview_restart --id <id>
+  ${toolsCmd} proc_list | proc_stop --pid <pid>               stray host processes inside this workspace. Stop only what you started or what is clearly stuck; say what you stopped.` : "";
   const file = join(tmpDir, `${def.name}.L${level}.${randomUUID().slice(0, 8)}.md`);   // unique: two launches of one agent can run at once
-  writeFileSync(file, readFileSync(def.prompt_file, "utf8") + (decl ? `\n\n# Sub-agents you may call (roles for --role)\n${decl}\n` : ""));
+  writeFileSync(file, readFileSync(def.prompt_file, "utf8") + (decl ? `\n\n# Sub-agents you may call (roles for --role)\n${decl}\n` : "") + shared);
   return { ...def, allow: t.allow, tools: t.tools, prompt_file: file };
 }
 /** Backend N: the same declarations as a `--agents` file, plus the CLI's own depth walls as a second layer behind agent.call. */

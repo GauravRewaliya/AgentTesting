@@ -30,7 +30,7 @@ export interface CaseOut {
 export interface CardOut { id: string; title: string; suite: string; kind: "chain" | "standalone"; cases: CaseOut[]; parentCard?: string; branchedAt?: string }
 
 export interface LogEvent { t: number; kind: string; id?: string; agent?: string; text?: string; fixture?: string | null; own?: boolean }
-export interface CaseDetail extends CaseOut { leadSessionId: string | null; last: { at: string; warnings?: string[] } | null; events: LogEvent[] }
+export interface CaseDetail extends CaseOut { /** the session folder under .state/<v>/ (store + workspace) */ home: string | null; leadSessionId: string | null; last: { at: string; warnings?: string[] } | null; events: LogEvent[] }
 
 export interface Rule { requires_done?: string[]; contains_all?: string[]; min_chars?: number; forbidden?: boolean }
 export interface AgentInfo { name: string; description: string; role: string; forbidden: boolean; category: string; responses: number; guard: { file: string; rule: Rule }[] }
@@ -41,7 +41,7 @@ export interface TryResult { accepted: boolean; rejections: string[]; reply?: st
 export interface WorkspaceSnap { hasScratch: boolean; original: string[]; current: string[]; removed: string[]; added: string[]; edited: string[] }
 export interface Usage { expectedBy: { caseId: string; suite: string; turn: number }[]; servedIn: { caseId: string; times: number }[]; sharedStore: { store: string; with: string[] }[]; agentCases: string[]; orphan: boolean }
 
-/* ───────── "Run" of the fixture-mock runner (test_harness/core/run.ts; results land in test_harness/.state/<version>, which Flow + Test pages read) ───────── */
+/* ───────── a "Run": the f1 runner (test_harness/.../f1_multiagent/testrun/run.ts), the same command as the CLI and the Experiment page; results: .state/<version>/f1_exp + <session>/store ───────── */
 export type StateRunStatus = "running" | "done" | "failed" | "stopped";
 export interface StateRun {
   id: string; suite: string;
@@ -50,8 +50,8 @@ export interface StateRun {
 }
 export interface StateRunLog { run: StateRun; log: string }
 
-/** One result of a case in a workspace: the current one (`last/<id>.json`) or an archived one (`cache/<id>.<n>/last.json`, made by a rerun). */
-export interface RunSummary { source: "now" | "archived"; n: number; at: string; status: string; ok: boolean; cost: number; turns: number; notes: string[] }
+/** The current result of a case (f1_exp/<case>.json judged against its store). */
+export interface RunSummary { at: string; status: string; ok: boolean; cost: number; turns: number; notes: string[] }
 /** A run that was started from the UI (a "session run"): the trigger, plus its sub tasks = the cases it ran (the missing `after` ancestors first, the case you asked for last). */
-export interface SessionRun extends StateRun { sub: { caseId: string; state: "ok" | "fail" | "not_run" }[] }
-export interface CaseRuns { /** every step "Run" executes for this case, in order */ chain: string[]; workspace: string; current: RunSummary | null; history: RunSummary[]; sessionRuns: SessionRun[] }
+export interface SessionRun extends StateRun { sub: { caseId: string; state: "ok" | "fail" | "skipped" | "not_run" }[] }
+export interface CaseRuns { /** every step "Run" executes for this case, in order */ chain: string[]; /** per step of the chain: did it run in its session, and how it ended */ steps: { caseId: string; state: "ok" | "fail" | "skipped" | "not_run"; /** when it last ran (whoever started it: UI or CLI) */ at?: string }[]; workspace: string; current: RunSummary | null; sessionRuns: SessionRun[] }

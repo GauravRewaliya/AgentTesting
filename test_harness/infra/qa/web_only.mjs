@@ -13,7 +13,16 @@ const aj = path.join(root, "app.json");
 if (fs.existsSync(aj)) { const j = JSON.parse(fs.readFileSync(aj, "utf8")); j.expo ??= {}; j.expo.web = { ...(j.expo.web ?? {}), output: "single" }; // 3. no lazy route chunks: Expo splits each route into an async chunk, and a module shared between chunks can end up bundled twice (two React contexts) or lost: expo-router plugin option asyncRoutes=false
   j.expo.plugins = (j.expo.plugins ?? []).map((p) => { const [name, opts] = Array.isArray(p) ? p : [p, {}]; return name === "expo-router" ? [name, { ...opts, asyncRoutes: false }] : p; });
   fs.writeFileSync(aj, JSON.stringify(j, null, 2)); notes.push("web-only copy: app.json web.output=single, expo-router asyncRoutes=false"); }
-fs.writeFileSync(path.join(root, "__web_stub.js"), 'const C = () => null;\nmodule.exports = new Proxy({}, { get: (_, k) => (k === "__esModule" ? true : C) });\n');
+// The stub of a native-only package is a DEEP no-op: any property is another stub, so `Presets.System.impactMedium()`, `Settings.stopHaptics()` and `usePatternComposer(x).play()` do nothing instead of throwing
+// ("Cannot read properties of undefined (reading 'impactMedium')" = a click handler crashed). Called as a COMPONENT (props passed, name not use*) it renders nothing; a hook (use*) or a call without arguments returns another stub.
+fs.writeFileSync(path.join(root, "__web_stub.js"), `const KEEP = new Set(["prototype", "name", "length", "call", "apply", "bind", "toString"]);
+const mk = (name) => new Proxy(function () {}, {
+  get: (t, k) => (k === "__esModule" ? true : typeof k === "symbol" || k === "then" || k === "$$typeof" || k === "isReactComponent" ? undefined : KEEP.has(k) ? Reflect.get(t, k) : mk(String(k))),
+  apply: (_t, _this, args) => (/^use/.test(name) || args.length === 0 ? mk(name) : null),
+  construct: () => mk(name),
+});
+module.exports = mk("stub");
+`);
 const mc = path.join(root, "metro.config.js"); let base = 'require("expo/metro-config").getDefaultConfig(__dirname)';
 if (fs.existsSync(mc)) { fs.renameSync(mc, path.join(root, "metro.config.orig.js")); base = 'require("./metro.config.orig.js")'; }
 fs.writeFileSync(mc, `const config = ${base};

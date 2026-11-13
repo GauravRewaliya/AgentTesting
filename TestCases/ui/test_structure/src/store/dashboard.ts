@@ -47,7 +47,8 @@ export const heads = computed(() => {
   return state.cards.filter((c) => !c.parentCard).map((c) => ({ card: c, tree: tree(c), cases: tree(c).reduce((n, k) => n + k.cases.length, 0) }));
 });
 export const activeHead = computed(() => (state.head === "__first" ? heads.value.find((h) => h.card.kind === "chain")?.card.id ?? null : state.head));
-export const selectHead = (id: string | null) => (state.head = id);
+/** Picking a head also picks its first node: the Run button and the runs panel then follow that head. "All heads" keeps the current node. */
+export const selectHead = (id: string | null) => { state.head = id; const card = id ? state.cards.find((c) => c.id === id) : null; if (card?.cases.length) state.selectedCaseId = card.cases[0]!.caseId; };
 const inHead = computed(() => new Set(activeHead.value ? heads.value.find((h) => h.card.id === activeHead.value)?.tree.map((c) => c.id) : state.cards.map((c) => c.id)));
 export const visibleCards = computed(() =>
   state.cards.filter((c) => inHead.value.has(c.id)).map((k) => ({ ...k, cases: k.cases.filter(matches) })).filter((k) => k.cases.length),

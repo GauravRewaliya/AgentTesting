@@ -17,7 +17,7 @@ const agentOf = (e: string) => (e.startsWith("session:") ? agentOfLabel(e.slice(
       <div class="head">
         <strong class="ell">{{ row.title.replace(/^\[[^\]]+\]\s*/, "") }}</strong>
         <StatusBadge :status="row.status" />
-        <button class="go" :disabled="isRunning" :title="runsCase(row.caseId) ? 'running…' : 'run all steps of this chain (fixture runner)'" @click.stop="runCase(row.caseId, row.ran)">{{ runsCase(row.caseId) ? "…" : "▶" }}</button>
+        <button class="go" :disabled="isRunning" :title="runsCase(row.caseId) ? 'running…' : 'run all steps of this chain (same runner as the CLI)'" @click.stop="runCase(row.caseId, row.ran)">{{ runsCase(row.caseId) ? "…" : "▶" }}</button>
         <button class="go" title="open test page" @click.stop="open">↗</button>
       </div>
       <div class="meta mono muted ell">

@@ -25,7 +25,7 @@ watchEffect(async () => { try { err.value = ""; s.value = await api.caseDetail(p
             <SessionHeader :s="s" />
             <h3>Stack</h3><SessionStack :s="s" :selected="picked" @select="picked = $event" />
             <h3>Log</h3><EventLog :s="s" :session-id="picked" />
-            <h3>Workspace · run()</h3><WorkspacePanel :key="s.caseId" :case-id="s.caseId" :lead-session-id="s.leadSessionId" />
+            <h3>Workspace · run()</h3><WorkspacePanel :key="s.caseId" :case-id="s.caseId" :lead-session-id="s.leadSessionId" :home="s.home" />
           </template>
           <p v-else class="muted">{{ err || "no result yet: press ▶ Run above" }}</p>
         </div>

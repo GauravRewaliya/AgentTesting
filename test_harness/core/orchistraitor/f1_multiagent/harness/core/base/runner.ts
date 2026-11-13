@@ -8,14 +8,21 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { RunCall, RunResult, Runner } from "./types.ts";
 
-/** Where the CLI keeps a session: ~/.claude/projects/<cwd with every non-alphanumeric char as "-">/<id>.jsonl */
-/** Where the CLI keeps sessions: $HOME first (as the CLI does; os.homedir() would ignore a changed HOME), then the account home. */
-export const projectsRoot = () => join(process.env.HOME || homedir(), ".claude", "projects");
+/** Where the CLI keeps sessions. The CLI follows CLAUDE_CONFIG_DIR (e.g. ~/.claude-personal), else ~/.claude. A run started from a shell with that variable and a run started by the UI server without it use DIFFERENT profiles,
+ *  so a session made by one cannot be resumed by the other ("No conversation found"). `claudeDirs()` lists every profile that may hold sessions; `profileOfSession(id)` finds the one that holds a given session, and a resume is run IN that profile. */
+const homeDir = () => process.env.HOME || homedir();
+export const claudeDirs = (): string[] => [...new Set([process.env.CLAUDE_CONFIG_DIR, join(homeDir(), ".claude"), join(homeDir(), ".claude-personal")].filter((x): x is string => !!x))];
+export const projectsRoot = () => join(process.env.CLAUDE_CONFIG_DIR || join(homeDir(), ".claude"), "projects");   // where NEW sessions of this process go
+export function profileOfSession(id: string): string | undefined {
+  for (const dir of claudeDirs()) { const root = join(dir, "projects"); try { if (readdirSync(root).some((d) => existsSync(join(root, d, id + ".jsonl")))) return dir; } catch { /* no projects folder in this profile */ } }
+  return undefined;
+}
 export function projectDirFor(cwd: string) { return join(projectsRoot(), cwd.replace(/[^a-zA-Z0-9]/g, "-")); }
 export function transcriptFor(cwd: string, id: string) { return join(projectDirFor(cwd), id + ".jsonl"); }
 export const transcriptExistsIn = (cwd: string) => (id: string) => existsSync(transcriptFor(cwd, id));
 /** What the CLI itself does on --resume: look for <id>.jsonl in EVERY project folder (the file stays in the folder where the session was created, however many times it is resumed from elsewhere; probed on 2.1.319). */
-export function transcriptExistsAnywhere(id: string, root = projectsRoot()): boolean {
+export function transcriptExistsAnywhere(id: string, root?: string): boolean {
+  if (!root) return !!profileOfSession(id);   // any profile
   try { return readdirSync(root).some((d) => existsSync(join(root, d, id + ".jsonl"))); } catch { return false; }
 }
 
@@ -48,8 +55,9 @@ export class RealRunner implements Runner {
       ...(c.extraArgs ?? []), ...lspArgs(c),
       "--allowedTools", ...c.agent.allow];
     return new Promise((resolve) => {
+      const resumeId = c.stateless ? undefined : c.session.fork_from ?? (c.session.resume ? c.session.id : undefined), profile = resumeId ? profileOfSession(resumeId) : undefined;   // continue a session IN the profile that holds it
       const p = spawn("claude", args, { cwd: c.cwd, stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", ...lspEnv(c), ...(c.env ?? {}) } });
+        env: { ...process.env, CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", ...(profile ? { CLAUDE_CONFIG_DIR: profile } : {}), ...lspEnv(c), ...(c.env ?? {}) } });
       this.live.add(p); try { setPriority(p.pid!, 10); } catch { /* low priority is best effort */ }
       let out = "", err = "";
       p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));

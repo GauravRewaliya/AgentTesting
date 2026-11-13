@@ -3,7 +3,7 @@ import { overlaps } from "./locks.ts";
 import { HARD_MAX_DEPTH } from "./agent_call.ts";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { projectsRoot, type Store } from "./base.ts";
+import { transcriptExistsAnywhere, type Store } from "./base.ts";
 
 export interface Problem { rule: string; detail: string }
 export function checkRegistry(store: Store, task: string, o: { expectIdle?: boolean } = {}): Problem[] {
@@ -32,9 +32,8 @@ export function checkRegistry(store: Store, task: string, o: { expectIdle?: bool
   return out;
 }
 /** The registry says an agent has a session: its transcript must really be on disk (in any project folder, as the CLI looks). Run it after every message of a real run. */
-export function checkSessionFiles(store: Store, task: string, root = projectsRoot()): Problem[] {
-  let dirs: string[] = []; try { dirs = readdirSync(root); } catch { /* none yet */ }
-  return store.agentsOf(task).filter((a) => a.session_id && (a.runs ?? 0) > 0 && a.status !== "failed" && !dirs.some((d) => existsSync(join(root, d, a.session_id + ".jsonl"))))
+export function checkSessionFiles(store: Store, task: string, root?: string): Problem[] {   // no root = any Claude profile (CLAUDE_CONFIG_DIR, ~/.claude, ~/.claude-personal)
+  return store.agentsOf(task).filter((a) => a.session_id && (a.runs ?? 0) > 0 && a.status !== "failed" && !transcriptExistsAnywhere(a.session_id, root))
     .map((a) => ({ rule: "session_not_on_disk", detail: `${a.agent_id} has session ${a.session_id!.slice(0, 8)} in the registry but no transcript file exists` }));
 }
 /** Record every problem as an invariant.violation (throws on the first one in strict mode). */

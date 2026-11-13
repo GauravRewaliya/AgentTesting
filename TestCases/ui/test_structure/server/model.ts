@@ -5,12 +5,14 @@
 //   sub-session --answered by--> fixture   (.state session agents carry the fixture that answered them)
 //   case --expects--> fixture         (turns[].expected.expected_agents_res; "session:x#n" entries are follow-ups, not fixtures)
 //   fixture --copies--> store path    (TestCases/test_folders/agent_fixture/index.json)
+import { refreshF1 } from "./experiment.ts";
 import { fixtureIndex, fixtureOf, loadSuites, readCkpt, readLast, type RawCase } from "./data.ts";
 import type { CaseProfile, Usage } from "../shared/types.ts";
 
 export type Model = Awaited<ReturnType<typeof buildModel>>;
 
 export async function buildModel() {
+  await refreshF1();   // the f1 records (one runner for CLI, Experiment and Flow)
   const suites = await loadSuites();
   const cases = new Map<string, { raw: RawCase; suite: string; tags: string[] }>();
   for (const s of suites) for (const c of s.cases) cases.set(c.id, { raw: c, suite: s.suite, tags: s.tags });

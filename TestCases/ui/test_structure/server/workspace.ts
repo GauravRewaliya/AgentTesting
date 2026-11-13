@@ -1,4 +1,4 @@
-// "Accidental change" scenarios. The case's saved workspace (.state/…/sessions/fx_<id>/workspace) is NEVER written.
+// "Accidental change" scenarios. The case's saved workspace (.state/<v>/<home>/workspace) is NEVER written.
 // Changes go to a scratch copy in web/.scratch/<id>/; the diff is scratch vs the saved original.
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, normalize } from "node:path";

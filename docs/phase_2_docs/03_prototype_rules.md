@@ -9,3 +9,9 @@ A prototype exists so the user can SEE the layout and the flow before anything r
 - **Follows the flow and features of a reference product, not its pixels.** For reference sites (Instagram, Composio) the agents check the web for the FLOW and the feature set only.
 - **Shown to the user, then feedback.** The planner updates the plan and the prototype from the feedback.
 - The real build starts only after the user is happy.
+
+## Seeing it: live preview vs Claude Artifact
+- **Live preview (our default for a real prototype project):** a Vite/React project in `run_test/<app>`, started by `tools.ts preview` (Docker, link on 127.0.0.1) or the **bg running** badge in the Experiment Run session header (hover). The prototype is real code the FE team keeps building on, so nothing is thrown away. Works for any size and many pages.
+- **Claude Artifact (good for small or medium prototypes and for sharing):** one self-contained page, shareable link, no server. Multi-file artifacts exist (several files published together), so a large prototype can also be published as a STATIC build (`vite build` output) when you want to hand someone a link.
+- Rule of thumb: small prototype, quick look or sharing -> Artifact; many screens or a project that will become the real FE -> project + live preview, then (optional) publish the static build.
+- Debug: the UI's Debug switch (D key) frames every component with its name, so a prototype page can be inspected page by page.
