@@ -9,7 +9,7 @@
 //   - a timeout or killAll() kills the container by name (stopping the docker client alone would leave it running).
 import { spawn, spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
-import { RealRunner } from "./runner.ts";
+import { LSP_PLUGIN_DIR, RealRunner, lspArgs, wantsLsp } from "./runner.ts";
 import type { RunCall, RunResult } from "./types.ts";
 
 export const sandboxable = (c: RunCall) => c.agent.role !== "lead" && c.agent.role !== "pm" && c.agent.agents.length === 0 && !c.agent.allow.some((a) => a.includes("tools.ts"));
@@ -20,7 +20,7 @@ export const COMPOSE_FILE = resolve(import.meta.dir, "../../../../../../infra/do
 export function dockerArgs(c: RunCall, name: string, claudeArgs: string[], uid = `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`): string[] {
   const env = c.env ?? {};
   return ["compose", "-f", COMPOSE_FILE, "run", "--rm", "-T", "--name", name, "--user", uid, ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
-    "-v", `${c.cwd}:${c.cwd}`, "-v", `${dirname(c.agent.prompt_file)}:${dirname(c.agent.prompt_file)}:ro`, "-w", c.cwd, "sandbox", "claude", ...claudeArgs];
+    "-v", `${c.cwd}:${c.cwd}`, "-v", `${dirname(c.agent.prompt_file)}:${dirname(c.agent.prompt_file)}:ro`, ...(wantsLsp(c) ? ["-v", `${LSP_PLUGIN_DIR}:${LSP_PLUGIN_DIR}:ro`, "-e", "ENABLE_LSP_TOOL=1"] : []), "-w", c.cwd, "sandbox", "claude", ...claudeArgs];
 }
 
 export class DockerRunner extends RealRunner {
@@ -31,7 +31,7 @@ export class DockerRunner extends RealRunner {
     const claudeArgs = ["-p", c.prompt, "--output-format", "json", "--model", c.agent.model, "--setting-sources", "", "--strict-mcp-config", "--append-system-prompt-file", c.agent.prompt_file,
       "--tools", c.agent.tools.join(","), "--permission-mode", "dontAsk",
       ...(c.stateless ? ["--no-session-persistence"] : c.session.fork_from ? ["--resume", c.session.fork_from, "--fork-session", "--session-id", c.session.id] : [c.session.resume ? "--resume" : "--session-id", c.session.id]),
-      ...(c.extraArgs ?? []), "--allowedTools", ...c.agent.allow];
+      ...(c.extraArgs ?? []), ...lspArgs(c), "--allowedTools", ...c.agent.allow];
     const name = `claude-${c.agent.name}-${Date.now().toString(36)}`; this.names.add(name);
     return new Promise((resolve) => {
       const p = spawn("docker", dockerArgs(c, name, claudeArgs), { stdio: ["ignore", "pipe", "pipe"] });

@@ -4,7 +4,8 @@ import { setPriority } from "node:os";
 import { acquireSlot, maxProcs } from "./slots.ts";
 import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { RunCall, RunResult, Runner } from "./types.ts";
 
 /** Where the CLI keeps a session: ~/.claude/projects/<cwd with every non-alphanumeric char as "-">/<id>.jsonl */
@@ -17,6 +18,13 @@ export const transcriptExistsIn = (cwd: string) => (id: string) => existsSync(tr
 export function transcriptExistsAnywhere(id: string, root = projectsRoot()): boolean {
   try { return readdirSync(root).some((d) => existsSync(join(root, d, id + ".jsonl"))); } catch { return false; }
 }
+
+/** The LSP tool only exists through a plugin that declares a language server (it is NOT in headless `claude -p` otherwise; tested 2026-11-13).
+ *  An agent whose tools include `LSP` gets our plugin (harness/plugins/ts-lsp) and ENABLE_LSP_TOOL=1. Needs `typescript-language-server` + typescript 5.x on PATH (the sandbox image has them). */
+export const LSP_PLUGIN_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "plugins", "ts-lsp");
+export const wantsLsp = (c: RunCall) => c.agent.tools.includes("LSP");
+export const lspArgs = (c: RunCall): string[] => wantsLsp(c) ? ["--plugin-dir", LSP_PLUGIN_DIR] : [];
+export const lspEnv = (c: RunCall): Record<string, string> => wantsLsp(c) ? { ENABLE_LSP_TOOL: "1" } : {};
 
 export class RealRunner implements Runner {
   calls: RunCall[] = []; protected live = new Set<import("node:child_process").ChildProcess>();
@@ -37,11 +45,11 @@ export class RealRunner implements Runner {
       ...(c.stateless ? ["--no-session-persistence"]
         : c.session.fork_from ? ["--resume", c.session.fork_from, "--fork-session", "--session-id", c.session.id]
         : [c.session.resume ? "--resume" : "--session-id", c.session.id]),
-      ...(c.extraArgs ?? []),
+      ...(c.extraArgs ?? []), ...lspArgs(c),
       "--allowedTools", ...c.agent.allow];
     return new Promise((resolve) => {
       const p = spawn("claude", args, { cwd: c.cwd, stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", ...(c.env ?? {}) } });
+        env: { ...process.env, CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", ...lspEnv(c), ...(c.env ?? {}) } });
       this.live.add(p); try { setPriority(p.pid!, 10); } catch { /* low priority is best effort */ }
       let out = "", err = "";
       p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));

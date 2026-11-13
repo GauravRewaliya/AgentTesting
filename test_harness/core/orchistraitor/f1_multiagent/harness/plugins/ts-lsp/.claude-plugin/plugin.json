@@ -1,0 +1,1 @@
+{ "name": "ts-lsp", "version": "1.0.0", "description": "TypeScript/JavaScript language server for the LSP tool (go to definition, find references, hover, symbols, call hierarchy)", "lspServers": "./.lsp.json" }
