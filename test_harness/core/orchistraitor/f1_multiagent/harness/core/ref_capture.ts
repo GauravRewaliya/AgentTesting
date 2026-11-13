@@ -13,7 +13,7 @@ const strip = (h: string) => h.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?
 const top = (m: Map<string, number>, n: number) => [...m].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${k} (${v})`);
 
 /** CONTACT SHEETS: 4 section pictures side by side in ONE picture (overview-1.png ...), so an agent looks at 3 images instead of 12 (each Read costs time and context; the single section pictures stay for detail). */
-async function contactSheets(pics: string): Promise<number> {
+export async function contactSheets(pics: string): Promise<number> {
   const files = readdirSync(pics).filter((f) => /^desktop-light-section-\d+\.png$/.test(f)).sort(), groups: string[][] = []; for (let i = 0; i < files.length; i += 4) groups.push(files.slice(i, i + 4));
   await par(groups.map((g, k) => async () => {
     const html = join(pics, `_sheet-${k + 1}.html`);
