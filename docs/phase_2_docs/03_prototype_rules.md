@@ -15,3 +15,6 @@ A prototype exists so the user can SEE the layout and the flow before anything r
 - **Claude Artifact (good for small or medium prototypes and for sharing):** one self-contained page, shareable link, no server. Multi-file artifacts exist (several files published together), so a large prototype can also be published as a STATIC build (`vite build` output) when you want to hand someone a link.
 - Rule of thumb: small prototype, quick look or sharing -> Artifact; many screens or a project that will become the real FE -> project + live preview, then (optional) publish the static build.
 - Debug: the UI's Debug switch (D key) frames every component with its name, so a prototype page can be inspected page by page.
+
+## Update 2026-11-13: how prototypes are built now
+The default is a NO-BUILD prototype (Vue 3 from a CDN, plain files) started by `proto_init` (design kit + shell + stubs), filled by parallel builders and checked route by route by `preview`. No Vite project, no planning files first. Details, files and past-vs-now: `../PROTOTYPE_KIT.md`. The Vite + live preview route above is only for the REAL app.

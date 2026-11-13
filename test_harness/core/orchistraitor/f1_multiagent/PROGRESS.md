@@ -18,9 +18,14 @@ Fixture session table (`MStore.fixtureSessions`): `{session_id, task_id, master_
 A verify ask to the same sub-agent (`--session <agent_id>`, what the lead's CLAUDE.md demands for "check with <agent>") reaches the same gate: it is answered by the gate itself (observer), not by a real session.
 
 ## DONE
+- 2026-11-13 PROTOTYPE STARTER KIT (target: a clickable prototype link in 4 minutes). `harness/kits/proto/{kit.css,kit.js}` = corporate design system + app shell (sidebar, header, hash router, toast, `ui-modal`, `ui-drawer`, `ui-badge`, `ui-icon`, `ui-empty`). `tools.ts proto_init --dir run_test/<p> --title .. --nav "A, B, Group>C"` (`core/proto_init.ts`, no model call, ~10 ms) copies the kit and writes a WORKING shell + one stub screen per nav item + `js/screens/<group>.js` + `css/pages-<group>.css` + `proto.json` + `PROTO.md` (contract, class list, example). The lead then forks ONE builder per screens file (`fork_all`, no base builder needed) and builders only write screens. `preview` now opens EVERY route in headless Chrome in parallel (`smokeRoutes`, ~3 s) and reports stubs (TODO), undefined/NaN/[object Object], empty tables, JS errors: the lead hands that list to the owning builder (`preview_gate`, same 3-strikes loop as `qa_check`). `checkPage` skips the ~10 s WebGPU probe unless the page has a canvas (page check 0.8 s). Writers called without `--writes` default to the `run_test/<project>` named in the objective (was: a failed first Write and a second call). `self_test` suite `protokit` (PK1-PK6) + case `real_proto_fast_path`; NP1 updated (the planner may call ux-designer/builder).
 - 2026-11-13 Slow prototype runs (session smwex2xnw: 77 min, $2.4, 25 calls for a clickable admin mockup). Causes found in its log: (1) researcher + planner + ux-designer ran BEFORE any build (~15 min, plus 3 "NOT DECLARED" / Bash-denied round trips); (2) the lead's "ask generator options" rule made a Vite + TS + Pinia + ESLint project (builder#1 wrote 84 files, builder#2 spent 20 min on pnpm release-age); (3) the lock lease was 2 min, a long silent Write expired it and a 4 min retry followed (now 20 min); (4) builders were `delegate`d one after another (not parallel), and a v2 restyle resumed old heavy builders ($0.49 for one call); (5) the lead prompt still said "killed after 10 minutes". Fix: lead PROTOTYPE FAST PATH (builder first, no planner/ux/research first, single `index.html` up to ~6 screens like a Claude artifact, forks only above that, 10 min to the first preview, stop+split a stalled builder), builder SINGLE-FILE mode and an honest tool list (the "node/bun refused by the write guard" claim was wrong), `proto_check` understands inline `<script>`/`<style>` and `app.component(...)`.
 | date | what | where |
 |---|---|---|
+| 2026-11-13 | PROMPTS: stage-planner writes a PLAN.md contract (REQUEST, SCOPE/non-goals, FILES, STEPS, RISKS, ACCEPTANCE, OPEN QUESTIONS, scaled to the request); stage-builder: request wins over the plan, tiny jobs = one check; stage-reviewer: judges against the person's request (asks NEEDS_PARENT if not told), reviews only the change, never lists remove/revert for what was asked, severity per finding. LEAD: scale work to the request (a copy is ONE builder, no pipeline), a reviewer always gets request + follow-ups + what changed + limit, a finding that would undo requested work goes to the person not a builder, read-only agents get no `--writes`. Source: loopferry TASK_RUN_REPORT (a `cp` cost $1.81 and a reviewer made the fixer delete the requested file) | `harness/agents/{lead,stage-*}/.claude/CLAUDE.md` |
+| 2026-11-13 | per-case COST CAP: `Case.max_cost_usd` or env `HARNESS_CASE_CAP_USD` (default $1); a real run over it fails with a `COST CAP` gate (not applied to --fake) | `TestCases/types.ts`, `testrun/run.ts` |
+| 2026-11-13 | `.gitignore`: agent `.claude/CLAUDE.md` + `settings.json` are now trackable (they were silently ignored by `.*/`; vendored `skills/` stay out) | `.gitignore` |
+| 2026-11-13 | LIVE (haiku lead, fixtures): adv_3 PASS $0.0082 (lead carried the request to the reviewer), adv_2 PASS $0.0105, adv_1 PASS $0.033 | `.state/v1/` |
 | 2026-11-12 | `testrun/par.ts`: independent chains of a suite run in parallel (own process, task, store, workspace); `HARNESS_MAX_LEADS` (default 1) lifts the machine-wide lead slot; the case-to-task index is one file per case (`.state/v1/f1_exp/`), no lost updates. Verified with `--fake`: 33 cases in 7 chains, 33 index files, no container left. NOT run live yet | `testrun/par.ts`, `testrun/run.ts`, `harness/core/base/runner.ts` |
 | 2026-11-12 | `Case.qa(req)` declaration and `--video` obeying it; DockerRunner + compose service `sandbox` + image with Claude Code (see docs/SANDBOX.md) | `TestCases/types.ts`, `helper/video.ts`, `docker_runner.ts`, `infra/docker-compose.yml` |
 | 2026-11-12 | extra flag `--video` (external helper `orchistraitor/helper/video.ts`): QA video after a case; web page only, native Expo says so | `testrun/run.ts`, `helper/video.ts` |
@@ -53,7 +58,7 @@ A verify ask to the same sub-agent (`--session <agent_id>`, what the lead's CLAU
 ## BUGS / LOOPHOLES FOUND (status)
 | id | bug | effect | status |
 |---|---|---|---|
-| B-01 | judge is WHO-only: right calls + wrong final answer = PASS ("wrong pass", see `rework.ts` L21-L23 note) | false green | OPEN (TODO T-01) |
+| B-01 | judge is WHO-only: right calls + wrong final answer = PASS ("wrong pass", see `rework.ts` L21-L23 note) | false green | PARTLY FIXED: `reply_must` / `reply_forbid` (word lists, `replyProblem`) exist; only cases that declare them are checked (adv_2 does). Still OPEN: most cases declare none, and adv_1 passes while the lead's reply says the review "did not complete" |
 | B-02 | lead cannot read files, so it can only trust or re-ask a sub-agent; the fixture's own reply may be incomplete (that is the point of rework cases) | lead re-verifies 2x, hesitant final answer | MITIGATED by observer; lead tool still OPEN (T-04) |
 | B-03 | `wait` returns only 600 chars of an answer; anything important at the end of a reply is invisible (`truncated:true`, needs `ledger_get --report`) | evidence cut | FIXED for the gate (observer line first); general rule OPEN: long replies should lead with the verdict |
 | B-04 | verify ask got the canned "ALREADY DONE ... same answer" (no new information) | lead distrust loop | FIXED (observer + disk listing) |
@@ -72,7 +77,7 @@ A verify ask to the same sub-agent (`--session <agent_id>`, what the lead's CLAU
 | B-18 | `match.after` only saw results of the SAME agent; a stage chain needs the planner's result for the builder | FIXED (task-wide) |
 | B-19 | a check question to a second agent of the same role got FIXTURE NOT FOUND | FIXED (history of the role counts) |
 | B-20 | cases said "the fixture is set up in run_test/<dir> for you" but only the sub-agent's run created it; with the new `ls` tool the lead checked, found nothing and called no sub-agent (eg_solarin_01 FAIL, 13 s) | FIXED (runner seeds it); a real PASS follows |
-| B-21 | the runner prints `cost so far=$0.0000` for every real run (the lead's cost is not read) | OPEN, see TODO T-20; real tokens come from the lead's transcript |
+| B-21 | the runner printed `cost so far=$0.0000` for every real run | FIXED: run.ts reads the lead's `total_cost_usd` (+ real sub-agents); verified 2026-11-13 ($0.0082 for adv_3) |
 | B-10 | lead CLAUDE.md: "check with <agent>" must continue the agent; with a fixture agent that returns canned text | encourages repeated asks | MITIGATED by observer |
 
 ## How to make it stronger (ideas, in order of value)
@@ -84,6 +89,8 @@ A verify ask to the same sub-agent (`--session <agent_id>`, what the lead's CLAU
 6. Every run gets its own store/task (fixes B-07 for good).
 
 ## Run log (real, haiku lead only)
+
+- 2026-11-13 `real_proto_fast_path` (8-screen admin mockup, haiku, docker): lead ran `proto_init`, started 2 builders at once, previewed: link at 3 min 10 s, $0.056, 8/8 routes clean (was 77 min, $2.44, 25 calls in smwex2xnw). Details: `docs/PROTOTYPE_KIT.md`.
 | date | case | result | note |
 |---|---|---|---|
 | 2026-11-12 | `eg_tw_rework_notailwind` x6 | 1 PASS (wrong-pass flavour), 3 FAIL (lead over-verified / contaminated store), 2 no-run (Bash denied) | before the observer |

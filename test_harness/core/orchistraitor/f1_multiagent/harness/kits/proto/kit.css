@@ -55,7 +55,7 @@ h1{font-size:24px;line-height:32px;margin:0;font-weight:650;letter-spacing:-.01e
 .card-body{padding:var(--s5)}.card-footer{padding:var(--s3) var(--s5);border-top:1px solid var(--border);background:var(--surface-2);border-radius:0 0 var(--r-lg) var(--r-lg)}
 .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--s4)}
 .grid-2,.grid-3,.grid-4{display:grid;gap:var(--s4)}.grid-2{grid-template-columns:repeat(2,1fr)}.grid-3{grid-template-columns:repeat(3,1fr)}.grid-4{grid-template-columns:repeat(4,1fr)}
-.stat{padding:var(--s5)}.stat .label{color:var(--muted);font-size:13px}.stat .value{font-size:28px;font-weight:650;margin-top:var(--s1);letter-spacing:-.02em}
+.stat{padding:var(--s5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow);text-align:left}.stat .value.num{text-align:left}.stat .label{color:var(--muted);font-size:13px}.stat .value{font-size:28px;font-weight:650;margin-top:var(--s1);letter-spacing:-.02em}
 .stat .delta{font-size:12px;font-weight:600;margin-top:var(--s1)}.delta.up{color:var(--success-text)}.delta.down{color:var(--danger-text)}
 .stack{display:grid;gap:var(--s4)}.row{display:flex;gap:var(--s3);align-items:center;flex-wrap:wrap}.right{margin-left:auto;text-align:right}
 .muted{color:var(--muted)}.mono{font-family:var(--mono);font-size:13px}.num{text-align:right;font-variant-numeric:tabular-nums}.divider{height:1px;background:var(--border);margin:var(--s4) 0}

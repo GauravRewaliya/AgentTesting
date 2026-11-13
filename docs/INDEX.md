@@ -5,6 +5,7 @@
 | `QA_ISSUES.md` | the QA video work: every issue we hit, why, the fix, status; how loopferry does QA and why it is smooth |
 | `SANDBOX.md` | how loopferry isolates its agents (E2B template) and how we do the same locally with Docker and volumes |
 | `PROJECT_MEMORY.md` | commands, tools, plugins and layout of the project (read first) |
+| `PROTOTYPE_KIT.md` | fast prototype flow: `proto_init` starter kit, parallel builders, per-route preview check; past vs now (2026-11-13) |
 | `PHASES.md` | waterfall phase template (task catalog per phase) |
 | `planning/README.md` | what the planning agent persists per project |
 | `../user_read.md` | what loopferry has / we have / is missing, test cases to port, how to run and check |
