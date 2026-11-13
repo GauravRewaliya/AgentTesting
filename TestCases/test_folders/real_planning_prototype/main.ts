@@ -37,6 +37,14 @@ export const cases: Case[] = [
     }],
   },
   {
+    id: "real_proto_fast_path", title: "[real_planning_prototype] clickable admin mockup: proto_init first, parallel builders, NO planner / ux-designer / research / build", ...base,
+    agents: ["planner", "ux-designer", "builder", "researcher", "qa-reviewer"], max_agent_calls: 6,
+    turns: [{
+      user: "Make me a clickable mockup of an admin dashboard for managing API integrations: Overview, Apps, Connected accounts, Logs, Playground, API keys, Members, Settings. Just a prototype to show the flow, nothing to build for real.",
+      expected: { context: "FAST PATH: the lead's FIRST action is `proto_init` (run_test/<project>, a nav with the person's 8 screens grouped into at most 4 files); then builders are started TOGETHER (fork_all, or several --async delegates and ONE wait), each with --writes for its own js/screens/<file>.js and css/pages-<file>.css; then `preview` (it lists unfinished routes; the lead fixes them through the owning builder and previews again). It NEVER calls the planner, the ux-designer or a researcher, never runs pnpm / a build / qa_check, and creates no docs/planning files. The person gets a preview link where every route renders a finished screen (no TODO stub). Whole run within ~10 minutes.", expected_agents_res: [], expected_roles: ["builder"] },
+    }],
+  },
+  {
     id: "real_prototype_feedback", title: "[real_planning_prototype] big job, then the user changes something: same planner updates plan and prototype", ...base,
     max_agent_calls: 10,
     turns: [

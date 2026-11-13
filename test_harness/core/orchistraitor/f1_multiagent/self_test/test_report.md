@@ -1,6 +1,6 @@
 # Test 2: f_1_withmulti_ag (multi-agent on demand)
 
-Generated 2026-11-13T13:27:35.804Z. 174/175 passed.
+Generated 2026-11-13T13:29:14.349Z. 175/175 passed.
 
 Harness under test: `harness/` = the base harness (harness/core/base/) + agent.call, instances, locks, worktrees/patches, board, tools. Real suite NOT run.
 
@@ -158,7 +158,7 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 | session runs: one id to come back to; resume after the processes died (the laptop was closed); NOT RUN YET when written, run with --suite runs | RN7 | a closed run is not resumed by accident (refused with the reason), but can be with --force; an unknown id names the runs that exist | PASS |
 | session runs: one id to come back to; resume after the processes died (the laptop was closed); NOT RUN YET when written, run with --suite runs | RN8 | END TO END: `main.ts resume --run <id>` in a fresh process prints the recovery, restarts the plan's scheduler from the stored settings, and the cut-off task finishes by CONTINUING researcher#1 (same agent, session argument researcher#1, no new agent created) | PASS |
 | session runs: one id to come back to; resume after the processes died (the laptop was closed); NOT RUN YET when written, run with --suite runs | RN9 | the helper commands take the run id: `tree --run <id>` works like `--task`, and `runs` lists every run with its main agent and Claude session id | PASS |
-| stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP1 | who can call whom: only the lead and the builder can call sub-agents; every other agent is a leaf; the call tool is REMOVED at level 4 and for everyone when multi-agent is off (max depth 1); every agent has at least one tool; every declared sub-agent exists | **FAIL** |
+| stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP1 | who can call whom: only the lead, the planner (ux-designer, builder) and the builder can call sub-agents; every other agent is a leaf; the call tool is REMOVED at level 4 and for everyone when multi-agent is off (max depth 1); every agent has at least one tool; every declared sub-agent exists | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP2 | and a caller is TOLD what it may call and what each one can do: the builder's launch text lists the researcher (web access) and the reviewer with their real tools | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP3 | every agent prompt says what to do when stuck (STOP, reply NEEDS_PARENT: with what is needed and what was done, the parent continues you in the same conversation); callers also say how to answer a child; the PM knows plan_answer | PASS |
 | stuck agents ask their parent (NEEDS_PARENT), the parent answers, the same agent continues; who can call whom; the prompts | NP4 | a callee that replies NEEDS_PARENT: is marked 'waiting for its parent': the question is on its row, in the event log, in the call result, and shown in the tree (ASKS ITS PARENT) | PASS |
@@ -181,10 +181,3 @@ Harness under test: `harness/` = the base harness (harness/core/base/) + agent.c
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | CU1 | a lead marked custom can call a role with no folder: without --title it is refused and told to give one; with a title the agent is made, named and titled, read-only; continuing it works; a bad name is refused; a lead not marked custom still gets unknown_role | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | CU2 | a distractor agent (agent.json forbidden) is refused with code forbidden and an event is logged; a custom agent given --writes becomes a writer with write tools | PASS |
 | masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work | MS5 | the lead's prompt carries the rules the real sessions called for: count what the person lists (one agent per item, cover each plausible reading), 'ask <agent>' means continue THAT agent, role value is the exact name, keep internals out of the answer | PASS |
-
-## Failures
-
-### NP1 who can call whom: only the lead and the builder can call sub-agents; every other agent is a leaf; the call tool is REMOVED at level 4 and for everyone when multi-agent is off (max depth 1); every agent has at least one tool; every declared sub-agent exists
-```
-callers=builder,lead,planner
-```
