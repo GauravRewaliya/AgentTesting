@@ -76,6 +76,30 @@ Sizes (before -> after): lead prompt 34 KB -> 21.6 KB static (CLAUDE.md 32 KB ->
 
 ## 3. How a good run looks now (reference numbers)
 - `pp_site` before the fixes: 11.3 min (6.5 min queued), $1.97, audit 77 then a fix round to 98. After: **4.2 min, $1.23, audit 98 on the first pass, no fix round, no queue wait**, judge PASS (run alone; confirmed).
+- `pp_composio` (10 screens, fake data, 3 balanced builders): **3.9 min, $1.46**, judge PASS, no premature stop (before: one builder wrote all 8 screens for 6+ min and the lead gave up). Cost split: builders $0.30 / $0.38 / $0.61, lead $0.17.
+
+### Manual test of the composio result (a real browser, driven by hand, not by the judge)
+| plan "Done when" item | result |
+|---|---|
+| `proto_check` clean, every route loads with 0 console errors | pass: all 10 routes, 0 errors, no TODO / lorem / NaN |
+| page background rgb(252,252,252), primary button rgb(0,0,0) | pass |
+| Settings > Appearance > Dark, reload: still dark | pass (attribute, black background and `localStorage` kept) |
+| Home: "30 days" changes the bars, Connect in step 2 lands on Connected Accounts | pass (7, 14, 30 bars with different heights; `#/connected-accounts`) |
+| Toolkits: "git" filters, first card opens GitHub, "zzz" shows the empty state | pass ("No toolkits match", `#/toolkits/github`) |
+| Playground: GitHub + create issue, Run: response fills, Logs gets a new top row | pass ("200 OK"; Logs top row GITHUB_CREATE_ISSUE) |
+| Logs: Failed shows only failed rows, a row opens detail | pass (3 rows, all Failed; detail panel opens) |
+| forms show `.field-error` | API keys pass; Auth configs showed none on an empty submit (unverified, see X2) |
+
+## 3b. Open points left by the real runs
+| # | point | state |
+|---|---|---|
+| X1 | the lead still reads a chapter (`clone`, `parallel` or `prototype`) on a plan build although its core says none is needed; one wasted tool turn per run | open, small: make the plan README say "no chapter" or drop the chapter hint for RECIPE PLAN |
+| X2 | Auth configs: an empty submit did not show `.field-error` (API keys does); I may have clicked a form with defaults | unverified, check by hand |
+| X3 | Home numbers did not visibly count up when sampled at 100 ms and 1.5 s (not in the "Done when" list; may be a headless timing effect) | unverified |
+| X4 | builder 1 spends about a minute looking at its own result (`browse` + screenshots); it is the critical path but is what gives the first-pass 98 | kept on purpose |
+| X5 | builders still read parts of `site.css` to learn what a class looks like (the kit reference lists names only) | open, optional: one line per class from the CSS comments |
+| X6 | the large splits of `self_test/multi.ts` and `harness/tools.ts`, git-ignoring generated `self_test` outputs, pruning `.state` (608 MB) and `old_data_bkp` (341 MB) | maintenance, your decision |
+
 - Token totals per agent come from the session logs (dedupe by message id); cost per run from `agent.done` events.
 
 ## 4. Where to look
