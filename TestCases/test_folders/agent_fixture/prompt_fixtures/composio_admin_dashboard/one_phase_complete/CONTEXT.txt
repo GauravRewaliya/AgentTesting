@@ -1,0 +1,6 @@
+# Files EVERY builder gets in front of its first prompt (harness: callee.ts sharedContext). Paths are relative to run_test/.
+# Only what is the same for all builders. Each builder's own screens files are named in its objective.
+agentdeck/PROTO.md
+plan/02_ux/theme.md
+plan/02_ux/motion.md
+plan/04_code_flow_proto_contract.md

@@ -15,7 +15,7 @@ export function loadAgents(agentsDir: string): Map<string, AgentDef> {
     const tools = [...new Set(allow.map((a) => a.replace(/\(.*$/, "")))];
     m.set(name, {
       name, role: j.role ?? "", description: j.description ?? "", model: j.model ?? "haiku", session: j.session ?? "persistent",
-      writes: j.writes ?? false, max_children: j.max_children ?? 0, agents: j.agents ?? [], tiers: j.tiers ?? [], session_cap: j.session_cap, timeout_s: j.timeout_s, forbidden: j.forbidden, custom: j.custom, fixtures: j.fixtures,
+      writes: j.writes ?? false, max_children: j.max_children ?? 0, agents: j.agents ?? [], tiers: j.tiers ?? [], session_cap: j.session_cap, timeout_s: j.timeout_s, forbidden: j.forbidden, custom: j.custom, fixtures: j.fixtures, prompts: j.prompts, team_tools: j.team_tools,
       allow, tools, dir, prompt_file: join(dir, ".claude", "CLAUDE.md"),
     });
   }
@@ -29,6 +29,7 @@ export function checkAgents(defs: Map<string, AgentDef>, maxDepth = 4): string[]
     if (!d.role) bad.push(`${d.name}: agent.json has no role`);
     if (!d.description) bad.push(`${d.name}: agent.json has no description`);
     if (!existsSync(d.prompt_file)) bad.push(`${d.name}: .claude/CLAUDE.md is missing`);
+    for (const f of d.prompts ?? []) if (!existsSync(join(d.dir, ".claude", f))) bad.push(`${d.name}: prompts[] names "${f}" which is not in .claude/`);
     if (existsSync(join(d.dir, "prompt.md"))) bad.push(`${d.name}: prompt.md must not exist (the prompt is .claude/CLAUDE.md)`);
     const sub = join(d.dir, ".claude", "agents");
     if (existsSync(sub) && readdirSync(sub).some((f) => f !== ".gitkeep")) bad.push(`${d.name}: .claude/agents must stay empty (declarations are added at run time)`);

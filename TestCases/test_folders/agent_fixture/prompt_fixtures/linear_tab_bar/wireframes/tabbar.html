@@ -1,0 +1,23 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tab bar wireframe</title>
+<style>
+:root{--bg:#fcfcfc;--ink:#111;--mut:#666;--line:#d6d6d6;--acc:#5753c6}
+@media(prefers-color-scheme:dark){:root{--bg:#121212;--ink:#eee;--mut:#9a9a9a;--line:#333;--acc:#b1a9ff}}
+body{margin:0;padding:12px;background:var(--bg);color:var(--ink);font:13px/1.4 system-ui,sans-serif}
+.row{display:flex;gap:12px;flex-wrap:wrap}.state{flex:1 1 150px;min-width:150px}
+h4{margin:0 0 6px;font-size:12px;color:var(--mut)}
+.phone{height:170px;border:1px solid var(--line);border-radius:14px;position:relative;overflow:hidden}
+.bar{position:absolute;left:10px;right:10px;bottom:10px;height:38px;border:1px solid var(--line);border-radius:20px;display:flex;align-items:center;justify-content:space-around;backdrop-filter:blur(6px)}
+.dot{width:20px;height:20px;border-radius:50%;border:1px solid var(--mut)}.on{background:var(--acc);border-color:var(--acc)}
+.search{position:absolute;right:10px;bottom:10px;width:38px;height:38px;border-radius:50%;border:1px solid var(--line)}
+.bar.w{right:56px}.stretch{transform:scaleX(1.06);box-shadow:0 0 12px var(--acc)}
+.menu{position:absolute;left:30px;right:30px;bottom:56px;height:70px;border:1px dashed var(--acc);border-radius:12px;padding:6px;color:var(--acc);font-size:11px}
+.input{position:absolute;left:10px;right:10px;bottom:10px;height:38px;border:1px solid var(--acc);border-radius:20px;padding:10px 14px;color:var(--mut);box-sizing:border-box}
+.note{margin-top:4px;color:var(--mut);font-size:11px}
+</style>
+<div class="row">
+ <div class="state"><h4>1 Idle</h4><div class="phone"><div class="bar w"><i class="dot on"></i><i class="dot"></i><i class="dot"></i></div><div class="search"></div></div><div class="note">B-01 tap a tab: it lights, page changes</div></div>
+ <div class="state"><h4>2 Dragging sideways</h4><div class="phone"><div class="bar w stretch"><i class="dot on"></i><i class="dot"></i><i class="dot on" style="opacity:.4"></i></div><div class="search"></div></div><div class="note">B-02 pill stretches + glows; page changes only on release</div></div>
+ <div class="state"><h4>3 Dragged up &gt; 50px</h4><div class="phone"><div class="menu">Menu opens as you pull</div><div class="bar w stretch"><i class="dot on"></i><i class="dot"></i><i class="dot"></i></div><div class="search"></div></div><div class="note">B-03 menu opens, page unchanged</div></div>
+ <div class="state"><h4>4 Search open</h4><div class="phone"><div class="input">Search…  ✕</div></div><div class="note">B-04 button becomes box, tabs fade; B-05 ✕ closes</div></div>
+</div>

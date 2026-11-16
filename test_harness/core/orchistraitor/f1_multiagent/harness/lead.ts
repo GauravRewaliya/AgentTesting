@@ -15,12 +15,13 @@ export async function runLead(ctx: CallCtx & { store: MStore }, o: { task_id: st
   store.tx(() => ensureRun(store, { task_id: o.task_id, repo: o.repo, config: { maxDepth: o.maxDepth, runner: o.runner, locks: process.env.HARNESS_LOCKS_URL ? "redis" : "store", locks_url: process.env.HARNESS_LOCKS_URL, models: o.models, strict: store.strict, canary: process.env.HARNESS_CANARY === "1", sessionCap: ctx.sessionCap } }));   // the id to come back to
   const row = store.agentsOf(o.task_id).find((a) => a.name === "lead") ?? store.addAgent(o.task_id, def, { level: 1, cwd: o.repo });
   const ld = launchDef(o.agents ? { ...def, agents: o.agents } : def, defs, 1, o.maxDepth, join(tmpdir(), "lf-launch"));
-  const tools = `bun --smol ${join(HDIR, "tools.ts")}`;
+  const tools = "team";   // harness/bin/team = bun tools.ts (on every agent's PATH): short, nothing to alias; the long `bun --smol /path/tools.ts` form stays allowed
   const env = { HARNESS_STORE: store.file!, HARNESS_TASK: o.task_id, HARNESS_AGENT: row.agent_id, HARNESS_CWD: o.repo, HARNESS_MAX_DEPTH: String(o.maxDepth), HARNESS_RUNNER: o.runner, HARNESS_WRITER_MODE: o.writerMode ?? "shared", HARNESS_MODELS: JSON.stringify(o.models ?? {}), HARNESS_MAX_INSTANCES: "12", ...(o.agents ? { HARNESS_LEAD_AGENTS: o.agents.join(",") } : {}) };
   const prompt = (first: boolean) => [`TASK ${o.task_id}${first ? "" : " (continuing)"}`, first ? conversationBlock(store, o.task_id, o.request) : "", first && store.agentsOf(o.task_id).length > 1 ? "THE TEAM RIGHT NOW:\n" + digest(store, o.task_id) : "", `REQUEST FROM THE PERSON:\n${o.request}`,
     ld.allow.some((a) => a.includes("delegate")) ? `COMMANDS (run them with Bash, one per call; each prints one line of JSON):
   ${tools} delegate --role <role> --session new|<agent_id>|fork:<agent_id> --objective "<what>" --output "<format>" --boundaries "<limits>" [--async] [--mode ask] [--writes a,b] [--title "<what this agent is for>"] [--model haiku]
   ${tools} wait --agents <id>,<id> [--timeout 90]     (after --async: waits and returns the answers)
+  ${tools} chapter --name <clone|prototype|qa|preview_bg|parallel|planning|new_project|artifact>   (the details of a recipe: read it ONCE before that recipe's first step)
   ${tools} ledger_get --report <report_id>              (the FULL answer of an agent; use it when wait shows truncated:true)
   ${tools} ls [--path <dir>]                            (READ-ONLY: files in the shared workspace run_test/)
   ${tools} read_file --path <file> [--offset N --limit N]   (READ-ONLY: numbered lines of a file in run_test/)

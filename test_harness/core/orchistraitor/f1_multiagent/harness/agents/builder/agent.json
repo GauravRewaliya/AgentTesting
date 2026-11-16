@@ -15,5 +15,14 @@
   "T3",
   "T4"
  ],
- "timeout_s": 1200
+ "timeout_s": 1200,
+ "prompts": [
+  "CLAUDE.md"
+ ],
+ "team_tools": [
+  "proto_check",
+  "preview",
+  "browse",
+  "ref_assets"
+ ]
 }

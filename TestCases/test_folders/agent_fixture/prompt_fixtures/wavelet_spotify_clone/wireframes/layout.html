@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>:root{--bg:#0f0d1a;--p:#1a1730;--ink:#eee;--mut:#9a95b8;--acc:#8b5cf6}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:12px system-ui;height:100vh;display:grid;grid-template-columns:120px 1fr 150px;grid-template-rows:1fr 54px;gap:6px;padding:6px}
+div{background:var(--p);border-radius:8px;padding:8px}.m{color:var(--mut)}.pl{grid-column:1/4;display:flex;align-items:center;justify-content:space-between}.bar{height:5px;flex:1;margin:0 14px;background:#2d2850;border-radius:3px}.bar i{display:block;width:35%;height:100%;background:var(--acc);border-radius:3px}
+.cov{height:90px;border-radius:6px;background:linear-gradient(135deg,#8b5cf6,#ec4899);margin-bottom:6px}.row{border-bottom:1px solid #2d2850;padding:4px 0}b{cursor:pointer}</style>
+<div><b>Wavelet</b><p class="m">Home<br>Search<br><br>PLAYLISTS<br>Night drive<br>Focus<br>Rain</p></div>
+<div id="main"></div><div><p class="m">NOW PLAYING</p><div class="cov"></div>Song title<br><span class="m">Artist</span></div>
+<div class="pl"><span class="m">cover · title</span><span>shuffle ◀ ▶ ▶▶ repeat</span><span class="bar"><i></i></span><span class="m">volume</span></div>
+<script>const v={'':'<b>Home</b><p class="m">Good evening</p><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px"><div class="cov"></div><div class="cov"></div><div class="cov"></div></div>',search:'<b>Search</b><p class="m">results for "rain"</p><div class="row">song · artist</div><div class="row">song · artist</div><div class="row">song · artist</div>',playlist:'<div class="cov"></div><b>Playlist title</b><div class="row">1 · song · artist · 3:12</div><div class="row">2 · song · artist · 2:48</div><div class="row">3 · song · artist · 4:05</div>'};
+const k=location.hash.slice(1);main.innerHTML=v[k]||v[''];</script>

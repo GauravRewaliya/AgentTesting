@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#fcfcfc;--ink:#111;--mut:#777;--line:#e3e3e3;--acc:#5753c6;--lav:#b1a9ff}
+@media(prefers-color-scheme:dark){:root{--bg:#111;--ink:#eee;--mut:#999;--line:#333;--acc:#b1a9ff}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:12px system-ui;display:grid;grid-template-columns:130px 1fr;height:100vh}
+nav{border-right:1px solid var(--line);padding:8px}nav b{display:block;margin:2px 0 8px}nav a{display:block;padding:3px 6px;border-radius:5px;color:var(--ink);text-decoration:none;cursor:pointer}nav a.on{background:var(--lav);color:#111}
+main{padding:10px;overflow:auto}h4{margin:0 0 6px;font-size:14px}.bar{display:flex;gap:6px;margin-bottom:8px}.bar i{border:1px solid var(--line);border-radius:5px;padding:2px 8px;font-style:normal;color:var(--mut)}.bar u{margin-left:auto;background:#111;color:#fff;border-radius:5px;padding:2px 8px;text-decoration:none}
+.g{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.c{border:1px solid var(--line);border-radius:7px;padding:6px;height:46px;color:var(--mut)}
+.t div{border-bottom:1px solid var(--line);padding:4px 2px;color:var(--mut)}
+</style>
+<nav><b>AgentDeck</b><a data-p="home">Home</a><a data-p="toolkits">Toolkits</a><a data-p="auth-configs">Auth Configs</a><a data-p="connected-accounts">Connected</a><a data-p="triggers">Triggers</a><a data-p="playground">Playground</a><a data-p="logs">Logs</a><a data-p="settings">Settings</a><a data-p="api-keys">API Keys</a><a data-p="docs">Docs</a></nav>
+<main><h4 id="h"></h4><div class="bar" id="bar"></div><div id="b"></div></main>
+<script>
+const R=n=>('<div>row · row · row · badge</div>').repeat(n),grid='<div class="g">'+'<div class="c">app card</div>'.repeat(6)+'</div>',tbl='<div class="t">'+R(6)+'</div>',stats='<div class="g"><div class="c">stat</div><div class="c">stat</div><div class="c">stat</div></div><br>';
+const P={home:['Home',['quickstart'],stats+tbl],toolkits:['Toolkits',['search','category','+ Request'],grid],'auth-configs':['Auth Configs',['search','scheme','+ Create'],tbl],'connected-accounts':['Connected Accounts',['search','status','+ Connect'],tbl],triggers:['Triggers',['search','status','+ Create'],tbl],
+playground:['Playground',['tool','account','Run'],'<div class="g"><div class="c" style="height:120px">pick tool</div><div class="c" style="height:120px">params JSON</div><div class="c" style="height:120px">response</div></div>'],logs:['Logs',['search','status','export'],tbl],
+settings:['Settings',['Profile','Workspace','Members','Appearance'],'<div class="c" style="height:90px">form fields · Save</div>'],'api-keys':['API Keys',['search','env','+ Create key'],tbl],docs:['Docs',['search'],'<div class="g"><div class="c" style="height:120px">sections</div><div class="c" style="height:120px">article</div><div class="c" style="height:120px">on this page</div></div>']};
+function show(k){const [t,bar,body]=P[k]||P.home;h.textContent=t;document.getElementById('bar').innerHTML=bar.map((x,i)=>i==bar.length-1&&/^[+R]|export/.test(x)?'<u>'+x+'</u>':'<i>'+x+'</i>').join('');b.innerHTML=body;document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.dataset.p===k))}
+document.querySelectorAll('nav a').forEach(a=>a.onclick=()=>show(a.dataset.p));show(location.hash.slice(1))
+</script>

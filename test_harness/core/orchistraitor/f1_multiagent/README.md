@@ -1,6 +1,10 @@
 # f1_multiagent
 
-## Whose is what (read this first)
+## Two engines live here (read this first)
+- **Current: the lead engine.** `harness/tools.ts` (the `team <cmd>` commands), `harness/lead.ts`, `core/board`, `core/agent_call`, `core/callee`; agents in `harness/agents/` (lead, builder, lookup, planner ...); run by `testrun/run.ts`. Prompts: `agents/<name>/agent.json` (`prompts`, `team_tools`) and `.claude/CLAUDE.md`; the lead's flows are `agents/lead/chapters/`.
+- **Legacy: the stage loop** (planner > builder > reviewer rounds): `core/base/{loop,stages,checks,briefs}.ts`, `pipelines/default.json`, `harness/main.ts`, the `stage-*` agents. Only `TestCases/test_folders/advance_test` uses it. Do not extend it; move it to `legacy/` when that suite is retired.
+
+## Whose is what
 
 f1_multiagent is its **own** harness. agent_testing only uses it to run the shared cases (`TestCases/test_folders`). So:
 

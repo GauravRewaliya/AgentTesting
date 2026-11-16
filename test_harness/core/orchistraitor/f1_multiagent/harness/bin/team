@@ -1,0 +1,3 @@
+#!/bin/sh
+# on the PATH of every agent: `team <command> ...` = `bun tools.ts <command> ...` (the harness environment variables are already set). ONE short word for the lead and the team: no long path, nothing to alias (a `T=...; $T cmd` form is denied by the permission rules).
+exec bun --smol "$(dirname "$0")/../tools.ts" "$@"

@@ -1,8 +1,8 @@
 // What `launch` builds for one agent (plan sections 19, 20, 21): its tools (the delegate tool is REMOVED at the last level),
 // its run-time sub-agent declarations (from agent.json agents[]; .claude/agents stays empty), and the native-backend equivalents.
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { HARD_MAX_DEPTH } from "./agent_call.ts";
 import type { AgentDef } from "./base.ts";
 
@@ -49,8 +49,11 @@ To ask an agent that already worked on a topic for more, continue it with --sess
   ${toolsCmd} bg_log --id <id> [--tail 60]                   output of any script, finished or not
   ${toolsCmd} bg_stop --id <id> | preview_restart --id <id>
   ${toolsCmd} proc_list | proc_stop --pid <pid>               stray host processes inside this workspace. Stop only what you started or what is clearly stuck; say what you stopped.` : "";
+  try { const cut = Date.now() - 86_400_000; for (const f of readdirSync(tmpDir)) { const p = join(tmpDir, f); if (f.endsWith(".md") && statSync(p).mtimeMs < cut) rmSync(p, { force: true }); } } catch { /* best effort: launch files older than a day are never needed again */ }
+  const sharedOut = filterShared(shared, def.team_tools, toolsCmd);
   const file = join(tmpDir, `${def.name}.L${level}.${randomUUID().slice(0, 8)}.md`);   // unique: two launches of one agent can run at once
-  writeFileSync(file, readFileSync(def.prompt_file, "utf8") + (decl ? `\n\n# Sub-agents you may call (roles for --role)\n${decl}\n` : "") + shared);
+  const base = (def.prompts?.length ? def.prompts : ["CLAUDE.md"]).map((f) => readFileSync(join(dirname(def.prompt_file), f), "utf8").trimEnd()).join("\n\n");   // agent.json "prompts": the static layers, in order
+  writeFileSync(file, base + (decl ? `\n\n# Sub-agents you may call (roles for --role)\n${decl}\n` : "")  + sharedOut);
   return { ...def, allow: t.allow, tools: t.tools, prompt_file: file };
 }
 /** Backend N: the same declarations as a `--agents` file, plus the CLI's own depth walls as a second layer behind agent.call. */
@@ -66,3 +69,11 @@ export const nativeEnv = (agentMaxDepth: number, maxConcurrent = 4) => ({
   CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH: String(Math.max(0, Math.min(agentMaxDepth, HARD_MAX_DEPTH) - 1)),
   CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: String(maxConcurrent),
 });
+
+/** Keep only the shared-tool lines of the commands in `only` (agent.json "team_tools"); no list = everything. A builder does not need the docs of site_build or bg_start in its context on every turn. */
+export function filterShared(block: string, only: string[] | undefined, toolsCmd?: string): string {
+  if (!block || !only || !toolsCmd) return block;
+  const keep = new Set(only), pre = "  " + toolsCmd + " ";
+  const lines = block.split("\n").filter((l) => !l.startsWith(pre) || keep.has(l.slice(pre.length).split(/[\s|]/)[0]!));
+  return lines.some((l) => l.startsWith(pre)) ? lines.join("\n") : "";
+}

@@ -52,7 +52,9 @@ export async function callAgent(ctx: CallCtx, row0: AgentRow, cwd: string, makeP
   });
   if (busy) return { ok: false, error: "agent_busy", mode: "resumed", reply: "", session_id: "", cost: 0, prompt_chars: 0 };
 
-  const r = await ctx.runner.run({ agent: def, row: store.agent(task, id) ?? row0, cwd, prompt, session: sel, ...(extra ?? {}) });
+  const onWait = (slot: string, pid?: number) => { store.tx(() => { const w = store.agent(task, id); if (w && w.status === "running") w.activity = `queued: waiting for a ${slot} slot${pid ? ` (held by pid ${pid})` : ""}`; store.ev("agent.queued", task, id, { slot, held_by_pid: pid }); }); };
+  const onGo = (waited_ms: number) => { store.tx(() => { const w = store.agent(task, id); if (w && w.status === "running") w.activity = `${mode} session`; store.ev("agent.dequeued", task, id, { waited_ms }); }); };
+  const r = await ctx.runner.run({ agent: def, row: store.agent(task, id) ?? row0, cwd, prompt, session: sel, onWait, onGo, ...(extra ?? {}) });
 
   let archived: string | null = null, archiveErr = "";   // a real run must leave a log; keep our own copy of it, and SAY SO if there is none
   if (tExists && store.file) {
@@ -65,7 +67,7 @@ export async function callAgent(ctx: CallCtx, row0: AgentRow, cwd: string, makeP
     else if (archived) { const rw = store.agent(task, id); if (rw) rw.log_file = archived; }
     const row = store.agent(task, id)!;
     row.last_event_at = Date.now();
-    if (row.activity === "stopped" || (row.epoch ?? 0) !== epoch0) { stopped = true; store.ev("agent.stopped", task, id); return; }
+    if (row.activity === "stopped" || (row.epoch ?? 0) !== epoch0) { stopped = true; store.ev("agent.stopped", task, id, { cost: r.cost }); return; }
     row.finished_at = Date.now(); row.runs = (row.runs ?? 0) + 1; row.final_response = r.reply;   // the full final answer, on the agent's row
     if (r.ok) { afterRun(row, sel); row.status = "idle"; row.activity = "done"; } else { row.status = "failed"; row.activity = r.error ?? "failed"; }
     if (r.ok && r.session_id !== sel.id) store.ev("session.id_mismatch", task, id, { wanted: sel.id, got: r.session_id });

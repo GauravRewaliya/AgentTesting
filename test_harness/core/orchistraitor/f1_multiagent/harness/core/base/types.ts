@@ -5,6 +5,8 @@ export type AgentStatus = "idle" | "running" | "stalled" | "failed" | "stale";
 export interface AgentDef {
   name: string; role: string; description: string; model: string; session: "persistent" | "none";
   writes: boolean; max_children: number; agents: string[]; tiers: string[]; session_cap?: number;
+  /** agent.json "prompts": the files (names inside the agent's `.claude/` folder, in order) that make up its STATIC prompt; default ["CLAUDE.md"]. Keep each short (about 200 lines at most) and split by topic: a flow's details can be a `chapters/` file the agent reads on demand instead. The user's own CLAUDE.md and the current plan state (run_test/plan/CONTEXT.txt) are separate layers. */ prompts?: string[];
+  /** agent.json "team_tools": which shared team commands (preview, proto_check, browse ...) are documented in its prompt; default = all. A builder lists only what it uses. */ team_tools?: string[];
   /** A distractor: calling it is a test failure (agent.json "forbidden": true). */ forbidden?: boolean;
   /** agent.json "fixtures": true = test mode: the agent first looks up a RECORDED result for its task (tools.ts fixture lookup) and runs the command it recommends. */ fixtures?: boolean;
   /** This agent may call a role that has no folder: the harness makes a generic sub-agent named and titled as asked (agent.json "custom": true). */ custom?: boolean;
@@ -50,6 +52,6 @@ export interface Pipeline {
   approval?: { after: string; when: string };
 }
 
-export interface RunCall { /** true = a one-shot call: no --session-id / --resume, nothing kept by the CLI (`--no-session-persistence`). The fixture gate uses it for real calls; their memory is the fixture_sessions table. */ stateless?: boolean; agent: AgentDef; row: AgentRow; cwd: string; prompt: string; session: { id: string; resume: boolean; fork_from?: string }; env?: Record<string, string>; extraArgs?: string[] }
+export interface RunCall { /** true = a one-shot call: no --session-id / --resume, nothing kept by the CLI (`--no-session-persistence`). The fixture gate uses it for real calls; their memory is the fixture_sessions table. */ stateless?: boolean; agent: AgentDef; row: AgentRow; cwd: string; prompt: string; session: { id: string; resume: boolean; fork_from?: string }; env?: Record<string, string>; extraArgs?: string[]; /** called once when the call has to WAIT for a machine-wide slot (lead / pm / worker): the caller shows "queued" instead of "running" */ onWait?: (slot: string, heldByPid?: number) => void; /** called when the slot is granted after a wait */ onGo?: (waited_ms: number) => void }
 export interface RunResult { waited_ms?: number; reply: string; session_id: string; cost: number; ok: boolean; error?: string }
 export interface Runner { run(c: RunCall): Promise<RunResult>; killAll?(): void }

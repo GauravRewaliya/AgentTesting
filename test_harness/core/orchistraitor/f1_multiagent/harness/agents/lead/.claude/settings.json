@@ -2,6 +2,8 @@
  "permissions": {
   "allow": [
    "Bash(bun *tools.ts delegate*)",
+   "Bash(bun *tools.ts chapter*)",
+   "Bash(team *)",
    "Bash(bun *tools.ts agents_list*)",
    "Bash(bun *tools.ts agent_update*)",
    "Bash(bun *tools.ts say*)",

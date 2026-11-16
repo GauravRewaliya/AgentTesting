@@ -1,0 +1,11 @@
+# Lead chapter `qa`: QA LOOP for a real web / Expo app: qa_check, hand-overs, qa_give_up
+(You loaded this with `chapter qa`. It adds to your core rules; it does not replace them.)
+
+- A WEB or EXPO APP: before you report it done, run `team qa_check --dir <app folder in run_test/>` (type check + dev server + page errors + log, about a minute, no video). It is the same check the test uses.
+  - If it is NOT ok: the tool has already committed a checkpoint. Delegate the fix to the sub-agent using the `hand_over` text it gives you (the exact errors), then run `qa_check` again. Errors that were already in the code BEFORE this job still count: the app has to pass, so hand them over too. Do not decide on your own that "it is not my agent's error" and report done.
+  - After EVERY fix a sub-agent reports, run `qa_check` again before you judge it. Do not decide by reading the files alone: the check is the proof and it keeps the count.
+  - THE SUB-AGENT CANNOT DO IT: if the same error comes back after a fix, do not send the same hand-over again. Look deeper yourself (`read_file` the file and the code around it, `grep` for the cause, `git log`), then change the approach: name the exact file, line and the change wanted, or a different agent. If a second, more exact attempt fails too, the agent (or the cause in the core of the app) is beyond this team: run `qa_give_up` with the evidence (what you tried, what you saw in the code), not another round of the same words.
+  - A DIFFERENT error after a fix is normal: keep going. The SAME issue 3 times in a row ends the loop by itself and the test is marked failed; after that do not delegate again, give your final answer and say it failed and why.
+  - You are never forced to keep trying: if you judge it cannot be fixed, run `qa_give_up --reason "..."` (the test is then marked failed) and say so honestly.
+  - NEVER END WITH AN OPEN, FAILING CHECK: your last `qa_check` must be healthy, or the loop must be closed (the tool says STOP, or you ran `qa_give_up`). If the check still fails after your fix and you are not going to try again, run `qa_give_up --reason` with the evidence BEFORE you answer; telling the person "it still fails" while the loop stays open is not enough (the test would not be marked failed).
+  - Never report a broken app as done, and never spend video time on it.

@@ -1,0 +1,537 @@
+{
+ "project": "agentdeck",
+ "workdir": "run_test/agentdeck",
+ "statuses": [
+  "todo",
+  "doing",
+  "blocked",
+  "done"
+ ],
+ "rule": "agents may change ONLY status/passes/commit/retries; max retries 2 then blocked + pending.md",
+ "tasks": [
+  {
+   "id": "P1-T00",
+   "phase": 1,
+   "title": "Decide capture source",
+   "owner": "lookup",
+   "files": [
+    "_ref/composio/*"
+   ],
+   "needs": [],
+   "reads": [
+    "00_brief.md#known-vs-invented",
+    "README.md"
+   ],
+   "steps": [
+    "read pending.md Q1",
+    "if user logs in: browser_toggle + ref_capture dashboard routes",
+    "else write 'invent' in decisions.md"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 15,
+   "commit": null,
+   "retries": 0
+  },
+  {
+   "id": "P1-T01",
+   "phase": 1,
+   "title": "Shell + light theme",
+   "owner": "builder-1",
+   "files": [
+    "css/pages-part-1.css"
+   ],
+   "needs": [
+    "P1-T00"
+   ],
+   "reads": [
+    "02_ux/theme.md",
+    "02_ux/motion.md"
+   ],
+   "steps": [
+    "open #/home",
+    "computed page bg is rgb(252,252,252)",
+    "primary button bg is rgb(0,0,0)"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 20,
+   "commit": null,
+   "retries": 0
+  },
+  {
+   "id": "P1-T02",
+   "phase": 1,
+   "title": "Dark theme + toggle",
+   "owner": "builder-3",
+   "files": [
+    "css/pages-part-3.css",
+    "js/screens/part-3.js#Settings"
+   ],
+   "needs": [
+    "P1-T01"
+   ],
+   "reads": [
+    "02_ux/theme.md",
+    "02_ux/screens/settings.md"
+   ],
+   "steps": [
+    "Settings > Appearance > Dark",
+    "reload",
+    "bg is #000 and choice kept"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 20,
+   "commit": null,
+   "retries": 0
+  },
+  {
+   "id": "P1-T03",
+   "phase": 1,
+   "title": "Home screen",
+   "owner": "builder-1",
+   "files": [
+    "js/screens/part-1.js#Home",
+    "css/pages-part-1.css"
+   ],
+   "needs": [
+    "P1-T02"
+   ],
+   "reads": [
+    "02_ux/theme.md",
+    "02_ux/screens/home.md",
+    "README.md#data-model-mock"
+   ],
+   "steps": [
+    "see PHASES.md (phase 1 'Done when') row for this screen or the R4/R5/R7 pattern"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 25,
+   "commit": null,
+   "retries": 0
+  },
+  {
+   "id": "P1-T04",
+   "phase": 1,
+   "title": "Toolkits screen",
+   "owner": "builder-1",
+   "files": [
+    "js/screens/part-1.js#Toolkits",
+    "css/pages-part-1.css"
+   ],
+   "needs": [
+    "P1-T02"
+   ],
+   "reads": [
+    "02_ux/theme.md",
+    "02_ux/screens/toolkits.md",
+    "README.md#data-model-mock"
+   ],
+   "steps": [
+    "see PHASES.md (phase 1 'Done when') row for this screen or the R4/R5/R7 pattern"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 25,
+   "commit": null,
+   "retries": 0
+  },
+  {
+   "id": "P1-T05",
+   "phase": 1,
+   "title": "Auth Configs screen",
+   "owner": "builder-1",
+   "files": [
+    "js/screens/part-1.js#Auth Configs",
+    "css/pages-part-1.css"
+   ],
+   "needs": [
+    "P1-T02"
+   ],
+   "reads": [
+    "02_ux/theme.md",
+    "02_ux/screens/auth-configs.md",
+    "README.md#data-model-mock"
+   ],
+   "steps": [
+    "see PHASES.md (phase 1 'Done when') row for this screen or the R4/R5/R7 pattern"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 25,
+   "commit": null,
+   "retries": 0
+  },
+  {
+   "id": "P1-T06",
+   "phase": 1,
+   "title": "Connected Accounts screen",
+   "owner": "builder-1",
+   "files": [
+    "js/screens/part-1.js#Connected Accounts",
+    "css/pages-part-1.css"
+   ],
+   "needs": [
+    "P1-T02"
+   ],
+   "reads": [
+    "02_ux/theme.md",
+    "02_ux/screens/connected-accounts.md",
+    "README.md#data-model-mock"
+   ],
+   "steps": [
+    "see PHASES.md (phase 1 'Done when') row for this screen or the R4/R5/R7 pattern"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 25,
+   "commit": null,
+   "retries": 0
+  },
+  {
+   "id": "P1-T07",
+   "phase": 1,
+   "title": "Triggers screen",
+   "owner": "builder-2",
+   "files": [
+    "js/screens/part-2.js#Triggers",
+    "css/pages-part-2.css"
+   ],
+   "needs": [
+    "P1-T02"
+   ],
+   "reads": [
+    "02_ux/theme.md",
+    "02_ux/screens/triggers.md",
+    "README.md#data-model-mock"
+   ],
+   "steps": [
+    "see PHASES.md (phase 1 'Done when') row for this screen or the R4/R5/R7 pattern"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 25,
+   "commit": null,
+   "retries": 0
+  },
+  {
+   "id": "P1-T08",
+   "phase": 1,
+   "title": "API Keys screen",
+   "owner": "builder-3",
+   "files": [
+    "js/screens/part-3.js#API Keys",
+    "css/pages-part-3.css"
+   ],
+   "needs": [
+    "P1-T02"
+   ],
+   "reads": [
+    "02_ux/theme.md",
+    "02_ux/screens/api-keys.md",
+    "README.md#data-model-mock"
+   ],
+   "steps": [
+    "see PHASES.md (phase 1 'Done when') row for this screen or the R4/R5/R7 pattern"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 25,
+   "commit": null,
+   "retries": 0
+  },
+  {
+   "id": "P1-T09",
+   "phase": 1,
+   "title": "Docs screen",
+   "owner": "builder-3",
+   "files": [
+    "js/screens/part-3.js#Docs",
+    "css/pages-part-3.css"
+   ],
+   "needs": [
+    "P1-T02"
+   ],
+   "reads": [
+    "02_ux/theme.md",
+    "02_ux/screens/docs.md",
+    "README.md#data-model-mock"
+   ],
+   "steps": [
+    "see PHASES.md (phase 1 'Done when') row for this screen or the R4/R5/R7 pattern"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 25,
+   "commit": null,
+   "retries": 0
+  },
+  {
+   "id": "P1-T10",
+   "phase": 1,
+   "title": "Settings screen (rest)",
+   "owner": "builder-3",
+   "files": [
+    "js/screens/part-3.js#Settings",
+    "css/pages-part-3.css"
+   ],
+   "needs": [
+    "P1-T02"
+   ],
+   "reads": [
+    "02_ux/theme.md",
+    "02_ux/screens/settings.md"
+   ],
+   "steps": [
+    "theme toggle works",
+    "forms validate"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 20,
+   "commit": null,
+   "retries": 0
+  },
+  {
+   "id": "P1-T11",
+   "phase": 1,
+   "title": "Playground",
+   "owner": "builder-2",
+   "files": [
+    "js/screens/part-2.js#Playground",
+    "css/pages-part-2.css"
+   ],
+   "needs": [
+    "P1-T02"
+   ],
+   "reads": [
+    "02_ux/theme.md",
+    "02_ux/screens/playground.md",
+    "README.md#data-model-mock"
+   ],
+   "steps": [
+    "pick GitHub + create issue; Run",
+    "response panel fills",
+    "Logs has a new top row"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 30,
+   "commit": null,
+   "retries": 0
+  },
+  {
+   "id": "P1-T12",
+   "phase": 1,
+   "title": "Logs",
+   "owner": "builder-2",
+   "files": [
+    "js/screens/part-2.js#Logs",
+    "css/pages-part-2.css"
+   ],
+   "needs": [
+    "P1-T02"
+   ],
+   "reads": [
+    "02_ux/theme.md",
+    "02_ux/screens/logs.md",
+    "README.md#data-model-mock"
+   ],
+   "steps": [
+    "filter status=Failed",
+    "click a row",
+    "drawer opens"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 25,
+   "commit": null,
+   "retries": 0
+  },
+  {
+   "owner": "builder-3",
+   "needs": [
+    "P1-T12"
+   ],
+   "reads": [
+    "README.md#data-model-mock"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 30,
+   "commit": null,
+   "retries": 0,
+   "id": "P2-T01",
+   "phase": 2,
+   "title": "SQLite schema + seed (6 tables)",
+   "files": [
+    "server/db.ts"
+   ],
+   "steps": [
+    "see PHASES.md phase 2 'Done when'"
+   ]
+  },
+  {
+   "owner": "builder-3",
+   "needs": [
+    "P2-T01"
+   ],
+   "reads": [
+    "README.md#data-model-mock"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 30,
+   "commit": null,
+   "retries": 0,
+   "id": "P2-T02",
+   "phase": 2,
+   "title": "mock server routes (CRUD)",
+   "files": [
+    "server/routes.ts"
+   ],
+   "steps": [
+    "see PHASES.md phase 2 'Done when'"
+   ]
+  },
+  {
+   "owner": "builder-3",
+   "needs": [
+    "P2-T02"
+   ],
+   "reads": [
+    "README.md#data-model-mock"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 30,
+   "commit": null,
+   "retries": 0,
+   "id": "P2-T03",
+   "phase": 2,
+   "title": "screens use the server instead of in-file data",
+   "files": [
+    "js/screens/*.js"
+   ],
+   "steps": [
+    "see PHASES.md phase 2 'Done when'"
+   ]
+  },
+  {
+   "owner": "builder-3",
+   "needs": [
+    "P2-T02"
+   ],
+   "reads": [
+    "README.md#data-model-mock"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 30,
+   "commit": null,
+   "retries": 0,
+   "id": "P3-T01",
+   "phase": 3,
+   "title": "POST /run stores an execution row",
+   "files": [
+    "server/routes.ts"
+   ],
+   "steps": [
+    "see PHASES.md phase 3 'Done when'"
+   ]
+  },
+  {
+   "owner": "builder-3",
+   "needs": [
+    "P3-T01"
+   ],
+   "reads": [
+    "README.md#data-model-mock"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 30,
+   "commit": null,
+   "retries": 0,
+   "id": "P3-T02",
+   "phase": 3,
+   "title": "Logs reads executions with filters + CSV export",
+   "files": [
+    "js/screens/part-2.js#Logs"
+   ],
+   "steps": [
+    "see PHASES.md phase 3 'Done when'"
+   ]
+  },
+  {
+   "owner": "qa-reviewer",
+   "needs": [
+    "P3-T02"
+   ],
+   "reads": [
+    "README.md#data-model-mock"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 30,
+   "commit": null,
+   "retries": 0,
+   "id": "P3-T03",
+   "phase": 3,
+   "title": "end-to-end: Run, row in Logs, survives restart",
+   "files": [],
+   "steps": [
+    "see PHASES.md phase 3 'Done when'"
+   ]
+  },
+  {
+   "id": "P4-T01",
+   "phase": 4,
+   "title": "Responsive 390px",
+   "owner": "builder-1",
+   "files": [
+    "css/pages-part-N.css",
+    "css/pages-part-N.css"
+   ],
+   "needs": [
+    "P1-T12"
+   ],
+   "reads": [
+    "02_ux/theme.md"
+   ],
+   "steps": [
+    "resize 390px",
+    "open drawer",
+    "no horizontal scroll"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 25,
+   "commit": null,
+   "retries": 0
+  },
+  {
+   "id": "P4-T02",
+   "phase": 4,
+   "title": "Sweep: proto_check, preview, site_audit, ref_compare",
+   "owner": "qa-reviewer",
+   "files": [],
+   "needs": [
+    "P4-T01"
+   ],
+   "reads": [
+    "00_brief.md#done-conditions"
+   ],
+   "steps": [
+    "all four commands clean"
+   ],
+   "status": "todo",
+   "passes": false,
+   "est_min": 20,
+   "commit": null,
+   "retries": 0
+  }
+ ]
+}

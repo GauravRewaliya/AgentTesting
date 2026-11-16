@@ -126,5 +126,6 @@ export function markStalled(store: Store, now: number, stallMs: number): AgentRo
 /** Spend rolls up the tree: an agent's cost plus everything it called. */
 export function costOf(store: Store, task_id: string, agent_id: string): number {
   const ids = new Set([agent_id, ...descendants(store, task_id, agent_id).map((a) => a.agent_id)]);
-  return store.reports.filter((r) => r.task_id === task_id && ids.has(r.agent_id)).reduce((s, r) => s + r.cost, 0);
+  // Source = the `agent.done` / `agent.failed` events (EVERY run writes one, the lead's too). `store.reports` only holds sub-agent answers, so the lead's own cost was missing (UI showed ~$0.3 less than the run log).
+  return store.events.filter((e) => (e.kind === "agent.done" || e.kind === "agent.failed" || e.kind === "agent.stopped") && e.task_id === task_id && ids.has(e.agent_id ?? "")).reduce((s, e) => s + Number((e.data as { cost?: number } | undefined)?.cost ?? 0), 0);
 }

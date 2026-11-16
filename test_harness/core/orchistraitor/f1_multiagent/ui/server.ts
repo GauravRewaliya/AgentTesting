@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { RealRunner, ScriptRunner, callAgent, findArchive, loadAgents, projectsRoot, transcriptExistsAnywhere, type AgentRow } from "../harness/core/base.ts";
 import { MStore, inbox, say } from "../harness/core/board.ts";
 import { SESSION_CAP } from "../harness/core/session_run.ts";
+import { isStatusOnly, statusReply } from "../harness/core/status_reply.ts";
 import { costOf, stopAgent } from "../harness/core/agent_call.ts";
 import { locksFromEnv } from "../harness/core/lockapi.ts";
 import { hookArgs } from "../harness/core/hooks_settings.ts";
@@ -56,6 +57,7 @@ async function pump(task: string) {
       T.since = Date.now();
       try {
         store.reload(); store.tx(() => { const n = say(store, task, "user", "lead", text, [], Infinity); n.t = msg.t; store.save(); });   // the time shown is when the person pressed send, not when the master picked it up   // only now does it enter the conversation; until then it waits in the queue
+        if (isStatusOnly(text)) { store.reload(); store.tx(() => { say(store, task, "lead", "user", statusReply(store, task), [], Infinity); }); continue; }   // a plain "status?" is answered from the board for free (no lead resume, see core/status_reply.ts)
         const out = await runLead(ctx as never, { task_id: task, repo: REPO, request: text, maxDepth: MAX_DEPTH, runner: RUNNER, writerMode: WRITER });
         T.error = out.ok ? "" : String(out.error ?? "the lead failed"); if (!out.ok) problem(task, `the master turn failed: ${T.error}`);
         store.reload(); store.tx(() => { say(store, task, "lead", "user", out.ok ? out.reply : `(the lead could not answer: ${out.error})`, [], Infinity); });

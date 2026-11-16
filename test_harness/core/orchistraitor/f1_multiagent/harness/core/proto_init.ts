@@ -1,7 +1,7 @@
 // `proto_init`: the STARTER of a no-build prototype, made by the harness in milliseconds (no model call): the corporate design kit (kits/proto), the app shell with the sidebar built from the
 // person's screens, one stub screen per nav item, one screens file per group (the unit a parallel builder owns), an empty css/pages-<group>.css each, `proto.json` and a `PROTO.md` contract.
 // Builders then only write SCREENS (js/screens/<file>.js) and their own page css: no tokens, no shell, no router to invent, so a prototype is up in minutes and looks the same everywhere.
-import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export interface NavItem { id: string; label: string; icon?: string; group?: string; file?: string; hidden?: boolean }
@@ -72,6 +72,7 @@ layout \`.page-header .page-actions .toolbar .filter-bar .spacer .stack .row .ri
 Components: \`<ui-badge status="Active">\` (colour from the word), \`<ui-modal title="..." @close="open=false">body<template #footer>buttons</template></ui-modal>\`, \`<ui-drawer ...>\` (same), \`<ui-empty title text><button class="btn">Action</button></ui-empty>\`, \`<ui-icon name="plus">\` (home grid list users key settings chart bell mail play link shield file plus search box code card x check).
 Example table: \`<div class="table-wrap"><table class="table"><thead><tr><th>Name</th><th>Status</th><th class="num">Calls</th></tr></thead><tbody><tr v-for="r in rows" :key="r.id" class="row-link" @click="$go('/apps/'+r.id)"><td>{{ r.name }}</td><td><ui-badge :status="r.status"></ui-badge></td><td class="num">{{ r.calls }}</td></tr></tbody></table></div>\`
 `);
+  appendKitReference(dir);
   written.push("index.html", "proto.json", "PROTO.md");
   return { ok: true, files: written, screens_files: Object.fromEntries(Object.entries(byFile).map(([f, i]) => [`js/screens/${f}.js`, i.map((x) => x.label)])),
     next: `The shell already runs. Now ONE builder per screens file, all at once: fork_all (no --from) with one task per file, writes ["${o.rel ?? dir}/js/screens/<file>.js","${o.rel ?? dir}/css/pages-<file>.css"]; then wait, proto_check, preview. (Up to ~4 screens: ONE builder owning all files is enough.)` };
@@ -133,7 +134,27 @@ The header and footer already link to EVERY page above (the kit builds them from
 Each page = 3-6 \`<section class="section">\` (alternate \`.alt\`), each with \`.section-head\` (\`.eyebrow\`, h2, p) and real content: \`.hero\`, \`.grid-3 > .card.feature\` (\`.ico\` + h3 + p), \`.steps > .step\`, \`.stats > .stat\`, \`.logos > .logos-track\` (marquee, duplicate the items once), \`.grid-3 > .card.plan\` (\`.price\`, \`.checks\`), \`.card.quote\`, \`.faq > details > summary + p\`, \`.cta-band\`, \`.post-grid > a.card.post-card\` (\`.post-thumb-wrap > .post-thumb\`, \`.post-body\` with \`.post-meta\`, \`.post-title\`, \`.post-excerpt\`), \`.prose\` for article text, \`.form\` + \`.input\`. Add \`class="reveal"\` (and \`d1\`..\`d4\` for stagger) to cards and headings so they animate on scroll. Use \`.grad\` on one headline word. Icons: \`<ui-icon name="bolt">\` (arrow bell bolt chart check clock code cloud download file globe heart lock mail moon play search shield star sun users zap layers target).
 Buttons \`.btn .btn-primary .btn-lg .btn-ghost\`, \`.pill\`, \`.chip\`, \`.tag\`, \`.muted\`, \`.center\`, \`.row\`, \`.stack\`, \`.container\`, \`.narrow\`. Mock content is original, believable, specific (never lorem ipsum, never TODO); 4-8 posts with dates, authors, categories.
 `);
+  appendKitReference(dir);
   written.push("index.html", "proto.json", "PROTO.md");
   return { ok: true, files: written, screens_files: Object.fromEntries(Object.entries(byFile).map(([f, i]) => [`js/screens/${f}.js`, i.map((x) => x.label)])),
     next: `The site shell already runs (header, footer, theme, router). Now ONE builder per pages file, ALL AT ONCE: fork_all with one task per file, writes ["${o.rel ?? dir}/js/screens/<file>.js","${o.rel ?? dir}/css/pages-<file>.css"] (the objective names the reference: run_test/_ref/<name>/REF.md and its section pictures); then wait, ref_compare, preview.` };
+}
+
+/** Append a generated KIT REFERENCE to PROTO.md: every CSS class, icon name and helper the kit offers. A builder used to find these with 3-5 grep calls (each one a model turn that re-reads the whole context); now one read of PROTO.md has them. Generated from the real files, so it cannot drift. */
+function appendKitReference(dir: string): void {
+  try {
+    const rd = (f: string) => { try { return readFileSync(join(dir, f), "utf8"); } catch { return ""; } };
+    const css = rd("css/site.css") || rd("css/kit.css"), js = rd("js/site.js") || rd("js/kit.js");
+    const classes = [...new Set([...css.matchAll(/(?:^|[},\s])\.([a-zA-Z][\w-]*)/g)].map((m) => m[1]!))].slice(0, 200);
+    const icons = [...(/ICONS\s*=\s*\{([\s\S]*?)\};/.exec(js)?.[1] ?? "").matchAll(/(?:^|[,{\s])([a-z][\w-]*)\s*:\s*'/g)].map((m) => m[1]!);
+    const helpers = [...new Set([...js.matchAll(/\$(?:go|toast|route|theme|nav)\b/g)].map((m) => m[0]))];
+    const vars = [...new Set([...rd("css/theme.css").matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]!))];
+    if (!classes.length && !icons.length) return;
+    const md = `\n## Kit reference (generated from the real kit files: do NOT grep or read site.css / site.js to find these)\n`
+      + (classes.length ? `- **CSS classes:** ${classes.map((c) => "." + c).join(" ")}\n` : "")
+      + (icons.length ? `- **Icons** (\`<ui-icon name="...">\`): ${icons.join(", ")}\n` : "")
+      + (helpers.length ? `- **Helpers in templates:** ${helpers.join(" ")} (\`$go('/route')\`, \`$toast('text')\`)\n` : "")
+      + (vars.length ? `- **Theme variables** (css/theme.css): ${vars.join(" ")}\n` : "");
+    writeFileSync(join(dir, "PROTO.md"), readFileSync(join(dir, "PROTO.md"), "utf8") + md);
+  } catch { /* the reference is a help, never a failure */ }
 }

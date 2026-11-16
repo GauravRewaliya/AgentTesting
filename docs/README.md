@@ -104,3 +104,6 @@ chains (1 -> 2 -> 3) and branches (1 -> 2B) never re-run earlier steps.
 
 ## Add a case
 Append to `cases` in `test_case/<suite>/main.ts`; add a fixture if the sub-agent needs a recorded answer.
+
+## Catalog of findings
+Issues, causes, fixes and the owner's points from the real runs: `RUN_FINDINGS.md` (index of all docs: `INDEX.md`; open work: `../TestCases/test_folders/TODO.md`).

@@ -1,0 +1,8 @@
+{"project":"creative_templates","tasks":[
+{"id":"T01","phase":1,"title":"3d-scene","owner":"builder-1","files":["3d-scene/**"],"needs":[],"reads":["00_brief.md","3d-scene/README.md"],"steps":["drag orbits","keys 1-5 toggle layers","R resets"],"status":"todo","passes":false},
+{"id":"T02","phase":1,"title":"action-game","owner":"builder-2","files":["action-game/**"],"needs":[],"reads":["00_brief.md"],"steps":["run, jump, dash, 3-hit combo","toggle hit-stop off/on visibly differs"],"status":"todo","passes":false},
+{"id":"T03","phase":1,"title":"grain-synth","owner":"builder-3","files":["grain-synth/**"],"needs":[],"reads":["00_brief.md"],"steps":["Play with demo sample shows grains","upload works"],"status":"todo","passes":false},
+{"id":"T04","phase":1,"title":"juice-sandbox","owner":"builder-4","files":["juice-sandbox/**"],"needs":[],"reads":["00_brief.md"],"steps":["5 sliders change the hit","presets 1-4"],"status":"todo","passes":false},
+{"id":"T05","phase":1,"title":"sound-world","owner":"builder-5","files":["sound-world/**"],"needs":[],"reads":["00_brief.md"],"steps":["Demo beat moves ground/particles/ripples","mic asks permission"],"status":"todo","passes":false},
+{"id":"T06","phase":2,"title":"QA sweep","owner":"qa-reviewer","files":[],"needs":["T01","T02","T03","T04","T05"],"reads":["00_brief.md#done"],"steps":["0 console errors each; every Controls row works"],"status":"todo","passes":false}
+]}

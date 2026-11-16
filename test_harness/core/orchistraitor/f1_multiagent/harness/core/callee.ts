@@ -1,6 +1,8 @@
 // Runs one granted call end to end: the callee's session, its worktree (writers), the patch, the report, the locks, the call row.
 // Everything that touches the shared registry after the model call happens in ONE short transaction.
 import { randomUUID } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { join, sep } from "node:path";
 import { addPatch } from "./patches.ts";
 import { release } from "./locks.ts";
 import { addWorktree, auditWrites, patchOf, removeWorktree } from "./worktree.ts";
@@ -15,6 +17,22 @@ export interface CalleeOut { needs_parent?: string; ok: boolean; reply: string; 
 
 export const callPrompt = (task_id: string, req: Pick<CallReq, "objective" | "output" | "boundaries" | "mode">, first: boolean) =>
   `${first ? `TASK ${task_id}\n` : ""}OBJECTIVE: ${req.objective}\nOUTPUT FORMAT: ${req.output}\nBOUNDARIES: ${req.boundaries}${req.mode === "ask" ? "\nThis is a question only: answer from what you know; do not change anything." : ""}`;
+
+/** SHARED CONTEXT of a plan: `run_test/plan/CONTEXT.txt` lists (one path per line, relative to run_test/, `#` = comment) the files EVERY writer needs (contract, design system, PROTO.md ...). They are put IN FRONT of a writer's first prompt, the same text for every builder, so
+ *  (1) nobody spends tool turns on `cat` of the same files (each turn re-reads the whole context), and (2) the identical prefix is a prompt-cache hit for the 2nd and 3rd builder and for any fresh session. Per-agent things (its brief, its layouts) are NOT listed: the objective names them. Capped at 40 KB. */
+export function sharedContext(cwd: string): string {
+  try {
+    const root = join(cwd, "run_test"), m = join(root, "plan", "CONTEXT.txt");
+    if (!existsSync(m)) return "";
+    let total = 0; const parts: string[] = [];
+    for (const f of readFileSync(m, "utf8").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"))) {
+      const p = join(root, f); if (!p.startsWith(root + sep) || !existsSync(p)) continue;
+      const t = readFileSync(p, "utf8"); if (total + t.length > 40_000) break;
+      total += t.length; parts.push(`=== run_test/${f}\n${t}`);
+    }
+    return parts.length ? `SHARED CONTEXT (already read for you; the same for every builder of this plan. Do NOT open these files again, read only what is not listed here)\n\n${parts.join("\n\n")}\n\n--- end of shared context ---\n\n` : "";
+  } catch { return ""; }
+}
 
 /** Notes other agents left for this one while it was idle: shown once, at the start of its next call, labelled as not from the person. */
 export function notesBlock(store: MStore, task: string, agent: string): string {
@@ -36,7 +54,7 @@ export async function runCallee(ctx: Omit<CallCtx, "store"> & { store: MStore },
   const cwd = wt?.dir ?? o.cwd;
   const sel = res.kind === "fork" ? { id: randomUUID(), resume: false, fork_from: res.forkFrom!.session_id! } : undefined;
   const env = { HARNESS_AGENT: aid, HARNESS_TASK: task, HARNESS_CWD: cwd, ...(o.env ?? {}) };
-  const out = await callAgent(ctx, res.agent, cwd, (first) => callPrompt(task, req, first) + (first ? earlierBlock(store, task, aid) : "") + notesBlock(store, task, aid), sel, { call: res.call_id, intent: res.kind }, { env, extraArgs: o.extraArgs?.(def.dir) });
+  const out = await callAgent(ctx, res.agent, cwd, (first) => (first && isWriter ? sharedContext(o.cwd) : "") + callPrompt(task, req, first) + (first ? earlierBlock(store, task, aid) : "") + notesBlock(store, task, aid), sel, { call: res.call_id, intent: res.kind }, { env, extraArgs: o.extraArgs?.(def.dir) });
 
   let violations: string[] = [], files: string[] = [], patchText = "", base = "";
   if (wt) {   // git work first (local, quick); the registry is touched once, below

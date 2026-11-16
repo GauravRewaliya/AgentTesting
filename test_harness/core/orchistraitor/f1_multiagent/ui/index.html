@@ -184,7 +184,7 @@ function resultHtml(text,noRaw){
     if(j.ok===false)head=`<div class="rs bad">✗ refused or failed: ${esc(j.reason||j.error||"")}</div>`;
     else if(j.queued)head=`<div class="rs">⏳ queued behind ${esc((j.waiting_for||[]).join(", "))} (${esc(j.agent_id)})</div>`;
     else if(j.async)head=`<div class="rs ok">✓ started ${esc(j.agent_id)} in the background</div>`;
-    else if(Array.isArray(j.agents))head=`<div class="rs ${j.timed_out?"bad":"ok"}">${j.timed_out?"⏱ timed out, still running: "+esc((j.still_running||[]).join(", ")):"✓ got answers from "+esc(j.agents.map(a=>a.agent_id+" ("+a.status+")").join(", "))}</div>`;
+    else if(Array.isArray(j.agents))head=`<div class="rs ${j.timed_out?"bad":"ok"}">${j.timed_out?"⏱ timed out, still running: "+esc((j.still_running||[]).map(x=>typeof x==="string"?x:x.agent_id+(x.last_tool_s_ago!=null?" (last tool "+x.last_tool_s_ago+"s ago)":"")).join(", ")):"✓ got answers from "+esc(j.agents.map(a=>a.agent_id+" ("+a.status+")").join(", "))}</div>`;
     else if(j.agent_id&&"summary" in j)head=`<div class="rs ${j.ok?"ok":"bad"}">${j.ok?"✓":"✗"} ${esc(j.agent_id)} answered${j.error?": "+esc(j.error):""}</div>`;
   }
   return head+(noRaw?"":`<details class="res"><summary>result</summary><pre>${esc(text)}</pre></details>`);

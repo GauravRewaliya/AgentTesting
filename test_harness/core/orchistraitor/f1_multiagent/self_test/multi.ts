@@ -12,7 +12,10 @@ import { mkRepo, results, rm, setSuite, t, writeReport } from "./lib.ts";
 import { agentCall, costOf, defaultPolicy, markStalled, stopAgent, type CallReq, type CallRes, type Policy } from "../harness/core/agent_call.ts";
 import { callAgent, checkAgents, RealRunner, ScriptRunner, projectDirFor, transcriptExistsAnywhere, transcriptExistsIn, transcriptFor, type AgentDef, type RunCall } from "../harness/core/base.ts";
 import { MStore, boardStatus, inbox, noteContext, say, sessionStats } from "../harness/core/board.ts";
-import { runCallee } from "../harness/core/callee.ts";
+import { runCallee, sharedContext } from "../harness/core/callee.ts";
+import { isStatusOnly, statusReply } from "../harness/core/status_reply.ts";
+import { matchCalls } from "../testrun/cases.ts";
+import { acquireSlot } from "../harness/core/base/slots.ts";
 import { hookArgs } from "../harness/core/hooks_settings.ts";
 import { declarations, launchDef, launchTools, nativeAgentsJson, nativeEnv } from "../harness/core/launch.ts";
 import { acquire, covers, guardEdit, guardResource, overlaps, reap, release, resourcesFor } from "../harness/core/locks.ts";
@@ -1112,6 +1115,42 @@ async function real() {
 class Store2 extends MStore {}
 
 const SUITES = process.argv.includes("--suite") ? new Set(process.argv[process.argv.indexOf("--suite") + 1]!.split(",")) : null;   // e.g. --suite pm,locks : run only what you changed
+
+async function contextSuite() {
+  setSuite("context: short prompts in layers, shared context, kit reference, free status, queue visibility, judge tolerance");
+  const H = join(import.meta.dirname, "..", "harness");
+  // 1. prompt layers and size caps (Anthropic: concise main file; details on demand)
+  const leadMd = readFileSync(join(H, "agents", "lead", ".claude", "CLAUDE.md"), "utf8"), builderMd = readFileSync(join(H, "agents", "builder", ".claude", "CLAUDE.md"), "utf8");
+  t("CX1", "the lead's CLAUDE.md is a short core (under 200 lines and 9 KB), the builder's under 6 KB; every chapter it names exists", leadMd.split("\n").length < 200 && leadMd.length < 9000 && builderMd.length < 6000
+    && [...leadMd.matchAll(/`(clone|prototype|qa|preview_bg|parallel|planning|new_project|artifact)`/g)].every((m) => existsSync(join(H, "agents", "lead", "chapters", m[1] + ".md"))), `${leadMd.length} / ${builderMd.length} bytes`);
+  t("CX2", "agent.json prompts[] / team_tools[] are honoured: a builder's launch prompt documents only the team tools it lists, and agents:check is clean", (() => {
+    const b = launchDef(defs.get("builder")!, defs, 2, 3, mkdtempSyncSafe(), "team"), txt = readFileSync(b.prompt_file, "utf8");
+    return txt.includes("team proto_check") && txt.includes("team preview") && !txt.includes("team site_build") && !txt.includes("team bg_start") && checkAgents(defs).length === 0;
+  })());
+  // 2. chapter command: a name from the list works, a path trick is neutralised
+  const cwd = mkdtempSyncSafe(); const st0 = new MStore(join(cwd, "store.json")); st0.save();
+  const ch = (name: string) => JSON.parse(spawnSync("bun", ["--smol", join(H, "tools.ts"), "chapter", "--name", name], { env: { ...process.env, HARNESS_STORE: join(cwd, "store.json"), HARNESS_TASK: "t", HARNESS_AGENT: "lead#1", HARNESS_CWD: cwd }, encoding: "utf8" }).stdout);
+  const c1 = ch("clone"), c2 = ch("../../tools");
+  t("CX3", "`chapter --name clone` returns the chapter text; a path-trick name is refused with the list of chapters", c1.ok === true && /site_build/.test(c1.text) && c2.ok === false && Array.isArray(c2.chapters) && c2.chapters.includes("clone"), JSON.stringify(c2).slice(0, 120));
+  // 3. shared context in front of a writer's first prompt: listed files only, inside run_test/, capped
+  const ws = mkdtempSyncSafe(); mkdirSync(join(ws, "run_test", "plan"), { recursive: true }); writeFileSync(join(ws, "run_test", "a.md"), "AAA"); writeFileSync(join(ws, "secret.txt"), "SECRET");
+  writeFileSync(join(ws, "run_test", "plan", "CONTEXT.txt"), "# comment\na.md\nmissing.md\n../secret.txt\n");
+  const sc = sharedContext(ws);
+  t("CX4", "sharedContext inlines the files listed in plan/CONTEXT.txt, skips missing ones and anything outside run_test/, and is empty without a manifest", sc.includes("=== run_test/a.md") && sc.includes("AAA") && !sc.includes("SECRET") && sharedContext(mkdtempSyncSafe()) === "");
+  // 4. generated kit reference in PROTO.md (no grep turns for the builder)
+  const pd = join(mkdtempSyncSafe(), "p"); protoInit(pd, { title: "Demo", nav: parseNav("Home, Blog, Features"), kind: "site" });
+  const proto = readFileSync(join(pd, "PROTO.md"), "utf8");
+  t("CX5", "proto_init appends a Kit reference (classes, icons, helpers) generated from the real kit files", proto.includes("## Kit reference") && /\.btn-primary/.test(proto) && /<ui-icon name/.test(proto) && /\$go/.test(proto));
+  // 5. free status: strict whitelist, answered from the board
+  t("CX6", "a plain status question is answered from the board (no lead resume); longer or mixed messages still go to the lead", isStatusOnly("Status?") && isStatusOnly("what's running?") && !isStatusOnly("status and continue") && !isStatusOnly("continue") && !isStatusOnly("why is the header slow")
+    && /Spent so far/.test(statusReply(new MStore(join(cwd, "store.json")), "t")));
+  // 6. judge: expected_roles = each role at least once; other calls must match exactly
+  t("CX7", "matchCalls: several builders and fix-round resumes satisfy expected_roles [builder]; a missing role or an extra other role does not", matchCalls(["new:builder", "new:builder", "resume:builder"], ["new:builder"], new Set(["builder"])) && !matchCalls([], [], new Set(["builder"])) && !matchCalls(["new:builder", "new:reviewer"], ["new:builder"], new Set(["builder"])));
+  // 7. a call that waits for a slot says so (visible queue) and says when it got it
+  const dir = mkdtempSyncSafe(), rel = await acquireSlot("lead", 1, dir); let told = 0; const p2 = acquireSlot("lead", 1, dir, () => { told++; }); await new Promise((r) => setTimeout(r, 400)); rel(); const rel2 = await p2; rel2();
+  t("CX8", "a call that has to wait for a slot is told once (onWait), so the console shows 'queued' instead of 'running'", told === 1);
+}
+
 const want = (n: string) => !SUITES || SUITES.has(n);
 if (want("core")) await offline();
 if (want("parallel")) await offlineParallel();
@@ -1127,6 +1166,7 @@ if (want("parent")) await parentSuite();
 if (want("slots")) await slotsSuite();
 if (want("protokit")) await protoKitSuite();
 if (want("masters")) await mastersSuite();
+if (want("context")) await contextSuite();
 if (SUITES?.has("lockagents") || (REAL && !SUITES)) await lockAgentsSuite();   // real model: only when asked for
 if (REAL) await real(); else console.log("\n(real suite skipped; add --real)");
 const failed = writeReport(join(import.meta.dirname, "test_report.md"), "Test 2: f_1_withmulti_ag (multi-agent on demand)",

@@ -39,7 +39,7 @@ export function wsRead(root: string, rel: string, offset = 1, limit = MAX_LINES)
   return { ok: true, path: rel, total_lines: lines.length, from, to: Math.min(lines.length, from + n - 1), text: lines.slice(from - 1, from - 1 + n).map((l, i) => `${String(from + i).padStart(5)}  ${l}`).join("\n") };
 }
 export function wsGrep(root: string, pattern: string, rel = ".") {
-  let re: RegExp; try { re = new RegExp(pattern, "i"); } catch (e) { return { ok: false, reason: `bad regex: ${String(e).slice(0, 80)}` }; }
+  let re: RegExp; try { re = new RegExp(pattern.replace(/^\(\?i\)/, ""), "i"); }   /* always case-insensitive; models write the PCRE prefix (?i), JS rejects it: it cost a turn */ catch (e) { return { ok: false, reason: `bad regex: ${String(e).slice(0, 80)}` }; }
   const j = jail(root, rel); if ("error" in j) return { ok: false, reason: j.error };
   const base = realpathSync(root), files = lstatSync(j.abs).isDirectory() ? walk(base, j.abs) : [relative(base, j.abs)], hits: string[] = [];
   for (const f of files.sort()) {
