@@ -1,5 +1,0 @@
-# Files EVERY builder gets in front of its first prompt (harness: callee.ts sharedContext). Paths are relative to run_test/.
-# Only what is the same for all builders. Each builder's own brief and layouts are named in its objective.
-pingharbor/PROTO.md
-plan/build_inputs/00_contract.md
-plan/build_inputs/01_design_system.md

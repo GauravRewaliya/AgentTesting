@@ -69,6 +69,8 @@ Bun.serve({
       if (p === "/experiment/live") return send(exp.live());
       if (p === "/experiment/session/delete" && m === "POST") return send(exp.deleteSession(((await req.json()) as { task: string }).task));
       if ((r = p.match(/^\/experiment\/agent\/([\w.-]+)\/([^/]+)$/))) return send(exp.agentDetail(r[1]!, decodeURIComponent(r[2]!)));
+      if ((r = p.match(/^\/experiment\/transcript\/([\w-]+)\/([^/]+)$/))) return send(exp.transcript(r[1]!, decodeURIComponent(r[2]!)));
+      if (p === "/experiment/agent/talk" && m === "POST") return send(exp.talkToAgent((await req.json()) as never));
       if (p === "/experiment/agents") return send(exp.availableAgents());
       if (p === "/experiment/send" && m === "POST") return send(exp.send((await req.json()) as never));
       if (p === "/experiment/session/stop" && m === "POST") return send(await exp.stopSession(((await req.json()) as { task: string }).task));

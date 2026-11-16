@@ -1,0 +1,74 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Plan viewer</title>
+<style>
+:root{--bg:#fcfcfc;--panel:#f6f6f6;--ink:#111;--mut:#666;--line:#e3e3e3;--acc:#5753c6;--dev:#fff6e5}
+@media(prefers-color-scheme:dark){:root{--bg:#111;--panel:#1b1b1b;--ink:#eee;--mut:#9a9a9a;--line:#2e2e2e;--acc:#b1a9ff;--dev:#2a2415}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,sans-serif}
+#app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+nav{background:var(--panel);border-right:1px solid var(--line);padding:12px;position:sticky;top:0;height:100vh;overflow:auto}
+nav h3{font-size:12px;text-transform:uppercase;color:var(--mut);margin:14px 0 4px}nav a{display:block;padding:3px 6px;border-radius:5px;color:var(--ink);text-decoration:none;font-size:13px}
+nav a.on{background:var(--acc);color:#fff}
+nav h3{cursor:pointer;margin:8px 0 2px;padding:4px 6px;border-radius:5px;font-size:13px;text-transform:none;color:var(--ink)}nav h3:hover{background:var(--line)}nav h3.on{color:var(--acc)}.ar{display:inline-block;width:12px;color:var(--mut)}.ps{display:block;margin-left:14px;font-size:10px;font-weight:400;color:var(--mut)}.toc{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;padding:8px 12px;margin:0 0 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}.toc b{color:var(--mut);font-weight:600}.toc a{color:var(--acc);text-decoration:none}.toc a:hover{text-decoration:underline}.dir{font-size:11px;text-transform:uppercase;color:var(--mut);margin-top:6px}
+main{padding:20px 28px;max-width:960px}header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:8px}
+button{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:5px 12px;border-radius:6px;cursor:pointer}a.x,.st{}.st{background:var(--acc);color:#fff;border-radius:9px;padding:1px 8px;font-size:11px;margin-left:6px}.toast{position:fixed;bottom:16px;right:16px;background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px}button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13px;display:block;overflow-x:auto}th,td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}th{background:var(--panel)}
+code{background:var(--panel);padding:1px 4px;border-radius:4px;font-size:.9em}pre{background:var(--panel);padding:10px;border-radius:6px;overflow:auto}
+blockquote{margin:8px 0;padding:4px 12px;border-left:3px solid var(--acc);color:var(--mut)}
+iframe.wf{width:100%;height:290px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.dev{display:none;background:var(--dev);border:1px dashed var(--mut);border-radius:6px;padding:4px 12px;margin:10px 0}.dev::before{content:"DEV";font-size:11px;color:var(--mut);font-weight:700}
+.showdev .dev{display:block}.mermaid{background:var(--panel);padding:8px;border-radius:6px;text-align:center}
+@media(max-width:700px){#app{grid-template-columns:1fr}nav{position:static;height:auto}}
+</style></head><body>
+<div id="app" :class="{showdev:dev}">
+ <nav><b>Plan viewer</b>
+  <template v-for="p in plans" :key="p.title"><h3 :class="{on:isIn(p)}" @click="pick(p)"><span class="ar">{{opened[p.title]?'▾':'▸'}}</span> {{p.title}}<small v-if="p.status" class="ps">{{p.status}}</small></h3>
+   <div v-if="opened[p.title]" class="tree"><template v-for="r in rows(p)" :key="r.key">
+    <div v-if="r.dir" class="dir" :style="{paddingLeft:(r.depth*12+6)+'px'}">{{r.label}}</div>
+    <a v-else href="#" :class="{on:cur===r.path}" :style="{paddingLeft:(r.depth*12+6)+'px'}" @click.prevent="open(r.path)">{{r.label}}</a></template></div></template></nav>
+ <main><header><span style="color:var(--mut);font-size:12px">docs/{{cur}} <b v-if="meta.status" class="st">{{meta.status}}</b></span>
+  <span><button @click="copy(location.href,'Link copied')">Copy link</button> <button @click="copy(ask(),'Copied: paste it to Claude and add your wish')">Ask Claude</button> <button :class="{on:!dev}" @click="dev=false">User</button> <button :class="{on:dev}" @click="dev=true">Dev</button></span></header>
+  <div class="toc" v-if="toc.length"><b>On this page</b><a v-for="t in toc" v-show="!t.dev||dev" :key="t.id" href="#" @click.prevent="jump(t.id)">{{t.t}}</a></div>
+  <article id="doc" v-html="html"></article></main><div v-if="msg" class="toast">{{msg}}</div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.0/mermaid.min.js"></script>
+<script>
+// Static, no build. Serve the docs/ folder (cd docs && python3 -m http.server 8800) and open /dev_exp/plan_viewer/
+const ROOT=new URL('../../',location.href); // docs/
+const dark=matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({startOnLoad:false,theme:dark?'dark':'default',securityLevel:'strict'});
+function pre(md){ // front matter off, dev fences -> .dev blocks (blank lines keep markdown inside)
+  md=md.replace(/^---\n[\s\S]*?\n---\n/,'');
+  return md.replace(/<!--\s*dev\s*-->/g,'\n<div class="dev">\n\n').replace(/<!--\s*\/dev\s*-->/g,'\n\n</div>\n');
+}
+Vue.createApp({
+ data(){let d=false;try{d=localStorage.getItem('pv_dev')==='1'}catch(e){}return{plans:[],cur:'',html:'',dev:d,opened:{},meta:{},msg:'',toc:[]}},
+ watch:{dev(v){try{localStorage.setItem('pv_dev',v?'1':'0')}catch(e){}}},
+ async mounted(){
+  this.plans=(await (await fetch('plans.json')).json()).plans;
+  addEventListener('hashchange',()=>this.load(decodeURIComponent(location.hash.slice(1))));
+  const h=decodeURIComponent(location.hash.slice(1)),first=this.plans[0].base+this.plans[0].pages[0];
+  this.load(h||first);
+ },
+ methods:{
+  copy(t,m){try{navigator.clipboard.writeText(t)}catch(e){}this.msg=m;setTimeout(()=>this.msg='',2500)},
+  jump(id){const t=document.getElementById(id);if(t)t.scrollIntoView({behavior:'smooth',block:'start'})},
+  ask(){return 'Update docs/'+this.cur+' ('+location.href+'): '},
+  isIn(p){return this.cur.startsWith(p.base)&&!this.plans.some(o=>o!==p&&o.base.length>p.base.length&&this.cur.startsWith(o.base))},   // the longest base wins (Method plan sits at the parent folder)
+  pick(p){this.opened[p.title]=!this.opened[p.title]||!this.isIn(p); if(this.opened[p.title]&&!this.isIn(p))this.open(p.base+p.pages[0])},
+  rows(p){const out=[],seen=new Set();for(const pg of p.pages){const parts=pg.split('/');parts.slice(0,-1).forEach((d,i)=>{const k=parts.slice(0,i+1).join('/');if(!seen.has(k)){seen.add(k);out.push({key:'d'+k,dir:1,label:d,depth:i+1})}});out.push({key:pg,path:p.base+pg,label:parts[parts.length-1],depth:parts.length-1})}return out},
+  open(p){location.hash=encodeURIComponent(p)},
+  async load(path){
+   this.cur=path; const own=this.plans.filter(p=>this.isIn(p))[0]; if(own)this.opened[own.title]=true; const url=new URL(path,ROOT); const dir=new URL('./',url);
+   const r=await fetch(url); if(!r.ok){this.html='<p>Not found: '+path+'</p>';return}
+   const raw=await r.text(),fm=raw.match(/^---\n([\s\S]*?)\n---\n/);this.meta={};if(fm)fm[1].split('\n').forEach(l=>{const i=l.indexOf(':');if(i>0)this.meta[l.slice(0,i).trim()]=l.slice(i+1).trim()});
+   this.html=marked.parse(pre(raw),{gfm:true});
+   await this.$nextTick(); const doc=document.getElementById('doc');
+   doc.querySelectorAll('pre code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.parentElement.replaceWith(d)});
+   doc.querySelectorAll('img').forEach(i=>{const s=i.getAttribute('src');if(/\.html(#.*)?$/.test(s)){const f=document.createElement('iframe');f.className='wf';f.setAttribute('sandbox','allow-scripts');f.src=new URL(s,dir);i.replaceWith(f)}else i.src=new URL(s,dir)});
+   doc.querySelectorAll('a[href]').forEach(a=>{const h=a.getAttribute('href');if(/^#[\w-]+$/.test(h)){a.onclick=e=>{e.preventDefault();const t=document.getElementById(h.slice(1));if(t)t.scrollIntoView({behavior:'smooth'})};return}if(/^(https?:|#|mailto:)/.test(h)||!/\.md(#.*)?$/.test(h)){if(/^https?:/.test(h))a.target='_blank';return}const t=new URL(h.replace(/#.*$/,''),url).href.replace(ROOT.href,'');a.href='#'+encodeURIComponent(t)});
+   doc.querySelectorAll('h2').forEach((h,i)=>{h.id='h-'+i});this.toc=[...doc.querySelectorAll('h2')].map(h=>({id:h.id,t:h.textContent,dev:!!h.closest('.dev')}));
+   try{await mermaid.run({nodes:doc.querySelectorAll('.mermaid')})}catch(e){console.warn('mermaid',e)}
+  }}
+}).mount('#app');
+</script></body></html>

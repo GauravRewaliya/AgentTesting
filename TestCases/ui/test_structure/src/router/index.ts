@@ -2,6 +2,8 @@ import { createRouter, createWebHistory } from "vue-router";
 import FlowPage from "@/pages/FlowPage.vue";
 import SubAgentsPage from "@/pages/SubAgentsPage.vue";
 import ExperimentPage from "@/pages/ExperimentPage.vue";
+import AgentPage from "@/pages/AgentPage.vue";
+import AgentConversationPageDeprecated from "@/pages/AgentConversationPageDeprecated.vue";
 import BrowserPage from "@/pages/BrowserPage.vue";
 import TestDetailPage from "@/pages/TestDetailPage.vue";
 
@@ -11,6 +13,8 @@ export const router = createRouter({
     { path: "/", name: "flow", component: FlowPage },
     { path: "/subagents", name: "subagents", component: SubAgentsPage },
     { path: "/experiment", name: "experiment", component: ExperimentPage },
+    { path: "/experiment/agent", name: "agent", component: AgentPage },   // ?session=<master session>&agent=<agent id>: same three panels as the master
+    { path: "/experiment/agent-old", name: "agent-old", component: AgentConversationPageDeprecated },   // DEPRECATED
     { path: "/browser", name: "browser", component: BrowserPage },
     { path: "/test/:caseId", name: "test", component: TestDetailPage, props: true },
   ],

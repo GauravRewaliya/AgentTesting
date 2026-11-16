@@ -1,6 +1,6 @@
 // The only file that talks to the server. Vite proxies /api to the Bun server (vite.config.ts).
 import type { AgentInfo, CardOut, CaseDetail, CaseResult, CaseRuns, Health, ResponseRow, SessionRun, StateRun, StateRunLog, TryResult, Usage, WorkspaceSnap } from "@/types";
-import type { AvailableAgent, ChatOut, SendIn, AgentDetail, CaseResultOut, ExperimentOverview, LiveSession, RunInfo, RunLog } from "../../shared/experiment";
+import type { TalkIn, Transcript, AvailableAgent, ChatOut, SendIn, AgentDetail, CaseResultOut, ExperimentOverview, LiveSession, RunInfo, RunLog } from "../../shared/experiment";
 
 async function call<T>(path: string, body?: unknown): Promise<T> {
   const r = await fetch(`/api${path}`, body === undefined ? undefined : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -41,6 +41,8 @@ export const api = {
   procStop: (task: string, pid: number) => call<{ ok: boolean; reason?: string; stopped?: number[] }>("/proc/stop", { task, pid }),
   expRun: (b: { suite: string; cases: string[]; fake: boolean; rerun: boolean }) => call<RunInfo>("/experiment/run", b),
   expDelete: (task: string) => call<{ ok: boolean }>("/experiment/session/delete", { task }),
+  expTranscript: (task: string, id: string) => call<Transcript | { error: string }>(`/experiment/transcript/${task}/${encodeURIComponent(id)}`),
+  expTalk: (b: TalkIn) => call<{ ok: boolean; mode?: "note" | "call"; reason?: string }>("/experiment/agent/talk", b),
   expAgents: () => call<AvailableAgent[]>("/experiment/agents"),
   expSend: (b: SendIn) => call<{ task: string; queued: boolean }>("/experiment/send", b),
   expStopSession: (task: string) => call<{ ok: boolean; killed: number; dropped: number }>("/experiment/session/stop", { task }),

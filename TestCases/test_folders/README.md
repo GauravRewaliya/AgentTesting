@@ -38,6 +38,8 @@ In a case: **name** = `title` (+ `id`), **description** = `turns[i].expected.con
 | test_expo_sub_agent / test_expo_proj_planning | 3 / 1 | expo roles (planner, builder, ...) | recorded |
 | test_expo_go | 32 | `expo-go` sub-agent redoing real projects phase by phase (+ 1 rework case: bad answer then fix) | recorded (real patches; `eg_lintab_02_rework` = negative + `_fix` positive) |
 | advance_test | 5 | staged job: plan, build, fresh reviewer, fix; context loss between stages; follow-up to the reviewer (recorded session); browser QA with a recorded video (Docker); a NEGATIVE broken app the lead must catch with `qa_check` | recorded (`adv-*`, stage-* agents) |
+| test_prompt_planning | 2 | "can the team BUILD this from the plan alone?" 2 turns (`hi`, then `can you build the plan?`); the frozen plan (`agent_fixture/prompt_fixtures/<plan>/<shape>`, shape `one_phase_complete` now; `multi_phase` fixture exists, no case yet) is copied into run_test/plan BEFORE turn 1 (`seedPromptFixture()`); a person judges the result; run by case id with `--stop-pause` | `allow_real_subAg` |
+| test_project_check | 9 | "is this project working?": a recorded project zip (`agent_fixture/store/projects/`) is unpacked into run_test, the lead hands the check (pnpm install, type-check, build) to ONE real qa-reviewer; no video yet (`qa` disabled) | `allow_real_subAg` + zip fixtures |
 | test_expo_direct_build | 2 | lead must NOT call a sub-agent | `allow_real_subAg` |
 | test_solowork | 4 | lead works alone (`router: false`) | `allow_real_subAg` |
 | test_artifact | 5 | Claude artifact links (needs the `Artifact` tool) | `allow_real_subAg` |

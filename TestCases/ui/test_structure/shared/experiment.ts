@@ -37,7 +37,7 @@ export interface ExperimentOverview {
 export interface RunLog { run: RunInfo; log: string }
 
 export interface AvailableAgent { name: string; description: string; writes: boolean; byDefault: boolean }
-export interface ChatMsg { id: string; from: "user" | "lead"; text: string; t: number }
+export interface ChatMsg { id: string; from: "user" | "lead"; text: string; t: number; /** an automatic message (the 10-minute bg check): shown as a small system line, not as something the person typed */ auto?: boolean }
 export interface ChatOut { task: string; messages: ChatMsg[]; queued: { id: string; text: string; t: number }[]; busy: boolean; error: string; nextTurn: number | null }
 export interface SendIn { task?: string; text: string; agents: string[]; fake: boolean; caseId?: string; suite?: string }
 
@@ -50,3 +50,26 @@ export interface AgentDetail {
   scripts: { id: string; kind: string; status: string; label: string; cmd: string; dir: string; pid: number; started: number; ended_at?: number; exit_code?: number; by: string; stopped_by?: string; public_url: string; expires_at?: number; user_requested?: boolean }[];   // background scripts of the session (running first)
   processes: { pid: number; elapsed: string; cmd: string }[];     // host processes of this task (dev servers, installs)
 }
+
+/** One agent's full conversation (its claude transcript), for the conversation page. A `tool` step may be a call to a sub-agent (`calls`). */
+export interface TranscriptStep {
+  kind: "user" | "text" | "thinking" | "tool"; t: number; text: string;   // thinking: text is empty when the CLI did not record it
+  id?: string;   // tool: the tool_use id (stable key)
+  end?: number;   // tool: when its result came back (duration = end - t); missing = still running
+  tool?: string; input?: string; result?: string; isError?: boolean;
+  spawned?: { id: string; role: string; status: string; objective: string; answer: string }[];   // tool step that STARTED sub-agents (site_build, fork_all): who it started
+  calls?: string;   // tool step that handed work to a sub-agent: its agent id (open it for its own conversation)
+}
+export interface Transcript {
+  task: string; id: string; name: string; status: string; caller: string | null;
+  steps: TranscriptStep[]; source: "transcript" | "recorded";   // "recorded": no transcript file (mocked/fixture agent): only the call brief + report are known
+  children: { id: string; name: string; status: string; role: string; objective: string; answer: string }[];   // sub-agents this agent called (from the call table)
+  brief?: { objective: string; output: string; boundaries: string }; answer: string;
+  /** everything that was SENT to this agent and what it answered, oldest first (calls from its caller, notes from the person) */
+  inbox: { t: number; from: string; text: string; answer?: string; note?: boolean }[];
+  /** things that happened to it that are not in its transcript: the person stopped it ... */
+  marks: { t: number; text: string }[];
+  fake: boolean;   // a fake-runner session: nothing here calls a model, a follow-up is answered from the recorded fixture session
+  talk?: { running: boolean; error?: string };   // the person's last direct message to this agent
+}
+export interface TalkIn { task: string; agent: string; text: string }

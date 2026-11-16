@@ -10,7 +10,8 @@ Only the LEAD agent is a real model call. Sub-agents are MOCKED by recorded fixt
 - Every case must be ONE of: (a) expect a recorded result id in `expected_agents_res`, (b) only `session:<agent>#n` follow-ups (answered from the earlier fixture session), or (c) declare `allow_real_subAg: true` (lead works alone, real sub-agents, or "must NOT call a sub-agent"). Anything else is a failure.
 - Check (free, no model calls): `bun test_harness/core/fixture_policy.ts` (fixtures + `TestCases/validate.ts` shape check). Exits 1 on any undeclared or malformed case. Run it before and after editing cases.
 - Declarations: case = `TestCases/types.ts`, tags = `TestCases/tags.ts`, fixture interface = `agent_fixture/types.ts` (core/types.ts only re-exports). `allow_real_subAg?: true` (in a shared base object: `true as const`). Details: `TestCases/test_folders/README.md`.
-- Currently `allow_real_subAg: true`: `test_solowork`, `test_artifact`, `test_expo_direct_build` (set on each suite's shared base object).
+- Currently `allow_real_subAg: true`: `test_solowork`, `test_artifact`, `test_expo_direct_build`, `test_project_check`, `test_prompt_planning` (set on each suite's shared base object).
+- A case that needs an existing project: put its .zip in `agent_fixture/store/projects/` and unpack it in `before_node_run` with `seedProject()` (`test_project_check/lib/zip_seed.ts`); say where the zip came from in the suite's header comment.
 
 ## How a mocked call is served
 `FixtureGate` (`f1_multiagent/harness/core/fixture_gate.ts`, for agents with `"fixtures": true` in `agent.json`):
@@ -37,3 +38,12 @@ Anything that installs packages, builds or records runs in a throwaway container
 Use **pnpm** for every install and every package binary in this project, and in everything we build, run or generate: `pnpm install`, `pnpm add <pkg>`, `pnpm exec <bin>` (instead of `npx`), `pnpm dlx <bin>` (one-off, instead of `npx`/`npm exec`). Never `npm`, `npx` or `yarn`: not in scripts, Dockerfiles, agent prompts, fixtures or docs.
 Why: pnpm keeps ONE copy of each package in a shared store and links it, so repeated and parallel installs (a throwaway container per app, many demos) do not pile up duplicate `node_modules`; it is also faster and stricter about undeclared dependencies.
 In throwaway containers pnpm comes from corepack (`corepack pnpm ...`, no global install) and its store is the docker volume `agent-testing-pnpm-store`. Expo/Metro needs `node-linker=hoisted` (written into the app copy's `.npmrc` by the web export).
+
+## Live data in the UI: push over the WebSocket, never re-fetch on a timer
+Anything that changes while a page is open (sessions, chat, transcripts, bg scripts, agent status) reaches the browser over the ONE WebSocket (`TestCases/ui/test_structure/server/hub.ts` -> `src/store/live.ts`). The page tells the hub what it looks at (`live.watch({ task, detail, transcript })`) and the hub pushes a topic only when its JSON changed.
+- Never write `setInterval` / "refetch every N seconds" / polling `fetch` for data that changes. Not for a "running" agent, not as a fallback, not on a deprecated page.
+- Need a new live thing? Add a topic to `hub.ts` (+ a field in `Sub`, a ref and a `sink` entry in `live.ts`), not a new HTTP poll. The server may re-read files on its own tick (files cannot notify us), once for all browsers, with a cache keyed on mtime+size.
+- Plain HTTP is for one-off actions (POST send/stop/delete) and a single load, never a loop.
+- A local clock that only re-renders "5s ago" labels (no request) is fine.
+Why: a poll per open tab hammers the API, lags behind, and flickers state (it showed stale "running"); the socket is cheap and instant.
+- Always log the socket traffic so useless events can be found: the browser console prints every `[live] ← topic size (#n)` / `→ send` / "listening to"; `liveStats()` in the console shows a per-topic table (events, total, avg). The server prints `[hub] -> push topic size` only for real changes, and each client's subscription. Keep these logs in when adding topics.

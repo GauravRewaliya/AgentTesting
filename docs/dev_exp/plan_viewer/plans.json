@@ -1,0 +1,173 @@
+{
+ "plans": [
+  {
+   "title": "AgentDeck (Composio-style dashboard)",
+   "status": "phase 1 of 4 · planned",
+   "base": "../TestCases/test_folders/agent_fixture/prompt_fixtures/composio_admin_dashboard/multi_phase/",
+   "pages": [
+    "README.md",
+    "PHASES.md",
+    "02_ux/README.md",
+    "02_ux/motion.md",
+    "02_ux/theme.md",
+    "02_ux/screens/api-keys.md",
+    "02_ux/screens/auth-configs.md",
+    "02_ux/screens/connected-accounts.md",
+    "02_ux/screens/docs.md",
+    "02_ux/screens/home.md",
+    "02_ux/screens/logs.md",
+    "02_ux/screens/playground.md",
+    "02_ux/screens/settings.md",
+    "02_ux/screens/toolkits.md",
+    "02_ux/screens/triggers.md"
+   ]
+  },
+  {
+   "title": "PingHarbor (clone of a real website)",
+   "status": "phase 1 of 3 · planned",
+   "base": "../TestCases/test_folders/agent_fixture/prompt_fixtures/site_clone_pingharbor/multi_phase/",
+   "pages": [
+    "README.md",
+    "PHASES.md",
+    "build_inputs/00_contract.md",
+    "build_inputs/01_design_system.md",
+    "build_inputs/02_brief_home_blog.md",
+    "build_inputs/03_brief_features_article.md",
+    "build_inputs/04_brief_download.md",
+    "build_inputs/10_layout_home.md",
+    "build_inputs/11_layout_features.md",
+    "build_inputs/12_layout_download.md",
+    "build_inputs/13_layout_blog.md",
+    "build_inputs/14_layout_article.md",
+    "build_inputs/20_reference_home.md",
+    "build_inputs/21_reference_blog.md",
+    "build_inputs/README.md"
+   ]
+  },
+  {
+   "title": "Wavelet (music player)",
+   "status": "phase 1 of 4 · planned",
+   "base": "../TestCases/test_folders/agent_fixture/prompt_fixtures/wavelet_spotify_clone/",
+   "pages": [
+    "README.md",
+    "PHASES.md"
+   ]
+  },
+  {
+   "title": "Stacked toast (Clerk style)",
+   "status": "phase 1 of 4 · planned",
+   "base": "../TestCases/test_folders/agent_fixture/prompt_fixtures/enzo_clerk_toast/",
+   "pages": [
+    "README.md",
+    "PHASES.md"
+   ]
+  },
+  {
+   "title": "Five creative browser demos",
+   "status": "phase 1 of 2 · planned",
+   "base": "../TestCases/test_folders/agent_fixture/prompt_fixtures/creative_browser_templates/",
+   "pages": [
+    "README.md",
+    "PHASES.md"
+   ]
+  },
+  {
+   "title": "Linear-style tab bar",
+   "status": "phase 1 of 6 · planned",
+   "base": "../TestCases/test_folders/agent_fixture/prompt_fixtures/linear_tab_bar/",
+   "pages": [
+    "README.md",
+    "PHASES.md"
+   ]
+  },
+  {
+   "title": "Clockwork Sanctum",
+   "status": "phase 1 of 4 · planned",
+   "base": "../TestCases/test_folders/agent_fixture/prompt_fixtures/aistudio_clockwork_sanctum/",
+   "pages": [
+    "README.md",
+    "PHASES.md"
+   ]
+  },
+  {
+   "title": "Eiffel Tower 3D (1889 museum exhibit)",
+   "status": "phase 1 of 3 · planned",
+   "base": "../TestCases/test_folders/agent_fixture/prompt_fixtures/aistudio_eiffel_tower_3d/",
+   "pages": [
+    "README.md",
+    "PHASES.md",
+    "build_inputs/01_look_and_content.md"
+   ]
+  },
+  {
+   "title": "Image to Voxel Art",
+   "status": "phase 1 of 3 · planned",
+   "base": "../TestCases/test_folders/agent_fixture/prompt_fixtures/aistudio_image_to_voxel/",
+   "pages": [
+    "README.md",
+    "PHASES.md",
+    "BUILD_PROMPT.md"
+   ]
+  },
+  {
+   "title": "InfoGenius",
+   "status": "phase 1 of 3 · planned",
+   "base": "../TestCases/test_folders/agent_fixture/prompt_fixtures/aistudio_info_genius/",
+   "pages": [
+    "README.md",
+    "PHASES.md"
+   ]
+  },
+  {
+   "title": "NES MIDI Generator",
+   "status": "phase 1 of 3 · planning",
+   "base": "../TestCases/test_folders/agent_fixture/prompt_fixtures/aistudio_nes_midi_gen/",
+   "pages": [
+    "README.md",
+    "PHASES.md"
+   ]
+  },
+  {
+   "title": "Infinite Heroes (personalized comic book)",
+   "status": "phase 1 of 3 · planned",
+   "base": "../TestCases/test_folders/agent_fixture/prompt_fixtures/aistudio_personalized_comics/",
+   "pages": [
+    "README.md",
+    "PHASES.md",
+    "reference_prompts.md"
+   ]
+  },
+  {
+   "title": "Pocket World Terrarium",
+   "status": "phase 1 of 4 · planned",
+   "base": "../TestCases/test_folders/agent_fixture/prompt_fixtures/aistudio_pocket_world_terrarium/",
+   "pages": [
+    "README.md",
+    "PHASES.md",
+    "tools.md",
+    "extras.md"
+   ]
+  },
+  {
+   "title": "Research Visualization (quantum error correction)",
+   "status": "phase 1 of 3 · planned",
+   "base": "../TestCases/test_folders/agent_fixture/prompt_fixtures/aistudio_research_visualization/",
+   "pages": [
+    "README.md",
+    "PHASES.md",
+    "build_inputs/01_look_3d_content.md"
+   ]
+  },
+  {
+   "title": "Method and team",
+   "status": "",
+   "base": "../docs/planning/",
+   "pages": [
+    "README.md",
+    "RESEARCH.md",
+    "ROADMAP.md",
+    "vue_web_targets.md"
+   ]
+  }
+ ]
+}

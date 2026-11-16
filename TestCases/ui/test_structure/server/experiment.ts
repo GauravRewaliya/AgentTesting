@@ -11,7 +11,7 @@ import { activeMs, lastCall } from "@core/orchistraitor/f1_multiagent/harness/co
 import { costOf, stopAgent } from "@core/orchistraitor/f1_multiagent/harness/core/agent_call.ts";
 import { locksFromEnv } from "@core/orchistraitor/f1_multiagent/harness/core/lockapi.ts";
 import { judgeTurn, loadSuites, readExp, statusOf, unsupported, writeExp, type ExpEntry, type SuiteCase } from "@core/orchistraitor/f1_multiagent/testrun/cases.ts";
-import type { AgentDetail, AvailableAgent, ChatOut, SendIn, CaseResultOut, CaseState, ExpSuite, ExperimentOverview, LiveAgent, LiveSession, RunInfo, RunLog } from "../shared/experiment.ts";
+import type { TalkIn, Transcript, TranscriptStep, AgentDetail, AvailableAgent, ChatOut, SendIn, CaseResultOut, CaseState, ExpSuite, ExperimentOverview, LiveAgent, LiveSession, RunInfo, RunLog } from "../shared/experiment.ts";
 
 const F1 = resolve(import.meta.dir, "../../../../test_harness/core/orchistraitor/f1_multiagent");
 const DATA = join(F1, "ui", ".ui-data"), STORE = resolve(process.env.UI_STORE ?? join(DATA, "store.json")), REPO = resolve(process.env.UI_REPO ?? join(DATA, "repo"));
@@ -199,13 +199,13 @@ export function cancelQueued(task: string, id: string) { const Qt = q(task), i =
 export function chat(task: string): ChatOut {
   if (!/^[\w-]+$/.test(task)) throw new Error("bad session id");
   const st = store(), Qt = q(task), side = readSide(task), e = side?.case ? expAll()[side.case] : undefined;
-  const messages = st.notes.filter((n) => n.task_id === task && (n.from === "user" || n.to === "user") && !n.refs.includes("auto_run")).map((n) => ({ id: n.id, from: (n.from === "user" ? "user" : "lead") as "user" | "lead", text: n.text, t: n.t }));
+  const messages = st.notes.filter((n) => n.task_id === task && (n.from === "user" || n.to === "user")).map((n) => ({ id: n.id, from: (n.from === "user" ? "user" : "lead") as "user" | "lead", text: n.refs.includes("auto_run") && n.from === "user" ? n.text.split("\n")[0]!.slice(0, 160) : n.text, t: n.t, ...(n.refs.includes("auto_run") && n.from === "user" ? { auto: true as const } : {}) }));
   return { task, messages, queued: Qt.queue.map((m) => ({ id: m.id, text: m.text, t: m.t })), busy: Qt.busy, error: Qt.error, nextTurn: side?.case ? (e && e.task === task ? e.done : 0) : null };
 }
 
 export function live(): LiveSession[] {
-  const st = store(), exp = Object.values(expAll()), byTask = new Map(exp.map((e) => [e.task, e]));
-  const row = (a: ReturnType<MStore["agentsOf"]>[number], task: string): LiveAgent => ({ id: a.agent_id, name: a.name, level: a.level, caller: a.caller_agent_id ?? null, status: a.status, title: a.title || a.name, activity: a.activity ?? "", needsParent: a.needs_parent ?? null, runs: a.runs ?? 0, cost: costOf(st, task, a.agent_id), lastEventAt: a.last_event_at, activeMs: activeMs(st, task, Date.now(), a.agent_id), lastCall: lastCall(st, task, a.agent_id), session: a.session_id ?? undefined, fixture: st.events.some((ev) => ev.task_id === task && ev.agent_id === a.agent_id && ev.kind === "fixture.call") });
+  const st = store(), NOW = Math.floor(Date.now() / 30_000) * 30_000, exp = Object.values(expAll()), byTask = new Map(exp.map((e) => [e.task, e]));
+  const row = (a: ReturnType<MStore["agentsOf"]>[number], task: string): LiveAgent => ({ id: a.agent_id, name: a.name, level: a.level, caller: a.caller_agent_id ?? null, status: a.status, title: a.title || a.name, activity: a.activity ?? "", needsParent: a.needs_parent ?? null, runs: a.runs ?? 0, cost: costOf(st, task, a.agent_id), lastEventAt: a.last_event_at, activeMs: activeMs(st, task, NOW, a.agent_id), lastCall: lastCall(st, task, a.agent_id, NOW), session: a.session_id ?? undefined, fixture: st.events.some((ev) => ev.task_id === task && ev.agent_id === a.agent_id && ev.kind === "fixture.call") });
   const tasks = new Map<string, number>(st.runs.map((r) => [r.task_id, r.last_active_at]));
   for (const f of readdirSync(SESS).filter((x) => x.endsWith(".json"))) { const sd = readSide(f.slice(0, -5)); if (sd && !tasks.has(sd.task)) tasks.set(sd.task, sd.createdAt); }
   const procs = psList(), runGoing = listRuns().some((r) => r.status === "running"), alive = (task: string) => (runGoing && (byTask.get(task)?.at ?? 0) > Date.now() - 600_000) || procs.some((p) => !p.args.startsWith("ps ") && (p.args.includes(task) || (/testrun\/(run|chat)\.ts/.test(p.args) && exp.some((x) => x.task === task && p.args.includes(x.case)))));   // a chat.ts / run.ts / claude process of this session (run.ts is given the CASE id, not the task id; it may be waiting for the one master slot, with no claude child yet)
@@ -217,7 +217,7 @@ export function live(): LiveSession[] {
     const guess = /^t_/.test(task) ? task.replace(/^t_/, "").replace(/_[a-z0-9]{4}$/, "") : undefined;   // a test run's task is t_<case>[_<suffix>]: its name is the title when nobody typed a message
     const fixtures = st.evs("fixture.call", task).filter((x) => (x.data as { verdict?: string }).verdict === "served").length;   // sub-agent answers served from a recorded fixture (no model call)
     const hide = !userText && !subs.length && !e && !sd;   // nothing typed, no sub-agent, no test case behind it: an empty shell (listed nowhere; the folder stays on disk)
-    return { hide, fixtures, kind: /^t_/.test(task) ? "test" : "experiment", tags: ["test_run"], task, agentsAllowed: sd?.agents ?? e?.agents ?? [], fake: sd?.fake ?? false, queued: Qt.queue.length, busy: Qt.busy, case: sd?.case ?? e?.case, suite: sd?.suite ?? e?.suite, title: (userText ?? e?.case ?? guess ?? "(empty)").replace(/\s+/g, " ").slice(0, 90), last, activeMs: activeMs(st, task), state, cost: lead ? costOf(st, task, lead.agent_id) : 0, master: lead ? { ...row(lead, task), ...(dead ? { status: "stalled", activity: "process is gone: the master ended without finishing the turn (see its log)" } : {}) } : null, agents: subs.map((a) => row(a, task)) } as LiveSession;
+    return { hide, fixtures, kind: /^t_/.test(task) ? "test" : "experiment", tags: ["test_run"], task, agentsAllowed: sd?.agents ?? e?.agents ?? [], fake: sd?.fake ?? false, queued: Qt.queue.length, busy: Qt.busy, case: sd?.case ?? e?.case, suite: sd?.suite ?? e?.suite, title: (userText ?? e?.case ?? guess ?? "(empty)").replace(/\s+/g, " ").slice(0, 90), last, activeMs: activeMs(st, task, NOW), state, cost: lead ? costOf(st, task, lead.agent_id) : 0, master: lead ? { ...row(lead, task), ...(dead ? { status: "stalled", activity: "process is gone: the master ended without finishing the turn (see its log)" } : {}) } : null, agents: subs.map((a) => row(a, task)) } as LiveSession;
   }).filter((x) => !(x as { hide?: boolean }).hide).sort((a, b) => b.last - a.last).slice(0, 60).map((x) => { const { hide: _h, ...rest } = x as LiveSession & { hide?: boolean }; return rest as LiveSession; });
 }
 
@@ -366,3 +366,95 @@ export async function refreshF1(): Promise<F1Snap> {
 export type RunInfoLike = RunInfo;
 export const runsDir = () => RUNS;
 export const caseEntry = (id: string): { at: number; done: number; status?: string; task: string } | undefined => { const e = expAll()[id]; return e ? { at: e.at, done: e.done, status: (e as { status?: string }).status, task: e.task } : undefined; };
+
+
+/** The full conversation of one agent: its claude transcript (.state/<v>/<task>/store/logs/<task>/<name>_<n>.<session>.jsonl), tool calls paired with their results. */
+const stepCache = new Map<string, TranscriptStep[]>();
+export function transcript(task: string, id: string): Transcript | { error: string } {
+  if (!/^[\w-]+$/.test(task)) return { error: "bad session id" };
+  const st = store(), a = st.agentsOf(task).find((x) => x.agent_id === id);
+  if (!a) return { error: "no such agent in this session" };
+  const clip = (v: unknown, n = 6000) => { const t = typeof v === "string" ? v : JSON.stringify(v, null, 2); return t.length > n ? t.slice(0, n) + `\n… (${t.length - n} more characters)` : t; };
+  const dir = join(STATE_DIR, task, "store", "logs", task);
+  const file = a.session_id && existsSync(dir) ? readdirSync(dir).find((f) => f.endsWith(`.${a.session_id}.jsonl`)) : undefined;
+  const path = file ? join(dir, file) : "", sig = path ? `${path}:${statSync(path).mtimeMs}:${statSync(path).size}` : "", hit = sig ? stepCache.get(sig) : undefined;   // the socket asks every tick: parse a transcript again only when its file changed
+  const steps: TranscriptStep[] = hit ? [...hit] : [], byUse = new Map<string, TranscriptStep>();
+  if (file && !hit) {
+    for (const line of readFileSync(join(dir, file), "utf8").split("\n")) {
+      if (!line.trim()) continue;
+      let j: { type?: string; timestamp?: string; message?: { content?: unknown } };
+      try { j = JSON.parse(line); } catch { continue; }
+      if (j.type !== "assistant" && j.type !== "user") continue;
+      const t = Date.parse(j.timestamp ?? "") || 0, c = j.message?.content;
+      for (const b of (typeof c === "string" ? [{ type: "text", text: c }] : Array.isArray(c) ? c : []) as Record<string, unknown>[]) {
+        if (b.type === "thinking") steps.push({ kind: "thinking", t, text: typeof b.thinking === "string" ? clip(b.thinking) : "" });
+        else if (b.type === "text" && typeof b.text === "string" && b.text.trim()) steps.push({ kind: j.type === "user" ? "user" : "text", t, text: clip(b.text) });
+        else if (b.type === "tool_use") {
+          const inp = b.input as { command?: string } | undefined, cmd = inp?.command ?? "";
+          const s: TranscriptStep = { kind: "tool", id: String(b.id), t, text: "", tool: String(b.name), input: clip(cmd || b.input) };
+          if (/tools\.ts\s+delegate\b/.test(cmd)) s.calls = "?";   // resolved from its result below
+          steps.push(s); byUse.set(String(b.id), s);
+        } else if (b.type === "tool_result") {
+          const s = byUse.get(String(b.tool_use_id)); if (!s) continue;
+          const raw = typeof b.content === "string" ? b.content : Array.isArray(b.content) ? (b.content as { text?: string }[]).map((x) => x.text ?? "").join("\n") : "";
+          s.result = clip(raw); s.isError = b.is_error === true; s.end = t;
+          if (s.calls === "?") { try { s.calls = (JSON.parse(raw) as { agent_id?: string }).agent_id ?? undefined; } catch { s.calls = undefined; } }
+        }
+      }
+    }
+  }
+  if (sig && !hit) { stepCache.set(sig, steps); if (stepCache.size > 40) stepCache.delete(stepCache.keys().next().value!); }
+  const calls = st.calls.filter((c) => c.task_id === task);
+  const children = calls.filter((c) => c.caller_agent_id === id).map((c) => {
+    const ca = st.agentsOf(task).find((x) => x.agent_id === c.callee_agent_id), r = (c.req ?? {}) as Record<string, string>, rep = [...st.reports].reverse().find((x) => x.task_id === task && x.agent_id === c.callee_agent_id);
+    return { id: c.callee_agent_id ?? "", name: ca?.name ?? c.role, status: c.status, role: c.role, objective: String(r.objective ?? "").slice(0, 1500), answer: String(rep?.summary ?? "").slice(0, 1500) };
+  });
+  // site_build / fork_all start several sub-agents in the background: they have no result to read, so link them by time (calls this agent made after the step, before the next such step)
+  const spawners = steps.filter((x) => x.kind === "tool" && /tools\.ts\s+(site_build|fork_all)\b/.test(x.input ?? ""));
+  const delegated = steps.filter((x) => x.kind === "tool" && x.calls);   // an explicit `delegate` already has its own row
+  spawners.forEach((x, i) => {
+    const until = spawners[i + 1]?.t ?? Infinity;
+    x.spawned = calls.filter((c) => c.caller_agent_id === id && c.t >= x.t - 2000 && c.t < until && !delegated.some((d) => c.t >= d.t - 2000 && c.t <= (d.end ?? d.t) + 2000)).map((c) => { const r = (c.req ?? {}) as Record<string, string>, rep = [...st.reports].reverse().find((y) => y.task_id === task && y.agent_id === c.callee_agent_id); return { id: c.callee_agent_id ?? "", role: c.role, status: c.status, objective: String(r.objective ?? "").slice(0, 600), answer: String(rep?.summary ?? "").slice(0, 600) }; });
+  });
+  const mine = [...calls].reverse().find((c) => c.callee_agent_id === id), r = (mine?.req ?? {}) as Record<string, string>;
+  const rep = [...st.reports].reverse().find((x) => x.task_id === task && x.agent_id === id);
+  // what was sent to this agent, with its answers (calls and reports pair up in order), plus the person's notes to it; and the times the person stopped it
+  const reps = st.reports.filter((x) => x.task_id === task && x.agent_id === id).sort((x, y) => x.round - y.round);
+  const inbox: Transcript["inbox"] = calls.filter((c) => c.callee_agent_id === id).sort((x, y) => x.t - y.t).map((c, i) => ({ t: c.t, from: c.caller_agent_id ?? "?", text: String(((c.req ?? {}) as Record<string, string>).objective ?? ""), answer: reps[i] ? String(reps[i]!.reply ?? reps[i]!.summary ?? "") : undefined }));
+  for (const n of st.notes) if (n.task_id === task && n.from === "user" && n.to === id && !n.refs.includes("auto_run")) inbox.push({ t: n.t, from: "you", text: n.text, note: true });
+  inbox.sort((x, y) => x.t - y.t);
+  const marks = st.events.filter((x) => x.task_id === task && x.agent_id === id && x.kind === "agent.stopped").map((x) => ({ t: x.t, text: "Interrupted by user" }));
+  const tk = talking.get(task + "|" + id);
+  return { task, id, name: a.name, status: a.status, caller: a.caller_agent_id ?? null, steps, source: file ? "transcript" : "recorded", children, inbox, marks, fake: !!readSide(task)?.fake, talk: tk ? { running: tk.running, error: tk.error } : undefined,
+    brief: mine ? { objective: String(r.objective ?? ""), output: String(r.output ?? ""), boundaries: String(r.boundaries ?? "") } : undefined, answer: String(rep?.reply ?? rep?.summary ?? a.final_response ?? "") };
+}
+
+// ---- TALK TO A SUB-AGENT: the person's message goes in through the SAME harness command the master uses (tools.ts delegate --session <agent>), so every rule applies
+// (locks, call limits, fixtures). A fake-runner session answers from the recorded fixture session (no model call; no fixture = the error is shown); a real one is a real call.
+// An agent that is still working cannot be called: the message is left as a note (tools.ts say) it reads at its next step.
+const talking = new Map<string, { running: boolean; error?: string }>();
+export function talkToAgent(b: TalkIn): { ok: boolean; mode?: "note" | "call"; reason?: string } {
+  const { task, agent: id } = b, text = (b.text ?? "").trim();
+  if (!/^[\w-]+$/.test(task) || !text) return { ok: false, reason: "missing session or text" };
+  const a = store().agentsOf(task).find((x) => x.agent_id === id);
+  if (!a) return { ok: false, reason: "no such agent in this session" };
+  const sf = join(STATE_DIR, task, "store", "store.json");
+  if (!existsSync(sf)) return { ok: false, reason: "this session has no store of its own (an old shared-store session): it cannot be called from here" };
+  const tools = join(F1, "harness", "tools.ts"), key = task + "|" + id;
+  const env = { ...process.env, HARNESS_STORE: sf, HARNESS_TASK: task, HARNESS_CWD: join(STATE_DIR, task, "workspace"), HARNESS_RUNNER: readSide(task)?.fake ? "fake" : "real" };
+  if (a.status === "running") {
+    const r = spawnSync("bun", ["--smol", tools, "say", "--to", id, "--text", text], { encoding: "utf8", env: { ...env, HARNESS_AGENT: "user" } });
+    return r.status === 0 ? { ok: true, mode: "note" } : { ok: false, reason: (r.stderr || r.stdout).slice(-300) };
+  }
+  if (talking.get(key)?.running) return { ok: false, reason: "your last message to this agent is still being answered" };
+  talking.set(key, { running: true });
+  const p = spawn("bun", ["--smol", tools, "delegate", "--role", a.name, "--session", id, "--objective", text, "--output", "Reply to the person in a few lines.", "--boundaries", "The person is talking to you directly, not the master. Answer them. Change files only if they ask for it."],
+    { env: { ...env, HARNESS_AGENT: a.caller_agent_id ?? "lead#1" }, stdio: ["ignore", "pipe", "pipe"] });
+  let out = ""; p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
+  p.on("close", () => {
+    let error: string | undefined;
+    try { const j = JSON.parse(out.trim().split("\n").pop() ?? "{}") as { ok?: boolean; reason?: string; error?: string }; if (j.ok === false) error = j.reason ?? j.error ?? "refused"; } catch { error = out.trim().slice(-300) || "no answer"; }
+    talking.set(key, { running: false, error });
+  });
+  return { ok: true, mode: "call" };
+}
