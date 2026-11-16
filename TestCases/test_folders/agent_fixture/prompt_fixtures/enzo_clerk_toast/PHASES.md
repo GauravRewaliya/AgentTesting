@@ -32,8 +32,10 @@ status: phase 1 of 4 · planned
 | T03 | backdrop iOS + Android variants | builder | T01 |
 
 **Done when (you can check each one):**
-- show 1, 3 and 5 toasts: stack order and offsets match the layout table
-- backdrop renders on iOS and Android
+- show 1, 3 and 5 toasts: the newest is in front, the older ones sit behind it with the offsets and scales of the layout table
+- `backdrop/index.tsx` (iOS) and `backdrop/index.android.tsx` both exist and are imported by the stack
+- `pnpm exec tsc --noEmit` passes
+- no timing curve (`withTiming`) in `stacked-toast.tsx`
 
 ---
 <a id="phase-2"></a>
@@ -44,12 +46,13 @@ status: phase 1 of 4 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T04 | press expand / collapse with springs | builder | P1 |
+| T04 | press expand / collapse with springs | builder | T01, T02, T03 |
 | T05 | haptics once per press | builder | T04 |
 
 **Done when (you can check each one):**
-- expand and collapse use springs, no timing curves
-- one haptic per press, not two
+- tap: the stack expands; tap again: it collapses; both use `withSpring` (grep finds no `withTiming`)
+- `expo-haptics` is called once per press (exactly 1 call in `pressable-scale.tsx`)
+- `pnpm exec tsc --noEmit` passes
 
 ---
 <a id="phase-3"></a>
@@ -60,12 +63,13 @@ status: phase 1 of 4 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T06 | 20 rapid `toast()` calls recorded on video | qa-reviewer | P2 |
-| T07 | status bar visible on iOS and Android | qa-reviewer | P2 |
+| T06 | 20 rapid `toast()` calls recorded on video | lead | T04, T05 |
+| T07 | status bar visible on iOS and Android | lead | T04, T05 |
 
 **Done when (you can check each one):**
-- 20 rapid calls: no jump, no overlap (video)
-- status bar visible on both platforms
+- 20 rapid `toast()` calls in the demo screen: the stack never holds more than the visible limit and no two toasts share a position (state logged, no device needed)
+- `StatusBar` is rendered on iOS and Android (grep finds it in `App.tsx`)
+- the lead says the video check was not run here
 
 ---
 <a id="phase-4"></a>
@@ -79,4 +83,5 @@ status: phase 1 of 4 · planned
 | T08 | migrate on library bump (e.g. `runOnJS` to `scheduleOnRN`) | builder | version change |
 
 **Done when (you can check each one):**
-- app builds and the Stability checks still pass after the bump
+- `pnpm exec expo export --platform android` passes after the bump
+- `stacked-toast-manager/API.md` lists every library call used (`SharedValue`, `withSpring`, `scheduleOnRN`, `scheduleOnUI`, press + haptics)

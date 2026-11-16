@@ -6,13 +6,20 @@ status: phase 1 of 4 · planned
 # Wavelet (music player) · phase 1 of 4 · planned
 > A web music player that rebuilds the layout and behaviour of the Spotify desktop app, with its own name, violet look, drawn covers and synthesized songs. Made for learning.
 
-> **Planning phase only: nothing is built from this plan yet.** File and folder names below are the *planned* layout (taken from the analysed reference app), not files that exist. Test cases in `TestCases/` check the finished reference project or try to build from this plan; they are not the product.
+> **This plan is ready to build.** File and folder names below are the layout of the new app; nothing here depends on any other project's files. Build from this plan alone.
 
 | who reads | what | where |
 |---|---|---|
 | **Audience (users)** | Someone learning how a music app is built, or who needs a believable player to demo or extend, with zero legal risk: no logo, icon, font, cover art, audio or brand text is copied. | this page: What is it, What you get, Look, Motion |
 | **Stakeholders** | decide scope, answer questions | Decisions and open questions, Phases at a glance |
 | **Builders (dev)** | stack: React 18 + TypeScript + Vite, one `<audio>` element, hash routing, lucide-react; no server; pnpm only | `PHASES.md` and the grey DEV blocks (switch to Dev) |
+
+## Build recipe
+1. **Where:** build in `run_test/wavelet` (React 18 + TypeScript + Vite, hash routing, one `<audio>`, `lucide-react`; **pnpm only**: `pnpm create vite wavelet --template react-ts`, then `pnpm add lucide-react`). No source code is given: the plan, `wireframes/layout.html` and `build_inputs/01_content.md` are everything.
+2. **Order (PHASES.md):** Foundations (`data.ts` from `build_inputs/01_content.md`, `covers.ts`, `tones.ts`, tokens in `styles.css`), then Engine (`player.ts`, `color.ts`), then Screens (Sidebar, Home, Search, PlaylistView + TrackTable, NowPlaying, PlayerBar), then a check.
+3. **Owners (no file owned twice):** builder A = `src/data.ts`, `src/covers.ts`, `src/tones.ts`; builder B = `src/player.ts`, `src/color.ts`, `src/router.ts`; builder C = `src/components/*`, `src/App.tsx`, `src/styles.css`. The lead owns `package.json` and `index.html`.
+4. **Verify (the lead runs it, no review agent):** `pnpm build` and `pnpm exec tsc --noEmit` pass; open the preview and check every row of the *Behaviour rules* table; `grep -ri spotify src` is empty; 0 console errors. Say what could not be checked (real audio, the 480 ms fade).
+
 
 ## What is it
 Wavelet plays music in the browser. **Left:** a 300 px sidebar with Home, Search and your 8 playlists. **Middle:** Home (quick tiles and playlist cards), Search results, or one playlist with a track table. **Right (optional, 320 px):** a Now Playing panel. **Bottom (88 px):** the player bar. When you open a playlist or play a song, the page colour fades to a colour taken from that cover. There is no server and no accounts: 8 made-up playlists with 40 made-up tracks; each track is a 16-30 s arpeggio synthesized in code and rendered to WAV the first time you play it.
@@ -93,6 +100,8 @@ Playlists: Morning Static · Neon Commute · Low Tide · Paper Planets · Afterg
 ## Test ids (mirror the original player)
 `control-playpause` · `control-previous` · `control-next` · `control-shuffle` · `control-repeat` (with `data-repeat`) · `control-mute` · `player-bar` · `player-controls` · `now-playing` · `now-playing-widget` · `main-view` · `playlist-view` (with `data-playlist`) · `card-<id>` · `library-<id>` · `track-<id>` · `search-input` · `search-count` · `pb-title` · `playback-position` · `playback-duration` · progress and volume bars.
 
+- **Captured / invented:** what comes from the reference project is marked *real*; everything else (names, colours, sizes, wording) is *invented* by this plan or by you. Never present an invented value as taken from the reference.
+
 ## Not built (on purpose)
 Real accounts, streaming, lyrics, queue editing, likes, podcasts, Connect devices.
 
@@ -116,8 +125,10 @@ You (the owner) answer the open questions and judge each phase; Claude edits thi
 **Learned from the reference app (layout, route shapes, the 6 player verbs, test ids).** **Own design:** name, violet palette, Outfit + DM Mono, lucide icons, drawn covers, synthesized WAV songs. The reference desktop app was checked read-only: it is CEF (Chromium Embedded Framework), not Electron, and gets the page colour from its server; Wavelet has no server so it computes the colour in the browser. A real working copy of this app exists as the project fixture (see Test).
 
 ## Test cases (not the product)
-- `pc_wavelet` checks the **finished reference project** (`agent_fixture/store/projects/wavelet-spotify-clone.zip`): does it install and build?
 - `pp_wavelet` in `test_prompt_planning` builds the app from THIS plan only (no source code given). The 8 playlists and 40 tracks are in `build_inputs/01_content.md`.
+
+## Research
+research: none (reverse-planned from one finished reference project; every layout, route, colour and rule below was read from it, so there was no outside product to look up)
 
 ## Decisions and open questions
 | id | what | answer / default | state |

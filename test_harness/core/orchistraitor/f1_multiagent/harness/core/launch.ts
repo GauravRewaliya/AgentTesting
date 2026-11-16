@@ -29,7 +29,7 @@ export function launchDef(def: AgentDef, defs: Map<string, AgentDef>, level: num
 # How to call them (one Bash command each; every command prints one line of JSON)
   ${toolsCmd} delegate --role <role> --session new|<agent_id>|fork:<agent_id> --objective "<what>" --output "<format>" --boundaries "<limits>" [--async] [--mode ask] [--writes a,b] [--title "<what this agent is for>"]
   ${toolsCmd} fork_all --from <agent_id> --role <role> --tasks '[{"title":"..","writes":["run_test/p/a.js"],"objective":".."},{...}]'   N tasks for N copies of one agent\'s memory, ALL STARTED AT ONCE (no --async to forget); then ONE wait
-  ${toolsCmd} wait --agents <id>,<id> [--any] [--timeout 90]     (after --async calls: waits until they finish and returns their answers)
+  ${toolsCmd} wait --agents <id>,<id> [--any] [--timeout 300]     (after --async calls: waits until they finish and returns their answers)
   ${toolsCmd} agents_list
 To ask an agent that already worked on a topic for more, continue it with --session <its agent_id>: it remembers what it did.` : "") : "";
   const shared = toolsCmd && def.agents.length > 0 && def.allow.some((a) => a === "Bash" || a.includes("tools.ts preview")) ? `\n\n# Shared team tools (every command prints one line of JSON; anyone on the team may use them; scripts run on the host, recorded with status + log)

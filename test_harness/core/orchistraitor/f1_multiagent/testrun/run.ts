@@ -1,4 +1,4 @@
-// bun testrun/run.ts <suite> [case_id ...] [--again] [--list] [--fake] [--rerun] [--video] [--no-planning] [--stop-pause] [--say="next"]
+// bun testrun/run.ts <suite> [case_id ... | --all] [--again] [--list] [--fake] [--rerun] [--video] [--no-planning] [--stop-pause] [--say="next"]
 //   --again        send the case's prompts AGAIN into its existing session (same task + workspace + lead conversation; nothing archived) and judge the answers. The UI's "Run" on a case that already ran.
 //   --stop-pause   step mode, "next next next": the lead does ONE step (plan files -> layout wireframe -> themed UI), reports, and STOPS to wait for you. Only the first turn of the case runs; no qa_check, no full build.
 //   --resume       RESUME the latest run of each named case instead of starting a new task (no --rerun): same task, same workspace, the lead conversation is resumed; the lead is told to carry on (or give your own words with --say="..."). Cases never run before start normally.
@@ -38,7 +38,7 @@ const fake = flags.has("--fake"), noPlanning = flags.has("--no-planning"), stopP
 // UI_STORE and UI_REPO (env, both) force ONE shared store and repo instead (one-off scripts).
 const perTask = !E.UI_STORE && !E.UI_REPO, homeOf = (task: string) => join(STATE_DIR, task);
 const storeOf = (task: string) => (perTask ? join(homeOf(task), "store", "store.json") : STORE), repoOf = (task: string) => (perTask ? join(homeOf(task), "workspace") : REPO);
-if (!suite) { console.log("usage: bun testrun/run.ts <suite> [case_id ...] [--list] [--fake] [--rerun] [--video] [--record] [--no-planning] [--video-route=/screen]"); process.exit(1); }
+if (!suite) { console.log("usage: bun testrun/run.ts <suite> [case_id ... | --all] [--list] [--fake] [--rerun] [--video] [--record] [--no-planning] [--video-route=/screen]"); process.exit(1); }
 const all = await loadSuites(), mine = all.filter((c) => c.suite === suite);
 for (const w of branchWarnings(all)) console.log("WARNING " + w);   // extra `after` siblings were turned into branches automatically; fix the file when convenient
 if (!mine.length) { console.log(`no suite "${suite}". Suites: ${[...new Set(all.map((c) => c.suite))].join(", ")}`); process.exit(1); }
@@ -57,6 +57,8 @@ const reuse = (m: string | undefined) => !!m || again;
 const sayMsg: string | undefined = sayArg ?? (videoOnly && resumable ? "(video only: no lead call)" : !!resumeArg && resumable ? "Carry on with the task from where you stopped and finish it. Then tell me what changed since your last answer." : undefined);
 if (flags.has("--list")) { for (const c of mine) console.log(`${c.id}${c.after ? "  (after " + c.after + ")" : ""}  ${exp[c.id] ? "[ran]" : ""}${unsupported(c) ? "  [not supported: " + unsupported(c) + "]" : ""}  ${c.title}`); process.exit(0); }
 
+// A run needs explicit case ids; the WHOLE suite only with --all (so a typo or a forgotten id never spends credits on every case).
+if (!want.length && !flags.has("--all")) { console.log(`## ${suite}: name the case id(s) to run, or pass --all to run the whole suite (--list shows the ids).`); process.exit(1); }
 mkdirSync(STATE_DIR, { recursive: true });
 // EVERY run leaves a run record (the runs list of the UI: ui/.ui-data/web_runs/<id>.json + .log), whoever started it. A run started by the UI already has its record (env HARNESS_RUN_RECORDED), a manual one makes its own and copies its output into the log.
 if (!E.HARNESS_RUN_RECORDED && !fake && !flags.has("--auto")) {

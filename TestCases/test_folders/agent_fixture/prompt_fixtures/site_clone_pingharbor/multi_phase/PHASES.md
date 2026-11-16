@@ -42,9 +42,9 @@ status: phase 1 of 3 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T03 | builder 1: `js/screens/part-1.js` + `css/pages-part-1.css`: Home (sections S1-S9) and Blog list with article views. Brief: `build_inputs/02_brief_home_blog.md`; layouts 10 and 13 | builder | P1 |
-| T04 | builder 2: `part-2`: Features and Article. Brief: `03_brief_features_article.md`; layouts 11 and 14 | builder | P1 |
-| T05 | builder 3: `part-3`: Download. Brief: `04_brief_download.md`; layout 12 | builder | P1 |
+| T03 | builder 1: `js/screens/part-1.js` + `css/pages-part-1.css`: Home (sections S1-S9) and Blog list with article views. Brief: `build_inputs/02_brief_home_blog.md`; layouts 10 and 13 | builder | T01, T02 |
+| T04 | builder 2: `part-2`: Features and Article. Brief: `03_brief_features_article.md`; layouts 11 and 14 | builder | T01, T02 |
+| T05 | builder 3: `part-3`: Download. Brief: `04_brief_download.md`; layout 12 | builder | T01, T02 |
 
 **Done when (you can check each one):**
 - every page replaced its stub (no 'TODO', no lorem ipsum)
@@ -61,7 +61,7 @@ status: phase 1 of 3 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T06 | `site_audit` + `preview` (the reference picture compare is not possible: no live reference is supplied) | qa-reviewer | P2 |
+| T06 | `site_audit` + `preview` (the reference picture compare is not possible: no live reference is supplied) | qa-reviewer | T03, T04, T05 |
 | T07 | fix contrast: small accent text on light must use `#047857` (design system); all text 4.5:1 or better, light and dark, desktop and phone | builder | T06 |
 | T08 | fix phone tap targets (at least 40x40 px), add a meta description to every page, keep heading order, no text under 12 px | builder | T06 |
 

@@ -45,8 +45,8 @@ status: phase 1 of 4 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T03 | `player.ts`: one audio element + `useSyncExternalStore`; verbs skipToNext, skipToPrevious, seekTo, setVolume, setShuffle, setRepeat; volume in localStorage | builder | P1 |
-| T04 | `color.ts` (48x48 canvas, 36 hue buckets, darken to 4.7:1) + `--page` `@property` | builder | P1 |
+| T03 | `player.ts`: one audio element + `useSyncExternalStore`; verbs skipToNext, skipToPrevious, seekTo, setVolume, setShuffle, setRepeat; volume in localStorage | builder | T01 |
+| T04 | `color.ts` (48x48 canvas, 36 hue buckets, darken to 4.7:1) + `--page` `@property` | builder | T01 |
 
 **Done when (you can check each one):**
 - all 6 verbs have a test that passes
@@ -62,10 +62,10 @@ status: phase 1 of 4 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T05 | Sidebar + PlayerBar | builder | P2 |
-| T06 | Home + Search | builder | P2 |
-| T07 | PlaylistView + TrackTable | builder | P2 |
-| T08 | NowPlaying panel | builder | P2 |
+| T05 | Sidebar + PlayerBar | builder | T03, T04 |
+| T06 | Home + Search | builder | T03, T04 |
+| T07 | PlaylistView + TrackTable | builder | T03, T04 |
+| T08 | NowPlaying panel | builder | T03, T04 |
 
 **Done when (you can check each one):**
 - W-01, W-04, W-05, W-06 hold
@@ -81,7 +81,7 @@ status: phase 1 of 4 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T09 | measure contrast, fade time, test ids, brand strings | qa-reviewer | P3 |
+| T09 | measure contrast, fade time, test ids, brand strings | lead | T05, T06, T07, T08 |
 
 **Done when (you can check each one):**
 - contrast >= 4.7:1 on every playlist

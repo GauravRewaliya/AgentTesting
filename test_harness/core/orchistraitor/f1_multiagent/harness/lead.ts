@@ -20,7 +20,9 @@ export async function runLead(ctx: CallCtx & { store: MStore }, o: { task_id: st
   const prompt = (first: boolean) => [`TASK ${o.task_id}${first ? "" : " (continuing)"}`, first ? conversationBlock(store, o.task_id, o.request) : "", first && store.agentsOf(o.task_id).length > 1 ? "THE TEAM RIGHT NOW:\n" + digest(store, o.task_id) : "", `REQUEST FROM THE PERSON:\n${o.request}`,
     ld.allow.some((a) => a.includes("delegate")) ? `COMMANDS (run them with Bash, one per call; each prints one line of JSON):
   ${tools} delegate --role <role> --session new|<agent_id>|fork:<agent_id> --objective "<what>" --output "<format>" --boundaries "<limits>" [--async] [--mode ask] [--writes a,b] [--title "<what this agent is for>"] [--model haiku]
-  ${tools} wait --agents <id>,<id> [--timeout 90]     (after --async: waits and returns the answers)
+  ${tools} wait --agents <id>,<id> [--timeout 300]     (after --async: waits and returns the answers)
+  ${tools} plan_lint --dir run_test/plan                (FREE check that a plan can be built from alone: README sections, PHASES with Done-when, one owner per file, links)
+  ${tools} report_issue_to_admin --agent <agent_id> --kind <slow|silent|stalled|hung|lazy|bad_output> --text "<what you saw, what you did>"   (records a problem with a sub-agent for the admins, with its session id)
   ${tools} chapter --name <clone|prototype|qa|preview_bg|parallel|planning|new_project|artifact>   (the details of a recipe: read it ONCE before that recipe's first step)
   ${tools} ledger_get --report <report_id>              (the FULL answer of an agent; use it when wait shows truncated:true)
   ${tools} ls [--path <dir>]                            (READ-ONLY: files in the shared workspace run_test/)
@@ -35,7 +37,7 @@ export async function runLead(ctx: CallCtx & { store: MStore }, o: { task_id: st
   ${tools} say --to <agent_id> --text "<fact or question>"
   ${tools} agent_peek --agent <agent_id> [--n 8]        (READ-ONLY look inside a running agent: last tool calls, silence, held files, a hint: wait / answer / stop)
   ${tools} cost                                         (what the team spent so far and what is left of the project budget)
-  PHASED WORK (code enforces "n+1 waits for n"): ${tools} plan_submit --tasks '<JSON [{id,role,objective,output,boundaries,deps?,writes?,phase:1|2|3..}]>' then plan_run --plan <id>; ${tools} plan_status --plan <id> --wait 90; when a phase's tasks are done and its exit check passed (qa_check healthy): ${tools} phase_pass --plan <id> --phase <n> --evidence "<checks run and what they showed>" (opens phase n+1); ${tools} phase_status --plan <id>
+  PHASED WORK (code enforces "n+1 waits for n"): ${tools} plan_submit --tasks '<JSON [{id,role,objective,output,boundaries,deps?,writes?,phase:1|2|3..}]>' then plan_run --plan <id>; ${tools} plan_status --plan <id> --wait 300; when a phase's tasks are done and its exit check passed (qa_check healthy): ${tools} phase_pass --plan <id> --phase <n> --evidence "<checks run and what they showed>" (opens phase n+1); ${tools} phase_status --plan <id>
   ${tools} board_status` :"You have no delegate command: multi-agent is off for this task. Answer without sub-agents."].join("\n\n");
   const out = await callAgent({ ...ctx, defs: new Map(defs).set("lead", ld) }, row, o.repo, prompt, o.forceSel, {}, { env });   // the launch copy: prompt = CLAUDE.md + the roles it may call
   store.tx(() => touchRun(store, o.task_id));   // the main agent's Claude session id is now on the run record

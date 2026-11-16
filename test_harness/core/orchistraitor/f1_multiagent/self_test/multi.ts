@@ -14,6 +14,9 @@ import { callAgent, checkAgents, RealRunner, ScriptRunner, projectDirFor, transc
 import { MStore, boardStatus, inbox, noteContext, say, sessionStats } from "../harness/core/board.ts";
 import { runCallee, sharedContext } from "../harness/core/callee.ts";
 import { isStatusOnly, statusReply } from "../harness/core/status_reply.ts";
+import { lintPlan } from "../harness/core/plan_lint.ts";
+import { finishedTurn } from "../harness/core/base/hung.ts";
+import { attention, dueAutoStops, dueNudges, waitSeconds } from "../harness/core/monitor.ts";
 import { matchCalls } from "../testrun/cases.ts";
 import { acquireSlot } from "../harness/core/base/slots.ts";
 import { hookArgs } from "../harness/core/hooks_settings.ts";
@@ -46,6 +49,8 @@ import { trace } from "../harness/core/base.ts";
 const REAL = process.argv.includes("--real");
 const defs = loadDefs();
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** `plan_status --wait N` now ends EARLY (a failed task, a completed phase, an agent that needs the lead): a test that wants the FINAL state asks again until the plan has settled. */
+const settle = async (tool: (a: string[]) => Promise<any>, plan: string, wait = "30") => { let st: any; for (let i = 0; i < 8; i++) { st = await tool(["plan_status", "--plan", plan, "--wait", wait]); if (["done", "failed", "aborted"].includes(st.status)) break; } return st; };
 const mkDef = (name: string, o: Partial<AgentDef> = {}): AgentDef => ({ name, role: name, description: name, model: "haiku", session: "persistent", writes: false, max_children: 4, agents: [], tiers: [], allow: [], tools: [], dir: "", prompt_file: "", ...o });
 
 function world(over: Partial<Policy> = {}, d: Map<string, AgentDef> = defs, leadName = "lead") {
@@ -432,7 +437,7 @@ async function offlineLocksAndPlans() {
   const obj = String((b1?.req as any)?.objective ?? "");
   t("P4", "a plan runs by itself: two waves of three tasks finish in about two task-times (not six), every task done, and the plan is marked done", sub.ok && started.started && st.status === "done" && st.tasks.every((x: any) => x.status === "done") && wall < 4200, `wall ${wall} ms (sequential would be >= 4800); status ${st.status}`);
   t("P5", "each task receives the answers of the tasks it depends on (by reference to the ledger) and ONLY those: b1 sees r1, not r2 or r3", /RESULTS FROM THE TASKS YOU DEPEND ON/.test(obj) && /r1 \(researcher#1\)/.test(obj) && !/r2 \(/.test(obj) && !/r3 \(/.test(obj) && calls.length === 6, obj.slice(-300));
-  const bad = good(); bad[1]!.objective += " FAILME"; const sub2 = await tool(["plan_submit", "--tasks", JSON.stringify(bad)]), st2 = await (async () => { await tool(["plan_run", "--plan", sub2.plan_id]); return tool(["plan_status", "--plan", sub2.plan_id, "--wait", "30"]); })();
+  const bad = good(); bad[1]!.objective += " FAILME"; const sub2 = await tool(["plan_submit", "--tasks", JSON.stringify(bad)]), st2 = await (async () => { await tool(["plan_run", "--plan", sub2.plan_id]); return settle(tool, sub2.plan_id); })();
   const by = (id: string) => st2.tasks.find((x: any) => x.id === id);
   t("P6", "when a task fails, its dependents are SKIPPED with the reason (nothing runs on missing facts), the other branches still finish, and the plan is marked failed", st2.status === "failed" && by("r2").status === "failed" && by("b2").status === "skipped" && /dependency r2/.test(by("b2").error) && by("b1").status === "done" && by("b3").status === "done", JSON.stringify(st2.tasks.map((x: any) => x.id + ":" + x.status)));
   rm(dir);
@@ -744,7 +749,7 @@ async function parentSuite() {
       mid.status === "running" && mid.tasks.find((x: any) => x.id === "r1").status === "blocked" && /which address/.test(mid.tasks.find((x: any) => x.id === "r1").question) && mid.tasks.find((x: any) => x.id === "b1").status === "pending" && !f1.agentsOf("t").some((a) => a.name === "builder"), JSON.stringify(mid.tasks.map((x: any) => x.id + ":" + x.status)));
     const bad1 = await tool(["plan_answer", "--plan", sub.plan_id, "--item", "b1", "--text", "x"]), bad2 = await tool(["plan_answer", "--plan", sub.plan_id, "--item", "r1", "--text", "  "]);
     t("NP7", "answering is strict: a task that is not blocked cannot be answered, and an empty answer is refused", bad1.ok === false && /not blocked/.test(bad1.reason) && bad2.ok === false && /empty/.test(bad2.reason), JSON.stringify([bad1, bad2]).slice(0, 200));
-    const ans = await tool(["plan_answer", "--plan", sub.plan_id, "--item", "r1", "--text", "use https://beta.example/new"]), fin = await tool(["plan_status", "--plan", sub.plan_id, "--wait", "30"]), f2 = new MStore(file);
+    const ans = await tool(["plan_answer", "--plan", sub.plan_id, "--item", "r1", "--text", "use https://beta.example/new"]), fin = await settle(tool, sub.plan_id), f2 = new MStore(file);
     const r1calls = f2.calls.filter((c) => c.callee_agent_id === "researcher#1");
     t("NP8", "the parent answers with plan_answer: the SAME agent (researcher#1, session argument researcher#1) continues with 'ANSWER FROM YOUR PARENT' in its brief, then the waiting task runs and the plan completes",
       ans.ok === true && fin.status === "done" && r1calls.length === 2 && r1calls[1]!.session_arg === "researcher#1" && /ANSWER FROM YOUR PARENT[^]*beta\.example\/new/.test(String((r1calls[1]!.req as any).objective)) && f2.agentsOf("t").filter((a) => a.name === "researcher").length === 1, JSON.stringify(ans) + " plan=" + fin.status);
@@ -1145,7 +1150,69 @@ async function contextSuite() {
   t("CX6", "a plain status question is answered from the board (no lead resume); longer or mixed messages still go to the lead", isStatusOnly("Status?") && isStatusOnly("what's running?") && !isStatusOnly("status and continue") && !isStatusOnly("continue") && !isStatusOnly("why is the header slow")
     && /Spent so far/.test(statusReply(new MStore(join(cwd, "store.json")), "t")));
   // 6. judge: expected_roles = each role at least once; other calls must match exactly
-  t("CX7", "matchCalls: several builders and fix-round resumes satisfy expected_roles [builder]; a missing role or an extra other role does not", matchCalls(["new:builder", "new:builder", "resume:builder"], ["new:builder"], new Set(["builder"])) && !matchCalls([], [], new Set(["builder"])) && !matchCalls(["new:builder", "new:reviewer"], ["new:builder"], new Set(["builder"])));
+  t("CX7", "matchCalls: several builders and fix-round resumes satisfy expected_roles [builder]; a missing role or an extra other role does not", matchCalls(["new:builder", "new:builder", "resume:builder"], ["new:builder"], new Set(["builder"])) && !matchCalls([], [], new Set(["builder"])) && !matchCalls(["new:builder", "new:reviewer"], ["new:builder"], new Set(["builder"])) && matchCalls(["new:planner", "new:researcher", "new:researcher"], ["new:planner"], new Set(["planner", "researcher"]), new Set(["planner"])) && !matchCalls(["new:researcher"], [], new Set(["planner", "researcher"]), new Set(["planner"])));
+  // 8. the planner: a writer that does R&D and writes the plan in the proven format; plan_lint is the free gate
+  const pl = defs.get("planner")!, plPrompt = readFileSync(launchDef(pl, defs, 2, 3, mkdtempSyncSafe(), "team").prompt_file, "utf8");
+  t("CX9", "the planner is a writer with web access that may call researcher / lookup / ux-designer, its prompt = behaviour + plan_format.md + declarations, under 13 KB, and it knows plan_lint", pl.writes === true && pl.tools.includes("WebSearch") && pl.tools.includes("Write") && pl.agents.join() === "researcher,lookup,ux-designer" && plPrompt.includes("## Build recipe".replace("## ", "")) && plPrompt.includes("plan_lint") && plPrompt.length < 13000, `${plPrompt.length} bytes`);
+  const FX = join(import.meta.dirname, "..", "..", "..", "..", "..", "TestCases", "test_folders", "agent_fixture", "prompt_fixtures"), good = lintPlan(join(FX, "site_clone_pingharbor", "one_phase_complete"));
+  const bad = mkdtempSyncSafe(); writeFileSync(join(bad, "README.md"), "# x\nTBD here\n[gone](nope.md)\n");
+  const lb = lintPlan(bad);
+  t("CX10", "plan_lint passes a plan that built well (pp_site) and fails an empty one with: missing frontmatter and sections, no PHASES, a placeholder and a broken link", good.ok && !lb.ok && lb.errors.some((e) => /audience/.test(e)) && lb.errors.some((e) => /Build recipe/.test(e)) && lb.errors.some((e) => /PHASES\.md is missing/.test(e)) && lb.errors.some((e) => /placeholder/.test(e)) && lb.errors.some((e) => /broken link/.test(e)), JSON.stringify(lb.errors).slice(0, 160));
+  const two = mkdtempSyncSafe(); writeFileSync(join(two, "README.md"), "---\naudience: both\n---\n## Build recipe\n## What is it\n## What you get\n## Quality bar\n"); writeFileSync(join(two, "PHASES.md"), "| T01 | `js/a.js` | builder |\n| T02 | `js/a.js` | builder |\n\n**Done when:**\n- one\n- two\n");
+  const noRes = mkdtempSyncSafe(); writeFileSync(join(noRes, "README.md"), "---\naudience: both\n---\n## Build recipe\n## What is it\n## What you get\n## Quality bar\n"); writeFileSync(join(noRes, "PHASES.md"), "| T01 | x | builder |\n\nDone when:\n1. one\n2. two\n");
+  const withRes = mkdtempSyncSafe(); writeFileSync(join(withRes, "README.md"), "---\naudience: both\n---\n## Build recipe\n## What is it\n## What you get\n## Quality bar\n## Research\n- https://example.com/a: x\n- https://example.org/b: y\n"); writeFileSync(join(withRes, "PHASES.md"), "| T01 | x | builder |\n\n### Done when\n- one\n- two\n");
+  t("CX12", "plan_lint: a plan without research (fewer than 2 sources, no `research: none`) is refused; two sources pass; Done when may be written as plain, bold or heading", lintPlan(noRes).errors.some((e) => /no research/.test(e)) && !lintPlan(noRes).errors.some((e) => /Done when/.test(e)) && !lintPlan(withRes).errors.some((e) => /research|Done when/.test(e)), JSON.stringify(lintPlan(withRes).errors).slice(0, 140));
+  // the loopholes found when reviewing the planner: empty sections, a recipe without steps, made-up sources, a review agent, folder overlap, vague checks, missing brand tokens
+  const mkPlan = (readme: string, phases: string) => { const d = mkdtempSyncSafe(); writeFileSync(join(d, "README.md"), readme); writeFileSync(join(d, "PHASES.md"), phases); writeFileSync(join(d, "00_contract.md"), "names and routes\n"); writeFileSync(join(d, "CONTEXT.txt"), "plan/00_contract.md\n"); return d; };
+  const fm = "---\naudience: both\n---\n", rows = "| F1 | a | b | 1 | planned |\n| F2 | a | b | 1 | planned |\n| F3 | a | b | 1 | planned |\n";
+  const goodR = fm + "## Build recipe\n1. build in run_test/x with the kit command now\n2. owners are listed in the task table below\n3. verify with proto_check and the preview\n## What is it\nA small public page that shows the state of things; every screen is invented in the style of comparable pages.\n## What you get\n" + rows + "## Quality bar\n- contrast 4.5:1 or better in both themes, tap targets of 40 px, and no text under 12 px anywhere\n## Research\n- https://a.example/x: it showed the component order, so the list comes first\n- https://b.example/y: it showed email subscribe is standard, so we only store the address\n";
+  const goodP = "| T01 | `js/a.js` | builder |\n\n**Done when:**\n- open `#/home`: the banner shows \"All good\" and 3 rows\n- reload keeps the theme saved in `localStorage` from before\n- 0 console errors on every route at 1280 px\n- tap targets are at least 40 px at 375 px width\n";
+  const gp = lintPlan(mkPlan(goodR, goodP), undefined, { fetched: ["https://a.example/x", "https://b.example/y"] });
+  const stub = lintPlan(mkPlan(goodR.replace("1. build in run_test/x with the kit command now\n2. owners are listed in the task table below\n3. verify with proto_check and the preview\n", "1. go\n"), goodP));
+  const nofeat = lintPlan(mkPlan(goodR.replace(rows, "| F1 | a | b | 1 | planned |\n"), goodP));
+  const madeUp = lintPlan(mkPlan(goodR, goodP), undefined, { fetched: ["https://other.example/z"] });
+  const qa = lintPlan(mkPlan(goodR, goodP + "| T02 | audit the result | qa-reviewer | T01 |\n"));
+  const seq = lintPlan(mkPlan(goodR, "| T01 | `js/a.js` | builder | - |\n| T02 | `js/a.js` | builder | T01 |\n| T03 | `js/a.js` | builder | T02 |\n\n**Done when:**\n- open `#/a` and see 3 rows\n- reload keeps theme 1\n- 0 errors at 1280 px\n- taps are 40 px\n")), par = lintPlan(mkPlan(goodR, "| T01 | `js/a.js` | builder | - |\n| T02 | `js/a.js` | builder | - |\n\n**Done when:**\n- open `#/a` and see 3 rows\n- reload keeps theme 1\n- 0 errors at 1280 px\n- taps are 40 px\n"));
+  t("CX14", "plan_lint ownership is order-aware: tasks in sequence (needs) may edit one file, tasks that can run in parallel may not; a `## Build prompt` counts as the build recipe", !seq.errors.some((e) => /overlaps/.test(e)) && par.errors.some((e) => /overlaps/.test(e)) && !lintPlan(mkPlan(goodR.replace("## Build recipe", "## Build prompt"), goodP)).errors.some((e) => /Build/.test(e)));
+  const folder = lintPlan(mkPlan(goodR, "| T01 | `model/` | builder |\n| T02 | `model/tower.js` | builder |\n\n**Done when:**\n- open `#/a` and see 3 rows\n- reload keeps theme 1\n"));
+  const vague = lintPlan(mkPlan(goodR, "| T01 | `js/a.js` | builder |\n\n**Done when:**\n- looks good and works well enough\n- the users are happy with it overall\n- feels fast and smooth to use today\n- nothing seems broken at all in there\n"));
+  const tokens = lintPlan(mkPlan(goodR.replace("1. build in run_test/x with the kit command now", "1. run `proto_init --kind site --dir run_test/x --accent #10b981` now"), goodP));
+  t("CX13", "plan_lint loopholes closed: a good plan passes clean; a stub recipe, a 1-feature catalog and a cited-but-never-fetched source are caught; a review-agent task, a folder/file overlap, vague Done-when checks and missing brand tokens are flagged",
+    gp.ok && gp.warnings.length === 0 && stub.errors.some((e) => /Build recipe/.test(e)) && nofeat.errors.some((e) => /feature catalog/.test(e)) && madeUp.warnings.some((w) => /never fetched/.test(w))
+    && qa.warnings.some((w) => /review agent/.test(w)) && folder.errors.some((e) => /overlaps/.test(e)) && vague.warnings.some((w) => /no concrete number/.test(w)) && tokens.warnings.some((w) => /--font/.test(w) || /--bg-dark/.test(w)),
+    JSON.stringify({ gp: gp.errors.concat(gp.warnings), stub: stub.errors.length, nofeat: nofeat.errors.length, madeUp: madeUp.warnings.length, qa: qa.warnings.length, folder: folder.errors.length, vague: vague.warnings.length, tokens: tokens.warnings.length }).slice(0, 300));
+  // the CLI that answered but never exited (pp_eiffel builder #3): finished-turn detection from the session log
+  const T0 = Date.parse("2026-01-01T10:00:00Z"), rec = (o: object) => JSON.stringify(o) + "\n";
+  const asst = (ts: string, id: string, stop: string | null, text: string, out = 50) => rec({ type: "assistant", timestamp: ts, message: { id, model: "claude-sonnet-5-5", stop_reason: stop, content: text ? [{ type: "text", text }] : [], usage: { input_tokens: 2, output_tokens: out, cache_read_input_tokens: 10000, cache_creation_input_tokens: 500 } } });
+  const hungLog = asst("2026-01-01T10:00:05Z", "m1", "tool_use", "") + rec({ type: "user", timestamp: "2026-01-01T10:00:06Z", message: { content: [{ type: "tool_result", content: "ok" }] } }) + asst("2026-01-01T10:00:09Z", "m2", "end_turn", "DONE: wrote world/a.js", 900);
+  const fin = finishedTurn(hungLog, T0, T0 + 9_000, T0 + 9_000 + 60_000);
+  t("CX15", "a call whose log ends with a finished turn (end_turn) and 45 s of silence is DONE: the answer comes from the log and the cost is estimated; with a tool result pending, a clean exit (cost-state), too little silence, or the end_turn of an earlier call it is NOT",
+    !!fin && fin.reply === "DONE: wrote world/a.js" && fin.cost > 0 && fin.cost < 1
+    && finishedTurn(hungLog + rec({ type: "cost-state" }), T0, T0 + 9_000, T0 + 69_000) === null
+    && finishedTurn(hungLog, T0, T0 + 9_000, T0 + 30_000) === null
+    && finishedTurn(asst("2026-01-01T10:00:05Z", "m1", "tool_use", "") + rec({ type: "user", timestamp: "2026-01-01T10:00:06Z", message: {} }), T0, T0 + 6_000, T0 + 70_000) === null
+    && finishedTurn(hungLog, Date.parse("2026-01-01T11:00:00Z"), T0 + 9_000, T0 + 69_000) === null, JSON.stringify(fin));
+  // the monitor: which running sub-agents need the lead, and the one automatic nudge at 6 minutes
+  const NOW = Date.now(), mdir = mkdtempSyncSafe(), ms = new MStore(join(mdir, "store.json")), mrow = ms.addAgent("t", defs.get("builder")!, { level: 2, caller: "lead#1" });
+  const setup = (runS: number, lastToolS: number) => { mrow.status = "running"; mrow.started_at = NOW - runS * 1000; ms.events = ms.events.filter((e) => e.kind !== "tool.used"); ms.ev("tool.used", "t", mrow.agent_id, { tool: "Bash" }); ms.events[ms.events.length - 1]!.t = NOW - lastToolS * 1000; };
+  setup(200, 20); const ok0 = attention(ms, "t", undefined, NOW).length === 0;
+  setup(400, 30); const slow = attention(ms, "t", undefined, NOW)[0];
+  setup(400, 150); const silent = attention(ms, "t", undefined, NOW)[0];
+  setup(700, 420); const stalled = attention(ms, "t", undefined, NOW)[0];
+  setup(400, 30); const due1 = dueNudges(ms, "t", NOW).length; ms.ev("monitor.nudge", "t", mrow.agent_id, { started_at: mrow.started_at }); const due2 = dueNudges(ms, "t", NOW).length;
+  t("CX16", "monitor: a young agent needs nothing; over 6 min but moving = slow (look once); 2 min without a tool call = silent; 5 min = stalled (stop, but verify its files first, and report); the automatic nudge is due once per call",
+    ok0 && slow?.level === "slow" && silent?.level === "silent" && stalled?.level === "stalled" && /verify|CHECK its files/i.test(stalled!.do) && /report_issue_to_admin/.test(stalled!.do) && due1 === 1 && due2 === 0, JSON.stringify([slow?.level, silent?.level, stalled?.level, due1, due2]));
+  // report_issue_to_admin: appends to admin_issues.jsonl next to the store with the agent's session id, refuses an empty text, admin_issues lists it
+  mrow.session_id = "11111111-2222-3333-4444-555555555555"; ms.save();
+  const tcli = (...args: string[]) => JSON.parse(spawnSync("bun", ["--smol", join(H, "tools.ts"), ...args], { env: { ...process.env, HARNESS_STORE: join(mdir, "store.json"), HARNESS_TASK: "t", HARNESS_AGENT: "lead#1", HARNESS_CWD: mdir }, encoding: "utf8" }).stdout);
+  const rep = tcli("report_issue_to_admin", "--agent", mrow.agent_id, "--kind", "hung", "--text", "answered but the call stayed running; stopped it, files complete"), repBad = tcli("report_issue_to_admin", "--agent", mrow.agent_id), lst = tcli("admin_issues");
+  t("CX17", "report_issue_to_admin records the issue with the agent's session id for the admins (admin_issues.jsonl + an admin.issue event), refuses an empty text, and admin_issues lists it",
+    rep.ok === true && rep.session_id === "11111111-2222-3333-4444-555555555555" && repBad.ok === false && lst.issues?.length === 1 && lst.issues[0].kind === "hung" && existsSync(join(mdir, "admin_issues.jsonl")), JSON.stringify([rep.ok, repBad.ok, lst.issues?.length]));
+  // the backstop: 10 minutes without a tool call and nobody acted = the harness stops it; a moving agent never; waits are long (4 min minimum) and end early
+  setup(900, 650); const stopDue = dueAutoStops(ms, "t", NOW).map((x) => x.agent_id).join(), notYet = (setup(900, 400), dueAutoStops(ms, "t", NOW).length), moving = (setup(900, 20), dueAutoStops(ms, "t", NOW).length);
+  t("CX18", "backstop: an agent silent for 10 min is due for the harness stop, one silent for 6.6 min or still moving is not; a requested wait of 30 s or more lasts at least 4 min (it ends early on events), a quick look stays short",
+    stopDue === mrow.agent_id && notYet === 0 && moving === 0 && waitSeconds(90) === 240 && waitSeconds(300) === 300 && waitSeconds(5) === 5 && waitSeconds(0) === 0, JSON.stringify([stopDue, notYet, moving, waitSeconds(90)]));
+  t("CX11", "plan_lint: one owner per file (the same file in two build tasks is an error)", lintPlan(two).errors.some((e) => /overlaps|owned by/.test(e)));
   // 7. a call that waits for a slot says so (visible queue) and says when it got it
   const dir = mkdtempSyncSafe(), rel = await acquireSlot("lead", 1, dir); let told = 0; const p2 = acquireSlot("lead", 1, dir, () => { told++; }); await new Promise((r) => setTimeout(r, 400)); rel(); const rel2 = await p2; rel2();
   t("CX8", "a call that has to wait for a slot is told once (onWait), so the console shows 'queued' instead of 'running'", told === 1);

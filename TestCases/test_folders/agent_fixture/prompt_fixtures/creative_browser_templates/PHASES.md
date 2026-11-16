@@ -25,17 +25,17 @@ status: phase 1 of 2 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T01 | 3d-scene (`index.html`, `scene.js`, vendor three.js) | builder | - |
-| T02 | action-game (`index.html`, `game.js`) | builder | - |
-| T03 | grain-synth (`index.html`, `synth.js`, `samples/plucks.wav` generated in code) | builder | - |
-| T04 | juice-sandbox (`index.html`, `juice.js`) | builder | - |
-| T05 | sound-world (`index.html`, `viz.js`, vendor three.js) | builder | - |
+| T01 | 3d-scene (`3d-scene/index.html`, `3d-scene/scene.js`, `3d-scene/vendor/`, `3d-scene/README.md`) | builder | - |
+| T02 | action-game (`action-game/index.html`, `action-game/game.js`, `action-game/README.md`) | builder | - |
+| T03 | grain-synth (`grain-synth/index.html`, `grain-synth/synth.js`, `grain-synth/samples/plucks.wav`, `grain-synth/README.md`) | builder | - |
+| T04 | juice-sandbox (`juice-sandbox/index.html`, `juice-sandbox/juice.js`, `juice-sandbox/README.md`) | builder | - |
+| T05 | sound-world (`sound-world/index.html`, `sound-world/viz.js`, `sound-world/vendor/`, `sound-world/README.md`) | builder | - |
 
 **Done when (you can check each one):**
-- each page loads with 0 console errors
-- every Controls row works
-- every effect has an on/off key
-- no image files: sprites and shapes are drawn in code
+- each of the 5 pages loads from `python3 -m http.server 8000` with 0 console errors
+- each page exposes its hook (`SCENE`, `GAME`, `SYNTH`, `JUICE`, `VIZ`) and `?ui=0` hides its UI
+- every key in the Controls rows of the README changes something visible (e.g. juice-sandbox: J = light hit, 1-4 = presets)
+- no image file in the 5 folders (the only binary is `grain-synth/samples/plucks.wav`)
 
 ---
 <a id="phase-2"></a>
@@ -46,8 +46,8 @@ status: phase 1 of 2 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T06 | QA sweep of all five + reduced-motion check | qa-reviewer | P1 |
+| T06 | QA sweep of all five + reduced-motion check | lead | T01, T02, T03, T04, T05 |
 
 **Done when (you can check each one):**
-- every Controls row passes in a real browser
-- with 'reduce motion' on, shake and flashing stop
+- every Controls row passes in a headless browser run (list each demo: pass or fail)
+- with `prefers-reduced-motion: reduce`, screen shake and flashing are off or much smaller in action-game and juice-sandbox

@@ -6,13 +6,20 @@ status: phase 1 of 6 · planned
 # Linear-style tab bar · phase 1 of 6 · planned
 > A floating glass tab bar with a stretching, glowing pill, a search button that grows into a box, and a pull-up menu. Prototype = Vue web page.
 
-> **Planning phase only: nothing is built from this plan yet.** File and folder names below are the *planned* layout (taken from the analysed reference app), not files that exist. Test cases in `TestCases/` check the finished reference project or try to build from this plan; they are not the product.
+> **This plan is ready to build.** File and folder names below are the layout of the new app; nothing here depends on any other project's files. Build from this plan alone.
 
 | who reads | what | where |
 |---|---|---|
 | **Audience (users)** | App builders who want a tab bar that feels right, and want the gesture rules written down before building (in the real project two of them were found only by using the app and fixed in later commits). | this page: What is it, What you get, Look, Motion |
 | **Stakeholders** | decide scope, answer questions | Decisions and open questions, Phases at a glance |
-| **Builders (dev)** | stack: Vue 3 web prototype now (native target later: Expo + reanimated); pnpm only | `PHASES.md` and the grey DEV blocks (switch to Dev) |
+| **Builders (dev)** | stack: Vue 3 web prototype now (native target later: Expo + reanimated); pnpm only | `PHASES.md` and the build inputs in this folder |
+
+## Build recipe
+1. **Where:** build in `run_test/tabbar` as a Vue 3 + TypeScript + Vite web prototype (**pnpm only**: `pnpm create vite tabbar --template vue-ts`). Native-only items (vibration, native blur, Android layout) are NOT built.
+2. **Files and owners (no file owned twice):** builder A = `src/components/TabBar.vue`, `src/components/TabBarPill.vue`, `src/components/MenuPanel.vue`; builder B = `src/components/SearchBar.vue`, `src/constants.ts`, `src/glass.css`; the lead owns `src/App.vue` (3 pages) and `package.json`. One shared glass style in `glass.css` for pill, search box and menu.
+3. **Order:** the 6 phases of PHASES.md; the behaviour rows B-01 to B-07 are the tests.
+4. **Verify (the lead, no review agent):** `pnpm build` and `pnpm exec vue-tsc --noEmit` pass; drive the pill with pointer events in a headless browser (drag sideways, drag up more than 50 px, hold) and check each B row; say that 60 fps and the real touch feel were not checked.
+
 
 ## What is it
 A pill at the bottom holds 3 tabs. Drag the pill sideways and it stretches and glows, but the page only changes when you let go. Pull it up and a menu opens without changing the page. The search button turns into a search box and back.
@@ -104,6 +111,8 @@ flowchart TD
 
 Smooth at 60 fps on a device; native-only items (vibration, native blur) are written down, not built on web.
 
+- **Captured / invented:** what comes from the reference project is marked *real*; everything else (names, colours, sizes, wording) is *invented* by this plan or by you. Never present an invented value as taken from the reference.
+
 ## Team: who does what
 | who | does | tasks |
 |---|---|---|
@@ -121,6 +130,9 @@ You (the owner) answer the open questions and judge each phase; Claude edits thi
 
 ## Real or guessed
 Reverse-planned from a real project: 10 commits in 2 days, 5 of them rework. The interaction table is the lesson: two rules (page must not change while dragging; drag-up must not trigger the menu) were found by use and cost 416 + 93 patch lines. Items marked 'native-only' are written down, not prototyped.
+
+## Research
+research: none (reverse-planned from the git history of one real project (10 commits in 2 days); the gesture rules were read from the fixes in that history, so there was no outside product to look up)
 
 ## Decisions and open questions
 | id | what | answer / default | state |
@@ -168,7 +180,7 @@ Rules: .tsx/.ts only; one `GlassMaterial` shared by pill, search, menu; a hook f
 3. Perf: no JS-thread work inside gesture handlers except `scheduleOnRN` calls; one liquid-glass implementation.
 
 ## Evidence: real commit history
-Source: github.com/SchroederNathan/linear-tab-bar, pinned 829f277; commits from `phases.json`. Real history, 10 commits in 2 days. Plan below is reverse-planned (see `../how_i_plan.md`).
+Source: github.com/SchroederNathan/linear-tab-bar, pinned 829f277; commits from `phases.json`. Real history, 10 commits in 2 days. Plan below is reverse-planned (method: `docs/planning/RESEARCH.md` section 3).
 
 | # | date | real commit subject | tag | patch lines | plan item that would have prevented / ordered it |
 |---|---|---|---|---|---|

@@ -6,13 +6,20 @@ status: phase 1 of 4 · planned
 # Stacked toast (Clerk style) · phase 1 of 4 · planned
 > Pop-up messages for a phone app that stack, collapse and expand with springy motion, on iOS and Android.
 
-> **Planning phase only: nothing is built from this plan yet.** File and folder names below are the *planned* layout (taken from the analysed reference app), not files that exist. Test cases in `TestCases/` check the finished reference project or try to build from this plan; they are not the product.
+> **This plan is ready to build.** File and folder names below are the layout of the new app; nothing here depends on any other project's files. Build from this plan alone.
 
 | who reads | what | where |
 |---|---|---|
 | **Audience (users)** | App builders who want a polished toast for Expo / React Native, and want it stable (the original needed 3 fix commits for feel). | this page: What is it, What you get, Look, Motion |
 | **Stakeholders** | decide scope, answer questions | Decisions and open questions, Phases at a glance |
-| **Builders (dev)** | stack: Expo / React Native, react-native-reanimated, react-native-worklets, pressto, expo-haptics; pnpm only | `PHASES.md` and the grey DEV blocks (switch to Dev) |
+| **Builders (dev)** | stack: Expo / React Native, react-native-reanimated, react-native-worklets, pressto, expo-haptics; pnpm only | `PHASES.md` and the build inputs in this folder |
+
+## Build recipe
+1. **Where:** build in `run_test/clerk_toast` as an Expo / React Native TypeScript module (**pnpm only**: `pnpm create expo-app clerk_toast --template blank-typescript`, then `pnpm add react-native-reanimated react-native-worklets pressto expo-haptics expo-blur`). Pin every version in `package.json` (no `^`) and list the API surface used in `stacked-toast-manager/API.md`.
+2. **Files and owners (no file owned twice):** builder A = `stacked-toast-manager/{constants.ts,context.ts,stacked-toast-provider.tsx,hooks.ts,index.ts,stacked-toast.tsx}`; builder B = `stacked-toast-manager/backdrop/{index.tsx,index.android.tsx,use-gradient-height.ts}` and `components/pressable-scale.tsx`; `hooks/use-toast.tsx` goes to builder A after both are done. The lead owns `package.json` and `App.tsx` (a demo screen with buttons: add 1 / 3 / 5 toasts, 20 rapid calls).
+3. **Order:** Core, then Interaction, Stability, Maintenance (PHASES.md). Springs only (`withSpring`), never timing curves.
+4. **Verify (the lead, no device here):** `pnpm install`, `pnpm exec tsc --noEmit` and `pnpm exec expo export --platform android` pass. Say plainly that haptics, the look of the springs and the 20-call video were NOT checked. Colours and sizes in `constants.ts` are not captured from the reference: choose them and say so.
+
 
 ## What is it
 When your app calls `toast()`, a small message slides in. More messages stack behind it. Tap the stack and it expands to show them all; tap again and it collapses. A soft blurred gradient sits behind the stack, and the phone gives a small vibration when you press. It must not jump when many toasts arrive at once.
@@ -51,6 +58,8 @@ flowchart LR
 | press | scale + one haptic | one vibration per press, never two |
 | many calls | 20 quick `toast()` calls | no jump, no overlap |
 
+- **Captured / invented:** what comes from the reference project is marked *real*; everything else (names, colours, sizes, wording) is *invented* by this plan or by you. Never present an invented value as taken from the reference.
+
 ## Team: who does what
 | who | does | tasks |
 |---|---|---|
@@ -67,6 +76,9 @@ You (the owner) answer the open questions and judge each phase; Claude edits thi
 
 ## Real or guessed
 Reverse-planned from a real project that lived 15 months (9 commits). The plan lines are my reading of what would have prevented the later fixes; I did not read the two big fix diffs, so why 'unstable animations' happened is not established.
+
+## Research
+research: none (reverse-planned from the git history of a real project (`enzomanuelmangano/demos`, `src/animations/clerk-toast`, 9 commits); the file list and pinned library surface are read from it, no other product was needed)
 
 ## Decisions and open questions
 | id | what | answer / default | state |

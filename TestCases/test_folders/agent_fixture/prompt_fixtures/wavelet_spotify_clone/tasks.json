@@ -4,5 +4,5 @@
 {"id":"T02b","phase":1,"title":"tones + router","owner":"builder-c","files":["src/tones.ts","src/router.ts"],"needs":["T01"],"reads":["00_brief.md"],"steps":["tone plays; hash route parses 3 patterns"],"status":"todo","passes":false},
 {"id":"T03","phase":2,"title":"player.ts (6 verbs)","owner":"builder-a","files":["src/player.ts"],"needs":["T02a","T02b"],"reads":["00_brief.md#requirements"],"steps":["each verb changes state; tested"],"status":"todo","passes":false},
 {"id":"T04","phase":2,"title":"color.ts","owner":"builder-b","files":["src/color.ts"],"needs":["T02a"],"reads":["00_brief.md#requirements"],"steps":["contrast >= 4.7 for all covers"],"status":"todo","passes":false},
-{"id":"T09","phase":4,"title":"verify numbers","owner":"qa-reviewer","files":[],"needs":["T03","T04"],"reads":["00_brief.md#done"],"steps":["measure fade ms <= 500","grep brand strings"],"status":"todo","passes":false}
+{"id":"T09","phase":4,"title":"verify numbers","owner":"lead","files":[],"needs":["T03","T04"],"reads":["00_brief.md#done"],"steps":["measure fade ms <= 500","grep brand strings"],"status":"todo","passes":false}
 ],"note":"UI tasks T05-T08 omitted for brevity: one owner per component file."}

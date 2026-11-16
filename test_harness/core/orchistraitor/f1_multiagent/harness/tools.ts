@@ -21,12 +21,13 @@ import { applyQueue } from "./core/patches.ts";
 import { depsBlock, replan, validatePlan, type PlanRow, type PlanTask } from "./core/plan.ts";
 import { gateBlock, passPhase, phaseRows, reopenGates } from "./core/phases.ts";
 import { peekAgent } from "./core/peek.ts";
+import { attention, dueAutoStops, dueNudges, nudgeText, waitSeconds } from "./core/monitor.ts";
 import { modelProblem } from "./core/models.ts";
 import { locksFromEnv } from "./core/lockapi.ts";
 import { customDef } from "./core/custom.ts";
 import { FixtureGate } from "./core/fixture_gate.ts";
 import { wsGrep, wsLs, wsRead } from "./core/workspace_read.ts";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, readdirSync } from "node:fs";
 import { MAX_SAME, giveUp, qaFailed, readQa, recordCheck, writeQa } from "./core/qa_loop.ts";
 import { recordDevServer } from "../../../../infra/qa/web_dev_qa.ts";
 
@@ -43,6 +44,30 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 if (!file || !task) { out({ ok: false, reason: "tool environment missing (HARNESS_STORE/TASK)" }); process.exit(0); }
 
 const store = new MStore(file), defs = loadAgents(join(HDIR, "agents"));
+/** An issue for the admins: append-only log next to the store (session id included) + an `admin.issue` event. Used by report_issue_to_admin and by the harness backstop. */
+const logIssue = (o: { agent?: string; kind: string; text: string; reporter: string; session_id?: string | null }) => {
+  store.reload(); const a = o.agent ? store.agent(task, o.agent) : undefined, ts = a ? store.events.filter((e) => e.task_id === task && e.agent_id === a.agent_id && e.kind === "tool.used").map((e) => e.t) : [];
+  const rec = { id: "iss_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), t: Date.now(), at: new Date().toISOString(), task, reporter: o.reporter, agent: o.agent || null, role: a?.role ?? null, session_id: o.session_id ?? a?.session_id ?? null, kind: o.kind, status: a?.status ?? null, activity: a?.activity ?? null, running_s: a?.started_at && a.status === "running" ? Math.round((Date.now() - a.started_at) / 1000) : null, last_tool_s_ago: ts.length ? Math.round((Date.now() - Math.max(...ts)) / 1000) : null, tool_calls: ts.length, text: o.text.slice(0, 2000) };
+  appendFileSync(join(dirname(file), "admin_issues.jsonl"), JSON.stringify(rec) + "\n");
+  store.ev("admin.issue", task, o.reporter, { id: rec.id, agent: rec.agent, kind: o.kind, session_id: rec.session_id }); store.save(); return rec;
+};
+/** The harness watches while the lead is blocked in `wait` / `plan_status` (throttled to every 10 s, free): ONE status nudge to an agent over 6 min (core/monitor.ts), and a BACKSTOP: an agent with no tool call for 10 min is stopped, its locks released, and the issue logged + the lead told. Returns true when the lead is needed NOW. */
+let lastMonitorTick = 0;
+const monitorTick = async (only?: string[]): Promise<boolean> => {
+  if (Date.now() - lastMonitorTick < 10_000) return false; lastMonitorTick = Date.now();
+  try {
+    for (const d of dueNudges(store, task)) store.tx(() => { say(store, task, "harness", d.agent_id, nudgeText(d.running_s)); store.ev("monitor.nudge", task, d.agent_id, { started_at: d.started_at, running_s: d.running_s }); });
+    for (const d of dueAutoStops(store, task)) {
+      let stopped: string[] = [];
+      store.tx(() => { stopAgent(store, task, d.agent_id); stopped = store.calls.filter((x) => x.status === "failed" && x.reason === "stopped").map((x) => x.id); store.ev("monitor.autostop", task, d.agent_id, { silent_s: d.silent_s, running_s: d.running_s }); });
+      for (const c of stopped) await locks.release(task, c, policy.lockTtlMs);
+      logIssue({ agent: d.agent_id, kind: "stalled", reporter: "harness", text: `No tool call for ${d.silent_s}s (running ${d.running_s}s) and nobody acted: stopped by the harness backstop. Its files are kept; check them before starting a replacement.` });
+      const lead = store.agentsOf(task).find((a) => a.name === "lead"); if (lead) store.tx(() => { say(store, task, "harness", lead.agent_id, `${d.agent_id} had no tool call for ${Math.round(d.silent_s / 60)} min and was STOPPED by the harness. Check its files yourself (read_file, a check) before you start a replacement: it may be complete.`); });
+    }
+    return attention(store, task, only).some((x) => x.level === "stalled" || x.level === "asks");
+  } catch { return false; /* monitoring never breaks a command */ }
+};
+const attentionSpread = (only?: string[]) => { try { const x = attention(store, task, only); return x.length ? { attention: x } : {}; } catch { return {}; } };
 // per-agent model: HARNESS_MODELS='{"researcher":"sonnet"}' overrides agent.json for this launch
 for (const [n, m] of Object.entries(JSON.parse(E.HARNESS_MODELS ?? "{}") as Record<string, string>)) { const d = defs.get(n); if (d) d.model = m; }
 { const only = E.HARNESS_LEAD_AGENTS, ld = defs.get("lead"); if (only !== undefined && ld) ld.agents = only.split(",").filter(Boolean); }   // a test case decides which agents its lead has
@@ -204,13 +229,13 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
 } else if (cmd === "_run") {
   await runCall(flag("call")!);
 } else if (cmd === "wait") {
-  const names = (flag("agents") ?? "").split(",").filter(Boolean), limit = Number(flag("timeout") ?? 90) * 1000, t0 = Date.now();
+  const names = (flag("agents") ?? "").split(",").filter(Boolean), limit = waitSeconds(Number(flag("timeout") ?? 300)) * 1000, t0 = Date.now(); let leadNeeded = false;
   const jobDone = (n: string) => existsSync(join(cwd, "run_test", "_jobs", n + ".done")), pending = () => names.filter((n) => { if (n.startsWith("job_")) return !jobDone(n); const a = store.agent(task, n); return !a || a.status === "running" || store.calls.some((c) => c.task_id === task && c.callee_agent_id === n && c.status === "granted"); });   // running, or granted and waiting for its locks
   // a message the person sent while this turn runs: stop waiting so the PostToolUse hook (activity.ts) hands it to the master NOW; it is not marked read here
   const userMsgs = () => store.notes.filter((n) => n.task_id === task && n.from === "user" && (n.to === me || n.to === "all") && !n.read_by.includes(me)).length;
   let interrupted = false;
   const any = rest.includes("--any");   // --any: return as soon as ONE of them has finished (the master reacts to it at once while the others keep working), with the harness's own check of that agent's pages
-  for (;;) { store.reload(); const left = pending().length; if (any ? left < names.length : !left) break; if (Date.now() - t0 > limit) break; if (userMsgs()) { interrupted = true; break; } await sleep(400); }
+  for (;;) { store.reload(); if (await monitorTick(names.filter((n) => !n.startsWith("job_")))) { leadNeeded = true; break; } const left = pending().length; if (any ? left < names.length : !left) break; if (Date.now() - t0 > limit) break; if (userMsgs()) { interrupted = true; break; } await sleep(400); }
   /** what a finished writer left behind, checked by the harness in a real browser (no model call): proto_check of its project + every page of ITS files opened (stub, dead link, JS error, undefined/NaN) */
   const checkWork = async (n: string) => {
     try {
@@ -229,7 +254,7 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
   try { const { buildStore } = await import("./core/ref_store.ts"), seen = new Set<string>(); for (const n of names.filter((x) => !pending().includes(x))) for (const c of store.calls.filter((c) => c.task_id === task && c.callee_agent_id === n)) for (const w of c.req?.writes ?? []) { const m = /^run_test\/_ref\/([^/]+)\//.exec(w); if (m && !seen.has(m[1]!)) { seen.add(m[1]!); buildStore(join(cwd, "run_test", "_ref", m[1]!), m[1]!); } } } catch { /* the index is regenerated by ref_store */ }
   const finishedNow = names.filter((n) => !pending().includes(n)), checks = any && finishedNow.length ? (await Promise.all(finishedNow.map(checkWork))).filter(Boolean) : undefined;
   const jobs = names.filter((n) => n.startsWith("job_") && jobDone(n)).map((n) => { const f = join(cwd, "run_test", "_jobs", n); let res: unknown = null; try { const t = readFileSync(f + ".json", "utf8"); res = t.length > 3500 ? { truncated: true, head: t.slice(0, 3000) } : JSON.parse(t); } catch { res = null; } return { job_id: n, exit: readFileSync(f + ".done", "utf8").trim(), result: res, error: (() => { try { return readFileSync(f + ".err", "utf8").slice(0, 300) || undefined; } catch { return undefined; } })() }; });
-  out({ ...(jobs.length ? { jobs } : {}), ...(any ? { finished_now: finishedNow, checks, next_step: pending().length ? `React to ${finishedNow.join(", ")} NOW (a FIX verdict goes back to that builder at once; CLEAN needs nothing), then wait --any --agents ${pending().join(",")}` : "everyone is done: run ref_compare / preview" } : {}), ...(interrupted ? { interrupted: "user_message", note: "the person sent you a message: it follows in your context; answer it, then call wait again for the same agents" } : {}), proto_check: protos, timed_out: pending().length > 0 && !interrupted, still_running: pending().map((n) => { const ts = store.events.filter((e) => e.kind === "tool.used" && e.task_id === task && e.agent_id === n).map((e) => e.t), st = store.agent(task, n); return { agent_id: n, last_tool_s_ago: ts.length ? Math.round((Date.now() - Math.max(...ts)) / 1000) : null, tool_calls: ts.length, running_s: st?.started_at ? Math.round((Date.now() - st.started_at) / 1000) : null, activity: st?.activity }; }), ...(pending().length > 0 && !interrupted ? { keep_waiting: "A timeout is not a failure. Keep waiting while an agent's last_tool_s_ago is under 120. Stop waiting only if no agent used a tool for 5 minutes." } : {}), agents: names.filter((n) => !n.startsWith("job_")).map((n) => { const a = store.agent(task, n), r = lastReport(n); return { agent_id: n, status: a?.status ?? "unknown", needs_parent: a?.needs_parent ?? undefined, report_id: r?.id, summary: r?.summary.slice(0, 600) ?? null, ...((r?.summary.length ?? 0) > 600 ? { truncated: true, read_full_with: `ledger_get --report ${r!.id}` } : {}), patch: store.patches.filter((p) => p.task_id === task && p.agent_id === n).map((p) => `${p.id}:${p.state}`).join(",") || null }; }) });
+  out({ ...(jobs.length ? { jobs } : {}), ...attentionSpread(names.filter((n) => !n.startsWith("job_"))), ...(any ? { finished_now: finishedNow, checks, next_step: pending().length ? `React to ${finishedNow.join(", ")} NOW (a FIX verdict goes back to that builder at once; CLEAN needs nothing), then wait --any --agents ${pending().join(",")}` : "everyone is done: run ref_compare / preview" } : {}), ...(interrupted ? { interrupted: "user_message", note: "the person sent you a message: it follows in your context; answer it, then call wait again for the same agents" } : {}), proto_check: protos, timed_out: pending().length > 0 && !interrupted, still_running: pending().map((n) => { const ts = store.events.filter((e) => e.kind === "tool.used" && e.task_id === task && e.agent_id === n).map((e) => e.t), st = store.agent(task, n); return { agent_id: n, last_tool_s_ago: ts.length ? Math.round((Date.now() - Math.max(...ts)) / 1000) : null, tool_calls: ts.length, running_s: st?.started_at ? Math.round((Date.now() - st.started_at) / 1000) : null, activity: st?.activity }; }), ...(pending().length > 0 && !interrupted ? { keep_waiting: "A timeout is not a failure. Keep waiting while an agent's last_tool_s_ago is under 120. Stop waiting only if no agent used a tool for 5 minutes." } : {}), agents: names.filter((n) => !n.startsWith("job_")).map((n) => { const a = store.agent(task, n), r = lastReport(n); return { agent_id: n, status: a?.status ?? "unknown", needs_parent: a?.needs_parent ?? undefined, report_id: r?.id, summary: r?.summary.slice(0, 600) ?? null, ...((r?.summary.length ?? 0) > 600 ? { truncated: true, read_full_with: `ledger_get --report ${r!.id}` } : {}), patch: store.patches.filter((p) => p.task_id === task && p.agent_id === n).map((p) => `${p.id}:${p.state}`).join(",") || null }; }) });
 } else if (cmd === "apply_patches") {
   await applyPatchesCmd();
 } else if (cmd === "site_build") {   // THE PIPELINE for a website clone, made by the harness (no script for the model to skip): a design worker + per screens file a brief worker (lookup-page) and a builder that depends ONLY on its own brief; the plan runner starts every task the moment its dependencies are done, 4 at a time.
@@ -248,7 +273,7 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
       tasks.push({ id: `build-${f}`.slice(0, 24), role: "builder", deps: [`brief-${f}`.slice(0, 24)], output: "REPORT line with the files", boundaries: `write only ${rel}/js/screens/${f}.js and ${rel}/css/pages-${f}.css`, writes: [`${rel}/js/screens/${f}.js`, `${rel}/css/pages-${f}.css`],
         objective: `Pages ${pages.map((p) => p.label ?? p.id).join(" and ")} (screens file js/screens/${f}.js). Build exactly what briefs/BRIEF_${f}.md says (your complete context; briefs/BRIEF.md is the design system: read it when it exists). Store ${stores}; project ${rel}/. Request: ${request}` });
     }
-    const nf = byFile.size, eta = Math.round(2 + 1.5 + 0.5 * Math.max(0, nf - 2)), expected = `about ${eta}-${eta + 2} min in total: the ${nf} brief call(s) run together (~1.5-2.5 min), each builder starts when ITS brief is done (~1-2 min each, overlapping), then your checks (~1 min). Nothing to do meanwhile: poll plan_status with --wait 90; do not start other agents.`;
+    const nf = byFile.size, eta = Math.round(2 + 1.5 + 0.5 * Math.max(0, nf - 2)), expected = `about ${eta}-${eta + 2} min in total: the ${nf} brief call(s) run together (~1.5-2.5 min), each builder starts when ITS brief is done (~1-2 min each, overlapping), then your checks (~1 min). Nothing to do meanwhile: poll plan_status with --wait 300; do not start other agents.`;
     let o: unknown;
     store.tx(() => {
       const owner = store.agent(task, me), v = validatePlan(tasks, defs, owner?.name ?? "lead", policy, store, task);
@@ -257,7 +282,7 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
       store.plans.push({ task_id: task, plan_id, owner: me, waves: v.waves, status: "running", created: Date.now(), tasks: tasks.map((t) => ({ ...t, status: "pending" as const })) });
       store.ev("plan.submitted", task, me, { plan_id, tasks: tasks.length, waves: v.waves.length }); o = { ok: true, plan_id, tasks: tasks.map((t) => `${t.id} (${t.role}${t.deps ? " after " + t.deps.join(",") : ""})`), waves: v.waves, expected };
     });
-    if ((o as { ok: boolean }).ok) { if (!E.HARNESS_PLAN_DRY) spawn("bun", ["--smol", join(HDIR, "tools.ts"), "_plan", "--plan", (o as { plan_id: string }).plan_id], { detached: true, stdio: "ignore", env: process.env }).unref(); (o as Record<string, unknown>).next = `The pipeline runs by itself (briefs and builds overlap, 4 at a time). Follow it: plan_status --plan ${(o as { plan_id: string }).plan_id} --wait 90 (repeat while it is running; no other calls meanwhile). When it is done start the checks together: ref_compare --async, site_audit --async, preview --async, then wait --any --agents <job ids>.`; }
+    if ((o as { ok: boolean }).ok) { if (!E.HARNESS_PLAN_DRY) spawn("bun", ["--smol", join(HDIR, "tools.ts"), "_plan", "--plan", (o as { plan_id: string }).plan_id], { detached: true, stdio: "ignore", env: process.env }).unref(); (o as Record<string, unknown>).next = `The pipeline runs by itself (briefs and builds overlap, 4 at a time). Follow it: plan_status --plan ${(o as { plan_id: string }).plan_id} --wait 300 (repeat while it is running; no other calls meanwhile). When it is done start the checks together: ref_compare --async, site_audit --async, preview --async, then wait --any --agents <job ids>.`; }
     out(o);
   }
 } else if (cmd === "plan_submit") {
@@ -275,7 +300,7 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
   out(o);
 } else if (cmd === "plan_run") {
   let o: unknown;
-  store.tx(() => { const p = store.plans.find((x) => x.task_id === task && x.plan_id === flag("plan")); if (!p) { o = { ok: false, reason: "no such plan; submit it first" }; return; } if (p.status !== "submitted") { o = { ok: false, reason: `plan is ${p.status}` }; return; } p.status = "running"; o = { ok: true, plan_id: p.plan_id, started: true, note: "use plan_status --plan <id> --wait 90" }; });
+  store.tx(() => { const p = store.plans.find((x) => x.task_id === task && x.plan_id === flag("plan")); if (!p) { o = { ok: false, reason: "no such plan; submit it first" }; return; } if (p.status !== "submitted") { o = { ok: false, reason: `plan is ${p.status}` }; return; } p.status = "running"; o = { ok: true, plan_id: p.plan_id, started: true, note: "use plan_status --plan <id> --wait 300" }; });
   if ((o as { ok: boolean }).ok) spawn("bun", ["--smol", join(HDIR, "tools.ts"), "_plan", "--plan", flag("plan")!], { detached: true, stdio: "ignore", env: process.env }).unref();
   out(o);
 } else if (cmd === "_plan") {
@@ -324,10 +349,12 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
   store.reload(); const p = store.plans.find((x) => x.task_id === task && x.plan_id === flag("plan"));
   out(p ? { plan_id: p.plan_id, status: p.status, paused: !!p.paused, version: p.version ?? 1, changes: p.changes ?? [], tasks: p.tasks.map((t) => { const a = t.agent_id ? store.agent(task, t.agent_id) : undefined; return { id: t.id, role: t.role, status: t.status, deps: t.deps ?? [], writes: t.writes, objective: t.objective, agent_id: t.agent_id, agent_title: a?.title, agent_status: a?.status, activity: a?.activity, session_id: a?.session_id, note: t.note, error: t.error }; }) } : { ok: false, reason: "no such plan" });
 } else if (cmd === "plan_status") {
-  const limit = Number(flag("wait") ?? 0) * 1000, t0 = Date.now(), find = () => store.plans.find((x) => x.task_id === task && x.plan_id === flag("plan"));
-  for (;;) { store.reload(); const p = find(); if (!p || ["done", "failed", "aborted"].includes(p.status) || Date.now() - t0 > limit) break; await sleep(1200); }
+  const limit = waitSeconds(Number(flag("wait") ?? 0)) * 1000, t0 = Date.now(), find = () => store.plans.find((x) => x.task_id === task && x.plan_id === flag("plan"));
+  const phaseKey = (pl: NonNullable<ReturnType<typeof find>>) => [...new Set(pl.tasks.map((t) => t.phase).filter((n): n is number => typeof n === "number"))].sort((a, b) => a - b).filter((n) => pl.tasks.filter((t) => t.phase === n).every((t) => t.status === "done")).join(","), failedKey = (pl: NonNullable<ReturnType<typeof find>>) => pl.tasks.filter((t) => t.status === "failed" || t.status === "skipped").map((t) => t.id).join(",");
+  const p0 = find(), k0 = p0 ? phaseKey(p0) : "", f0 = p0 ? failedKey(p0) : "";
+  for (;;) { store.reload(); const urgent = await monitorTick(); const p = find(); if (!p || ["done", "failed", "aborted"].includes(p.status) || Date.now() - t0 > limit || urgent || phaseKey(p) !== k0 || failedKey(p) !== f0) break; await sleep(1200); }   // ends EARLY on: the plan ending, a phase completing (the gate is the lead's), a failed task, or an agent that needs the lead
   const p = find();
-  out(p ? { plan_id: p.plan_id, status: p.status, progress: `${p.tasks.filter((t) => t.status === "done").length}/${p.tasks.length} tasks done, ${p.tasks.filter((t) => t.status === "running").length} running`, elapsed_s: Math.round((Date.now() - p.created) / 1000), advice: p.status === "running" ? "healthy: nothing to do but wait; poll again with --wait 90 (do not start other agents, they would only queue behind the pipeline)" : undefined, waves: p.waves, tasks: p.tasks.map((t) => ({ id: t.id, role: t.role, status: t.status, agent_id: t.agent_id, error: t.error, question: t.question, answer: t.status === "done" ? store.reports.find((r) => r.id === t.report_id)?.summary.slice(0, 500) : undefined })) } : { ok: false, reason: "no such plan" });
+  out(p ? { plan_id: p.plan_id, status: p.status, ...attentionSpread(), progress: `${p.tasks.filter((t) => t.status === "done").length}/${p.tasks.length} tasks done, ${p.tasks.filter((t) => t.status === "running").length} running`, elapsed_s: Math.round((Date.now() - p.created) / 1000), advice: p.status === "running" ? "healthy: nothing to do but wait; poll again with --wait 300 (it returns early when something needs you) (do not start other agents, they would only queue behind the pipeline)" : undefined, waves: p.waves, tasks: p.tasks.map((t) => ({ id: t.id, role: t.role, status: t.status, agent_id: t.agent_id, error: t.error, question: t.question, answer: t.status === "done" ? store.reports.find((r) => r.id === t.report_id)?.summary.slice(0, 500) : undefined })) } : { ok: false, reason: "no such plan" });
 } else if (cmd === "phase_status") {   // the phases of a plan: state, done/total, gate evidence, what blocks the next one
   store.reload(); const p = store.plans.find((x) => x.task_id === task && x.plan_id === flag("plan"));
   out(p ? { ok: true, plan_id: p.plan_id, phases: phaseRows(p), note: "a task of phase N+1 starts only after phase N is finished AND its gate is passed (phase_pass)" } : { ok: false, reason: "no such plan" });
@@ -344,6 +371,13 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
     o = { ok: true, phase: n, already: r.already, phases: phaseRows(p).map((x) => `${x.phase}:${x.state}`) };
   });
   out(o);
+} else if (cmd === "report_issue_to_admin") {   // the lead (or any agent) records a problem with a sub-agent for the admins: stalled, hung, slow, lazy, bad output. Append-only log next to the store + an `admin.issue` event; the session id makes the agent's log findable
+  const ag = flag("agent") ?? "", text = (flag("text") ?? "").trim(), kind = (flag("kind") ?? "other").replace(/[^a-z_]/g, "").slice(0, 20) || "other";
+  if (!text) out({ ok: false, reason: "--text is required: what you saw and what you did about it" });
+  else { const rec = logIssue({ agent: ag, kind, text, reporter: me || "unknown", session_id: flag("session") }); out({ ok: true, id: rec.id, logged: "admin_issues.jsonl", session_id: rec.session_id, next: "Recorded for the admins. Carry on: the issue does not stop the work." }); }
+} else if (cmd === "admin_issues") {   // the issues reported in this task (or --all tasks of this store), newest last
+  const f = join(dirname(file), "admin_issues.jsonl"), rows = existsSync(f) ? readFileSync(f, "utf8").split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter((x): x is { task: string } => !!x) : [];
+  out({ ok: true, issues: rows.filter((r) => rest.includes("--all") || r.task === task).slice(-50) });
 } else if (cmd === "agent_peek") {   // read-only look inside an agent: recent tool calls, silence, held files, notes, and a hint (wait / answer / stop)
   store.reload(); const r = peekAgent(store, task, flag("agent") ?? "", Number(flag("n") ?? 8)); out(r);
 } else if (cmd === "cost") {   // what the team has spent so far, per agent, against the project budget
@@ -430,6 +464,8 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
   else { const { protoInit, parseNav } = await import("./core/proto_init.ts"); out(protoInit(d, { title: flag("title") ?? rel, nav: parseNav(flag("nav") ?? ""), user: flag("user"), org: flag("org"), rel: "run_test/" + rel, kind: flag("kind") === "site" ? "site" : "app", extra: flag("extra") ? parseNav(flag("extra")!) : undefined, accent: flag("accent"), font: flag("font"), bgDark: flag("bg-dark"), tagline: flag("tagline") })); }
 } else if (cmd === "proto_check") {   // a NO-BUILD prototype (index.html + plain scripts + Vue from a CDN): files exist, scripts parse, every screen / component used is defined. No install, no server: under a second.
   const d = projPath(flag("dir") ?? "."); if (!inWs(d)) { out({ ok: false, error: "the folder must be inside the workspace" }); } else { const { protoCheck } = await import("./core/proto_check.ts"); out(protoCheck(d)); }
+} else if (cmd === "plan_lint") {   // FREE check that a plan folder can be built from alone (README sections, PHASES with Done-when, one owner per file, CONTEXT.txt, links, placeholders): the planner runs it before it reports
+  const d = projPath(flag("dir") ?? "run_test/plan"); if (!inWs(d)) out({ ok: false, error: "the folder must be inside the workspace" }); else { const { lintPlan } = await import("./core/plan_lint.ts"); store.reload(); const fetched = store.events.filter((e) => e.kind === "tool.used" && e.task_id === task && /^Web(Fetch|Search)$/.test(String((e.data as { tool?: string } | undefined)?.tool))).flatMap((e) => String((e.data as { activity?: string } | undefined)?.activity ?? "").match(/https?:\/\/\S+/g) ?? []); out(lintPlan(d, join(cwd, "run_test"), { fetched })); /* fetched = what the team really read: a cited source nobody fetched is flagged */ }
 } else if (cmd === "qa_check") {   // EARLY CHECK while developing (no video): type check + dev server + page errors + dev log, in a throwaway Docker container (2 GB, 1 CPU). On a failure it first CHECKPOINTS the workspace (git commit), then tells the master what to hand to the sub-agent. Same issue 3 times in a row = STOP, the test is marked failed (harness/core/qa_loop.ts).
   const qdir = dirname(file), qs = readQa(qdir), dir = flag("dir") ?? "", pj = join(cwd, "run_test", dir.replace(/^run_test[\\/]?/, ""), "package.json");
   if (existsSync(join(qdir, "qa_disabled"))) out({ ok: false, disabled: true, next: "qa_check is switched off for this task by the test setup. Do not run it again and do not treat this as a failure: judge only the delegation, then give your final answer." });

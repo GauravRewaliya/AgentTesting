@@ -71,7 +71,8 @@ export function judgeTurn(store: MStore, task: string, c: RawCase, i: number, ma
   for (const x of mapped) if (x.status !== "denied" && gateOf.get(x.id)?.verdict === "extra" && wantResume.has(x.role) && !calls.some((k) => k.kind === "resume" && k.role === x.role)) calls.push({ ...x, kind: "resume" as const });
   const denied = mapped.filter((x) => x.status === "denied");
   const mine = new Set(all.map((x) => x.id)), gate = store.evs("fixture.fail", task).filter((e) => mine.has(String((e.data as { call?: string }).call))).map((e) => String((e.data as { reason?: string }).reason)).pop();
-  const exp = [...expectedCalls(c.turns[i]!.expected.expected_agents_res), ...((c.turns[i]!.expected as { expected_roles?: string[] }).expected_roles ?? []).map((r) => ({ kind: "new" as const, role: r }))], roleSet = new Set((c.turns[i]!.expected as { expected_roles?: string[] }).expected_roles ?? []), key = (x: { kind: string; role: string }) => `${x.kind === "fork" || roleSet.has(x.role) ? "new" : x.kind}:${x.role}`;   // expected_roles: the role must be called; a NEW session or a resume of one it already has both count (a case sent again into its session)
+  const roles = (c.turns[i]!.expected as { expected_roles?: string[] }).expected_roles ?? [], required = roles.filter((r) => !r.endsWith("?")), optional = roles.filter((r) => r.endsWith("?")).map((r) => r.slice(0, -1));   // "researcher?" = may be called, any number of times, not required
+  const exp = [...expectedCalls(c.turns[i]!.expected.expected_agents_res), ...required.map((r) => ({ kind: "new" as const, role: r }))], roleSet = new Set([...required, ...optional]), key = (x: { kind: string; role: string }) => `${x.kind === "fork" || roleSet.has(x.role) ? "new" : x.kind}:${x.role}`;   // expected_roles: the role must be called; a NEW session or a resume of one it already has both count (a case sent again into its session)
   const a = calls.map(key).sort(), b = exp.map(key).sort();
   const forbidden = new Set(c.distractors ?? []);
   const lead = store.notes.filter((n) => n.task_id === task && n.from === "lead" && n.to === "user" && !n.refs.includes("testrun"));   // not the copy the runner writes for the UI chat
@@ -80,7 +81,7 @@ export function judgeTurn(store: MStore, task: string, c: RawCase, i: number, ma
   const qaGate = want ? (qs && qaFailed(qs) && (want === "failed" || qs.status === (want === "stop" ? "stopped" : "gave_up")) ? undefined : `expected the QA loop to end with ${want}, it ended: ${qs?.status ?? "no loop"}`) : qs && qaFailed(qs) ? `QA loop ended failed: ${qs.reason}` : undefined;
   const reply_problem = replyProblem(c.turns[i]!.expected as { reply_must?: string[]; reply_forbid?: string[] }, lead[lead.length - 1]?.text ?? "");   // re-checked in run.ts when the reply comes from the lead's last answer instead of a note
   return { reply_problem, gate: gate ?? qaGate, turn: i + 1, user: c.turns[i]!.user, expectedContext: c.turns[i]!.expected.context, expected: exp, calls, denied,
-    match: matchCalls(a, b, roleSet), guard: mapped.some((x) => forbidden.has(x.role)), reply: lead[lead.length - 1]?.text ?? "", files: repoFiles };
+    match: matchCalls(a, b, roleSet, new Set(required)), guard: mapped.some((x) => forbidden.has(x.role)), reply: lead[lead.length - 1]?.text ?? "", files: repoFiles };
 }
 
 /** Agents the registry still calls "running" whose process is gone (a run that was killed) would block the next run of the same task for ever. Mark them interrupted, as the console does at start.
@@ -113,8 +114,8 @@ export const writeExp = (file: string, o: Record<string, ExpEntry>) => { mkdirSy
 
 /** Do the calls made (`a`) fit the expected ones (`b`)? Exact multiset match, EXCEPT roles named in `expected_roles` (`roleSet`): each of those must be called at least once, and any number of further
  *  calls of that role (several builders, fix-round resumes) is fine. A real build splits work across builders and sends fix rounds; that is not a failure. */
-export function matchCalls(a: string[], b: string[], roleSet: Set<string>): boolean {
+export function matchCalls(a: string[], b: string[], roleSet: Set<string>, required: Set<string> = roleSet): boolean {
   const role = (k: string) => k.slice(k.indexOf(":") + 1), isFree = (k: string) => roleSet.has(role(k));
   const restA = a.filter((k) => !isFree(k)), restB = b.filter((k) => !isFree(k));
-  return restA.length === restB.length && restA.every((x, k) => x === restB[k]) && [...roleSet].every((r) => a.some((k) => role(k) === r));
+  return restA.length === restB.length && restA.every((x, k) => x === restB[k]) && [...required].every((r) => a.some((k) => role(k) === r));
 }

@@ -6,7 +6,7 @@ status: phase 1 of 1 · planned
 # AgentDeck (Composio-style dashboard) · phase 1 of 1 · planned
 > An admin dashboard where a developer connects tools (GitHub, Slack, ...) to AI agents. Looks like the Composio dashboard, renamed AgentDeck.
 
-> **Planning phase only: nothing is built from this plan yet.** File and folder names below are the *planned* layout (taken from the analysed reference app), not files that exist. Test cases in `TestCases/` check the finished reference project or try to build from this plan; they are not the product.
+> **This plan is ready to build.** File and folder names below are the layout of the new app; nothing here depends on any other project's files. Build from this plan alone.
 
 | who reads | what | where |
 |---|---|---|
@@ -231,3 +231,5 @@ Negative cases (the evaluator must catch these): a button with no handler; a scr
 ## Planner notes
 Capture facts come from `_ref/composio/REF.md` (copy of key lines in `ref_notes/capture_facts.md`). The login URL carries a session token: never store it. The raw generated contract is kept as `04_code_flow_proto_contract.md` (dev, not for reading).
 <!-- /dev -->
+
+research: none (the real dashboard was not captured, only its login page, see ref_notes/capture_facts.md; every screen is invented in the plan's style and marked so)

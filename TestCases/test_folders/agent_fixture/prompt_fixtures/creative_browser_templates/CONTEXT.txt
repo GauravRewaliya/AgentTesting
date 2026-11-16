@@ -1,0 +1,2 @@
+# Files EVERY builder gets in front of its first prompt (harness: callee.ts sharedContext). Paths are relative to run_test/.
+plan/build_inputs/01_facts.md

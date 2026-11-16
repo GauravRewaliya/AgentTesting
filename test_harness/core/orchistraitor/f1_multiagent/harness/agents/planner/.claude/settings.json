@@ -14,12 +14,27 @@
    "Bash(bun *tools.ts ls*)",
    "Bash(bun *tools.ts read_file*)",
    "Bash(bun *tools.ts grep*)",
-   "Bash(bun *tools.ts qa_check*)",
-   "Bash(bun *tools.ts preview*)",
-   "Bash(bun *tools.ts proc_list*)",
-   "Bash(bun *tools.ts bg_*)",
    "Bash(bun *check_phases.ts*)",
-   "Bash(bun *check_plan_links.ts*)"
+   "Bash(bun *check_plan_links.ts*)",
+   "Write",
+   "Edit",
+   "WebSearch",
+   "WebFetch",
+   "Bash(bun *tools.ts plan_lint*)",
+   "Bash(bun *tools.ts ref_capture*)",
+   "Bash(bun *tools.ts ref_store*)",
+   "Bash(bun *tools.ts browse*)",
+   "Bash(team plan_lint*)",
+   "Bash(team ref_capture*)",
+   "Bash(team ref_store*)",
+   "Bash(team browse*)",
+   "Bash(team delegate*)",
+   "Bash(team wait*)",
+   "Bash(team agents_list*)",
+   "Bash(team board_status*)",
+   "Bash(team ls*)",
+   "Bash(team read_file*)",
+   "Bash(team grep*)"
   ]
  }
 }

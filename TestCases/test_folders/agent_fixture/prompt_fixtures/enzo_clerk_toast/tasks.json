@@ -3,5 +3,5 @@
 {"id":"T02","phase":1,"title":"stacked-toast (springs)","owner":"builder-a","files":["stacked-toast-manager/stacked-toast.tsx"],"needs":["T01"],"reads":["00_brief.md"],"steps":["stack of 3 matches offsets","no withTiming in file"],"status":"todo","passes":false},
 {"id":"T03","phase":1,"title":"backdrop ios + android","owner":"builder-b","files":["stacked-toast-manager/backdrop/*"],"needs":["T01"],"reads":["00_brief.md"],"steps":["both variants exist and render"],"status":"todo","passes":false},
 {"id":"T05","phase":2,"title":"press expand + haptics once","owner":"builder-a","files":["components/pressable-scale.tsx","hooks/use-toast.tsx"],"needs":["T02"],"reads":["00_brief.md"],"steps":["one haptic per press"],"status":"todo","passes":false},
-{"id":"T06","phase":3,"title":"stability: 20 rapid calls video","owner":"qa-reviewer","files":[],"needs":["T05","T03"],"reads":["00_brief.md#done"],"steps":["record 20 toast() calls; frames show no jump/overlap"],"status":"todo","passes":false}
+{"id":"T06","phase":3,"title":"stability: 20 rapid calls video","owner":"lead","files":[],"needs":["T05","T03"],"reads":["00_brief.md#done"],"steps":["record 20 toast() calls; frames show no jump/overlap"],"status":"todo","passes":false}
 ]}

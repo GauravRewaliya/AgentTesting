@@ -1,6 +1,7 @@
 // REAL BROWSER for agents (Chrome DevTools Protocol, no extension, no model call): open a page, emulate light / dark / mobile, scroll, click, take screenshots (viewport, full page, one section), read computed styles
 // and an OUTLINE of the page (every section: heading, background, text colour, font, components: cards, buttons, images, lists, forms, animations). This is what a person's eyes do; WebFetch gives a model-written summary.
 // Used by `ref_capture` (study a reference site), `ref_compare` (does the clone match?) and `browse` (any steps). One Chrome per call, closed at the end: nothing is left running.
+import { SOFT_GL } from "./chrome_flags.ts";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -86,7 +87,7 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
       } else { const nt = await (await fetch(ep + "/json/new?about:blank", { method: "PUT" })).json() as Tab; wsUrl = nt.webSocketDebuggerUrl!; ownTab = nt.id; }
     } else {
       dir = mkdtempSync(join(tmpdir(), "cdp-"));
-      proc = spawn(bin!, ["--headless=new", "--no-sandbox", "--disable-gpu", "--hide-scrollbars", "--allow-file-access-from-files", "--remote-debugging-port=0", `--user-data-dir=${dir}`, "about:blank"], { stdio: "ignore" });
+      proc = spawn(bin!, ["--headless=new", "--no-sandbox", ...SOFT_GL, "--hide-scrollbars", "--allow-file-access-from-files", "--remote-debugging-port=0", `--user-data-dir=${dir}`, "about:blank"], { stdio: "ignore" });
       let port = 0; for (let i = 0; i < 80 && !port; i++) { await sleep(100); try { port = Number(readFileSync(join(dir, "DevToolsActivePort"), "utf8").split("\n")[0]); } catch { /* not yet */ } }
       if (!port) return { ok: false, reason: "Chrome did not start", shots, results, console: logs };
       wsUrl = ((await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) as Tab[]).find((t) => t.type === "page")!.webSocketDebuggerUrl!;

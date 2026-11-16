@@ -53,5 +53,5 @@ export interface Pipeline {
 }
 
 export interface RunCall { /** true = a one-shot call: no --session-id / --resume, nothing kept by the CLI (`--no-session-persistence`). The fixture gate uses it for real calls; their memory is the fixture_sessions table. */ stateless?: boolean; agent: AgentDef; row: AgentRow; cwd: string; prompt: string; session: { id: string; resume: boolean; fork_from?: string }; env?: Record<string, string>; extraArgs?: string[]; /** called once when the call has to WAIT for a machine-wide slot (lead / pm / worker): the caller shows "queued" instead of "running" */ onWait?: (slot: string, heldByPid?: number) => void; /** called when the slot is granted after a wait */ onGo?: (waited_ms: number) => void }
-export interface RunResult { waited_ms?: number; reply: string; session_id: string; cost: number; ok: boolean; error?: string }
+export interface RunResult { /** the CLI answered but never exited: the answer and an ESTIMATED cost were taken from its log (core/base/hung.ts) */ hung_after_answer?: boolean; cost_estimated?: boolean; waited_ms?: number; reply: string; session_id: string; cost: number; ok: boolean; error?: string }
 export interface Runner { run(c: RunCall): Promise<RunResult>; killAll?(): void }

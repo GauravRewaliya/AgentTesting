@@ -71,7 +71,7 @@ export async function callAgent(ctx: CallCtx, row0: AgentRow, cwd: string, makeP
     row.finished_at = Date.now(); row.runs = (row.runs ?? 0) + 1; row.final_response = r.reply;   // the full final answer, on the agent's row
     if (r.ok) { afterRun(row, sel); row.status = "idle"; row.activity = "done"; } else { row.status = "failed"; row.activity = r.error ?? "failed"; }
     if (r.ok && r.session_id !== sel.id) store.ev("session.id_mismatch", task, id, { wanted: sel.id, got: r.session_id });
-    store.ev(r.ok ? "agent.done" : "agent.failed", task, id, { mode, cost: r.cost, error: r.error, waited_ms: r.waited_ms });   // waited_ms: time spent waiting for a process slot before the run could start
+    store.ev(r.ok ? "agent.done" : "agent.failed", task, id, { mode, cost: r.cost, error: r.error, waited_ms: r.waited_ms, ...(r.hung_after_answer ? { hung_after_answer: true, cost_estimated: true } : {}) });   // waited_ms: time spent waiting for a process slot before the run could start
   });
   if (sel.resume && !r.ok && /no conversation found/i.test(r.error ?? "")) store.violation("resume_lost_session", task, id, { said_by: "the CLI", error: (r.error ?? "").slice(0, 140), session: sel.id });   // our own file check was skipped or wrong: the CLI says it is gone
   if (stopped) return { ...r, ok: false, error: "stopped", mode, prompt_chars: prompt.length };

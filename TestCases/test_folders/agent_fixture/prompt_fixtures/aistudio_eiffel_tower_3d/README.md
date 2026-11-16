@@ -1,128 +1,115 @@
 ---
 audience: both
 title: Eiffel Tower 3D (1889 museum exhibit)
-status: planned
+status: phase 1 of 3 · planned
 ---
-# Eiffel Tower 3D (1889 museum exhibit) · planned
-> An interactive 3D museum exhibit of the Eiffel Tower, with a 12-stop guided tour, archival photos and English/French captions.
+# Eiffel Tower 3D (1889 museum exhibit) · phase 1 of 3 · planned
+> A calm, grey-toned 3D museum exhibit of the 1889 Eiffel Tower, built in code, with a 12-stop guided camera tour, archival photos and English/French captions.
 
-> **Planning phase only: nothing is built from this plan yet.** File and folder names below are the *planned* layout (taken from the analysed reference app), not files that exist. Test cases in `TestCases/` check the finished reference project or try to build from this plan; they are not the product.
+> **This plan is ready to build.** File and folder names below are the layout of the new app; nothing here depends on any other project's files. Build from this plan alone.
 
 | who reads | what | where |
 |---|---|---|
-| **Audience (users)** | Visitors who want a calm, museum-style experience in the browser; also a good test of smooth camera work. | this page: What is it, What you get, Look, Motion |
+| **Audience (users)** | Visitors who want a quiet museum-style visit in the browser; also a good test of smooth camera work. | What is it, What you get, Look, Motion |
 | **Stakeholders** | decide scope, answer questions | Decisions and open questions, Phases at a glance |
-| **Builders (dev)** | stack: Vite + plain JavaScript modules + three.js (installed with `pnpm add three`); no React; pnpm only | `PHASES.md` and the grey DEV blocks (switch to Dev) |
+| **Builders (dev)** | Vite + plain JavaScript modules + three.js r186; no React, no backend, no AI; pnpm only | `PHASES.md`, `build_inputs/00_contract.md`, `01_look.md`, `02_stops_and_text.md` |
+
+## Build recipe (read this first)
+1. **Read in this order:** this README, `build_inputs/00_contract.md` (stack, file tree, rules, done-checks), `build_inputs/01_look.md` (tokens, light numbers, camera poses, timings), `build_inputs/02_stops_and_text.md` (12 stops, EN/FR strings), then `PHASES.md`. `CONTEXT.txt` already hands you the contract and the look file; open the stops file when your task reads it.
+2. **Where it is built:** `run_test/eiffel-tower-3d/`.
+3. **Stack, pinned:** Vite `^8.3.0`, TypeScript `^7.0.2`, `@types/node` `^22.14.0`; three.js **r186** (`pnpm add three@0.186.0`; no vendor folder, no CDN). **No AI:** do not install `@google/genai` or any model SDK. **pnpm ONLY:** `pnpm install`, `pnpm add`, `pnpm exec`; never npm, npx, yarn or bun (add no `predev` / `prebuild` hooks that call them).
+4. **File tree, one owner per file:** see *File tree* in `build_inputs/00_contract.md` (all owner `builder`; no file is edited by two tasks).
+5. **Build only the asked phase.** Do not add files or features the plan does not name (no backend, no key, no `.env`, no analytics).
+6. **This plan IS the planning.** Do not write another plan or a placeholder screen; each task delivers its part finished and working.
+7. **Do not invent.** Take texts and photo ids from `build_inputs/02_stops_and_text.md` and numbers from `build_inputs/01_look.md`. Where the plan says *guessed*, choose the simplest option and report it. The 11 photos exist in `build_inputs/photos/` (320 px); copy them, never reference a missing file.
+8. **Builder self-check before reporting:** `pnpm exec tsc --noEmit`, `pnpm build`, open the page and read the browser console (0 errors), call `auditZeroEmissive`, then state each Done-when result.
+9. **The lead verifies before it claims:** run the same checks itself, step through all 12 stops in a browser, say only what was seen, and list every deviation from this plan. A check that could not be run is said so.
 
 ## What is it
-You see Gustave Eiffel's 1889 tower, built in code (no model files), in a sepia museum look with serif captions. Press EXPLORE and the camera glides through 12 stops. Photo overlays tie to stops. A language toggle swaps every caption between English and French.
+You see Gustave Eiffel's tower as it stood in 1889, drawn live in the browser from code (no model files). The look is a quiet gallery: black, white and grey panels, serif captions, no brown or sepia tint. Press **Explore** and the camera glides through 12 stops, from Eiffel's design drawing, through the foundations and the rising ironwork, to the finished tower. Most stops show an archival photograph lined up with the 3D tower; the last stop is the complete 3D tower to turn around yourself. A button switches every caption between English and French.
 
-**For:** Visitors who want a calm, museum-style experience in the browser; also a good test of smooth camera work.
+**No AI in this app.** No model calls, no key, no network after install.
+
+**For:** visitors who want a calm, museum-style visit; also a good test of smooth, jump-free camera work.
 
 ## What you get (feature catalog)
 | id | feature | what you see or do | phase | status |
 |---|---|---|---|---|
-| F1 | The tower | lattice ironwork, 4 piers, platforms, iron material, sketch/blueprint mode | [1. Build the whole exhibit](PHASES.md) | planned |
-| F2 | 1889 Paris around it | city, lighting, no self-glowing materials | [1. Build the whole exhibit](PHASES.md) | planned |
-| F3 | Guided tour | 12 stops, smooth curves, no jump at start or end, drag to look around and it recovers smoothly | [1. Build the whole exhibit](PHASES.md) | planned |
-| F4 | Hero stop | stop 12 shows a 3D model turntable; framing adapts to desktop and phone | [1. Build the whole exhibit](PHASES.md) | planned |
-| F5 | Archival photos | photo overlays tied to stops | [1. Build the whole exhibit](PHASES.md) | planned |
-| F6 | English / French | toggle swaps every caption | [1. Build the whole exhibit](PHASES.md) | planned |
+| F1 | The tower | lattice ironwork, 4 piers, platforms, iron material, sketch/blueprint mode | [1. Tower and world](PHASES.md) | planned |
+| F2 | 1889 Paris around it | sky, fog, ground, city, daylight; no self-glowing materials | [1. Tower and world](PHASES.md) | planned |
+| F3 | Guided tour | 12 stops on smooth curves, no jump at start or end, drag to look around and it recovers | [2. Camera and tour](PHASES.md) | planned |
+| F4 | Hero stop | stop 12: the whole tower to orbit, 4 detail views, framing for desktop and phone | [2. Camera and tour](PHASES.md) | planned |
+| F5 | Archival photos | a photo placard at 11 stops, matched to the 3D view | [3. Photos and language](PHASES.md) | planned |
+| F6 | English / French | one toggle swaps every caption | [3. Photos and language](PHASES.md) | planned |
 
 ## Parts and how they connect
 ```mermaid
 flowchart LR
-  ST[startup_orchestrator] --> TM[model: tower + materials]
-  ST --> WD[world: atmosphere + Paris 1889]
-  ST --> CM[camera: tour choreography]
-  CM --> PP[portals: photo overlays]
-  PP --> TX[story / references: EN + FR text]
+  ST[startup_orchestrator: boot veil, workers] --> TM[model: tower + materials]
+  ST --> WD[world: sky, light, Paris 1889]
+  TM --> CM[camera: tour paths + hero view]
+  WD --> CM
+  CM --> UI[ui: Explore, bar, header, language]
+  UI --> PP[portals: photo placards]
+  UI --> TX[story: EN + FR text]
 ```
 
 ## Look and feel
-- **Museum archive look:** sepia / vellum. Tokens in `style.css`: `--bg-museum-canvas #121212`, `--bg-vellum-paper #f2f2f2`, `--accent-on-dark-iron #bdbdbd`, `--accent-on-light-iron #141414`, `--border-plate-subtle #383838`, `--border-vellum-subtle #d4d4d4`, interactive borders `#737373`. Three font roles: `--font-serif` (captions), `--font-sans`, `--font-mono`. Intro card: 'La Tour de 300 Metres, 1887-1889 Archival Exhibit'.
+- **Mood:** a gallery at rest. Dark matte frame and plates (`#121212`, `#1c1c1c`), light paper cards (`#f2f2f2`, `#ffffff`), grey borders (`#383838`, `#737373`). **The UI is neutral grey, not sepia** (zero brown or sepia tints in the UI). Only the sky and fog are a warm light grey (`#e6e2da`).
+- **Type:** serif for headlines and captions (Iowan Old Style, Palatino, Georgia), system sans for buttons, mono for the facts line. No web fonts.
+- **Shape:** sharp or 2 px corners, soft shadows, no glass blur.
+- **Intro:** a boot veil with 'Paris · Champ-de-Mars · 1887-1889' and 'La Tour de 300 Mètres', then the Explore button at the lower left and the plaque 'La Tour de 300 Mètres / 1887-1889 Archival Exhibition' at the top left.
+- All tokens, light numbers and breakpoints: `build_inputs/01_look.md`.
 
 ## Motion and animation
-| what | how |
-|---|---|
-| guided tour | 12 stops on Catmull-Rom helix paths that avoid the 4 piers, always looking at the tower, **no pixel jump at the start or end of a move** |
-| drag to orbit | interrupts the tour smoothly |
-| stop 12 | the complete tower alone (no photo) turning slowly: turntable sway |
-| header rule | `museumRuleSweep` 1.8 s ease-in-out infinite (a thin line sweeps across) |
-| `prefers-reduced-motion` | the original CSS has a rule for it |
+| name | what | time |
+|---|---|---|
+| tour move | camera follows a smooth curve around the piers, always looking at the tower; no jump at start or end | per stop; hold 2.6 s with photo, 4.0 s at stop 12 |
+| drag to look | dragging interrupts the tour, then the camera recovers smoothly | guessed ~0.6 s |
+| photo dissolve | placard cross-fades with the 3D view | 1.3 s (reveal 0.65 s) |
+| boot veil | fades out when the scene is ready | 0.45 s |
+| `museumRuleSweep` | thin line sweeps across the header rule | 1.8 s ease-in-out, infinite |
+| stop 12 | slow turntable sway of the complete tower | ongoing |
+| reduced motion | animation and transition durations 0.01 ms, loops once (a rule of the design) | rule |
 
 ## Team: who does what
 | who | does | tasks |
 |---|---|---|
-| builder | writes the code of its own files only (no file is owned twice) | T01, T02, T03 |
+| builder | writes the code of its own files only (no file is owned twice) | T01 to T10 |
+| lead | hands over this plan, runs the checks, reports deviations | verifies each phase |
 
 You (the owner) answer the open questions and judge each phase; Claude edits this plan when you ask (see Share and change).
 
 ## Quality bar (what 'professional' means here)
-- 60 fps on a laptop
-- Zero emissive materials, checked by an audit function
-- Tour 1-12 runs with 0 console errors; the language toggle swaps every caption
-- Works on desktop and phone framing
+- `pnpm exec tsc --noEmit` and `pnpm build` pass; **0 console errors** over the whole tour 1-12, in both languages.
+- Zero emissive: `auditZeroEmissive(scene)` reports 0 offenders.
+- Text contrast 4.5:1 or better (caption on card, buttons); click targets 40 x 40 px or more; no text under 11 px.
+- Usable at 390 px wide (guessed target: the design only specifies breakpoints at 600, 720, 768 and 960 px); no horizontal scroll.
+- Reduced motion: loops stop and moves become instant (a rule of the design; how the tour behaves under it is **guessed**).
+- Pixel ratio capped at 2 (real). Frame rate: 60 fps on a laptop (**guessed**), never under 30 fps while touring (**guessed floor**); optimisers (shadow and matrix freezing, mesh batching) are **guessed**: build them only if the target is missed. Triangle budget about 400k (**guessed**).
 
 ## Real or guessed
-**Real:** read from the app's file tree, metadata and `app.js` header. **Not read:** the rest of the source. The 12-stop tour and 'zero-jump' camera rules are in the original header. The zip was opened and checked: it matches the plan (plain JS, vendored three.js, `@google/genai` only listed as a dependency).
+**Real (read from source):** the stack, three r186, all tokens, light and camera numbers, hero poses, photo cameras, timings, ids, the 12 stops and their EN/FR text, no `@google/genai` import. **Guessed (marked):** the exact geometry of each tower zone file, the photo-portal code, the performance optimisers, the 400k-triangle budget, the 30 fps floor, reduced-motion behaviour of the tour, 390 px layout, drag-recovery time, French intro subtitle. **Could not verify:** exact curve knots of each tour path (build your own helical path; check it by the no-jump test).
 
 ## Decisions and open questions
 | id | what | answer / default | state |
 |---|---|---|---|
-| D-01 | Network | works offline after install; Gemini is a dependency but the exhibit does not use it | agreed |
-| Q1 | Keep the Gemini dependency? | drop it, not needed | agreed |
+| D-01 | AI | none; no `@google/genai`, no key, no `.env` | agreed |
+| D-02 | three.js | `pnpm add three@0.186.0`, no vendor folder | agreed |
+| D-03 | UI colour | neutral grey, not sepia | agreed |
+| Q1 | Tower detail | default: simple procedural lattice (boxes and tubes) with 4 piers and 3 platforms; a finer 13-zone model is possible but not asked for | open |
+| Q2 | Paris 1889 | default: ground, Champ-de-Mars lawn, a few low blocks, fog; fallback: ground and sky only (say so) | open |
+| Q3 | Photo matching | default: look-at pose + fov from the table; fallback: photo placard only without 3D alignment | open |
 
 ## Phases at a glance
-**1. Build the whole exhibit** (planned) → [full phase page](PHASES.md)
+**1. Tower and world** (planned), **2. Camera and tour** (planned), **3. Photos and language** (planned) → [full phase page](PHASES.md)
 
 ## Share and change
 - **Share:** press *Copy link* in the plan viewer; one link = one page.
 - **Change something:** press *Ask Claude* on the page and write your wish. Claude edits THIS file (and the phase page if scope moves), so `git diff docs/` shows what the plan changed.
 - Status words: planning = still being written or missing facts · planned = split into tasks, **nothing built yet** · in progress · review · done.
 
-<!-- dev -->
-## Build prompt (give this to the builder)
-Build 'Eiffel Tower 3D' (Vite + plain JavaScript modules + three.js with OrbitControls; no React).
-- Boot through `startup_orchestrator.js` (`bootPipeline`), then wire the tower model controller, photo-portal system, atmosphere and camera.
-- Build the tower in code (lattice ironwork, 4 piers, platforms) with a PBR iron material and a sketch/blueprint mode; generate textures in `pbr_worker.js` off the main thread. 1889 Paris around it. No emissive materials (lighting only), with an audit function that checks it.
-- Guided tour of 12 stops: smooth Catmull-Rom helix paths that avoid the piers, always look at the tower, no pixel jump at start or end, drag-to-orbit interrupts smoothly. Stop 12 = hero model with a turntable sway; framing adapts to desktop and phone.
-- Photo portals tied to stops; text in `story/` and `references/` in English and French with a language toggle that changes every caption.
-- Install three.js with `pnpm add three` (no vendor folder, no CDN). pnpm only. Done = `pnpm build` and `tsc --noEmit` pass, tour runs 1-12 with 0 console errors, 60 fps on a laptop.
+## Details for builders
+The full build contract (stack, file tree and owners, behaviour rules R1 to R12, state shapes, edge cases, out of scope, the checkable Done-when list, EARS requirements, data model, code flow, test plan, lessons) is `build_inputs/00_contract.md`. Look and content are in `build_inputs/01_look.md` and `build_inputs/02_stops_and_text.md`. `CONTEXT.txt` hands the contract and the look file to every builder in front of its first prompt.
 
-## Inputs
-`build_inputs/01_tour_stops.md` = the 12 stops with EN + FR text; `build_inputs/photos/` = the 11 archival photos (320 px). Source code is NOT given: build it from this plan.
-
-## Test
-Case `pc_eiffel` in `TestCases/test_folders/test_project_check/` unpacks the recorded project (`agent_fixture/store/projects/eiffel-tower-3d.zip`) into the workspace and asks whether it works. Video recording is not used yet.
-
-## Build spec
-> Status: REAL (read from the app's file tree, metadata, `app.js` header). Rules below are what to build; no source is included.
-
-#### What it is
-A museum-style interactive 3D exhibit of Gustave Eiffel's 1889 tower, "reconstructed from original engineering plates and archival photos". Sepia/archival look, serif captions, EN/FR language toggle, an "EXPLORE" button that starts a guided walkthrough. Intro card: "La Tour de 300 Metres, 1887-1889 Archival Exhibit" and "The 300-Meter Tower, 1887-1889, Champ-de-Mars, Paris".
-
-#### Stack (works offline after `pnpm install`)
-Vite + plain JavaScript modules (no React). `three` + `OrbitControls`; install `three` with `pnpm add three`. `@google/genai` is a dependency but the exhibit itself needs no network. Scripts: dev (port 3000), build (`vite build`), lint (`tsc --noEmit`).
-
-#### Files to create (one owner each)
-```
-index.html  style.css  index.css  app.js  startup_orchestrator.js  pbr_worker.js (PBR texture generation off the main thread)
-camera/      choreography + viewport constraints (stage 3)
-model/       tower_controller, materials (PBR bank, override materials), floor_textures, walkthrough_pacing (stage 2 build pacing)
-world/       atmosphere (lighting, zero-emissive audit), paris_1889 (surrounding city)
-portals/     photo_portals (archival photo overlays)
-data/ story/ story_and_archive/ references/ thumbnails/ ui/ perf/
-```
-`app.js` boots via `bootPipeline` in `startup_orchestrator`, then wires TowerModelController, PhotoPortalSystem, atmosphere, camera.
-
-#### Behaviour (each line is a test)
-1. Tower is built procedurally (lattice ironwork, 4 piers, platforms), PBR iron material, sketch/blueprint render mode.
-2. Camera: orbit controls; guided tour of 12 stops; moves are "zero-jump" (no pixel pop at start/end), follow smooth curves (Catmull-Rom helix paths avoiding the 4 piers), always look at the tower, drag-to-orbit interrupts smoothly.
-3. Stop 12 is the unobstructed complete tower as a 3D showcase (no photo) with turntable sway; framing adapts to desktop and mobile.
-4. Photo portals show archival photos tied to stops; `references/` and `story/` hold the text (EN + FR).
-5. Zero emissive on scene materials (lighting only from lights); audit function checks it.
-
-#### Done
-`pnpm build` and `tsc --noEmit` pass; tour runs stops 1-12 with no console error; 60fps on a laptop; language toggle swaps every caption.
-<!-- /dev -->
+research: none (reverse-planned from an existing working app whose source was read for every number here: stack, tokens, light and camera values, the 12 stops and their EN/FR texts, so there was no outside product to look up)

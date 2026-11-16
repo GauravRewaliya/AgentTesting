@@ -103,6 +103,8 @@ You (the owner) answer the open questions and judge each phase; Claude edits thi
 ## Real or guessed
 **From the reference (measured by the harness, real browser):** sections, order, type, colours, radius, motion list, theme behaviour. **Invented:** brand name, every word of copy, logo mark, mock app data. The Article page and Download page have **no reference picture** (the reference has no article detail page and no standalone download page); they are specified from the blog list and the home page's download section.
 
+research: none (the evidence is a capture of the reference site https://upwatchr.io/blog, with sections, tokens, pictures and layouts already distilled into `build_inputs/`; no other outside product was needed)
+
 ## Decisions and open questions
 | id | what | answer / default | state |
 |---|---|---|---|

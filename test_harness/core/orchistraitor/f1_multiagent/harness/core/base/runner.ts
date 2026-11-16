@@ -2,7 +2,8 @@
 import { spawn } from "node:child_process";
 import { setPriority } from "node:os";
 import { acquireSlot, maxProcs } from "./slots.ts";
-import { existsSync, readdirSync } from "node:fs";
+import { finishedTurn } from "./hung.ts";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +23,14 @@ export function profileOfSession(id: string): string | undefined {
   return undefined;
 }
 export function projectDirFor(cwd: string) { return join(projectsRoot(), cwd.replace(/[^a-zA-Z0-9]/g, "-")); }
+/** Claude's own log of a session (the folder of `cwd` first, then any profile): used to see that a call has finished. */
+export function transcriptOf(sid: string, cwd?: string): string | null {
+  try {
+    if (cwd) { const f = join(projectDirFor(cwd), sid + ".jsonl"); if (existsSync(f)) return f; }
+    for (const dir of claudeDirs()) { const root = join(dir, "projects"); for (const d of readdirSync(root)) { const f = join(root, d, sid + ".jsonl"); if (existsSync(f)) return f; } }
+  } catch { /* no projects folder yet */ }
+  return null;
+}
 export function transcriptFor(cwd: string, id: string) { return join(projectDirFor(cwd), id + ".jsonl"); }
 export const transcriptExistsIn = (cwd: string) => (id: string) => existsSync(transcriptFor(cwd, id));
 /** What the CLI itself does on --resume: look for <id>.jsonl in EVERY project folder (the file stays in the folder where the session was created, however many times it is resumed from elsewhere; probed on 2.1.319). */
@@ -78,7 +87,20 @@ export class RealRunner implements Runner {
       let out = "", err = "";
       p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));
       const limitMs = c.agent.timeout_s ? c.agent.timeout_s * 1000 : this.timeoutMs; let timedOut = false; const timer = setTimeout(() => { timedOut = true; p.kill("SIGKILL"); }, limitMs);
+      // the CLI answered but never exits (seen on pp_eiffel, 8.5 min lost): when its log shows a finished turn and has been silent for 45 s, collect the answer from the log and kill it
+      let settled = false; const startedAt = Date.now();
+      const wd = setInterval(() => {
+        if (settled || c.stateless) return;
+        const f = transcriptOf(c.session.id, c.cwd); if (!f) return;
+        let st; try { st = statSync(f); } catch { return; }
+        if (Date.now() - st.mtimeMs < 45_000) return;
+        let fin; try { fin = finishedTurn(readFileSync(f, "utf8"), startedAt, st.mtimeMs, Date.now(), 45_000, c.agent.model); } catch { return; }
+        if (!fin) return;
+        settled = true; clearInterval(wd); clearTimeout(timer); this.live.delete(p); try { p.kill("SIGKILL"); } catch { /* gone */ }
+        resolve({ reply: fin.reply, session_id: c.session.id, cost: fin.cost, ok: true, hung_after_answer: true, cost_estimated: true });
+      }, 10_000);
       p.on("close", (code) => {
+        if (settled) return; settled = true; clearInterval(wd);
         clearTimeout(timer); this.live.delete(p);
         try {
           const j = JSON.parse(out) as { result?: string; session_id?: string; total_cost_usd?: number; is_error?: boolean; subtype?: string };

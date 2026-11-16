@@ -3,6 +3,7 @@
 //   - folder with package.json: `pnpm install` (CI=true for the install only: no prompts, the server itself keeps watch mode) then the `web` (Expo), `dev` or `start` script on {port}; Vite-style servers get `--host 0.0.0.0`, Expo takes `--port` only
 //   - folder with only index.html: static server (core/static_server.ts, no install)
 // Settings come from the environment, else from <repo>/.env (see .env.example): PREVIEW_PUBLIC_HOST, PREVIEW_BIND is not needed any more (the script binds itself), PREVIEW_PORT_FROM/TO.
+import { SOFT_GL } from "./chrome_flags.ts";
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -64,7 +65,7 @@ export function checkPage(url: string, budgetMs = 30_000): { checked: boolean; r
   if (!chrome) return { checked: false, errors: [], why: "no Chrome/Chromium on this machine" };
   const dir = mkdtempSync(join(tmpdir(), "pvcheck-"));
   try {
-    const r = spawnSync(chrome, ["--headless=new", "--no-sandbox", "--disable-gpu", `--user-data-dir=${dir}`, "--enable-logging=stderr", "--v=0", `--virtual-time-budget=${budgetMs}`, "--dump-dom", url], { encoding: "utf8", timeout: budgetMs + 20_000, maxBuffer: 32 * 1024 * 1024 });
+    const r = spawnSync(chrome, ["--headless=new", "--no-sandbox", ...SOFT_GL, `--user-data-dir=${dir}`, "--enable-logging=stderr", "--v=0", `--virtual-time-budget=${budgetMs}`, "--dump-dom", url], { encoding: "utf8", timeout: budgetMs + 20_000, maxBuffer: 32 * 1024 * 1024 });
     const errors = [...new Set([...(r.stderr ?? "").matchAll(/CONSOLE[^"]*"((?:Uncaught|TypeError|ReferenceError|Error)[^"]{0,300})/g)].map((m) => m[1]!))].slice(0, 5);
     const dom = r.stdout ?? "", rootEmpty = /<div id="(root|app|__next)"[^>]*>\s*<\/div>/.test(dom), bodyText = dom.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<[^>]+>/g, "").trim();
     if (/main-frame-error|class="neterror"|ERR_CONNECTION_REFUSED|This site can.t be reached/.test(dom)) return { checked: true, renders: false, errors: [], why: "the browser could not reach the page (connection refused or no answer)" };
@@ -81,7 +82,7 @@ export async function smokeRoutes(baseUrl: string, routes: { id: string; label?:
   const ids = new Set((allIds ?? routes.map((r) => r.id)).map((x) => x.split("/")[0]!)), subs = new Set<string>();   // allIds: when only SOME pages are checked (one builder finished), links to the other pages are still valid
   const one = (r: { id: string; label?: string; file?: string }) => new Promise<{ route: string; problems: string[] }>((done) => {
     const dir = mkdtempSync(join(tmpdir(), "pvsmoke-")); let out = "", err = "";
-    const p = spawn(chrome, ["--headless=new", "--no-sandbox", "--disable-gpu", `--user-data-dir=${dir}`, "--enable-logging=stderr", "--v=0", `--virtual-time-budget=${budgetMs}`, "--dump-dom", /\.html$/.test(baseUrl) ? `${baseUrl}#/${r.id}` : `${baseUrl}/#/${r.id}`]);
+    const p = spawn(chrome, ["--headless=new", "--no-sandbox", ...SOFT_GL, `--user-data-dir=${dir}`, "--enable-logging=stderr", "--v=0", `--virtual-time-budget=${budgetMs}`, "--dump-dom", /\.html$/.test(baseUrl) ? `${baseUrl}#/${r.id}` : `${baseUrl}/#/${r.id}`]);
     p.stdout.on("data", (b) => { out += b; }); p.stderr.on("data", (b) => { err += b; });
     const finish = () => {
       rmSync(dir, { recursive: true, force: true });

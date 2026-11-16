@@ -1,19 +1,21 @@
 # prompt_fixtures: frozen PLANS used by test_prompt_planning (index, and expected quality vs got)
 
-A fixture is a **snapshot** of a plan from `docs/vibe_planning_examples/<plan>/` (the living source of truth). A case copies it into the workspace as `run_test/plan` in `before_node_run` (`seedPromptFixture(ctx, plan, shape)`, `test_prompt_planning/lib/seed_prompt.ts`), BEFORE turn 1; the single turn is "Can you build the plan that is in run_test/plan?" (the old "hi" turn was dropped 2026-11-16). Editing a plan in docs does not change an old test.
+Every plan lives ONLY here (`docs/vibe_planning_examples/` was removed 2026-11-16, nothing else holds a copy). The catalog is `README.md`, the predicted quality scores are `plan_scores.md`, the method notes are `method/`; open them in `docs/dev_exp/plan_viewer` (`plans.json` points here). A case copies a plan into the workspace as `run_test/plan` in `before_node_run` (`seedPromptFixture(ctx, plan, shape)`, `test_prompt_planning/lib/seed_prompt.ts`), BEFORE turn 1; the single turn is "Can you build the plan that is in run_test/plan?".
+
+**Layout:** `site_clone_pingharbor` and `composio_admin_dashboard` have shapes (`multi_phase` = the plan as written, `one_phase_complete` = folded into one phase). All other plans are one flat folder (no shape). **No AI in any plan for now** (2026-11-16): the AI Studio plans use a seeded mock provider (`src/ai/provider.ts`); a settings dialog for an API key + base URL is planned as a LATER phase.
 
 | plan | shape | build target | case | status |
 |---|---|---|---|---|
 | `site_clone_pingharbor` | `one_phase_complete` | `run_test/pingharbor` | `pp_site` | in use |
 | `composio_admin_dashboard` | `one_phase_complete` (phase 1 only, fake data) | `run_test/agentdeck` | `pp_composio` | in use |
-| `aistudio_eiffel_tower_3d` | none: one flat plan folder (+ `build_inputs/`: 12 stops EN/FR, 11 photos from the reference zip; no source code) | `run_test/eiffel` | `pp_eiffel` | in use, not run yet |
-| `wavelet_spotify_clone` | none: flat folder (+ `build_inputs/01_content.md`: 8 playlists, 40 tracks from the reference zip) | `run_test/wavelet` | `pp_wavelet` | in use, not run yet |
+| `aistudio_eiffel_tower_3d` | none: one flat plan folder (+ `build_inputs/`: 12 stops EN/FR, 11 archival photos; no source code) | `run_test/eiffel` | `pp_eiffel` | in use, not run yet |
+| `wavelet_spotify_clone` | none: flat folder (+ `build_inputs/01_content.md`: 8 playlists, 40 tracks) | `run_test/wavelet` | `pp_wavelet` | in use, not run yet |
 | `enzo_clerk_toast` | none: flat folder (4 phases) | `run_test/clerk_toast` | `pp_clerk_toast` | in use, not run yet |
 | `linear_tab_bar` | none: flat folder (6 phases; open questions answered with defaults) | `run_test/tabbar` | `pp_tabbar` | in use, not run yet |
 | `creative_browser_templates` | none: flat folder (2 phases) + `build_inputs/01_facts.md` (room map, slider numbers, palettes, three.js vendoring) | `run_test/creative` | `pp_creative` | in use, not run yet |
 | both plans | `multi_phase` (the plan as in docs, several phases) | same | none yet | fixture exists, add a case later |
 
-`one_phase_complete` = same plan, only `PHASES.md` and the phase lines of `README.md` folded into ONE complete phase. Refresh a snapshot: copy `docs/vibe_planning_examples/<plan>` over `<plan>/multi_phase`, then rebuild `one_phase_complete` (copy, fold `PHASES.md`). Nothing here is a recorded sub-agent result (those live in `results/`).
+`one_phase_complete` = same plan, only `PHASES.md` and the phase lines of `README.md` folded into ONE complete phase. To change one: edit `<plan>/multi_phase`, then rebuild `one_phase_complete` (copy, fold `PHASES.md`). Nothing here is a recorded sub-agent result (those live in `results/`).
 
 **Run (plan IS the planning, so no planner):** `HARNESS_SANDBOX=docker bun testrun/run.ts test_prompt_planning pp_site --real --no-planning` from `test_harness/core/orchistraitor/f1_multiagent`. Do NOT use `--stop-pause` for judging: it forces plan > wireframe > UI and fights a finished plan.
 

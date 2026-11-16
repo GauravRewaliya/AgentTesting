@@ -6,13 +6,20 @@ status: phase 1 of 2 · planned
 # Five creative browser demos · phase 1 of 2 · planned
 > Five small, independent web toys: a 3D night scene, a 2D action game, a granular synth, a game-feel tuner and a sound-reactive 3D world.
 
-> **Planning phase only: nothing is built from this plan yet.** File and folder names below are the *planned* layout (taken from the analysed reference app), not files that exist. Test cases in `TestCases/` check the finished reference project or try to build from this plan; they are not the product.
+> **This plan is ready to build.** File and folder names below are the layout of the new app; nothing here depends on any other project's files. Build from this plan alone.
 
 | who reads | what | where |
 |---|---|---|
 | **Audience (users)** | Someone who wants ready-to-open demos to learn from or restyle, or to hand to five builders at once (they share no files). | this page: What is it, What you get, Look, Motion |
 | **Stakeholders** | decide scope, answer questions | Decisions and open questions, Phases at a glance |
-| **Builders (dev)** | stack: plain JavaScript + Canvas 2D / Web Audio; three.js r187 copied into the two 3D demos; no build step | `PHASES.md` and the grey DEV blocks (switch to Dev) |
+| **Builders (dev)** | stack: plain JavaScript + Canvas 2D / Web Audio; three.js r187 copied into the two 3D demos; no build step | `PHASES.md` and the build inputs in this folder |
+
+## Build recipe
+1. **Where:** build five standalone folders in `run_test/creative/`: `3d-scene`, `action-game`, `grain-synth`, `juice-sandbox`, `sound-world`. Plain JavaScript, Canvas 2D / Web Audio, no build step, no image files. Serve with `python3 -m http.server 8000`. The numbers every demo needs are in `build_inputs/01_facts.md`.
+2. **Three.js (only 3d-scene and sound-world), pnpm only:** in a scratch folder `pnpm add three@0.187.0`, copy `build/three.module.js`, `build/three.core.js`, `examples/jsm/controls/OrbitControls.js` (to `vendor/addons/controls/`) and `LICENSE` (as `vendor/LICENSE-three.txt`) into that demo's `vendor/`; then delete the scratch folder.
+3. **Owners (no file owned twice):** five builders in parallel, one folder each (T01-T05 of PHASES.md): each owns ONLY its own folder, including its own `index.html` and README. The lead owns nothing but the final check.
+4. **Verify (the lead, no review agent):** serve the folder, open each page in a headless browser: 0 console errors per page, the hooks `window.SCENE`, `GAME`, `SYNTH`, `JUICE`, `VIZ` exist, each Controls row responds. Say what could not be checked (sound, microphone, feel, 60 fps).
+
 
 ## What is it
 Five separate mini-projects, one folder each. Open them in a browser (no build step; only a local copy of three.js in the two 3D ones). Each folder has a README with Run, Controls and What to try, plus `window.<NAME>` hooks (`SCENE`, `GAME`, `SYNTH`, `JUICE`, `VIZ`) so tests can drive it. Every visual effect has an on/off key so you can feel what it adds.
@@ -59,11 +66,13 @@ Five separate mini-projects, one folder each. Open them in a browser (no build s
 ## Shared rules
 No build step (three.js r187 is fetched ONCE with `pnpm add` and copied into `vendor/` of the two 3D demos; see `build_inputs/01_facts.md`; never npm), no image files, serve with `python3 -m http.server 8000` (modules and the mic need it), each folder standalone.
 
+- **Captured / invented:** what comes from the reference project is marked *real*; everything else (names, colours, sizes, wording) is *invented* by this plan or by you. Never present an invented value as taken from the reference.
+
 ## Team: who does what
 | who | does | tasks |
 |---|---|---|
 | builder | writes the code of its own files only (no file is owned twice) | T01, T02, T03, T04, T05 |
-| qa-reviewer | checks every phase in a real browser or build; writes pass/fail, never builds | T06 |
+| lead | runs the QA sweep (T06) and the final check itself with a headless browser; no review agent | T06 |
 
 You (the owner) answer the open questions and judge each phase; Claude edits this plan when you ask (see Share and change).
 
@@ -75,11 +84,11 @@ You (the owner) answer the open questions and judge each phase; Claude edits thi
 - Tested in desktop Chrome only in the originals: say which browsers a run covered
 
 ## Real or guessed
-Analysed from the five original READMEs and file lists of the working demos (the real project is the fixture zip). 'Calm mode' is the one requirement added by this plan.
+Analysed from the five original READMEs and file lists of the working demos. 'Calm mode' is the one requirement added by this plan.
 
-## Test cases (not the product)
-- `pp_creative` in `test_prompt_planning` builds the five demos from THIS plan only (no source code given); the numbers they need are in `build_inputs/01_facts.md`.
-- `pc_creative` checks the **finished reference project** (`agent_fixture/store/projects/creative-browser-templates.zip`): does it install and build?
+
+## Research
+research: none (reverse-planned from five finished demos; controls, numbers and rules were read from them, so there was no outside product to look up)
 
 ## Decisions and open questions
 | id | what | answer / default | state |

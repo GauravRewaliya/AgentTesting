@@ -33,8 +33,9 @@ status: phase 1 of 6 · planned
 | T02 | static pill + glass material + 3 icons + notification dot | builder | T01 |
 
 **Done when (you can check each one):**
-- app boots; tree matches the plan; no duplicate files
-- the static pill renders
+- `pnpm build` passes and `/` opens with 0 console errors
+- the files of the Build recipe exist, none twice
+- the static pill shows 3 tab icons and 1 notification dot; tapping another tab changes the page (B-01)
 
 ---
 <a id="phase-2"></a>
@@ -45,12 +46,12 @@ status: phase 1 of 6 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T03 | drag stretch + glow, release-to-route, hold glow | builder | P1 |
+| T03 | drag stretch + glow, release-to-route, hold glow | builder | T01, T02 |
 
 **Done when (you can check each one):**
-- B-02, B-02b and B-06 rows pass
-- the page never changes while dragging
-- the glow never stays stuck
+- B-02: during a sideways drag the pill stretches, the tab under it is previewed, and the active page stays the same
+- B-02b: on release over another tab the page changes to that tab
+- B-06: after a hold and release the glow is gone within 500 ms (never stuck)
 
 ---
 <a id="phase-3"></a>
@@ -61,11 +62,12 @@ status: phase 1 of 6 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T05 | search button to input + close | builder | P2 |
+| T05 | search button to input + close | builder | T03 |
 
 **Done when (you can check each one):**
-- B-04 and B-05 rows pass
-- the keyboard never covers the bar
+- B-04: tapping the search button grows it into a box over the tabs
+- B-05: tapping the ✕ shrinks it back to the button
+- the input stays visible when the on-screen keyboard is open (viewport meta + bottom inset)
 
 ---
 <a id="phase-4"></a>
@@ -76,10 +78,10 @@ status: phase 1 of 6 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T06 | menu panel + drag-up threshold | builder | P2 |
+| T06 | menu panel + drag-up threshold | builder | T03 |
 
 **Done when (you can check each one):**
-- B-03 row passes
+- B-03: a drag up of more than 50 px opens the menu with 3 items (Profile, Settings, Help); it stays open on release; the page does not change
 - under 50 px the pill springs back and no menu opens
 
 ---
@@ -91,10 +93,11 @@ status: phase 1 of 6 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T08 | masked gradient border on glass | builder | P4 |
+| T08 | masked gradient border on glass | builder | T06 |
 
 **Done when (you can check each one):**
-- border visible on pill, search and menu
+- a masked gradient border is visible on the pill, the search box and the menu
+- all three use the SAME glass style (one class in `glass.css`)
 
 ---
 <a id="phase-6"></a>
@@ -105,9 +108,9 @@ status: phase 1 of 6 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T09 | perf + dead-code audit, reduced motion | qa-reviewer | P5 |
+| T09 | perf + dead-code audit, reduced motion | lead | T08 |
 
 **Done when (you can check each one):**
-- B-07 passes
-- no unused file or hook
-- no JS-thread work inside gesture handlers except plain callbacks
+- B-07: with `prefers-reduced-motion: reduce` stretch and glow become instant colour changes
+- no unused file or hook (`pnpm exec vue-tsc --noEmit` clean)
+- no heavy work inside the pointer handlers except plain state updates

@@ -1,5 +1,5 @@
 # Lead chapter `qa`: QA LOOP for a real web / Expo app: qa_check, hand-overs, qa_give_up
-(You loaded this with `chapter qa`. It adds to your core rules; it does not replace them.)
+(You loaded this with `chapter qa`. It adds to your core rules; it does not replace them.) Only for a real web or Expo app that has a `package.json`; a kit prototype (`proto.json`) is checked with `proto_check` and `preview`.
 
 - A WEB or EXPO APP: before you report it done, run `team qa_check --dir <app folder in run_test/>` (type check + dev server + page errors + log, about a minute, no video). It is the same check the test uses.
   - If it is NOT ok: the tool has already committed a checkpoint. Delegate the fix to the sub-agent using the `hand_over` text it gives you (the exact errors), then run `qa_check` again. Errors that were already in the code BEFORE this job still count: the app has to pass, so hand them over too. Do not decide on your own that "it is not my agent's error" and report done.
