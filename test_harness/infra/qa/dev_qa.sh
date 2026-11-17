@@ -22,5 +22,5 @@ PORT=$PORT node -e 'const t0=Date.now();(async()=>{while(Date.now()-t0<90000){tr
 lap "dev server up"
 mkdir -p /tmp/rec && cp /qa/record.mjs /tmp/rec/record.mjs && ln -sf /app/node_modules /tmp/rec/node_modules
 RC=0; QA_URL=http://127.0.0.1:$PORT/ QA_RENDER_TIMEOUT=${QA_RENDER_TIMEOUT:-90000} node /tmp/rec/record.mjs || RC=$?
-kill $DEV 2>/dev/null || true; cp /tmp/dev.log /out/dev.log 2>/dev/null || true; lap "checked"
+kill $DEV 2>/dev/null || true; wait $DEV 2>/dev/null || true; sleep 1; cp /tmp/dev.log /out/dev.log 2>/dev/null || true; lap "checked"
 exit $RC

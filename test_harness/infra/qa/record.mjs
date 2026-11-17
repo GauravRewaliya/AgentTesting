@@ -104,11 +104,11 @@ summary.stage = "record";
       }
     }
     const input = STEPS ? { count: async () => 0 } : page.locator("input, textarea").first();
-    if (await input.count()) { await input.click(); await input.pressSequentially(typeText, { delay: 120 }); summary.typed = typeText; await page.waitForTimeout(600); }
+    if (await input.count()) { try { await input.click({ timeout: 4000 }); await input.pressSequentially(typeText, { delay: 120 }); summary.typed = typeText; await page.waitForTimeout(600); } catch (e) { summary.default_flow_skipped = "first input not usable: " + String(e).split("\n")[0].slice(0, 90); } }   // the DEFAULT flow is best effort (an overlay or a hidden input must not fail a healthy page); the QA agent's own steps stay strict
     summary.texts = (await page.locator("h1, h2, p, code, output, [id]").allInnerTexts()).map((t) => t.trim()).filter(Boolean).slice(0, 12);   // read BEFORE clicking anything
     await page.screenshot({ path: join(OUT, "qa.png") });
     const button = STEPS ? { count: async () => 0 } : page.locator("button").first();
-    if (await button.count()) { await button.click(); summary.clicked = (await button.innerText()).trim(); await page.waitForTimeout(800); }
+    if (await button.count()) { try { await button.click({ timeout: 4000 }); summary.clicked = (await button.innerText()).trim(); await page.waitForTimeout(800); } catch (e) { summary.default_flow_skipped = "first button not clickable: " + String(e).split("\n")[0].slice(0, 90); } }
   } catch (e) { summary.reasons.push(String(e).slice(0, 200)); }
   await ctx.close();
 }

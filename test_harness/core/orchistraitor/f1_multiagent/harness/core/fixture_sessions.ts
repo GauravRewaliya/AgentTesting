@@ -60,7 +60,8 @@ export function recordTurn(st: MStore, c: RunCall, task: string, role: string, w
  *  (a real lead mixes verbs into its verification questions: "Verify ... Report which file App.tsx imports ... did you run git commit?"). Cheap heuristic on purpose, no model. */
 export const isVerifyAsk = (prompt: string): boolean => {
   const newWork = /^\W*(now |also |then |please |next )*(add|create|build|write|implement|make|install|remove|delete|refactor|update|change|redo|fix|set up|put)\b/i.test(prompt.trim());
-  return !newWork && /\b(verify|check|confirm|answer|report|what (did|have|exactly|is|are)|which|list|show me|quote|status|did you|have you|is the|are there|summar(y|ise|ize)|tell me|describe|explain|what you|what was|what were|are you done|is it done|finished|how did|how many|recap)\b/i.test(prompt);
+  const orders = /\b(?:regenerate|recreate|re-create|redo)\b|\bcreate\s+(?:vue|vite)@latest\s+\S+/i.test(prompt);   // a correction that STATES the generator command or says regenerate is work, even when it starts with "Your previous run was wrong" and ends with "then verify ..." (a real lead's redo was answered from the table and never re-ran)
+  return !newWork && !orders && /\b(verify|check|confirm|answer|report|what (did|have|exactly|is|are)|which|list|show me|quote|status|did you|have you|is the|are there|summar(y|ise|ize)|tell me|describe|explain|what you|what was|what were|are you done|is it done|finished|how did|how many|recap)\b/i.test(prompt);
 };
 
 /** The whole history of the task's sessions of this role, as text for a REAL call that has no memory of its own (stateless claude call): what was asked, what each answer said, newest last. */

@@ -5,11 +5,12 @@
 // (infra/qa/web_export.ts: pnpm install + `expo export --platform web` inside Docker, nothing on the host; a few minutes, a few hundred MB in the npm cache volume). Skip that with QA_EXPO_EXPORT=0.
 // An Expo app WITHOUT react-native-web, or a failed export, records nothing and says why in store/qa/NO_VIDEO.txt. `route` (e.g. "/3d-rotate") picks the screen to open.
 // Backend: QA_SANDBOX=docker (default) | off | e2b(not implemented), see test_harness/infra/qa/run_qa.ts. Needs the image once: bun test_harness/infra/qa/run_qa.ts --build
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { recordQa } from "../../../infra/qa/run_qa.ts";
 import { exportExpoWeb } from "../../../infra/qa/web_export.ts";
 import { recordExpoDev } from "../../../infra/qa/web_dev_qa.ts";
+import { videoOffReason } from "../f1_multiagent/harness/core/loops_ai.ts";
 import type { QaSpec } from "../../../../TestCases/types.ts";
 
 export interface VideoResult { ok: boolean; videos: string[]; skipped?: string; notes: string[] }
@@ -35,12 +36,14 @@ const noVideo = (storeDir: string, why: string, workspace: string): VideoResult 
 };
 /** `qa`: what the CASE declared (`Case.qa(req)` in TestCases/types.ts). A spec says how to record or why not; `null` = the case declares nothing: skipped (QA_AUTO=1 detects a web page instead); `undefined` = old behaviour (detect). */
 export async function videoAfterRun(o: { workspace: string; storeDir: string; route?: string; qa?: QaSpec | null }): Promise<VideoResult> {
+  const off = videoOffReason(join(o.workspace, "run_test")); if (off) return noVideo(o.storeDir, off, o.workspace);   // the person said no video (.loopsAI/config.json)
   if (o.qa === null && process.env.QA_AUTO !== "1") return noVideo(o.storeDir, "this case does not declare `qa` (TestCases/types.ts Case.qa): not marked as QA-testable, so no video", o.workspace);
   if (o.qa && !o.qa.enabled) return noVideo(o.storeDir, `case says no video: ${o.qa.why}`, o.workspace);
   if (o.qa && o.qa.enabled) {   // the case says HOW: record exactly that
     const spec = o.qa, app = join(o.workspace, "run_test", spec.app), out = join(o.storeDir, "qa", `${spec.app}-${Date.now()}`);
     if (!existsSync(app)) return noVideo(o.storeDir, `qa spec names run_test/${spec.app} but it does not exist (the agents did not build it)`, o.workspace);
     const r = spec.kind === "static" ? recordQa({ appDir: app, out, route: spec.route ?? o.route, viewport: spec.viewport }) : recordExpoDev({ appDir: app, out, route: spec.route ?? o.route, viewport: spec.viewport, start: spec.start, port: spec.port, type: spec.type, typecheck: spec.typecheck, render_timeout_ms: spec.render_timeout_ms, native_only: spec.native_only, stub_unresolved: spec.stub_unresolved, browser_args: spec.browser_args, fail_on_text: spec.fail_on_text, timeoutMs: spec.timeout_ms });
+    if (r.ok && r.video) rmSync(join(o.storeDir, "qa", "NO_VIDEO.txt"), { force: true });   // a stale note from an earlier failed try said "no video" next to a good one
     return r.ok && r.video ? { ok: true, videos: [r.video], notes: [] } : { ...noVideo(o.storeDir, `${spec.kind} QA of run_test/${spec.app} failed: ${r.error ?? "no video"}`, o.workspace), notes: [`stage ${(r as { stage?: string }).stage ?? "?"} (broken app caught BEFORE any video time)`, ...(((r as { reasons?: string[] }).reasons ?? [r.error ?? ""]).slice(0, 4))] };
   }
   const apps = findWebApps(o.workspace), notes: string[] = [];

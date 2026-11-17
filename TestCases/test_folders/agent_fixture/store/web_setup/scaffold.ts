@@ -12,10 +12,21 @@ const has = (t: string, re: RegExp) => re.test(t);
 
 /** The project name: `run_test/<name>` first, then "named / called / name: <name>". */
 export const nameOf = (task: string): string | undefined => (task.match(/run_test\/([A-Za-z0-9][A-Za-z0-9._-]*)/)?.[1] ?? task.match(/\b(?:named|called|name(?: it)?(?: is)?[:=]?)\s+["'`]?([a-z][a-z0-9._-]{1,40})/i)?.[1])?.replace(/[._-]+$/, "");   // "in run_test/dash-ui.": the full stop ends the sentence, it is not part of the name
-/** A word that is chosen, not NEGATED: "no JSX", "without ESLint", "do not add Prettier", "skip tests" do not count. */
-const chosen = (t: string, word: string) => new RegExp(`(?<!\\b(?:no|not|without|skip|exclude|excluding|never|don't|dont)\\s(?:[\\w-]+\\s){0,3})\\b(?:${word})\\b`, "i").test(t);
+/** A word that is chosen, not NEGATED. Two kinds of negator:
+ *  - "no / skip / without / exclude / never": covers the next words joined by a space, "or" / "and" or a SLASH ("no Playwright/Cypress/e2e": the master wrote exactly that and the first version lost track after the slash, so --cypress was added). A COMMA ends it: "no JSX, Pinia" still picks Pinia.
+ *  - "not / don't" (the verb form, "Do NOT add JSX, ESLint or Prettier"): covers the whole comma list, until a positive word (add / use / include / with / plus / but / yes) or the end of the sentence. */
+const NEG_PLAIN = String.raw`\b(?:no|skip|without|exclude|excluding|never)\s(?:[\w-]+[\s/]\s?){0,3}`;
+const NEG_VERB = String.raw`\b(?:not|don't|dont)\s(?:(?:add|use|include|install)\s)?(?:(?!(?:add|use|include|with|plus|but|yes)\b)[\w-]+(?:,\s*|[\s/]\s?)){0,5}`;
+/** Sentences that are NOT a choice, cut out before any word is looked for (found in a real run: "NOT wanted: JSX, E2E/Playwright/Cypress, ESLint, Prettier ..." was read as five chosen options):
+ *  - a list that is negated as a whole: "NOT wanted: ...", "unwanted / excluded / not needed / don't want: ..." up to the end of the sentence;
+ *  - a note about the PAST or a check, not an order: "You enabled jsx, cypress ...", "verify that no cypress, eslint ... remain". */
+const NOT_A_CHOICE = /\b(?:(?:do(?:es)? not|don't|dont) want|not (?:wanted|needed|required)|unwanted|excluded?|skipped)\b[^.\n]*|\b(?:you (?:enabled|added|turned on|used)|verify|check that|make sure|ensure)\b[^.\n]*/gi;
+const chosen = (t: string, word: string) => new RegExp(`(?<!${NEG_PLAIN})(?<!${NEG_VERB})\\b(?:${word})\\b`, "i").test(t.replace(NOT_A_CHOICE, " "));
+/** When the hand-over states the exact command (`create vue@latest shop-ui --ts --router`), those flags are the order: nothing is guessed from the words around it. */
+const statedFlags = (t: string): string[] | undefined => { const m = t.match(/create\s+vue@latest\s+[\w.-]+((?:\s+--[a-z-]+)+)/i); return m ? m[1]!.trim().split(/\s+/) : undefined; };
 /** create-vue feature flags from the words of the hand-over. [] + no "default/nothing else" = the options were never given. */
 export function vueFlags(t: string): string[] {
+  const given = statedFlags(t); if (given) return given;
   const f: string[] = [];
   if (chosen(t, "typescript|ts")) f.push("--ts"); if (chosen(t, "jsx")) f.push("--jsx"); if (chosen(t, "router")) f.push("--router"); if (chosen(t, "pinia")) f.push("--pinia");
   if (chosen(t, "vitest")) f.push("--vitest"); if (chosen(t, "cypress")) f.push("--cypress"); if (chosen(t, "playwright")) f.push("--playwright"); if (chosen(t, "eslint")) f.push("--eslint"); if (chosen(t, "prettier")) f.push("--prettier"); if (chosen(t, "bare")) f.push("--bare");
@@ -43,5 +54,5 @@ export function scaffold(req: Req, kind: "vue" | "react"): string {
     "-v", "agent-testing-pnpm-store:/pnpm", "-v", `${req.ws}:${req.ws}`, "-w", req.ws, "--entrypoint", "bun", IMAGE, ...args], { encoding: "utf8", timeout: 180_000 });
   if (r.status !== 0 || !existsSync(join(req.ws, name))) return `ERROR: \`${command}\` failed: ${(r.stderr || r.stdout).split("\n").filter(Boolean).slice(-4).join(" | ").slice(0, 300)}`;
   const all = files(join(req.ws, name)), top = readdirSync(join(req.ws, name)).filter((n) => !n.startsWith(".")).join(", ");
-  return `Ran in run_test (inside the sandbox container): \`${command}\`\nCreated run_test/${name}: ${all.length} files (top level: ${top}). Dependencies are NOT installed: install with \`pnpm install\`, then \`pnpm dev\`.\n` + rep({ stage: "setup", command, dir: `run_test/${name}`, flags, files: all.length });
+  return `Ran in run_test (inside the sandbox container): \`${command}\`\nCreated run_test/${name}: ${all.length} files (top level: ${top}). Dependencies are NOT installed: install with \`pnpm install\`, then \`pnpm dev\`.${kind === "vue" ? "\nNote: create-vue always includes \`vite-plugin-vue-devtools\` (it has no flag to leave it out); every other feature is exactly the flags above." : ""}\n` + rep({ stage: "setup", command, dir: `run_test/${name}`, flags, files: all.length });
 }
