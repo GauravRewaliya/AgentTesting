@@ -9,12 +9,12 @@ export const HARNESS = join(ROOT, "test_harness");
 export const CORE = join(HARNESS, "core");
 // ALL run data lives in ONE place: test_harness/.state/<STATE_VERSION>/ (nothing else stores results; the old .state/ is gone).
 //   .state/<version>/current_pointer.json   {"current_workspace":"01"}
-//   .state/<version>/index.json             session_id -> folder (see core/state2/store.ts)
+//   .state/<version>/index.json             session_id -> folder (see core/state/store.ts)
 //   .state/<version>/data/<workspace>/      workspace.json, last/, cache/, runs/, sessions/<task>/ (session.json, events.jsonl, run/, workspace/, children/)
 // STATE_VERSION is changed BY HAND when the orchestrator changes: a new version starts fresh (empty), the old one stays on disk untouched.
 export const STATE_VERSION = process.env.STATE_VERSION ?? "v1";
-export const STATE2_BASE = join(HARNESS, ".state");
-export const STATE_ROOT = join(STATE2_BASE, STATE_VERSION);
+export const STATE_BASE = join(HARNESS, ".state");
+export const STATE_ROOT = join(STATE_BASE, STATE_VERSION);
 /** The workspace the pointer names RIGHT NOW. A long-lived process (the dashboard API) must call this on every request, so a changed pointer is followed without a restart. */
 export const currentWorkspace = (): string => { try { return String(JSON.parse(readFileSync(join(STATE_ROOT, "current_pointer.json"), "utf8")).current_workspace); } catch { return "01"; } };
 export const workspacePath = (ws: string): string => join(STATE_ROOT, "data", ws);

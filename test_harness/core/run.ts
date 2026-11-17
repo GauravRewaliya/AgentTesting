@@ -2,7 +2,7 @@
 // The lead is a real `claude -p` (haiku). Every sub-agent call goes through the PreToolUse hook (guard) to a thin stand-in that pipes the hand-over to core/interpose.ts mock,
 // which answers from TestCases/test_folders/agent_fixture/results (recorded run(req): files + reply). So the sub-agent itself costs ~nothing. (--real is accepted and means the same.)
 // .state is a permanent cache: a case that already ran is NOT run again (CACHED). --rerun runs it again and first ARCHIVES the old
-// result to .state/<version>/data/<ws>/cache/<id>.<n>/ (never deleted). One case = one session folder (core/state2/record.ts).
+// result to .state/<version>/data/<ws>/cache/<id>.<n>/ (never deleted). One case = one session folder (core/state/record.ts).
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -10,8 +10,8 @@ import { report } from "./report.ts";
 import { check as checkCaps } from "./orchistraitor/harness_own_custom/capabilities.ts";
 import { skip_test } from "./orchistraitor/harness_own_custom/skip_test.ts";
 import { CASES, FIXTURES, WORKSPACE } from "./paths.ts";
-import { archiveCase, openWorkspace, readLastCase, writeLastCase, writeSession } from "./state2/store.ts";
-import { buildSession, hasRun, openRun, parentOf, previous, taskOf, type LastFile } from "./state2/record.ts";
+import { archiveCase, openWorkspace, readLastCase, writeLastCase, writeSession } from "./state/store.ts";
+import { buildSession, hasRun, openRun, parentOf, previous, taskOf, type LastFile } from "./state/record.ts";
 import { warnMissingFixtures } from "./fixture_policy.ts";
 import { loadAgent, runClaude } from "./claude.ts";
 import type { Case, CliFlags } from "./types.ts";

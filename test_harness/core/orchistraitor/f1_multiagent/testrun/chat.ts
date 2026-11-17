@@ -9,7 +9,7 @@ import { MStore, say } from "../harness/core/board.ts";
 import { SESSION_CAP } from "../harness/core/session_run.ts";
 import { runSlash, slashName } from "../harness/core/slash.ts";
 import { runLead } from "../harness/lead.ts";
-import { STATE2_BASE, STATE_VERSION } from "@core/paths.ts";
+import { STATE_BASE, STATE_VERSION } from "@core/paths.ts";
 import { declareGateLimit, loadSuites, readExp, reconcileDead, writeExp } from "./cases.ts";
 import { readdirSync } from "node:fs";
 
@@ -21,7 +21,7 @@ if (!task || !file) { console.error("usage: bun testrun/chat.ts --task <id> --te
 // ONE RUNNER for the UI and for testrun/run.ts: every master session (a test case's or one made on the Experiment page: that is only a tag) lives in .state/<version>/<home>/{store,workspace}
 // (<home> = the task, or <task>/branches/<b>), runs with writerMode "shared", the SAME agent team and gate limits the case declares, and the same [Test setup] note as run.ts.
 // Only UI_STORE / UI_REPO (env, one-off scripts) force the old shared ui/.ui-data store.
-const STATE_DIR = join(STATE2_BASE, STATE_VERSION), EXP_DIR = join(STATE_DIR, "f1_exp"), perTask = !E.UI_STORE && !E.UI_REPO;
+const STATE_DIR = join(STATE_BASE, STATE_VERSION), EXP_DIR = join(STATE_DIR, "f1_exp"), perTask = !E.UI_STORE && !E.UI_REPO;
 type Ent = { case: string; task: string; home?: string; suite?: string; agents: string[]; at?: number; marks: number[]; started: number[]; done: number };
 const entries = (t: string): Ent[] => { const o: Ent[] = []; try { for (const f of readdirSync(EXP_DIR)) if (f.endsWith(".json")) { const j = readExp(join(EXP_DIR, f)) as unknown as Ent; if (j?.task === t) o.push(j); } } catch { /* no exp files */ } return o.sort((x, y) => (y.at ?? 0) - (x.at ?? 0)); };
 const hasStore = (h: string) => existsSync(join(STATE_DIR, h, "store", "store.json"));

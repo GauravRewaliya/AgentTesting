@@ -23,7 +23,7 @@ Both runners (and `TestCases/test_folders/<suite>` run through `core/run.ts`) st
         run/                               raw logs of core/run.ts: trace.jsonl, harness.jsonl, guard.json (raw.json with --raw)
         children/<task>/                   a case that continues this one (`after`): same files
 ```
-Rules (enforced in `core/state2/store.ts`): no session without its workspace, no child without its parent in the same workspace.
+Rules (enforced in `core/state/store.ts`): no session without its workspace, no child without its parent in the same workspace.
 
 ## Lookups
 - workspace: `current_pointer.json`
@@ -34,5 +34,5 @@ Rules (enforced in `core/state2/store.ts`): no session without its workspace, no
 ## Who writes it
 | Runner | How |
 |---|---|
-| `core/run.ts` (fixture sub-agents; `test_basic`, `test_workflows`, ...) | directly: `core/state2/record.ts` + `store.ts`; hook/stand-in write `run/` through `TRACE_FILE`, `GUARD_FILE`, `HARNESS_LOG` |
-| Experiment page (f1 harness) | its engine DB stays in `f1_multiagent/ui/.ui-data/`; the UI server (`server/state2.ts`) copies each session in after a turn |
+| `core/run.ts` (fixture sub-agents; `test_basic`, `test_workflows`, ...) | directly: `core/state/record.ts` + `store.ts`; hook/stand-in write `run/` through `TRACE_FILE`, `GUARD_FILE`, `HARNESS_LOG` |
+| Experiment page (f1 harness) | its engine DB stays in `f1_multiagent/ui/.ui-data/`; the UI server (`server/state.ts`) copies each session in after a turn |

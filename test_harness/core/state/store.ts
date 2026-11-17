@@ -3,10 +3,10 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { STATE_ROOT, currentWorkspace, workspacePath } from "../paths.ts";
-import { STATE2_VERSION, type ChildSummary, type EventRec, type IndexFile, type SessionRec, type SessionSummary, type SubSession, type WorkspaceRec } from "./types.ts";
+import { STATE_VERSION, type ChildSummary, type EventRec, type IndexFile, type SessionRec, type SessionSummary, type SubSession, type WorkspaceRec } from "./types.ts";
 
-export const STATE2 = STATE_ROOT;   // .state/<version>/ : the version is set by hand in paths.ts
-export const indexFile = () => join(STATE2, "index.json");
+export const STATE = STATE_ROOT;   // .state/<version>/ : the version is set by hand in paths.ts
+export const indexFile = () => join(STATE, "index.json");
 export const wsPath = workspacePath;
 const safe = (s: string) => { if (!/^[\w.-]+$/.test(s)) throw new Error("bad id: " + s); return s; };
 /** folder of a session: parents under sessions/, children under their parent's children/ */
@@ -15,15 +15,15 @@ const rel = (ws: string, task: string, parent?: string | null) => `data/${ws}/se
 const put = (f: string, text: string) => { mkdirSync(join(f, ".."), { recursive: true }); const t = f + ".tmp" + process.pid; writeFileSync(t, text); renameSync(t, f); };
 
 export function readIndex(): IndexFile {
-  try { const j = JSON.parse(readFileSync(indexFile(), "utf8")) as IndexFile; if (j.version === STATE2_VERSION) return j; } catch { /* none yet */ }
-  return { version: STATE2_VERSION, current_workspace: currentWorkspace(), workspaces: [], sessions: [] };
+  try { const j = JSON.parse(readFileSync(indexFile(), "utf8")) as IndexFile; if (j.version === STATE_VERSION) return j; } catch { /* none yet */ }
+  return { version: STATE_VERSION, current_workspace: currentWorkspace(), workspaces: [], sessions: [] };
 }
 export const findParent = (ix: IndexFile, ws: string, task: string) => ix.sessions.find((s) => s.workspace === ws && s.task === task);
 export function ensureWorkspace(w: WorkspaceRec) {
   const ix = readIndex(); ix.current_workspace = currentWorkspace();
   if (!ix.workspaces.some((x) => x.id === w.id)) ix.workspaces.push(w);
-  put(join(STATE2, w.path, "workspace.json"), JSON.stringify(w, null, 1)); put(indexFile(), JSON.stringify(ix, null, 1));
-  const ptr = join(STATE2, "current_pointer.json"); if (!existsSync(ptr)) put(ptr, JSON.stringify({ current_workspace: w.id }, null, 1));   // a fresh version gets its pointer with its first workspace
+  put(join(STATE, w.path, "workspace.json"), JSON.stringify(w, null, 1)); put(indexFile(), JSON.stringify(ix, null, 1));
+  const ptr = join(STATE, "current_pointer.json"); if (!existsSync(ptr)) put(ptr, JSON.stringify({ current_workspace: w.id }, null, 1));   // a fresh version gets its pointer with its first workspace
 }
 /** register the workspace once (manifest + index + pointer); returns its id */
 export function openWorkspace(ws: string, harness: string): string {
@@ -82,7 +82,7 @@ export function readSession(ws: string, task: string): { session: SessionRec; ev
   const ix = readIndex(); safe(ws); safe(task);
   const par = findParent(ix, ws, task), host = par ?? ix.sessions.find((p) => p.workspace === ws && p.children.some((c) => c.task === task));
   if (!host) return undefined;
-  const dir = join(STATE2, par ? par.path : host.children.find((c) => c.task === task)!.path);
+  const dir = join(STATE, par ? par.path : host.children.find((c) => c.task === task)!.path);
   if (!existsSync(join(dir, "session.json"))) return undefined;
   const ev = join(dir, "events.jsonl");
   return { session: JSON.parse(readFileSync(join(dir, "session.json"), "utf8")), events: existsSync(ev) ? readFileSync(ev, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [] };

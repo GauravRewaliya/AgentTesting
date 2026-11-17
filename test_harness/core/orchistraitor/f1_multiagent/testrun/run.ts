@@ -22,13 +22,13 @@ import { SESSION_CAP } from "../harness/core/session_run.ts";
 import { costOf } from "../harness/core/agent_call.ts";
 import { runLead } from "../harness/lead.ts";
 import { warnMissingFixtures } from "@core/fixture_policy.ts";
-import { FIXTURES, STATE2_BASE, STATE_VERSION } from "@core/paths.ts";
+import { FIXTURES, STATE_BASE, STATE_VERSION } from "@core/paths.ts";
 import { videoAfterRun } from "../../helper/video.ts";
 import { recordSession } from "../../../../infra/record_session.ts";
 import { runArtifactCases } from "./artifact_run.ts";
 import { agentsFor, declareGateLimit, judgeTurn, replyProblem, reconcileDead, loadSuites, readExp, statusOf, taskFor, unsupported, writeExp } from "./cases.ts";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), ".."), E = process.env, STATE_DIR = join(STATE2_BASE, STATE_VERSION);
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), ".."), E = process.env, STATE_DIR = join(STATE_BASE, STATE_VERSION);
 const argv = process.argv.slice(2), flags = new Set(argv.filter((a) => a.startsWith("--"))), [suite, ...want] = argv.filter((a) => !a.startsWith("--"));   // --video-route=/x is read from argv directly
 const STORE = E.UI_STORE ? resolve(E.UI_STORE) : "", REPO = E.UI_REPO ? resolve(E.UI_REPO) : "", EXP_DIR = join(STATE_DIR, "f1_exp");   // which case ran in which task (git-ignored)
 const fake = flags.has("--fake"), noPlanning = flags.has("--no-planning"), stopPause = flags.has("--stop-pause") || flags.has("--stop_pause"), sayArg = argv.find((a) => a.startsWith("--say="))?.slice(6), resumeArg = argv.find((a) => a === "--resume" || a.startsWith("--resume=")), sessionArg = resumeArg?.startsWith("--resume=") ? resumeArg.slice(9) : undefined, videoOnly = flags.has("--video-only");   // --say="next" (see header)

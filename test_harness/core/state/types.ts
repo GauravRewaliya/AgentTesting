@@ -11,9 +11,9 @@
 //   data/<workspace>/sessions/<parent>/run/                           raw logs of the fixture runner (trace.jsonl, harness.jsonl, guard.json)
 //   data/<workspace>/sessions/<parent>/children/<child>/…             a CHILD session (a case that continues the parent), same files
 // Rule: no session without its workspace, no child without its parent (same workspace). index.json lists PARENTS only; children are nested in them.
-// core/run.ts (fixture runner) writes here directly through core/state2/record.ts + store.ts; the Experiment runner keeps its own engine DB (f1 ui/.ui-data) and the UI server copies each session in.
+// core/run.ts (fixture runner) writes here directly through core/state/record.ts + store.ts; the Experiment runner keeps its own engine DB (f1 ui/.ui-data) and the UI server copies each session in.
 
-export const STATE2_VERSION = "02" as const;
+export const STATE_VERSION = "02" as const;
 /** which runner produced the session: `core/run.ts` (sub-agents from agent_fixture) or the f1 multi-agent harness (Experiment page) */
 export type Runner = "fixture" | "experiment";
 export type SessionState = "running" | "done" | "stalled" | "failed" | "idle";
@@ -39,7 +39,7 @@ export interface TurnRec {
   calls: number; cost: number; reply?: string;
 }
 export interface SessionRec {
-  version: typeof STATE2_VERSION;
+  version: typeof STATE_VERSION;
   /** labels shown in the UI; every session a test run (fixture runner or f1 testrun) makes carries `test_run` */
   tags?: string[];
   task: string;                // main session id: "fx_<case>" for the fixture runner, "t_<case>_<suffix>" / "s<id>" for the experiment runner
@@ -73,4 +73,4 @@ export interface SessionSummary {
   sub_sessions: SubSession[];  // the agent tree, all cases together
   children: ChildSummary[];    // continuing cases, in run order
 }
-export interface IndexFile { version: typeof STATE2_VERSION; current_workspace: string; workspaces: WorkspaceRec[]; sessions: SessionSummary[] }
+export interface IndexFile { version: typeof STATE_VERSION; current_workspace: string; workspaces: WorkspaceRec[]; sessions: SessionSummary[] }
