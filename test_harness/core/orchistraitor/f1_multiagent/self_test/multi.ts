@@ -778,9 +778,9 @@ async function parentSuite() {
   { const bad: string[] = [];
     for (const root of ["."]) for (const a of ls(join(import.meta.dirname, "..", root, "harness", "agents"))) {
       const txt = rf(join(import.meta.dirname, "..", root, "harness", "agents", a, ".claude", "CLAUDE.md"), "utf8");
-      if (a === "pm") { if (!/plan_answer/.test(txt)) bad.push(root + "/pm lacks plan_answer"); } else if (!/NEEDS_PARENT/.test(txt) || !/STOP/.test(txt) || !/same conversation/.test(txt)) bad.push(root + "/" + a);
+      if (a === "lead") { if (!/NEVER write `NEEDS_PARENT:`/.test(txt) || !/STOP/.test(txt)) bad.push(root + "/lead must ask the person in plain words and never write NEEDS_PARENT:"); } else if (a === "pm") { if (!/plan_answer/.test(txt)) bad.push(root + "/pm lacks plan_answer"); } else if (!/NEEDS_PARENT/.test(txt) || !/STOP/.test(txt) || !/same conversation/.test(txt)) bad.push(root + "/" + a);
     }
-    t("NP3", "every agent prompt says what to do when stuck (STOP, reply NEEDS_PARENT: with what is needed and what was done, the parent continues you in the same conversation); callers also say how to answer a child; the PM knows plan_answer", bad.length === 0, bad.join(", ")); }
+    t("NP3", "the lead asks the PERSON in plain words (never the NEEDS_PARENT: marker); every other agent prompt says what to do when stuck (STOP, reply NEEDS_PARENT: with what is needed and what was done, the parent continues you in the same conversation); callers also say how to answer a child; the PM knows plan_answer", bad.length === 0, bad.join(", ")); }
   // ---- the question reaches the parent
   { const w = world(), res = defs.get("researcher")!, rn = new ScriptRunner((c: RunCall) => (c.prompt.includes("ASK") && !c.prompt.includes("ANSWER") ? "NEEDS_PARENT: which address should I use? I found two." : "done with the address given"));
     const ctx = { store: w.store, runner: rn, defs, sessionCap: 3 }, q = (o: Partial<CallReq> = {}): CallReq => ({ ...base, objective: "ASK about the address", ...o });

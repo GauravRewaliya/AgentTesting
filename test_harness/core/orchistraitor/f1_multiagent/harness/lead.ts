@@ -41,5 +41,7 @@ export async function runLead(ctx: CallCtx & { store: MStore }, o: { task_id: st
   ${tools} board_status` :"You have no delegate command: multi-agent is off for this task. Answer without sub-agents."].join("\n\n");
   const out = await callAgent({ ...ctx, defs: new Map(defs).set("lead", ld) }, row, o.repo, prompt, o.forceSel, {}, { env });   // the launch copy: prompt = CLAUDE.md + the roles it may call
   store.tx(() => touchRun(store, o.task_id));   // the main agent's Claude session id is now on the run record
-  return { row, ...out };
+  return { row, ...out, reply: personReply(out.reply) };
 }
+/** The lead talks to a PERSON: the sub-agent protocol marker `NEEDS_PARENT:` must never reach them (a real lead wrote it in front of its question). The question stays, the marker goes. */
+export const personReply = (reply: string): string => (reply ?? "").replace(/^[ \t>*_]*NEEDS_PARENT:?[*_ \t]*/gim, "");
