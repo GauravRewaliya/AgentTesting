@@ -10,6 +10,7 @@ QA is ONE agent, `qa-reviewer`, kept for the whole task. You never run checks, s
 - If a builder's answer says what it verified (`VERIFIED:`), the project memory shows it: ask QA only for what is left. If the builders verified everything that matters, QA is optional.
 
 ## HOW to ask
+Ask for a QUICK CHECK unless the person asked for a full test: QA then answers in about 2 minutes (main flows once). Tell the person it can go deeper ("I can also test every stop, both languages and the narrow layout if you want").
 `team delegate --role qa-reviewer --session new ...` (it continues the one QA agent of this task; "new" never starts a second one). Give it: the person's words, what was built or changed (folders, files), what the builders said they verified, and what you want proof of (a screenshot, a flow, a video). It works in a throwaway copy, so it may mock data or bypass login to test; it never changes the real project.
 
 After the delegate, WAIT FOR THE ANSWER in the same turn: `team wait --agents qa-reviewer#<n>` in the foreground (repeat it if it times out); do not end your turn while QA is still working, and do not start it in the background. QA takes about a minute for a few flows. In your reply give the person QA's verdict and the FULL paths of the video and the report (`index.html`).

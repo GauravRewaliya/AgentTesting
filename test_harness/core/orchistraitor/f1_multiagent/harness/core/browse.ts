@@ -145,10 +145,10 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
       wsUrl = ((await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) as Tab[]).find((t) => t.type === "page")!.webSocketDebuggerUrl!;
     }
     cdp = await Cdp.open(wsUrl);
-    const w = o.width ?? (o.mobile ? 390 : 1440), h = o.height ?? (o.mobile ? 844 : 900);
+    const w = o.width ?? (o.mobile ? 390 : o.tab ? 1280 : 1440), h = o.height ?? (o.mobile ? 844 : o.tab ? 720 : 900);   // a kept-open tab (agents) is 16:9, like a video should be
     await cdp.send("Page.enable"); await cdp.send("Runtime.enable");
     if (o.freeze) await cdp.send("Page.setWebLifecycleState", { state: "active" }).catch(() => 0);
-    if (!reuse) { await cdp.send("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile: !!o.mobile }); await cdp.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: o.scheme ?? "light" }] }); }
+    if (!reuse || (!!ep && ep !== attachedEndpoint())) { await cdp.send("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile: !!o.mobile }); await cdp.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: o.scheme ?? "light" }] }); }
     if (ownTab) await cdp.send("Page.bringToFront").catch(() => 0);   // a background tab of a visible browser is throttled
     await cdp.send("Network.enable").catch(() => 0);
     const frames: { t: number; file: string }[] = [], vdir = o.video ? mkdtempSync(join(tmpdir(), "bvid-")) : ""; vdirOf = vdir;   // screencast frames, written to disk as they arrive
