@@ -3,7 +3,6 @@
 // Nothing is asserted from the model's words: a turn is judged by WHO the lead called (role, new or follow-up) against `expected_agents_res`, plus the guard (no distractor).
 // `expected.context` is shown beside the result for a human to read, as in the other harness.
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
-import { qaFailed, readQa } from "../harness/core/qa_loop.ts";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -16,7 +15,7 @@ export const AGENT_TESTING = resolve(HERE, "../../../../..");
 export const CASES_DIR = join(AGENT_TESTING, "TestCases", "test_folders");
 const FIXTURE_INDEX = join(FIXTURES, "index.json");   // the ONE fixture place (paths.ts)
 
-export interface RawCase { needs?: string[]; expect_qa?: "stop" | "give_up" | "failed"; max_agent_calls?: number; allow_real_subAg?: boolean; id: string; title: string; after?: string; branch_from?: string; branch_auto?: boolean; agents: string[]; distractors?: string[]; router?: boolean; tags?: string[]; turns: { user: string; expected: { context: string; expected_agents_res: string[] } }[] }
+export interface RawCase { needs?: string[]; max_agent_calls?: number; allow_real_subAg?: boolean; id: string; title: string; after?: string; branch_from?: string; branch_auto?: boolean; agents: string[]; distractors?: string[]; router?: boolean; tags?: string[]; turns: { user: string; expected: { context: string; expected_agents_res: string[] } }[] }
 export interface SuiteCase extends RawCase { suite: string; suiteTags: string[] }
 
 export async function loadSuites(): Promise<SuiteCase[]> {
@@ -76,11 +75,8 @@ export function judgeTurn(store: MStore, task: string, c: RawCase, i: number, ma
   const a = calls.map(key).sort(), b = exp.map(key).sort();
   const forbidden = new Set(c.distractors ?? []);
   const lead = store.notes.filter((n) => n.task_id === task && n.from === "lead" && n.to === "user" && !n.refs.includes("testrun"));   // not the copy the runner writes for the UI chat
-  const qs = store.file ? readQa(dirname(store.file)) : undefined, want = (c as { expect_qa?: "stop" | "give_up" | "failed" }).expect_qa;
-  // the master's QA repair loop ended failed (the same issue 3 times in a row = "stopped", or it gave up): the test is FAILED, whatever else matched. A case that EXPECTS that ending passes only when it happened.
-  const qaGate = want ? (qs && qaFailed(qs) && (want === "failed" || qs.status === (want === "stop" ? "stopped" : "gave_up")) ? undefined : `expected the QA loop to end with ${want}, it ended: ${qs?.status ?? "no loop"}`) : qs && qaFailed(qs) ? `QA loop ended failed: ${qs.reason}` : undefined;
   const reply_problem = replyProblem(c.turns[i]!.expected as { reply_must?: string[]; reply_forbid?: string[] }, lead[lead.length - 1]?.text ?? "");   // re-checked in run.ts when the reply comes from the lead's last answer instead of a note
-  return { reply_problem, gate: gate ?? qaGate, turn: i + 1, user: c.turns[i]!.user, expectedContext: c.turns[i]!.expected.context, expected: exp, calls, denied,
+  return { reply_problem, gate, turn: i + 1, user: c.turns[i]!.user, expectedContext: c.turns[i]!.expected.context, expected: exp, calls, denied,
     match: matchCalls(a, b, roleSet, new Set(required)), guard: mapped.some((x) => forbidden.has(x.role)), reply: lead[lead.length - 1]?.text ?? "", files: repoFiles };
 }
 
@@ -100,7 +96,14 @@ export function reconcileDead(store: MStore, why = "the run that started it is g
 }
 
 /** Hand the case's declared call limit to the fixture gate (it runs in another process, so it reads it from the store). */
-export function declareGateLimit(store: MStore, task: string, c: { max_agent_calls?: number; allow_real_subAg?: boolean }) {
+export function declareGateLimit(store: MStore, task: string, c: { max_agent_calls?: number; allow_real_subAg?: boolean; guard?: string }) {
+  // MOCKING IS A TEST-CASE CHOICE: the roles of the recorded results the case expects (expected_agents_res) are answered by the gate, whatever the agent's folder says (planner, builder, qa-reviewer are real agents)
+  const ids = new Set<string>(); (function walk(o: unknown) { if (Array.isArray(o)) o.forEach(walk); else if (o && typeof o === "object") for (const [k, v] of Object.entries(o)) { if (k === "expected_agents_res" && Array.isArray(v)) v.forEach((x) => typeof x === "string" && !x.startsWith("session:") && ids.add(x)); else walk(v); } })(c);
+  if (ids.size) {
+    let rows: { id: string; agent: string }[] = []; try { rows = JSON.parse(readFileSync(join(FIXTURES, "index.json"), "utf8")); } catch { /* no index: nothing to mock */ }
+    const roles = [...new Set(rows.filter((r) => ids.has(r.id)).map((r) => r.agent))];
+    if (roles.length) store.tx(() => store.ev("fixture.mock", task, "", { roles, guard: c.guard ?? null, ids: [...ids] }));
+  }
   if (c.max_agent_calls) store.tx(() => store.ev("fixture.limit", task, "", { limit: c.max_agent_calls }));
   if (c.allow_real_subAg) store.tx(() => store.ev("fixture.allow_real", task, "", { allow: true }));   // the gate may pass a call with no fixture to the REAL runner
 }

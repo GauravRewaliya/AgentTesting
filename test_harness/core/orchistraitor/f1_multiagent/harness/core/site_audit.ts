@@ -51,7 +51,7 @@ export async function siteAudit(o: { base: string; routes: { id: string; file?: 
     const out = (r.results[0] as { eval?: { issues: Issue[] } } | undefined)?.eval; for (const it of out?.issues ?? []) add(it.sev, it.what, it.fix, id, mobile);
   }
   function add(sev: Issue["sev"], what: string, fix: string, id: string, mobile: boolean) { const key = what.replace(/\d+(\.\d+)?/g, "N"); const e = all.get(key) ?? { sev, fix, pages: new Set<string>(), n: 0 }; e.pages.add(`${id ? "#/" + id : "/"}${mobile ? " (mobile)" : ""}`); e.n++; if (!all.has(key)) all.set(key, e); (e as { what?: string }).what ??= what; }
-  // kit sites: links that lead nowhere / detail pages not found (the same check `preview` makes)
+  // kit sites: links that lead nowhere / detail pages not found (the route check of a kit prototype)
   let linkProblems: { route: string; problems: string[] }[] = [];
   if (o.routes.length) { try { linkProblems = await smokeRoutes(o.base, o.routes, 6_000, o.routes.map((r) => r.id)); } catch { /* optional */ } }
   for (const lp of linkProblems) for (const p of lp.problems) { const key = p.replace(/\d+/g, "N"); const e = all.get(key) ?? { sev: /JavaScript|dead|not exist|not found|stub/.test(p) ? "high" as const : "medium" as const, fix: "Fix the page named here (see the page list).", pages: new Set<string>(), n: 0 }; e.pages.add(lp.route.split(" ")[0]!); e.n++; (e as { what?: string }).what ??= p; all.set(key, e); }

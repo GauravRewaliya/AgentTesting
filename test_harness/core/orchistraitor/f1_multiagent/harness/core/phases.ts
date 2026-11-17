@@ -1,6 +1,6 @@
 // PHASE GATES IN CODE (n+1 waits for n). A plan task may carry `phase` (1, 2, 3 ...). The scheduler starts a task of phase N only when
 //   (1) every task of every earlier phase is done (or cancelled), and
-//   (2) every earlier phase has a recorded GATE: `phase_pass` (the exit check evidence), refused while a task of the phase is open or the last qa_check failed.
+//   (2) every earlier phase has a recorded GATE: `phase_pass` (the exit check evidence), refused while a task of the phase is open.
 // A prompt rule can be forgotten by a small model; this cannot. Tasks without a phase are not gated. Pure functions: tested offline (self_test/power.ts).
 import type { PlanRow } from "./plan.ts";
 
@@ -24,8 +24,8 @@ export function gateBlock(p: PlanRow, t: { phase?: number }): { reason: string; 
 }
 
 export type PassRes = { ok: true; already?: boolean; phase: number } | { ok: false; errors: string[] };
-/** Pass the gate of phase `n`. Needs evidence, at least one done task, no open task, and the earlier gates. `qaOk` = the caller's view of the last qa_check (false = it failed). */
-export function passPhase(p: PlanRow, n: number, by: string, evidence: string, qaOk = true): PassRes {
+/** Pass the gate of phase `n`. Needs evidence, at least one done task, no open task, and the earlier gates. */
+export function passPhase(p: PlanRow, n: number, by: string, evidence: string): PassRes {
   const errors: string[] = [], mine = p.tasks.filter((t) => t.phase === n);
   if (!mine.length) return { ok: false, errors: [`the plan has no task in phase ${n} (phases: ${phases(p).join(", ") || "none"})`] };
   if (p.gates?.[n]) return { ok: true, already: true, phase: n };
@@ -34,7 +34,6 @@ export function passPhase(p: PlanRow, n: number, by: string, evidence: string, q
   if (!mine.some((t) => t.status === "done")) errors.push(`phase ${n} has no finished task`);
   for (const q of phases(p).filter((x) => x < n)) if (!p.gates?.[q]) errors.push(`phase ${q} has not passed its gate yet`);
   if ((evidence ?? "").trim().length < 8) errors.push(`--evidence is required: say which exit checks you ran and what they showed (at least 8 characters)`);
-  if (!qaOk) errors.push("the last qa_check failed: fix it and run qa_check again before passing the phase");
   if (errors.length) return { ok: false, errors };
   (p.gates ??= {})[n] = { t: Date.now(), by, evidence: evidence.trim().slice(0, 400) };
   return { ok: true, phase: n };

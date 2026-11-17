@@ -47,7 +47,7 @@ export interface AgentDetail {
   tools: { t: number; tool: string; text: string }[];            // its tool calls (Bash, Edit ...), newest last: the full command text the store kept
   briefs: { id: string; from: string | null; to: string | null; role: string; status: string; objective: string; output: string; boundaries: string; t: number }[];   // calls it received (sub-agent) or made (master)
   answer: string;                                                  // its last reply / report
-  scripts: { id: string; kind: string; status: string; label: string; cmd: string; dir: string; pid: number; started: number; ended_at?: number; exit_code?: number; by: string; stopped_by?: string; public_url: string; expires_at?: number; user_requested?: boolean }[];   // background scripts of the session (running first)
+  scripts: { id: string; title: string; status: string; label: string; cmd: string; dir: string; pid: number; port?: number; started: number; ended_at?: number; exit_code?: number; by: string; stopped_by?: string; public_url: string }[];   // background tasks of the session (running first)
   processes: { pid: number; elapsed: string; cmd: string }[];     // host processes of this task (dev servers, installs)
 }
 
@@ -73,3 +73,12 @@ export interface Transcript {
   talk?: { running: boolean; error?: string };   // the person's last direct message to this agent
 }
 export interface TalkIn { task: string; agent: string; text: string }
+
+/** One entry of the admin bug tracker (team report_bug -> store/admin_issues.jsonl). */
+export interface BugReport { id: string; at: string; t: number; reporter: string; agent: string | null; role: string | null; session_id: string | null; kind: string; severity: string; text: string; status: string | null; running_s: number | null; log_file: string | null }
+export interface BugsOut { count: number; high: number; reports: BugReport[] }
+
+/** What agents showed as proof in a session: screenshots and videos (QA, `browse`, the test runner's --video) and their reports. */
+export interface EvidenceItem { name: string; root: "qa" | "shots" | "qa_rec"; rel: string; kind: "image" | "video" | "text"; size: number; t: number; url: string }
+export interface EvidenceOut { count: number; images: number; videos: number; items: EvidenceItem[] }
+

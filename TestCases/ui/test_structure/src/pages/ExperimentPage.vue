@@ -12,12 +12,14 @@ import DebugFrame from "@/components/common/DebugFrame.vue";
 import SessionsNav from "@/components/experiment/SessionsNav.vue";
 import SessionHeader from "@/components/experiment/SessionHeader.vue";
 import ChatPanel from "@/components/experiment/ChatPanel.vue";
+import BugTracker from "@/components/experiment/BugTracker.vue";
+import Evidence from "@/components/experiment/Evidence.vue";
 import AgentSidePanel from "@/components/experiment/AgentSidePanel.vue";
 import type { AvailableAgent, LiveSession } from "../../shared/experiment";
 
 const route = useRoute(), router = useRouter();
 let wantCase = typeof route.query.case === "string" ? route.query.case : "";   // from a Runs link: open that case's session
-const live = useLive(), { ov, sessions, chat, result, bg, detail } = live;
+const live = useLive(), { ov, sessions, chat, result, bg, bugs, evidence, detail } = live;
 const avail = ref<AvailableAgent[]>([]), err = ref(""), notice = ref("");
 const initial = typeof route.query.session === "string" ? route.query.session : null;
 const sel = ref<string | null>(initial), creating = ref(!initial), navOpen = ref(false);
@@ -75,6 +77,8 @@ const sent = (task: string) => { if (creating.value) open(task); live.kick(); };
       <main class="main">
         <h3 v-if="creating || !session">New session</h3>
         <SessionHeader v-else :session="session" :bg="bg" @stop="stopSession" @del="del(session!)" @error="say" />
+        <BugTracker v-if="session && !creating" :bugs="bugs" @open-agent="openAgent" />
+        <Evidence v-if="session && !creating" :evidence="evidence" />
         <div class="work">
           <ChatPanel :session="session" :creating="creating" :chat="chat" :avail="avail" :ov="ov" @sent="sent" @say="say" @stop="stopSession" @open-agent="openAgent" @kick="live.kick" />
           <AgentSidePanel v-if="session && !creating" :session="session" :result="result" :processes="processes" :now="now" @open-agent="openAgent" @stop-proc="stopProc" />

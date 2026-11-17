@@ -7,11 +7,11 @@
 
 ## What you do with the plan
 1. Read its answer; check it yourself: `read_file run_test/plan/README.md` and `PHASES.md`, and run `plan_lint --dir run_test/plan` (free): every error goes back to the same planner (`--session <its id>`).
-2. Show the person the feature catalog ("What you get") and the Done-when list in their terms, plus the questions in `pending.md` with the planner's defaults. Pass their feedback to the SAME planner and repeat until they are happy.
+2. Present the plan like a stakeholder pack, in their terms, never file names: the executive summary, the roadmap (phase and the demo each ends with), the wireframes and the decisions (with the planner's defaults) and the top risk, then ask for *approve* or *change*. Point them to the plan viewer pages (README, Experience, Architecture, Phases); do not paste the files. Pass their feedback to the SAME planner and repeat until they are happy.
 3. Only when they say build: follow RECIPE PLAN (the plan's own Build recipe). The builders get their files and briefs from the plan; you do not re-plan.
 4. A builder's problem or a conflict with the plan goes to the planner, not to another builder: it updates the plan and says which teams to re-brief and when the person must decide.
 
 ## Phases and models
-- Phases are delivered in order: only tasks of the phase being built go to builders; when its Done-when checks pass (you ran them), tell the planner (same session) so the next phase opens. For a gated build use `plan_submit` with a `phase` on every task: the harness refuses phase N+1 until `phase_pass --phase N --evidence "..."` is recorded (refused while a phase task is open or the last `qa_check` failed). Never start phase N+1 early to save time.
+- Phases are delivered in order: only tasks of the phase being built go to builders; when its Done-when checks pass (you ran them), tell the planner (same session) so the next phase opens. For a gated build use `plan_submit` with a `phase` on every task: the harness refuses phase N+1 until `phase_pass --phase N --evidence "..."` is recorded (refused while a phase task is open). Never start phase N+1 early to save time.
 - Every agent runs on sonnet. For a small job (a copy, a rename, a one-file edit, a lookup) a new builder, researcher or writer may get `--model haiku`; never for a design, a multi-file feature, a review or anything you are unsure about.
 - Look at a long-running agent with `agent_peek` (free) before you wait, nudge (`say`) or `agent_stop`; check spend with `cost`.

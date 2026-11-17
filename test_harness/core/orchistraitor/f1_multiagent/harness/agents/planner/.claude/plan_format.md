@@ -16,10 +16,13 @@ Rules that came from real builds (each one removed a paid fix round):
 - Balance the work: about equal parts per builder (screens or pages), file names exactly as the kit creates them (`proto_init` names files from the nav; check its output). One builder with half the screens is the critical path.
 - One owner per file. Shared things (theme, shell, router, kit files) belong to nobody: builders never edit them.
 - What the kit does (so you can name files exactly): `proto_init --kind site --nav "A, B, C"` makes the shell and one `js/screens/part-N.js` + `css/pages-part-N.css` per 2 pages in nav order (5 pages = 3 files); `--kind app` groups about 4 screens per file (at most 4 files); `Group>Label` in the nav puts a group's screens in one file. It also writes `PROTO.md` (contract, classes, icons, helpers). The last nav item becomes the header button.
-- Verification belongs to the lead and is free: `proto_check`, `preview`, `browse` (both themes, desktop and `--mobile`), `site_audit` for a site. A review or audit agent in the task table costs a paid call plus a fix round of the builders; the plan names those free checks instead. A real app (has a `package.json`) adds `qa_check`; a kit prototype never does.
-- Brand tokens go into the `proto_init` command (`--accent`, `--font`, `--bg-dark`): they land in `css/theme.css`, which nobody edits. A plan that needs a token the kit command cannot carry names an owner for that file.
-- Kit first: the `proto_init` site or app kit gives shell, router, theme and tokens and runs without a build; plan on top of it. A build stack is chosen only for a real need (backend, data, packages), with the reason written down.
 - Say what is captured, user-given or invented, per screen. Invented screens get a line why they are plausible.
 - Done when is the contract with the person: steps a browser can run, never "looks good". Include one check per feature that matters (a click and what appears) and a persistence check (reload).
 - The plan IS the planning for the builders: no "write a plan" task inside it, no wireframe step, no placeholder pages. Each builder delivers finished pages in one pass.
 - Keep every file short (facts, tables, numbers). Over about 150 lines or two teams needing different parts: split into a folder with a README index.
+
+## The stakeholder layer
+Each page: a DECIDE part on top (plain words: no file names, `T04`, `pnpm`, tool or agent names), then the BUILD part inside `<!-- dev -->` ... `<!-- /dev -->`.
+- **README, in order:** Executive summary -> What is it -> **Scope** -> **What you get** -> **Roadmap** (phase, outcome, demo, depends on, size) -> **Decisions** (id, default, what changes if no, state) -> **Risks** -> Quality bar; then ONE dev block: Build recipe, Team, Research.
+- **Pictures:** `01_experience.md` (personas, the visit step by step, `wireframes/screens.html` = one file with tabs and real labels, embedded as `![alt](wireframes/screens.html)`, look, motion); `02_architecture.md` (context, layers, `erDiagram`, `sequenceDiagram` / `stateDiagram-v2`, targets, tech choices with reasons).
+- **PHASES.md:** roadmap table; per phase: goal, what the person can do, plain Acceptance, Not in this phase; tasks and technical Done when in a dev block. Only the person's "accept" opens the next phase.

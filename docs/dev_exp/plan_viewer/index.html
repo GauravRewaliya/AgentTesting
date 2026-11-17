@@ -1,74 +1,171 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Plan viewer</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" media="(prefers-color-scheme: light)">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" media="(prefers-color-scheme: dark)">
 <style>
-:root{--bg:#fcfcfc;--panel:#f6f6f6;--ink:#111;--mut:#666;--line:#e3e3e3;--acc:#5753c6;--dev:#fff6e5}
-@media(prefers-color-scheme:dark){:root{--bg:#111;--panel:#1b1b1b;--ink:#eee;--mut:#9a9a9a;--line:#2e2e2e;--acc:#b1a9ff;--dev:#2a2415}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,sans-serif}
-#app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+:root{--bg:#fcfcfc;--panel:#f6f6f6;--ink:#111;--mut:#666;--line:#e3e3e3;--acc:#5753c6;--dev:#fff6e5;--k:#7b3fb0;--s:#0a7d3c;--n:#b4530a;--b:#0b63b6;--nul:#888}
+@media(prefers-color-scheme:dark){:root{--bg:#111;--panel:#1b1b1b;--ink:#eee;--mut:#9a9a9a;--line:#2e2e2e;--acc:#b1a9ff;--dev:#2a2415;--k:#d2a8ff;--s:#7ee787;--n:#ffa657;--b:#79c0ff;--nul:#8b949e}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,sans-serif}
+#app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
 nav{background:var(--panel);border-right:1px solid var(--line);padding:12px;position:sticky;top:0;height:100vh;overflow:auto}
-nav h3{font-size:12px;text-transform:uppercase;color:var(--mut);margin:14px 0 4px}nav a{display:block;padding:3px 6px;border-radius:5px;color:var(--ink);text-decoration:none;font-size:13px}
-nav a.on{background:var(--acc);color:#fff}
-nav h3{cursor:pointer;margin:8px 0 2px;padding:4px 6px;border-radius:5px;font-size:13px;text-transform:none;color:var(--ink)}nav h3:hover{background:var(--line)}nav h3.on{color:var(--acc)}.ar{display:inline-block;width:12px;color:var(--mut)}.ps{display:block;margin-left:14px;font-size:10px;font-weight:400;color:var(--mut)}.toc{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;padding:8px 12px;margin:0 0 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}.toc b{color:var(--mut);font-weight:600}.toc a{color:var(--acc);text-decoration:none}.toc a:hover{text-decoration:underline}.dir{font-size:11px;text-transform:uppercase;color:var(--mut);margin-top:6px}
-main{padding:20px 28px;max-width:960px}header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:8px}
-button{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:5px 12px;border-radius:6px;cursor:pointer}a.x,.st{}.st{background:var(--acc);color:#fff;border-radius:9px;padding:1px 8px;font-size:11px;margin-left:6px}.toast{position:fixed;bottom:16px;right:16px;background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px}button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+nav input{width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);margin:8px 0}
+nav a{display:block;padding:3px 6px;border-radius:5px;color:var(--ink);text-decoration:none;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}nav a:hover{background:var(--line)}nav a.on{background:var(--acc);color:#fff}
+nav h3{cursor:pointer;margin:8px 0 2px;padding:4px 6px;border-radius:5px;font-size:13px;color:var(--ink)}nav h3:hover{background:var(--line)}nav h3.on{color:var(--acc)}
+.ar{display:inline-block;width:12px;color:var(--mut)}.ps{display:block;margin-left:14px;font-size:10px;font-weight:400;color:var(--mut)}.dir{font-size:11px;text-transform:uppercase;color:var(--mut);margin-top:6px}
+.ft{font-size:9px;color:var(--mut);border:1px solid var(--line);border-radius:3px;padding:0 3px;margin-right:4px;text-transform:uppercase}
+main{padding:20px 28px;max-width:1000px;min-width:0}header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap}
+button{border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:4px 11px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px}button:hover{border-color:var(--acc)}button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.st{background:var(--acc);color:#fff;border-radius:9px;padding:1px 8px;font-size:11px;margin-left:6px}.toast{position:fixed;bottom:16px;right:16px;background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;z-index:50}
+.toc{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;padding:8px 12px;margin:0 0 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}.toc b{color:var(--mut);font-weight:600}.toc a{color:var(--acc);text-decoration:none}.toc a:hover{text-decoration:underline}
 table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13px;display:block;overflow-x:auto}th,td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}th{background:var(--panel)}
-code{background:var(--panel);padding:1px 4px;border-radius:4px;font-size:.9em}pre{background:var(--panel);padding:10px;border-radius:6px;overflow:auto}
+code{background:var(--panel);padding:1px 4px;border-radius:4px;font-size:.9em}
 blockquote{margin:8px 0;padding:4px 12px;border-left:3px solid var(--acc);color:var(--mut)}
-iframe.wf{width:100%;height:290px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
-.dev{display:none;background:var(--dev);border:1px dashed var(--mut);border-radius:6px;padding:4px 12px;margin:10px 0}.dev::before{content:"DEV";font-size:11px;color:var(--mut);font-weight:700}
-.showdev .dev{display:block}.mermaid{background:var(--panel);padding:8px;border-radius:6px;text-align:center}
-@media(max-width:700px){#app{grid-template-columns:1fr}nav{position:static;height:auto}}
+iframe.wf{width:100%;height:440px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+/* blocks: code, mermaid, json */
+.blk{border:1px solid var(--line);border-radius:8px;margin:12px 0;overflow:hidden;background:var(--panel)}
+.blk>.bar{display:flex;gap:6px;align-items:center;padding:4px 8px;border-bottom:1px solid var(--line);font-size:12px;color:var(--mut)}.bar .sp{margin-left:auto;display:flex;gap:4px}.bar button{padding:1px 8px;font-size:12px}
+.blk pre{margin:0;padding:10px;overflow:auto;background:transparent;max-height:520px}.blk pre code{background:none;padding:0;font-size:12.5px}.hljs{background:transparent!important}
+nav a.on .ft{color:#fff;border-color:#fff8}
+.mm{padding:10px;text-align:center;overflow:auto}.mm svg{max-width:100%;height:auto}
+.mmsrc{display:none}.showsrc .mm{display:none}.showsrc .mmsrc{display:block}
+.jt{padding:8px 10px;font:12.5px/1.55 ui-monospace,Menlo,Consolas,monospace;overflow:auto;max-height:560px}
+.jt details{margin-left:16px}.jt summary{cursor:pointer;list-style:none}.jt summary::-webkit-details-marker{display:none}
+.jt summary::before{content:"▸";display:inline-block;width:14px;margin-left:-14px;color:var(--mut)}.jt details[open]>summary::before{content:"▾"}
+.jt .row{margin-left:16px}.jt .k{color:var(--k)}.jt .s{color:var(--s)}.jt .n{color:var(--n)}.jt .b{color:var(--b)}.jt .nul{color:var(--nul)}.jt .c{color:var(--mut);margin-left:6px}
+.jt details[open]>summary .c{display:none}
+.jraw{display:none}.showraw .jt{display:none}.showraw .jraw{display:block}
+.dev{display:none;background:var(--dev);border:1px dashed var(--mut);border-radius:6px;padding:4px 12px;margin:10px 0}.dev::before{content:"BUILDER";font-size:11px;color:var(--mut);font-weight:700}
+.showdev .dev{display:block}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:40;display:flex;align-items:center;justify-content:center}.modal>div{background:var(--bg);width:94vw;height:90vh;border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+.modal .view{flex:1;overflow:hidden;position:relative;cursor:grab}.modal .view>div{position:absolute;left:0;top:0;transform-origin:0 0}
+@media(max-width:700px){#app{grid-template-columns:1fr}nav{position:static;height:auto}main{padding:14px 16px}}
 </style></head><body>
 <div id="app" :class="{showdev:dev}">
  <nav><b>Plan viewer</b>
-  <template v-for="p in plans" :key="p.title"><h3 :class="{on:isIn(p)}" @click="pick(p)"><span class="ar">{{opened[p.title]?'▾':'▸'}}</span> {{p.title}}<small v-if="p.status" class="ps">{{p.status}}</small></h3>
-   <div v-if="opened[p.title]" class="tree"><template v-for="r in rows(p)" :key="r.key">
+  <input v-model="q" placeholder="Filter pages…" aria-label="Filter pages">
+  <template v-for="p in plans" :key="p.title"><h3 :class="{on:isIn(p)}" @click="pick(p)"><span class="ar">{{opened[p.title]||q?'▾':'▸'}}</span> {{p.title}}<small v-if="p.status" class="ps">{{p.status}}</small></h3>
+   <div v-if="opened[p.title]||q" class="tree"><template v-for="r in rows(p)" :key="r.key">
     <div v-if="r.dir" class="dir" :style="{paddingLeft:(r.depth*12+6)+'px'}">{{r.label}}</div>
-    <a v-else href="#" :class="{on:cur===r.path}" :style="{paddingLeft:(r.depth*12+6)+'px'}" @click.prevent="open(r.path)">{{r.label}}</a></template></div></template></nav>
- <main><header><span style="color:var(--mut);font-size:12px">docs/{{cur}} <b v-if="meta.status" class="st">{{meta.status}}</b></span>
-  <span><button @click="copy(location.href,'Link copied')">Copy link</button> <button @click="copy(ask(),'Copied: paste it to Claude and add your wish')">Ask Claude</button> <button :class="{on:!dev}" @click="dev=false">User</button> <button :class="{on:dev}" @click="dev=true">Dev</button></span></header>
+    <a v-else href="#" :class="{on:cur===r.path}" :style="{paddingLeft:(r.depth*12+6)+'px'}" @click.prevent="open(r.path)" :title="r.path"><span class="ft" v-if="r.ext!=='md'">{{r.ext}}</span>{{r.label}}</a></template></div></template></nav>
+ <main><header><span style="color:var(--mut);font-size:12px">{{cur.replace(/^(\.\.\/)+/,'')}} <b v-if="meta.status" class="st">{{meta.status}}</b></span>
+  <span><button @click="copy(location.href,'Link copied')">Copy link</button> <button @click="copy(ask(),'Copied: paste it to Claude and add your wish')">Ask Claude</button> <button :class="{on:!dev}" @click="dev=false" title="Only what a non-developer can judge">Stakeholder</button> <button :class="{on:dev}" @click="dev=true" title="Adds file names, contracts, task tables">Builder</button></span></header>
   <div class="toc" v-if="toc.length"><b>On this page</b><a v-for="t in toc" v-show="!t.dev||dev" :key="t.id" href="#" @click.prevent="jump(t.id)">{{t.t}}</a></div>
   <article id="doc" v-html="html"></article></main><div v-if="msg" class="toast">{{msg}}</div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.0/mermaid.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script>
-// Static, no build. Serve the docs/ folder (cd docs && python3 -m http.server 8800) and open /dev_exp/plan_viewer/
+// Static, no build. Serve the REPO ROOT (plans live in TestCases/, outside docs/): from the repo root run `python3 -m http.server 8800`, open http://localhost:8800/docs/dev_exp/plan_viewer/
+// Renders: markdown (tables, task lists), mermaid (zoom, pan, full screen, source), code (highlight + copy), JSON (collapsible tree), source files, html wireframes (preview/source).
 const ROOT=new URL('../../',location.href); // docs/
 const dark=matchMedia('(prefers-color-scheme: dark)').matches;
 mermaid.initialize({startOnLoad:false,theme:dark?'dark':'default',securityLevel:'strict'});
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const extOf=p=>(p.split('?')[0].match(/\.([a-z0-9]+)$/i)||[,'md'])[1].toLowerCase();
+const LANG={js:'javascript',mjs:'javascript',ts:'typescript',tsx:'typescript',jsx:'javascript',css:'css',html:'xml',sh:'bash',json:'json',txt:'plaintext',py:'python',yml:'yaml',yaml:'yaml'};
 function pre(md){ // front matter off, dev fences -> .dev blocks (blank lines keep markdown inside)
   md=md.replace(/^---\n[\s\S]*?\n---\n/,'');
   return md.replace(/<!--\s*dev\s*-->/g,'\n<div class="dev">\n\n').replace(/<!--\s*\/dev\s*-->/g,'\n\n</div>\n');
 }
+// ---- JSON tree: <details> per object/array, first 2 levels open, counts when collapsed
+function jnode(v,key,depth,last){
+  const k=key===null?'':`<span class="k">${esc(JSON.stringify(key))}</span>: `, comma=last?'':',';
+  if(v===null) return `<div class="row">${k}<span class="nul">null</span>${comma}</div>`;
+  if(typeof v==='string') return `<div class="row">${k}<span class="s">${esc(JSON.stringify(v))}</span>${comma}</div>`;
+  if(typeof v==='number') return `<div class="row">${k}<span class="n">${v}</span>${comma}</div>`;
+  if(typeof v==='boolean') return `<div class="row">${k}<span class="b">${v}</span>${comma}</div>`;
+  const arr=Array.isArray(v),ents=arr?v.map((x,i)=>[i,x]):Object.entries(v),o=arr?'[':'{',c=arr?']':'}';
+  if(!ents.length) return `<div class="row">${k}${o}${c}${comma}</div>`;
+  const inner=ents.map(([kk,x],i)=>jnode(x,arr?null:kk,depth+1,i===ents.length-1)).join('');
+  return `<details${depth<2?' open':''}><summary>${k}${o}<span class="c">${ents.length} ${arr?'items':'keys'} ${c}${comma}</span></summary>${inner}<div class="row">${c}${comma}</div></details>`;
+}
+function jsonBlock(text){
+  let v;try{v=JSON.parse(text)}catch(e){return null}
+  const d=document.createElement('div');d.className='blk';
+  d.innerHTML=`<div class="bar"><span>JSON</span><span class="sp"><button data-a="open">Expand all</button><button data-a="close">Collapse all</button><button data-a="raw">Raw</button><button data-a="copy">Copy</button></span></div><div class="jt">${jnode(v,null,0,true)}</div><pre class="jraw"><code class="hljs language-json">${esc(JSON.stringify(v,null,2))}</code></pre>`;
+  d.querySelector('.bar').onclick=e=>{const a=e.target.dataset.a;if(!a)return;
+    if(a==='open'||a==='close')d.querySelectorAll('details').forEach(x=>x.open=a==='open');
+    if(a==='raw'){d.classList.toggle('showraw');e.target.textContent=d.classList.contains('showraw')?'Tree':'Raw'}
+    if(a==='copy')copyText(text)};
+  return d;
+}
+function codeBlock(text,lang){
+  const d=document.createElement('div');d.className='blk';
+  let h;try{h=lang&&hljs.getLanguage(lang)?hljs.highlight(text,{language:lang}).value:esc(text)}catch(e){h=esc(text)}
+  d.innerHTML=`<div class="bar"><span>${esc(lang||'text')}</span><span class="sp"><button data-a="copy">Copy</button></span></div><pre><code class="hljs">${h}</code></pre>`;
+  d.querySelector('[data-a=copy]').onclick=()=>copyText(text);return d;
+}
+function copyText(t){try{navigator.clipboard.writeText(t)}catch(e){}toast('Copied')}
+let toastFn=()=>{};const toast=m=>toastFn(m);
+// ---- mermaid block with toolbar + modal pan/zoom
+let mmId=0;
+async function mermaidBlock(src){
+  const d=document.createElement('div');d.className='blk';
+  d.innerHTML=`<div class="bar"><span>diagram</span><span class="sp"><button data-a="big">Full screen</button><button data-a="src">Source</button><button data-a="copy">Copy</button></span></div><div class="mm"></div><pre class="mmsrc"><code class="hljs">${esc(src)}</code></pre>`;
+  const box=d.querySelector('.mm');
+  try{const {svg}=await mermaid.render('mm'+(++mmId),src);box.innerHTML=svg}catch(e){box.innerHTML='<pre style="text-align:left;color:#b00">Diagram error: '+esc(e.message||e)+'</pre>'}
+  d.querySelector('.bar').onclick=e=>{const a=e.target.dataset.a;if(!a)return;
+    if(a==='src'){d.classList.toggle('showsrc');e.target.textContent=d.classList.contains('showsrc')?'Diagram':'Source'}
+    if(a==='copy')copyText(src);
+    if(a==='big')bigView(box.innerHTML)};
+  return d;
+}
+function bigView(svg){
+  const m=document.createElement('div');m.className='modal';
+  m.innerHTML=`<div><div class="bar" style="display:flex;padding:6px 10px;gap:6px;border-bottom:1px solid var(--line)"><b>Diagram</b><span class="sp" style="margin-left:auto;display:flex;gap:4px"><button data-z="1.25">＋</button><button data-z="0.8">－</button><button data-z="0">Fit</button><button data-z="x">Close</button></span></div><div class="view"><div>${svg}</div></div></div>`;
+  document.body.appendChild(m);
+  const view=m.querySelector('.view'),inner=view.firstElementChild,s=inner.querySelector('svg');
+  let sc=1,x=0,y=0;const apply=()=>inner.style.transform=`translate(${x}px,${y}px) scale(${sc})`;
+  const fit=()=>{s.removeAttribute('style');const w=s.viewBox.baseVal.width||s.getBoundingClientRect().width,h=s.viewBox.baseVal.height||s.getBoundingClientRect().height;s.setAttribute('width',w);s.setAttribute('height',h);sc=Math.min(view.clientWidth/w,view.clientHeight/h,2)*.95;x=(view.clientWidth-w*sc)/2;y=(view.clientHeight-h*sc)/2;apply()};
+  fit();
+  m.onclick=e=>{if(e.target===m)m.remove();const z=e.target.dataset.z;if(!z)return;if(z==='x')m.remove();else if(z==='0')fit();else{sc*=+z;apply()}};
+  view.onwheel=e=>{e.preventDefault();const f=e.deltaY<0?1.1:0.9,r=view.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top;x=px-(px-x)*f;y=py-(py-y)*f;sc*=f;apply()};
+  let drag=null;view.onpointerdown=e=>{drag=[e.clientX-x,e.clientY-y];view.setPointerCapture(e.pointerId)};view.onpointermove=e=>{if(drag){x=e.clientX-drag[0];y=e.clientY-drag[1];apply()}};view.onpointerup=()=>drag=null;
+  addEventListener('keydown',function k(e){if(e.key==='Escape'){m.remove();removeEventListener('keydown',k)}});
+}
 Vue.createApp({
- data(){let d=false;try{d=localStorage.getItem('pv_dev')==='1'}catch(e){}return{plans:[],cur:'',html:'',dev:d,opened:{},meta:{},msg:'',toc:[]}},
+ data(){let d=false;try{d=localStorage.getItem('pv_dev')==='1'}catch(e){}return{plans:[],cur:'',html:'',dev:d,opened:{},meta:{},msg:'',toc:[],q:''}},
  watch:{dev(v){try{localStorage.setItem('pv_dev',v?'1':'0')}catch(e){}}},
  async mounted(){
+  toastFn=m=>this.flash(m);
   this.plans=(await (await fetch('plans.json')).json()).plans;
   addEventListener('hashchange',()=>this.load(decodeURIComponent(location.hash.slice(1))));
   const h=decodeURIComponent(location.hash.slice(1)),first=this.plans[0].base+this.plans[0].pages[0];
   this.load(h||first);
  },
  methods:{
-  copy(t,m){try{navigator.clipboard.writeText(t)}catch(e){}this.msg=m;setTimeout(()=>this.msg='',2500)},
+  flash(m){this.msg=m;setTimeout(()=>this.msg='',2200)},
+  copy(t,m){try{navigator.clipboard.writeText(t)}catch(e){}this.flash(m)},
   jump(id){const t=document.getElementById(id);if(t)t.scrollIntoView({behavior:'smooth',block:'start'})},
   ask(){return 'Update docs/'+this.cur+' ('+location.href+'): '},
-  isIn(p){return this.cur.startsWith(p.base)&&!this.plans.some(o=>o!==p&&o.base.length>p.base.length&&this.cur.startsWith(o.base))},   // the longest base wins (Method plan sits at the parent folder)
+  isIn(p){return this.cur.startsWith(p.base)&&!this.plans.some(o=>o!==p&&o.base.length>p.base.length&&this.cur.startsWith(o.base))},
   pick(p){this.opened[p.title]=!this.opened[p.title]||!this.isIn(p); if(this.opened[p.title]&&!this.isIn(p))this.open(p.base+p.pages[0])},
-  rows(p){const out=[],seen=new Set();for(const pg of p.pages){const parts=pg.split('/');parts.slice(0,-1).forEach((d,i)=>{const k=parts.slice(0,i+1).join('/');if(!seen.has(k)){seen.add(k);out.push({key:'d'+k,dir:1,label:d,depth:i+1})}});out.push({key:pg,path:p.base+pg,label:parts[parts.length-1],depth:parts.length-1})}return out},
+  rows(p){const out=[],seen=new Set(),q=this.q.toLowerCase();for(const pg of p.pages){if(q&&!pg.toLowerCase().includes(q))continue;const parts=pg.split('/');parts.slice(0,-1).forEach((d,i)=>{const k=parts.slice(0,i+1).join('/');if(!seen.has(k)){seen.add(k);out.push({key:'d'+k,dir:1,label:d,depth:i+1})}});out.push({key:pg,path:p.base+pg,label:parts[parts.length-1],ext:extOf(pg),depth:parts.length-1})}return out},
   open(p){location.hash=encodeURIComponent(p)},
   async load(path){
    this.cur=path; const own=this.plans.filter(p=>this.isIn(p))[0]; if(own)this.opened[own.title]=true; const url=new URL(path,ROOT); const dir=new URL('./',url);
-   const r=await fetch(url); if(!r.ok){this.html='<p>Not found: '+path+'</p>';return}
-   const raw=await r.text(),fm=raw.match(/^---\n([\s\S]*?)\n---\n/);this.meta={};if(fm)fm[1].split('\n').forEach(l=>{const i=l.indexOf(':');if(i>0)this.meta[l.slice(0,i).trim()]=l.slice(i+1).trim()});
+   const r=await fetch(url); if(!r.ok){this.html='<p>Not found: '+esc(path)+'</p>';this.toc=[];return}
+   const raw=await r.text(),ext=extOf(path);this.meta={};this.toc=[];
+   if(ext!=='md'){ // a file: json = tree, html = preview/source, anything else = highlighted source
+     this.html='<div id="one"></div>';await this.$nextTick();const host=document.getElementById('one');
+     if(ext==='json'){host.appendChild(jsonBlock(raw)||codeBlock(raw,'json'))}
+     else if(ext==='html'){const f=document.createElement('iframe');f.className='wf';f.style.height='440px';f.setAttribute('sandbox','allow-scripts');f.src=url;const pb=document.createElement('div');pb.innerHTML='<p><button class="on" data-a="p">Preview</button> <button data-a="s">Source</button></p>';const src=codeBlock(raw,'xml');src.style.display='none';pb.onclick=e=>{const a=e.target.dataset.a;if(!a)return;f.style.display=a==='p'?'':'none';src.style.display=a==='s'?'':'none';pb.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b===e.target))};host.append(pb,f,src)}
+     else host.appendChild(codeBlock(raw,LANG[ext]));
+     return}
+   const fm=raw.match(/^---\n([\s\S]*?)\n---\n/);if(fm)fm[1].split('\n').forEach(l=>{const i=l.indexOf(':');if(i>0)this.meta[l.slice(0,i).trim()]=l.slice(i+1).trim()});
    this.html=marked.parse(pre(raw),{gfm:true});
    await this.$nextTick(); const doc=document.getElementById('doc');
-   doc.querySelectorAll('pre code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.parentElement.replaceWith(d)});
+   for(const c of [...doc.querySelectorAll('pre > code')]){ // fenced blocks -> mermaid / json tree / highlighted code
+     const lang=(c.className.match(/language-([\w-]+)/)||[])[1]||'',text=c.textContent.replace(/\n$/,''),pre=c.parentElement;
+     let b=null;
+     if(lang==='mermaid')b=await mermaidBlock(text);
+     else if(lang==='json')b=jsonBlock(text)||codeBlock(text,'json');
+     else b=codeBlock(text,lang==='html'?'xml':lang);
+     pre.replaceWith(b)}
    doc.querySelectorAll('img').forEach(i=>{const s=i.getAttribute('src');if(/\.html(#.*)?$/.test(s)){const f=document.createElement('iframe');f.className='wf';f.setAttribute('sandbox','allow-scripts');f.src=new URL(s,dir);i.replaceWith(f)}else i.src=new URL(s,dir)});
-   doc.querySelectorAll('a[href]').forEach(a=>{const h=a.getAttribute('href');if(/^#[\w-]+$/.test(h)){a.onclick=e=>{e.preventDefault();const t=document.getElementById(h.slice(1));if(t)t.scrollIntoView({behavior:'smooth'})};return}if(/^(https?:|#|mailto:)/.test(h)||!/\.md(#.*)?$/.test(h)){if(/^https?:/.test(h))a.target='_blank';return}const t=new URL(h.replace(/#.*$/,''),url).href.replace(ROOT.href,'');a.href='#'+encodeURIComponent(t)});
+   doc.querySelectorAll('a[href]').forEach(a=>{const h=a.getAttribute('href');if(/^#[\w-]+$/.test(h)){a.onclick=e=>{e.preventDefault();const t=document.getElementById(h.slice(1));if(t)t.scrollIntoView({behavior:'smooth'})};return}if(/^(https?:|#|mailto:)/.test(h)||!/\.(md|json|html|js|ts|css|txt|sh)(#.*)?$/.test(h)){if(/^https?:/.test(h))a.target='_blank';return}const t=new URL(h.replace(/#.*$/,''),url).href.replace(ROOT.href,'');a.href='#'+encodeURIComponent(t)});
    doc.querySelectorAll('h2').forEach((h,i)=>{h.id='h-'+i});this.toc=[...doc.querySelectorAll('h2')].map(h=>({id:h.id,t:h.textContent,dev:!!h.closest('.dev')}));
-   try{await mermaid.run({nodes:doc.querySelectorAll('.mermaid')})}catch(e){console.warn('mermaid',e)}
   }}
 }).mount('#app');
 </script></body></html>

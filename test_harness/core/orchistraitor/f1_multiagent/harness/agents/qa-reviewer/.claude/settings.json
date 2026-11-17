@@ -5,19 +5,9 @@
    "Glob",
    "Grep",
    "LSP",
-   "Bash(ls *)",
-   "Bash(cat *)",
-   "Bash(wc *)",
-   "Bash(head *)",
-   "Bash(tail *)",
-   "Bash(rg *)",
-   "Bash(find *)",
-   "Bash(pnpm exec tsc*)",
-   "Bash(git diff*)",
-   "Bash(git log*)",
-   "Bash(git status*)",
-   "Bash(bun *tools.ts preview*)",
-   "Bash(bun *tools.ts proc_list*)"
+   "Write",
+   "Edit",
+   "Bash"
   ]
  }
 }

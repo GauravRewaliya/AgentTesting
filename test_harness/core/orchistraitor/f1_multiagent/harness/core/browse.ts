@@ -5,7 +5,7 @@ import { SOFT_GL } from "./chrome_flags.ts";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { attachedEndpoint, chromeBin, type Tab } from "./browser_conn.ts";
 export { chromeBin };
 export const attached = () => !!attachedEndpoint();
@@ -67,11 +67,20 @@ class Cdp {
 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export interface BrowseOpts { url: string; outDir: string; width?: number; height?: number; scheme?: "light" | "dark"; mobile?: boolean; steps?: Step[]; settleMs?: number; sectionShots?: number; tag?: string; tab?: string; endpoint?: string; prime?: boolean; clean?: boolean }
-export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: string; shots: string[]; outline?: Outline; results: unknown[]; console: string[]; cleaned?: string[]; via?: "connected" | "headless" }> {
+/** The screencast frames of a run -> one .webm (VP8). Frame times come from Chrome, so the video plays at the real pace; a long idle gap is capped at 6 s so evidence stays short. */
+function encodeVideo(frames: { t: number; file: string }[], out: string): { video?: string; note?: string } {
+  if (!frames.length) return { note: "no frames: the page never painted" };
+  if (spawnSync("which", ["ffmpeg"]).status !== 0) return { note: "ffmpeg is not installed on this machine: no video (screenshots still work)" };
+  const list = frames.map((f, i) => `file '${f.file}'\nduration ${Math.min(6, Math.max(0.04, ((frames[i + 1]?.t ?? f.t + 800) - f.t) / 1000)).toFixed(3)}`).join("\n") + `\nfile '${frames[frames.length - 1]!.file}'\n`;
+  const lf = join(dirname(frames[0]!.file), "list.txt"); writeFileSync(lf, list);
+  const r = spawnSync("ffmpeg", ["-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", lf, "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=25", "-c:v", "libvpx", "-b:v", "1M", "-pix_fmt", "yuv420p", out], { encoding: "utf8", timeout: 120_000 });
+  return r.status === 0 && existsSync(out) ? { video: out } : { note: "ffmpeg failed: " + String(r.stderr ?? "").trim().split("\n")[0]!.slice(0, 120) };
+}
+export interface BrowseOpts { url: string; outDir: string; width?: number; height?: number; scheme?: "light" | "dark"; mobile?: boolean; steps?: Step[]; settleMs?: number; sectionShots?: number; tag?: string; tab?: string; endpoint?: string; prime?: boolean; clean?: boolean; /** record the whole run (navigation, every step) as a .webm in outDir: Chrome screencast frames + ffmpeg */ video?: boolean }
+export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: string; video?: string; video_note?: string; shots: string[]; outline?: Outline; results: unknown[]; console: string[]; cleaned?: string[]; via?: "connected" | "headless" }> {
   mkdirSync(o.outDir, { recursive: true });
   const shots: string[] = [], results: unknown[] = [], logs: string[] = [];
-  let ep = o.endpoint ?? attachedEndpoint(), reuse = false, ownTab = "", proc: ChildProcess | undefined, dir = "", cdp: Cdp | undefined;
+  let ep = o.endpoint ?? attachedEndpoint(), reuse = false, ownTab = "", proc: ChildProcess | undefined, dir = "", cdp: Cdp | undefined, vdirOf = "";
   // a CONNECTED browser (a person can see it, it keeps its logins): its own new tab per task, or a tab the person already has open (o.tab)
   // the connected (visible) browser is an OPTIONAL extra: used only while it answers; otherwise the private headless Chrome does the work (same engine, same pictures). Nothing is ever started or restarted behind the person's back.
   if (ep) { try { await fetch(ep + "/json/version", { signal: AbortSignal.timeout(2500) }); } catch { logs.push(`the connected browser at ${ep} does not answer: the private headless Chrome did the work`); ep = undefined; } }
@@ -98,8 +107,10 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
     if (!reuse) { await cdp.send("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile: !!o.mobile }); await cdp.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: o.scheme ?? "light" }] }); }
     if (ownTab) await cdp.send("Page.bringToFront").catch(() => 0);   // a background tab of a visible browser is throttled
     await cdp.send("Network.enable").catch(() => 0);
+    const frames: { t: number; file: string }[] = [], vdir = o.video ? mkdtempSync(join(tmpdir(), "bvid-")) : ""; vdirOf = vdir;   // screencast frames, written to disk as they arrive
     const ws = (cdp as unknown as { ws: WebSocket }).ws, prev = ws.onmessage!;
-    ws.onmessage = (m) => { prev(m); try { const d = JSON.parse(String(m.data)); if (d.method === "Runtime.exceptionThrown") logs.push("Uncaught " + (d.params.exceptionDetails.exception?.description ?? d.params.exceptionDetails.text).split("\n")[0].slice(0, 160)); if (d.method === "Runtime.consoleAPICalled" && d.params.type === "error") logs.push(d.params.args.map((a: any) => a.value ?? a.description ?? "").join(" ").slice(0, 160)); } catch { /* ignore */ } };
+    ws.onmessage = (m) => { prev(m); try { const d = JSON.parse(String(m.data)); if (d.method === "Page.screencastFrame") { const file = join(vdir, `f${String(frames.length).padStart(5, "0")}.jpg`); writeFileSync(file, Buffer.from(d.params.data, "base64")); frames.push({ t: (d.params.metadata?.timestamp ?? Date.now() / 1000) * 1000, file }); cdp?.send("Page.screencastFrameAck", { sessionId: d.params.sessionId }).catch(() => 0); } if (d.method === "Runtime.exceptionThrown") logs.push("Uncaught " + (d.params.exceptionDetails.exception?.description ?? d.params.exceptionDetails.text).split("\n")[0].slice(0, 160)); if (d.method === "Runtime.consoleAPICalled" && d.params.type === "error") logs.push(d.params.args.map((a: any) => a.value ?? a.description ?? "").join(" ").slice(0, 160)); } catch { /* ignore */ } };
+    if (o.video) await cdp.send("Page.startScreencast", { format: "jpeg", quality: 70, everyNthFrame: 1 });
     if (!reuse) { await cdp.send("Page.navigate", { url: o.url }); await sleep(900); }
     for (let i = 0; i < 40; i++) { const r = await cdp.send("Runtime.evaluate", { expression: "document.readyState" }); if (r.result.value === "complete") break; await sleep(250); }
     await sleep(o.settleMs ?? 1500);
@@ -132,8 +143,10 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
       await save(`${tag}-full.png`, { x: 0, y: 0, width: w, height: Math.min(outline.doc_h, 9000) });
       for (const sec of outline.sections.slice(0, o.sectionShots)) await save(`${tag}-section-${String(sec.i + 1).padStart(2, "0")}.png`, { x: 0, y: sec.y, width: w, height: Math.min(sec.h, 2400) });
     }
-    return { ok: true, shots, outline, results, console: [...new Set(logs)].slice(0, 6), cleaned, via };
+    let video: string | undefined, video_note: string | undefined;
+    if (o.video) { await cdp.send("Page.stopScreencast").catch(() => 0); await sleep(150); const e = encodeVideo(frames, join(o.outDir, `${o.tag ?? "page"}-${new Date().toISOString().replace(/\D/g, "").slice(8, 14)}.webm`)); video = e.video; video_note = e.note; }
+    return { ok: true, video, video_note, shots, outline, results, console: [...new Set(logs)].slice(0, 6), cleaned, via };
   } catch (e) { return { ok: false, reason: String((e as Error).message).slice(0, 200), shots, results, console: logs }; }
-  finally { cdp?.close(); proc?.kill("SIGKILL"); if (dir) rmSync(dir, { recursive: true, force: true }); if (ownTab && ep) { await fetch(ep + "/json/close/" + ownTab).catch(() => 0); for (let i = 0; i < 12; i++) { const gone = await fetch(ep + "/json/list").then((r) => r.json() as Promise<Tab[]>).then((l) => !l.some((t) => t.id === ownTab)).catch(() => true); if (gone) break; await sleep(150); } } }   // the person's browser is left exactly as it was: wait until our tab is really gone
+  finally { cdp?.close(); proc?.kill("SIGKILL"); if (vdirOf) rmSync(vdirOf, { recursive: true, force: true }); if (dir) rmSync(dir, { recursive: true, force: true }); if (ownTab && ep) { await fetch(ep + "/json/close/" + ownTab).catch(() => 0); for (let i = 0; i < 12; i++) { const gone = await fetch(ep + "/json/list").then((r) => r.json() as Promise<Tab[]>).then((l) => !l.some((t) => t.id === ownTab)).catch(() => true); if (gone) break; await sleep(150); } } }   // the person's browser is left exactly as it was: wait until our tab is really gone
 }
 export { existsSync };

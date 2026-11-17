@@ -46,7 +46,7 @@ export const wantsLsp = (c: RunCall) => c.agent.tools.includes("LSP");
 export const lspArgs = (c: RunCall): string[] => wantsLsp(c) ? ["--plugin-dir", LSP_PLUGIN_DIR] : [];
 export const lspEnv = (c: RunCall): Record<string, string> => wantsLsp(c) ? { ENABLE_LSP_TOOL: "1" } : {};
 
-/** The team commands (`proto_check`, `browse`, `ref_compare`, `ref_capture`, `proto_init`, `preview`) are real executables in harness/bin on every agent's PATH: no agent has to find `bun .../tools.ts` first (they lost ~6 steps on it). */
+/** The team commands (`proto_check`, `browse`, `ref_compare`, `ref_capture`, `proto_init`) are real executables in harness/bin on every agent's PATH: no agent has to find `bun .../tools.ts` first (they lost ~6 steps on it). */
 const BIN = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "bin");
 export const binEnv = (): Record<string, string> => ({ PATH: BIN + ":" + (process.env.PATH ?? "") });
 /** The Artifact tools only exist in headless `claude -p` with CLAUDE_CODE_ENTRYPOINT=cli-interactive (probed 2026-11-13, CLI 2.1.323). An agent whose tools include `Artifact` gets it. */

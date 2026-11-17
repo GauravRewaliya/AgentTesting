@@ -24,13 +24,12 @@ async function act(fn: () => Promise<{ ok: boolean; reason?: string }>) { try { 
       <div v-show="bgOpen" class="pop">
         <div v-if="!bg?.scripts.length" class="muted small">no background scripts yet</div>
         <div v-for="x in bg?.scripts ?? []" :key="x.id" class="scr small" :class="x.status">
-          <div class="row1"><span class="st" :class="x.status">{{ x.status }}</span><b>{{ x.label }}</b><span v-if="x.user_requested" class="st" title="you asked for it: the master will not stop it on its own">asked by you</span><span class="muted mono">{{ x.id }}</span>
+          <div class="row1"><span class="st" :class="x.status">{{ x.status }}</span><span class="ttl" :title="'kind of task: ' + x.title">{{ x.title }}</span><b>{{ x.label }}</b><span class="muted mono">{{ x.id }}</span>
             <button v-if="x.status === 'running'" class="link danger" @click="act(() => api.bgStop(session.task, x.id))">stop</button>
-            <button v-else-if="x.kind === 'preview' || x.cmd" class="link" @click="act(() => api.bgRestart(session.task, x.id))">restart</button>
+            <button v-else-if="x.cmd" class="link" @click="act(() => api.bgRestart(session.task, x.id))">restart</button>
             <button class="link" @click="showLog(x.id)">{{ logId === x.id ? "hide log" : "log" }}</button></div>
           <div class="mono muted">{{ x.cmd }}</div>
           <div v-if="x.public_url" class="mono"><a :href="x.public_url" target="_blank">{{ x.public_url }}</a></div>
-          <div v-if="x.status === 'running' && x.expires_at" class="muted">closes itself at {{ hm(x.expires_at) }} (20 min default, max 120)</div>
           <div v-if="x.status !== 'running'" class="muted">{{ x.status }}<template v-if="x.exit_code !== undefined"> · exit {{ x.exit_code }}</template><template v-if="x.stopped_by"> · by {{ x.stopped_by }}</template><template v-if="x.ended_at"> · {{ hm(x.ended_at) }}</template></div>
           <pre v-if="logId === x.id" class="cmd">{{ logText || "(empty)" }}</pre>
         </div>

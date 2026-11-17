@@ -1,3 +1,0 @@
-#!/bin/sh
-# on the PATH of every agent: `preview ...` = `bun tools.ts preview ...` (the harness environment variables are already set)
-exec bun --smol "$(dirname "$0")/../tools.ts" preview "$@"

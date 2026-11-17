@@ -1,6 +1,6 @@
 # Power layer: phase gates, agent_peek, slash commands, budget
 
-Generated 2026-11-13T15:18:54.869Z. 44/44 passed.
+Generated 2026-11-17T12:37:37.131Z. 47/47 passed.
 
 Offline: fake agents, real harness code, no model calls.
 
@@ -11,7 +11,6 @@ Offline: fake agents, real harness code, no model calls.
 | phase gates (pure) | G3 | passPhase records the gate and opens phase 2 | PASS |
 | phase gates (pure) | G4 | phase 3 still waits: phase 2 is not finished | PASS |
 | phase gates (pure) | G5 | passing a phase with open tasks, short evidence and no gate-1... is refused with every reason | PASS |
-| phase gates (pure) | G6 | passing is refused while the last qa_check failed | PASS |
 | phase gates (pure) | G7 | a failed phase makes later phases dead (skipped, never started) | PASS |
 | phase gates (pure) | G8 | passing twice is idempotent | PASS |
 | phase gates (pure) | G9 | a replan that reopens phase-1 work reopens the gate | PASS |
@@ -24,6 +23,10 @@ Offline: fake agents, real harness code, no model calls.
 | scheduler enforces the gate (fake agents, real tools.ts) | S3 | after phase_pass 1, phase 2 starts and finishes; phase 3 still waits | PASS |
 | scheduler enforces the gate (fake agents, real tools.ts) | S4 | after phase_pass 2 the plan finishes: every task done, plan done | PASS |
 | scheduler enforces the gate (fake agents, real tools.ts) | S5 | phase_status lists three passed/ready phases | PASS |
+| the phase gate never runs QA and never reads a QA verdict (QA is the QA agent's job, asked by the master) | Q1 | no hard rule: a project whose latest QA review is FAIL does not block the gate, and the gate does not run or ask for QA (the master decides whether to ask the QA agent) | PASS |
+| the phase gate never runs QA and never reads a QA verdict (QA is the QA agent's job, asked by the master) | Q2 | the gate started no QA: no new row in the project's QA history and no QA run folder in the session store | PASS |
+| the phase gate never runs QA and never reads a QA verdict (QA is the QA agent's job, asked by the master) | Q3 | the project's memory is refreshed at the gate (a file write, no check): README.md has the phase state and how to run, QA.md still holds the earlier review and what it asked for | PASS |
+| the phase gate never runs QA and never reads a QA verdict (QA is the QA agent's job, asked by the master) | Q4 | code that changed after a QA review is flagged to every agent ('code changed since'): an old verdict is never presented as a verdict on new code | PASS |
 | agent_peek, cost, slash commands | K1 | agent_peek answers for a known agent and says it is not running | PASS |
 | agent_peek, cost, slash commands | K2 | a running agent silent for 400 s is flagged stuck with the advice to nudge or stop | PASS |
 | agent_peek, cost, slash commands | K3 | agent_peek of an unknown agent is a clear error | PASS |

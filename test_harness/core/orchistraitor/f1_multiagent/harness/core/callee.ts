@@ -1,11 +1,12 @@
 // Runs one granted call end to end: the callee's session, its worktree (writers), the patch, the report, the locks, the call row.
 // Everything that touches the shared registry after the model call happens in ONE short transaction.
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { appendRow, checkedOf, leftOf, memoryBlock, projectDirs, projectStamp, verdictOf, writeMemory } from "./loops_ai.ts";
 import { join, sep } from "node:path";
 import { addPatch } from "./patches.ts";
 import { release } from "./locks.ts";
-import { addWorktree, auditWrites, patchOf, removeWorktree } from "./worktree.ts";
+import { addWorktree, auditWrites, changedFiles, patchOf, removeScratch, removeWorktree, scratchCopy } from "./worktree.ts";
 import { callAgent, type AgentDef, type CallCtx } from "./base.ts";
 import { inbox } from "./board.ts";
 import type { LockApi } from "./lockapi.ts";
@@ -23,12 +24,16 @@ export const callPrompt = (task_id: string, req: Pick<CallReq, "objective" | "ou
 export function sharedContext(cwd: string): string {
   try {
     const root = join(cwd, "run_test"), m = join(root, "plan", "CONTEXT.txt");
-    if (!existsSync(m)) return "";
     let total = 0; const parts: string[] = [];
-    for (const f of readFileSync(m, "utf8").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"))) {
+    if (existsSync(m)) for (const f of readFileSync(m, "utf8").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"))) {
       const p = join(root, f); if (!p.startsWith(root + sep) || !existsSync(p)) continue;
       const t = readFileSync(p, "utf8"); if (total + t.length > 40_000) break;
       total += t.length; parts.push(`=== run_test/${f}\n${t}`);
+    }
+    // the project's own memory (written by the harness after every QA check and phase gate): what it is, how to run and test it, what QA found. Always current, so a fresh session never starts blind.
+    if (existsSync(root)) for (const d of readdirSync(root)) {
+      const f = join(root, d, ".loopsAI", "README.md"); if (!existsSync(f)) continue;
+      const t = readFileSync(f, "utf8").slice(0, 6_000); parts.push(`=== run_test/${d}/.loopsAI/README.md (project context, generated; QA log: run_test/${d}/.loopsAI/QA.md)\n${t}`);
     }
     return parts.length ? `SHARED CONTEXT (already read for you; the same for every builder of this plan. Do NOT open these files again, read only what is not listed here)\n\n${parts.join("\n\n")}\n\n--- end of shared context ---\n\n` : "";
   } catch { return ""; }
@@ -50,18 +55,32 @@ export function earlierBlock(store: MStore, task: string, agent: string): string
 export async function runCallee(ctx: Omit<CallCtx, "store"> & { store: MStore }, policy: Policy, res: Extract<CallRes, { ok: true }>, req: CallReq, def: AgentDef, o: CalleeOpts): Promise<CalleeOut> {
   const { store } = ctx, task = res.agent.task_id, aid = res.agent.agent_id;
   const isWriter = def.writes && (req.mode ?? "work") === "work";
-  const wt = isWriter && o.writerMode === "worktree" ? addWorktree(o.cwd, aid) : null;
-  const cwd = wt?.dir ?? o.cwd;
+  const scratch = def.scratch === true && (req.mode ?? "work") === "work";   // the QA agent: a THROWAWAY copy (a git worktree) it may edit, run and mock in; always discarded, never a patch, no file locks
+  const sc = scratch ? scratchCopy(o.cwd, aid) : null, wt = !scratch && isWriter && o.writerMode === "worktree" ? addWorktree(o.cwd, aid) : null;
+  const cwd = sc?.dir ?? wt?.dir ?? o.cwd;
+  const gitState = () => { try { return changedFiles(o.cwd).join("\n"); } catch { return ""; } }, realBefore = scratch ? gitState() : "";   // detective control: the real project must look the same after the call (only where it is a git repo)
   const sel = res.kind === "fork" ? { id: randomUUID(), resume: false, fork_from: res.forkFrom!.session_id! } : undefined;
-  const env = { HARNESS_AGENT: aid, HARNESS_TASK: task, HARNESS_CWD: cwd, ...(o.env ?? {}) };
-  const out = await callAgent(ctx, res.agent, cwd, (first) => (first && isWriter ? sharedContext(o.cwd) : "") + callPrompt(task, req, first) + (first ? earlierBlock(store, task, aid) : "") + notesBlock(store, task, aid), sel, { call: res.call_id, intent: res.kind }, { env, extraArgs: o.extraArgs?.(def.dir) });
+  const env = { HARNESS_AGENT: aid, HARNESS_TASK: task, HARNESS_CWD: cwd, ...(scratch ? { HARNESS_REAL_CWD: o.cwd, HARNESS_SCRATCH: "1" } : {}), ...(o.env ?? {}) };
+  const out = await callAgent(ctx, res.agent, cwd, (first) => (first && isWriter ? sharedContext(o.cwd) : "") + memoryBlock(join(o.cwd, "run_test")) + callPrompt(task, req, first) + (first ? earlierBlock(store, task, aid) : "") + notesBlock(store, task, aid), sel, { call: res.call_id, intent: res.kind }, { env, extraArgs: o.extraArgs?.(def.dir) });
 
   let violations: string[] = [], files: string[] = [], patchText = "", base = "";
   if (wt) {   // git work first (local, quick); the registry is touched once, below
     violations = auditWrites(wt.dir, req.writes ?? []);
     const p = patchOf(wt.dir, wt.base); files = p.files; patchText = p.text; base = wt.base;
   }
+  if (scratch && gitState() !== realBefore) violations = ["the QA agent changed files in the REAL project (it must work only in its throwaway copy)"];
   const promotedExt = o.locks ? await o.locks.release(task, res.call_id, policy.lockTtlMs) : null;   // external backend: free + hand over (atomic in Redis)
+  if (out.ok && def.writes && out.reply.includes("VERIFIED:")) {   // what a builder says it really ran or saw goes into the project's memory, so QA skips it and the master knows
+    try {
+      const rt = join(o.cwd, "run_test"), m = /(?:^|\n)\s*\**VERIFIED:?\**:?\s*([\s\S]*?)(?=\n\s*\**NOT VERIFIED|\n\n\n|$)/.exec(out.reply), note = (m?.[1] ?? "").trim();
+      const dirs = [...new Set((req.writes ?? []).map((w) => /^run_test\/([^/*]+)/.exec(w)?.[1]).filter((x): x is string => !!x && x !== "plan"))];
+      if (note) for (const d of dirs.length ? dirs : projectDirs(rt)) { appendRow(join(rt, d), { kind: "builder", by: aid, note, task, stamp: projectStamp(join(rt, d)) }); writeMemory(join(rt, d), { dir: d }); }
+    } catch { /* the memory is a convenience */ }
+  }
+  if (out.ok && def.name === "qa-reviewer" && out.reply.trim()) {   // what a QA agent found is written into the project's QA.md by the HARNESS (its first line is the verdict): it must not live only in a chat
+    try { const rt = join(o.cwd, "run_test"), verdict = verdictOf(out.reply); for (const d of projectDirs(rt)) { appendRow(join(rt, d), { kind: "review", by: aid, task, verdict, stamp: projectStamp(join(rt, d)), note: out.reply, checked: checkedOf(out.reply) || undefined, left: leftOf(out.reply) || undefined }); writeMemory(join(rt, d), { dir: d }); } } catch { /* the memory is a convenience */ }
+  }
+
   const result: CalleeOut = { ok: out.ok, reply: out.reply, summary: out.reply.slice(0, 600), mode: out.mode, violations, error: out.error, promoted: [] };
   const ask = out.ok ? /^\s*NEEDS_PARENT:\s*([\s\S]*)/i.exec(out.reply) : null;   // the agent stopped to ask its parent
   if (ask) result.needs_parent = ask[1]!.trim().slice(0, 1500);
@@ -82,5 +101,6 @@ export async function runCallee(ctx: Omit<CallCtx, "store"> & { store: MStore },
     if (result.promoted.length) store.ev("lock.promoted", task, aid, { calls: result.promoted });
   });
   if (wt) removeWorktree(o.cwd, wt.dir, wt.branch);
+  if (sc) removeScratch(sc.dir);   // the QA agent's copy and every change in it are discarded
   return result;
 }

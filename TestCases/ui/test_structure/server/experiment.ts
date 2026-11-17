@@ -4,7 +4,6 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { bgOf, taskProcs } from "./preview.ts";
-import { reviewDue, touchBg } from "@core/orchistraitor/f1_multiagent/harness/core/bg.ts";
 import { MStore, say } from "@core/orchistraitor/f1_multiagent/harness/core/board.ts";
 import { claudeDirs } from "@core/orchistraitor/f1_multiagent/harness/core/base.ts";
 import { activeMs, lastCall } from "@core/orchistraitor/f1_multiagent/harness/core/peek.ts";
@@ -93,7 +92,7 @@ function stateOf(c: SuiteCase, e: ExpEntry | undefined, st: MStore, running: Set
   if (e.done < c.turns.length) return "partial";
   return statusOf(judgeAll(st, c, e)) as CaseState;   // the SAME rule as run.ts and the Flow page (match, no guard, no gate, no reply problem)
 }
-const known = () => { try { return new Set(readdirSync(join(F1, "harness", "agents"), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)); } catch { return new Set<string>(); } };
+const known = () => { try { return new Set([join(F1, "harness", "agents"), join(F1, "..", "..", "..", "..", "TestCases", "test_folders", "agent_fixture", "agents")].flatMap((x) => { try { return readdirSync(x, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name); } catch { return []; } })); } catch { return new Set<string>(); } };
 function judgeAll(st: MStore, c: SuiteCase, e: ExpEntry) {
   const repo = repoFor(e.task, (e as { home?: string }).home), files = existsSync(repo) ? readdirSync(repo).filter((f) => f !== ".git") : [], k = known();
   const home = (e as { home?: string }).home, own = home && existsSync(join(STATE_DIR, home, "store", "store.json")) ? new MStore(join(STATE_DIR, home, "store", "store.json")) : st;   // judged on the case's OWN session store (the merged view also holds legacy rows and a branch's copy of the parent's rows)
@@ -305,28 +304,6 @@ export function agentDetail(task: string, id: string): AgentDetail | { error: st
   const rep = [...st.reports].reverse().find((r) => r.task_id === task && r.agent_id === id);
   const proc = taskProcs(task);
   return { id, name: a.name, status: a.status, activity: a.activity ?? "", session: a.session_id ?? undefined, tools, briefs, answer: clip(rep?.reply ?? rep?.summary ?? a.final_response, 6000), scripts: bgOf(task).scripts, processes: proc };
-}
-
-// ---- the 10-MINUTE CHECK of background scripts: a running script nobody looked at for 10 minutes makes the master look at it (and at its sub-agents), so a stuck or buggy script is found and stopped.
-// A queued message tagged auto_run (hidden in the chat), sent only when the master is idle. Runs while this API is up; a script's own timeout (max 120 min) ends it anyway.
-export function startBgWatch(everyMs = 60_000) {
-  const tick = () => {
-    try {
-      for (const t of readdirSync(STATE_DIR).filter((x) => /^[\w-]+$/.test(x))) {
-        const sd = join(STATE_DIR, t, "store");
-        if (!existsSync(join(sd, "bg")) || readSide(t)?.fake) continue;
-        const due = reviewDue(sd); if (process.env.BG_WATCH_DEBUG) console.error("bgWatch tick", t, "due", due.length, "busy", q(t).busy); if (!due.length || q(t).busy || q(t).queue.length) continue;
-        const mins = (r: (typeof due)[number]) => Math.round((Date.now() - r.started) / 60_000);
-        const text = "[Automatic check, every 10 minutes] Background scripts running for you: " + due.map((r) => `${r.id} (${r.label}, running ${mins(r)} min${r.user_requested ? ", the person asked for it" : ""})`).join("; ") +
-          ". Please: (1) tools.ts bg_list and bg_log for each, and your sub-agents (agents_list / board_status). (2) If something is stuck, looping, failing, or no longer needed, stop it (bg_stop for a script, agent_stop for a sub-agent). Do NOT stop a script the person asked for unless the person asks you to. (3) Answer in two lines: what you checked and what you stopped.";
-        const e = Object.values(expAll()).find((x) => x.task === t);   // a TEST CASE session (testrun/run.ts) is reached with run.ts --say; a session made on the Experiment page with the chat runner
-        if (e) { if (psList().some((p) => p.args.includes(e.case) && !p.args.startsWith("ps "))) continue; spawn("bun", ["testrun/run.ts", e.suite, e.case, "--say=" + text, "--auto"], { cwd: F1, env: process.env, detached: true, stdio: "ignore" }).unref(); }
-        else send({ task: t, auto: true, agents: [], fake: false, text });
-        touchBg(sd, due.map((r) => r.id));   // the check is sent: restart the clock so the master is not asked again at once
-      }
-    } catch (e) { console.error("bgWatch:", (e as Error).message); /* never let the watcher crash the API */ }
-  };
-  const h = setInterval(tick, everyMs); h.unref?.(); return h;
 }
 
 // ---- ONE runner, ONE record: the Flow page reads exactly what testrun/run.ts wrote (f1_exp/<case>.json + .state/<v>/<home>/store). Nothing is copied.

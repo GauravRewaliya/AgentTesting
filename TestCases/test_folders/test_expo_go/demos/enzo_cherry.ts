@@ -19,7 +19,6 @@ const slimQa = (slug: string, note: string, failOnText: string[] = []): Case["qa
 export const cases: Case[] = [
   {
     ...expoGo,
-    no_qa_check: true as const,   // clone ONLY: no qa_check of the lead (an extra install + bundle in a container)
     id: "eg_demos_01_clone",
     title: "[ref github enzomanuelmangano/demos] node 1: clone the repo once and set up the cherry-blossom-qrcode and sculptures-in-words runners, nothing else",
     turns: [{

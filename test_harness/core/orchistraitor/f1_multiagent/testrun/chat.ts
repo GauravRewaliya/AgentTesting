@@ -31,7 +31,7 @@ const STORE = resolve(E.UI_STORE ?? join(STATE_DIR, home ?? task, "store", "stor
 console.log(home ? `session home: ${home} (its own store and workspace)` : "session home: the shared ui/.ui-data store (UI_STORE/UI_REPO)");
 const WRITER = perTask || E.UI_WRITER_MODE === "shared" ? "shared" : "worktree";   // run.ts always uses "shared"
 // the case this session belongs to (the latest one that has a lead; a no_lead node only records a video): its agents, gate limits and test-setup note
-const allCases = await loadSuites(), caseOf = (e: Ent) => allCases.find((x) => x.id === e.case) as (typeof allCases)[number] & { no_qa_check?: boolean; no_lead?: boolean } | undefined;
+const allCases = await loadSuites(), caseOf = (e: Ent) => allCases.find((x) => x.id === e.case) as (typeof allCases)[number] & { no_lead?: boolean } | undefined;
 const bound = known.find((e) => !caseOf(e)?.no_lead) ?? known[0], boundCase = caseId ? allCases.find((x) => x.id === caseId) : bound ? caseOf(bound) : undefined;
 const useAgents = setAgents ? agents : bound?.agents;   // undefined = the lead's default team
 mkdirSync(DATA, { recursive: true }); mkdirSync(join(STORE, ".."), { recursive: true });
@@ -59,8 +59,7 @@ if (caseId) { let ent = known.find((e) => e.case === caseId); if (!ent) ent = { 
    ent.marks[turn] = store.calls.filter((x) => x.task_id === task).length; ent.started[turn] = sentAt; ent.at = sentAt; mkdirSync(EXP_DIR, { recursive: true }); writeFileSync(expFile(caseId), JSON.stringify(ent)); }
 if (!process.argv.includes("--no-say")) store.tx(() => { const n = say(store, task, "user", "lead", text, process.argv.includes("--auto") ? ["auto_run"] : [], Infinity); n.t = sentAt; store.save(); });
 if (boundCase) declareGateLimit(store, task, boundCase);   // the same call limit / allow_real_subAg as run.ts
-const setup = boundCase?.no_qa_check ? "\n\n[Test setup] The automatic check (`qa_check`) is switched off for this task: do not run it. Judge only that the work was handed to the right agent with a good hand-over; do not send the agent back to polish or fix what it already delivered." : "";   // same note as run.ts
-const out = await runLead({ ...ctx, store } as never, { task_id: task, repo: REPO, request: text + setup, maxDepth: 4, runner: fake ? "fake" : "real", writerMode: WRITER, ...(useAgents ? { agents: useAgents } : {}) });
+const out = await runLead({ ...ctx, store } as never, { task_id: task, repo: REPO, request: text, maxDepth: 4, runner: fake ? "fake" : "real", writerMode: WRITER, ...(useAgents ? { agents: useAgents } : {}) });
 store.reload();
 store.tx(() => { say(store, task, "lead", "user", out.ok ? out.reply : `(the lead could not answer: ${out.error})`, process.argv.includes("--auto") ? ["auto_run"] : [], Infinity); });
 if (caseId) { try { const ent = JSON.parse(readFileSync(expFile(caseId), "utf8")) as Ent; ent.done = Math.max(ent.done, turn + 1); writeFileSync(expFile(caseId), JSON.stringify(ent)); } catch { /* no entry */ } }

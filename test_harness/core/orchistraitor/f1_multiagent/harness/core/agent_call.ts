@@ -14,7 +14,7 @@ export interface CallReq {
   title?: string;   // what an agent without a folder is FOR ("researcher: compare 3 bundlers"); used when the caller may make custom agents   // onBehalf: the plan scheduler calls for its owner after the owner's turn ended
 }
 export type CallRes =
-  | { ok: true; call_id: string; agent: AgentRow; level: number; kind: "new" | "resume" | "fork"; forkFrom?: AgentRow; queued?: { position: number; heldBy: string[] }; needLocks?: string[] }
+  | { ok: true; call_id: string; agent: AgentRow; level: number; kind: "new" | "resume" | "fork"; reused?: boolean; forkFrom?: AgentRow; queued?: { position: number; heldBy: string[] }; needLocks?: string[] }
   | { ok: false; call_id: string; code: string; reason: string };
 
 export function agentCall(store: Store, defs: Map<string, AgentDef>, policy: Policy, req: CallReq, now = Date.now()): CallRes {
@@ -71,7 +71,17 @@ export function agentCall(store: Store, defs: Map<string, AgentDef>, policy: Pol
   if (!s) return deny("session_required", 'pass --session "new", "<agent_id>" (continue it) or "fork:<agent_id>" (start from a copy of its memory)', level);
   const sameRole = () => store.agentsOf(req.task_id).filter((a) => a.name === req.role && a.status !== "failed").length;   // a failed (killed) agent does not use up the quota: forks of one base agent need room
   let target: AgentRow | undefined, kind: "new" | "resume" | "fork" = "new", forkFrom: AgentRow | undefined;
-  if (s === "new") { if (sameRole() >= policy.maxInstancesPerRole) return deny("instance_limit", `${sameRole()} ${req.role} agents already exist (limit ${policy.maxInstancesPerRole}); continue one instead`, level); }
+  let reused = false;
+  if (s === "new" && calleeDef.singleton) {   // ONE session per task for this role (QA): "new" never starts a fresh agent while one exists; it continues that one, with its memory
+    const mine = store.agentsOf(req.task_id).filter((a) => a.name === req.role && a.status !== "failed" && a.session_id);
+    if (mine.length) {
+      const idle = [...mine].reverse().find((a) => a.status !== "running");
+      if (!idle) return deny("agent_busy", `${mine[mine.length - 1]!.agent_id} is the ONE ${req.role} of this task and is still working; leave it a note with say instead of calling it`, level);
+      target = idle; kind = "resume"; reused = true;
+    }
+  }
+  if (reused) { /* continue the existing one: no new-instance quota, no fresh session */ }
+  else if (s === "new") { if (sameRole() >= policy.maxInstancesPerRole) return deny("instance_limit", `${sameRole()} ${req.role} agents already exist (limit ${policy.maxInstancesPerRole}); continue one instead`, level); }
   else if (s.startsWith("fork:")) {
     forkFrom = store.agent(req.task_id, s.slice(5));
     if (!forkFrom) return deny("agent_not_in_task", `"${s.slice(5)}" is not an agent of this task`, level);
@@ -102,7 +112,7 @@ export function agentCall(store: Store, defs: Map<string, AgentDef>, policy: Pol
   }
   if (req.title?.trim() && (calleeDef.ad_hoc || !agent.title || agent.title === agent.name)) agent.title = req.title.trim().slice(0, 80);
   store.calls.push(row); store.ev("agent.call.granted", req.task_id, caller.agent_id, { callee: agent.agent_id, level, kind, queued: !!queued, ...(calleeDef.ad_hoc ? { custom: true, title: agent.title } : {}) }); store.save();
-  return { ok: true, call_id, agent, level, kind, forkFrom, queued, needLocks };
+  return { ok: true, call_id, agent, level, kind, reused: reused || undefined, forkFrom, queued, needLocks };
 }
 
 /** Everything below `agent_id` in the call tree (for cancel and cost roll-up). */

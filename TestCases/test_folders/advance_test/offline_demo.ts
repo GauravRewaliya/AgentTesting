@@ -15,9 +15,9 @@ const task = "t_adv_4_qa_video_offline", home = resolve(import.meta.dir, "../../
 rmSync(home, { recursive: true, force: true }); mkdirSync(join(home, "store"), { recursive: true }); mkdirSync(join(home, "workspace"), { recursive: true });
 const store = new MStore(join(home, "store", "store.json")), gate = new FixtureGate({ run: async () => { throw new Error("no real call in an offline demo"); } } as never, () => store, 4);
 let n = 0; const ask = (role: string, prompt: string) => gate.run({ agent: { name: role, fixtures: true }, row: { task_id: task, agent_id: `${role}#1`, caller_agent_id: "lead", parent_session_id: "offline", last_call_id: "c" + ++n }, cwd: join(home, "workspace"), prompt, session: { id: "u" + n, resume: false } } as never);
-const b = await ask("stage-builder", "Build the slug demo page in run_test/qa-demo: one index.html with an input that shows the slug and a Clear button. PLAN.md: single self-contained file, no packages. Report what you wrote.");
-const q = await ask("stage-qa", "QA the page in run_test/qa-demo in a real browser and record a video. Tell me where the video is.");
+const b = await ask("builder", "Build the slug demo page in run_test/qa-demo: one index.html with an input that shows the slug and a Clear button. PLAN.md: single self-contained file, no packages. Report what you wrote.");
+const q = await ask("qa-reviewer", "QA the page in run_test/qa-demo in a real browser and record a video. Tell me where the video is.");
 const video = q.reply.match(/VIDEO: (\S+)/)?.[1] ?? "";
 const where = await recordSession({ store: store as never, suite: "advance_test", caseId: "adv_4_qa_video", title: "offline demo through the gate", task, status: b.ok && q.ok && existsSync(video) ? "pass" : "fail", cost: 0, repo: join(home, "workspace"), localDir: join(home, "store", "record"),
-  turns: [{ turn: 1, user: "(offline demo)", expected: ["adv-qa-build", "adv-qa-video"], actual: ["new:stage-builder", "new:stage-qa"], reply: q.reply.split("\n")[0] }] });
+  turns: [{ turn: 1, user: "(offline demo)", expected: ["adv-qa-build", "adv-qa-video"], actual: ["new:builder", "new:qa-reviewer"], reply: q.reply.split("\n")[0] }] });
 console.log(`builder ok=${b.ok}  qa ok=${q.ok}\nsession folder : ${home}\nvideo          : ${video}\nrecord         : ${where}`);

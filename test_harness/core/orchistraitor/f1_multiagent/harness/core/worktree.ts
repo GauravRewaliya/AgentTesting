@@ -1,6 +1,6 @@
 // Parallel writers get a git worktree each and return a patch (plan sections 22-23). Bash writes cannot be locked, so a worktree is the real isolation.
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { covers } from "./locks.ts";
@@ -39,3 +39,11 @@ export function removeWorktree(repo: string, dir: string, branch: string) {
   try { git(repo, ["worktree", "remove", "--force", dir]); } catch { rmSync(dir, { recursive: true, force: true }); }
   try { git(repo, ["branch", "-D", branch]); } catch { /* already gone */ }
 }
+
+/** The QA agent's THROWAWAY copy: exactly what is on disk now in run_test/ (committed or not), without node_modules, builds, git and QA output. A plain copy, not a worktree: a worktree starts from the last commit and misses uncommitted work. Deleted after the call. */
+export function scratchCopy(repo: string, label: string): { dir: string } {
+  const dir = mkdtempSync(join(tmpdir(), `lfqa-${label.replace(/\W/g, "")}-`)), src = join(repo, "run_test");
+  if (existsSync(src)) cpSync(src, join(dir, "run_test"), { recursive: true, filter: (p) => !/(^|\/)(node_modules|\.git|dist|_shots|_qa|\.vite|\.expo)(\/|$)/.test(p.slice(src.length)) });
+  return { dir };
+}
+export const removeScratch = (dir: string) => { try { rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ } };

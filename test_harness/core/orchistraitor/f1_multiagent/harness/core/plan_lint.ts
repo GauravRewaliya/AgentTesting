@@ -43,6 +43,19 @@ export function lintPlan(dir: string, runTest?: string, opts: LintOpts = {}): Pl
     if (pi) for (const flag of ["--accent", "--font", "--bg-dark"]) if (!pi.includes(flag)) warnings.push(`the proto_init command has no ${flag}: give the kit every brand token (accent, font, dark background) or a builder must edit css/theme.css later`);
     if (/check the real names|if they differ|should be named|probably named/i.test(recipe)) warnings.push("the Build recipe hedges on file names: run the kit once mentally (see plan_format: 2 pages per file) and write the exact names");
   }
+  // ---- stakeholder layer (docs/dev_exp/PLAN_STANDARD.md): advice only, so older plans still pass. The top of every page is for the person who decides; builder material sits in <!-- dev --> blocks.
+  if (readme) {
+    const decide = (t: string) => t.replace(/<!--\s*dev\s*-->[\s\S]*?<!--\s*\/dev\s*-->/g, "");
+    const front = stripCode(decide(readme)), everyMd = md.map(rd).join("\n");
+    if (!/<!--\s*dev\s*-->/.test(readme)) warnings.push("README.md has no <!-- dev --> block: put the Build recipe and file names between <!-- dev --> and <!-- /dev --> so the stakeholder view shows only what a non-developer can judge (docs/dev_exp/PLAN_STANDARD.md)");
+    const leak = front.match(/\bpnpm\b|\btsc\b|\bT\d{2}\b|\b(?!three\.js)[\w/-]+\.(?:js|ts|tsx|json)\b/g) ?? [];
+    if (leak.length) warnings.push(`the stakeholder part of README.md names developer things (${[...new Set(leak)].slice(0, 4).join(", ")}): move them into a dev block, say it in the person's words`);
+    if (featureRows >= 5) {
+      for (const [re, what] of [[/^##\s+(?:Roadmap|Phases at a glance)/mi, "a Roadmap (phase, outcome, demo, depends on)"], [/^##\s+Decisions/mi, "a Decisions table (id, default, what changes if no, state)"], [/^##\s+Risks/mi, "a Risks table (risk, impact, what we do)"], [/^##\s+(?:Scope|Not in)/mi, "a Scope section (in / out)"]] as const)
+        if (!re.test(readme)) warnings.push(`README.md lacks ${what}: stakeholders sign off on these`);
+      if (!/```mermaid|erDiagram|wireframe/i.test(everyMd)) warnings.push("no diagram or wireframe anywhere in the plan: show the screens (wireframes/*.html), the parts and the key flow (Mermaid) so the person judges a picture, not prose");
+    }
+  }
   // ---- PHASES: order of delivery, each with a Done-when a browser or a command can run
   const phasesP = join(dir, "PHASES.md"), phases = existsSync(phasesP) ? rd(phasesP) : "";
   if (!phases) errors.push("PHASES.md is missing (phases, tasks with an owner, a Done when list)");

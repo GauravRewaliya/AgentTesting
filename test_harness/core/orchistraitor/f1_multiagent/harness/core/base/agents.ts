@@ -5,8 +5,10 @@ import type { AgentDef } from "./types.ts";
 
 export function loadAgents(agentsDir: string): Map<string, AgentDef> {
   const m = new Map<string, AgentDef>();
-  for (const name of readdirSync(agentsDir).sort()) {
-    const dir = join(agentsDir, name);
+  // real team: agents/ ; test stand-ins (recorded fixtures, declared per case): TestCases/test_folders/agent_fixture/agents
+  const mockDir = join(agentsDir, "../../../../../../TestCases/test_folders/agent_fixture/agents");
+  const dirs = [...readdirSync(agentsDir).sort().map((n) => [n, join(agentsDir, n)]), ...(existsSync(mockDir) ? readdirSync(mockDir).sort().map((n) => [n, join(mockDir, n)]) : [])];
+  for (const [name, dir] of dirs) {
     const jf = join(dir, "agent.json");
     if (!existsSync(jf)) continue;
     const j = JSON.parse(readFileSync(jf, "utf8")) as Partial<AgentDef>;
@@ -15,7 +17,7 @@ export function loadAgents(agentsDir: string): Map<string, AgentDef> {
     const tools = [...new Set(allow.map((a) => a.replace(/\(.*$/, "")))];
     m.set(name, {
       name, role: j.role ?? "", description: j.description ?? "", model: j.model ?? "haiku", session: j.session ?? "persistent",
-      writes: j.writes ?? false, max_children: j.max_children ?? 0, agents: j.agents ?? [], tiers: j.tiers ?? [], session_cap: j.session_cap, timeout_s: j.timeout_s, forbidden: j.forbidden, custom: j.custom, fixtures: j.fixtures, prompts: j.prompts, team_tools: j.team_tools,
+      writes: j.writes ?? false, max_children: j.max_children ?? 0, agents: j.agents ?? [], tiers: j.tiers ?? [], session_cap: j.session_cap, timeout_s: j.timeout_s, forbidden: j.forbidden, singleton: j.singleton, scratch: j.scratch, custom: j.custom, fixtures: j.fixtures, prompts: j.prompts, team_tools: j.team_tools,
       allow, tools, dir, prompt_file: join(dir, ".claude", "CLAUDE.md"),
     });
   }
@@ -33,7 +35,8 @@ export function checkAgents(defs: Map<string, AgentDef>, maxDepth = 4): string[]
     if (existsSync(join(d.dir, "prompt.md"))) bad.push(`${d.name}: prompt.md must not exist (the prompt is .claude/CLAUDE.md)`);
     const sub = join(d.dir, ".claude", "agents");
     if (existsSync(sub) && readdirSync(sub).some((f) => f !== ".gitkeep")) bad.push(`${d.name}: .claude/agents must stay empty (declarations are added at run time)`);
-    if (d.writes === false && d.tools.some((t) => ["Write", "Edit", "MultiEdit", "NotebookEdit"].includes(t))) bad.push(`${d.name}: writes:false but has a write tool`);
+    if (d.writes === false && !d.scratch && d.tools.some((t) => ["Write", "Edit", "MultiEdit", "NotebookEdit"].includes(t))) bad.push(`${d.name}: writes:false but has a write tool`);   // a SCRATCH agent writes only in its throwaway copy (callee.ts discards it and flags any change to the real project)
+    if (d.scratch && d.writes) bad.push(`${d.name}: scratch and writes together: a scratch agent never changes the real project`);
     for (const a of d.agents) if (!defs.has(a)) bad.push(`${d.name}: agents[] names "${a}" which has no folder`);
     if (d.agents.length === 0 && d.max_children > 0) bad.push(`${d.name}: max_children>0 but agents[] is empty`);
   }
@@ -47,3 +50,6 @@ export function checkAgents(defs: Map<string, AgentDef>, maxDepth = 4): string[]
   for (const n of defs.keys()) if (depth(n, []) > maxDepth) bad.push(`${n}: call chain longer than ${maxDepth}`);
   return [...new Set(bad)];
 }
+
+/** Does this agent use the HOST's `team` commands (delegate, bg_start, browse, get_public_url ...)? Then it (1) is TOLD about them and (2) must run on the HOST, never in a Docker sandbox: the commands, the background tasks, Chrome and their ports live on the host, and inside a container `localhost:port` is the container's, not the machine's. An agent qualifies when it can call other agents, lists `team_tools`, works in a throwaway copy (`scratch`), or has `tools.ts` in its permissions. The lead and the pm are always host agents. */
+export const usesTeamTools = (a: { agents: string[]; team_tools?: string[]; scratch?: boolean; allow: string[] }): boolean => a.agents.length > 0 || !!a.team_tools?.length || !!a.scratch || a.allow.some((x) => x.includes("tools.ts"));

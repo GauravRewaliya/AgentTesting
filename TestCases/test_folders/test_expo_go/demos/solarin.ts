@@ -27,7 +27,6 @@ Known issues of this recorded app (they are in the upstream commit, not caused b
   - Imports: use the @/ alias (@/components/..., @/hooks/...), never ../ relative paths.
 `); ctx.log("NOTES.md written into run_test/my-app"); };
 const knownBroken = {
-  no_qa_check: true as const,
   before_node_run: notes,
 };
 const FOUND = [

@@ -6,8 +6,7 @@
  "writes": true,
  "max_children": 2,
  "agents": [
-  "researcher",
-  "reviewer"
+  "researcher"
  ],
  "tiers": [
   "T1",
@@ -21,8 +20,13 @@
  ],
  "team_tools": [
   "proto_check",
-  "preview",
   "browse",
+  "bg_start",
+  "bg_list",
+  "bg_log",
+  "bg_stop",
+  "bg_restart",
+  "get_public_url",
   "ref_assets"
  ]
 }

@@ -95,8 +95,14 @@
    "base": "../TestCases/test_folders/agent_fixture/prompt_fixtures/aistudio_eiffel_tower_3d/",
    "pages": [
     "README.md",
+    "01_experience.md",
+    "02_architecture.md",
     "PHASES.md",
-    "build_inputs/01_look_and_content.md"
+    "wireframes/screens.html",
+    "data_samples/stop_example.json",
+    "build_inputs/00_contract.md",
+    "build_inputs/01_look.md",
+    "build_inputs/02_stops_and_text.md"
    ]
   },
   {

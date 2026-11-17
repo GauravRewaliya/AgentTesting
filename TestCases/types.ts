@@ -66,8 +66,6 @@ export interface NodeRunCtx {
   apply_patch: (patchFile: string, dir: string) => string;
   /** AUTO RUN: mimic what the MASTER would do after the sub-agent node, without a model call: apply the stack of fix commits (git format-patch files in `fixDir`, in file-name order) to run_test/<dir>, make one git commit per patch in the workspace (author "auto_run (mimics the master)"), and write store/auto_run.json (what was found + the commits). Returns the commits, or an `error`. */
   auto_run: (o: { dir: string; fixDir: string; found: string[] }) => { commits: { sha: string; subject: string; files: string[] }[]; error?: string };
-  /** start a NEW QA loop for this node (deletes store/qa_state.json): a phase of a chain is a new loop, the closed loop of the phase before must not block it */
-  reset_qa: () => void;
   /** print a line in the run output, prefixed with the hook name */
   log: (msg: string) => void;
 }
@@ -123,10 +121,6 @@ export type Case = {
   /** false = no router system prompt (the lead works ALONE, e.g. SoLoWork); default true (the lead only delegates). */
   router?: boolean;
   /** How many times the lead may call a fixture agent (agent.json "fixtures": true) in this case before the case FAILS (default 2). The fixture gate (f1 harness/core/fixture_gate.ts) checks each request: a bad one is corrected and may be retried, a repeat is answered "already done"; the call after the limit fails the case. */
-  /** The case EXPECTS the master's QA repair loop to end failed: "stop" = the same issue 3 times in a row, "give_up" = the master gave up, "failed" = either (the master is free to give up earlier). It passes only when that happened (a normal case that ends so is FAILED). */
-  expect_qa?: "stop" | "give_up" | "failed";
-  /** true = the master's `qa_check` is switched OFF for this case (the tool answers "disabled" and the request says so). For cases that test the DELEGATION only, or whose recorded app is known to be broken (solarin) and has no fix fixture. */
-  no_qa_check?: true;
   max_agent_calls?: number;
   /** Real-money cap for this case in USD (lead + real sub-agents). Over it, the case fails with a COST CAP gate. Default: env HARNESS_CASE_CAP_USD, else 1. Not applied to --fake. */
   max_cost_usd?: number;

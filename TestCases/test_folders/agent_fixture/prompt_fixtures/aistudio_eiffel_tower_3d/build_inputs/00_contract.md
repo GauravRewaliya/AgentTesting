@@ -9,7 +9,7 @@ status: planned
 ## Build prompt
 **Goal.** Build 'Eiffel Tower 3D' in `run_test/eiffel-tower-3d/`: a procedural 1889 tower, a 12-stop guided tour, photo placards, EN/FR, neutral grey museum UI. No backend, no AI, no key, no network.
 
-**Stack.** Vite + plain JavaScript modules (no React), three r186 with `OrbitControls` from `three/addons/controls/OrbitControls.js`. Scripts: `dev` = `vite --port=3000 --host=0.0.0.0`, `build` = `vite build`, `preview` = `vite preview --port=3000 --host=0.0.0.0`, `lint` = `tsc --noEmit`. `vite.config.ts`: `base: './'`, `worker.format: 'es'`. `tsconfig.json`: target ES2022, module ESNext, moduleResolution bundler, allowJs, skipLibCheck, noEmit, include `vite.config.ts` only. Photos and the camera catalog live in `public/` or are imported so `pnpm build` copies them.
+**Stack.** Vite (pin `vite@8.3.5`, `typescript@^7.0.2`, `@types/three@0.186.0`: the set that passed a real run; do not raise them) + plain JavaScript modules (no React), three r186 with `OrbitControls` from `three/addons/controls/OrbitControls.js`. Scripts: `dev` = `vite --port=3000 --host=0.0.0.0`, `build` = `vite build`, `preview` = `vite preview --port=3000 --host=0.0.0.0`, `lint` = `tsc --noEmit`. `vite.config.ts`: `base: './'`, `worker.format: 'es'`. `tsconfig.json`: target ES2022, module ESNext, moduleResolution bundler, allowJs, skipLibCheck, noEmit, include `vite.config.ts` only. Photos and the camera catalog live in `public/` or are imported so `pnpm build` copies them.
 
 **File tree (planned, owner builder).**
 | file | purpose | task |

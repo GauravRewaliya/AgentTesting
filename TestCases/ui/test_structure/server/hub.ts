@@ -1,7 +1,7 @@
 // WebSocket hub: the page opens ONE socket (/api/ws) and never polls. The files the runners write cannot notify us,
 // so ONE server-side loop (not one per browser) re-reads them while at least one page is connected and pushes a topic only when its JSON changed.
 // Client -> server: {sub:{task?,detail?,transcript?}} (what this page looks at) or {kick:1} (re-check now, e.g. after a POST).
-// Server -> client: {t:"overview"|"live"|"chat"|"result"|"bg"|"detail"|"transcript", data}
+// Server -> client: {t:"overview"|"live"|"chat"|"result"|"bg"|"bugs"|"evidence"|"detail"|"transcript", data}
 import type { ServerWebSocket } from "bun";
 import * as exp from "./experiment.ts";
 import * as pv from "./preview.ts";
@@ -33,6 +33,8 @@ async function tick(force = false) {
       if (!task) continue;
       emit(ws, "chat", safe(() => exp.chat(task)));
       emit(ws, "bg", safe(() => pv.bgOf(task)));
+      emit(ws, "bugs", safe(() => pv.bugsOf(task)));
+      emit(ws, "evidence", safe(() => pv.evidenceOf(task)));   // screenshots and videos agents made; pushed only when the list changed   // the admin bug tracker (store/admin_issues.jsonl), pushed only when the file changed
       if (transcript) emit(ws, "transcript", safe(() => exp.transcript(task, transcript)));
       if (detail) emit(ws, "detail", safe(() => exp.agentDetail(task, detail)));
       if (s?.case) { if (!results.has(s.case)) results.set(s.case, await exp.caseResult(s.case).catch(() => null)); emit(ws, "result", results.get(s.case)); } else emit(ws, "result", null);

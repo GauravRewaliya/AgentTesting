@@ -32,9 +32,9 @@ export type GateVerdict = "served" | "corrected" | "extra" | "real" | "notfound"
 export interface GateCall { role: string; n: number; call: string | null; verdict: GateVerdict; result?: string; why?: string[]; reply?: string; observed?: string }
 
 /** Every store/*_rules.json merged (roles do not overlap): { role: Rule }. */
-function allRules(): Record<string, Rule> {
-  const dir = join(FIXTURES, "store"), out: Record<string, Rule> = {};
-  for (const f of readdirSync(dir).filter((x) => x.endsWith("_rules.json"))) Object.assign(out, JSON.parse(readFileSync(join(dir, f), "utf8")));
+function allRules(only?: string | null): Record<string, Rule> {
+  const dir = join(FIXTURES, "store"), out: Record<string, Rule> = {};   // the case's own guard file when it names one (a real role such as builder has different rules per suite), else all
+  for (const f of only && existsSync(join(dir, only)) ? [only] : readdirSync(dir).filter((x) => x.endsWith("_rules.json"))) Object.assign(out, JSON.parse(readFileSync(join(dir, f), "utf8")));
   return out;
 }
 
@@ -80,8 +80,9 @@ export class FixtureGate implements Runner {
   killAll() { this.real.killAll?.(); }
 
   async run(c: RunCall): Promise<RunResult> {
-    if (!c.agent.fixtures) return this.real.run(c);
     const st = this.store(); st.reload();
+    const mockEv = st.evs("fixture.mock", c.row.task_id).pop()?.data as { roles?: string[]; guard?: string | null; ids?: string[] } | undefined;   // declared by the case (declareGateLimit)
+    if (!c.agent.fixtures && !mockEv?.roles?.includes(c.agent.name)) return this.real.run(c);
     const task = c.row.task_id, role = c.agent.name, mine = st.evs("fixture.call", task).map((e) => e.data as unknown as GateCall).filter((d) => d.role === role);
     const limit = Number((st.evs("fixture.limit", task).pop()?.data as { limit?: number } | undefined)?.limit ?? this.limit);   // declared by the test case (max_agent_calls)
     const n = mine.length + 1, ret = (reply: string, ok = true, error?: string): RunResult => ({ reply, session_id: c.session.id, cost: 0, ok, error });
@@ -114,11 +115,11 @@ export class FixtureGate implements Runner {
     if (session?.state === "real") return real();   // a follow-up of a session that was a real call: it is real, no fixture involved
     const followUp = !!session && session.served.length > 0;
     // 2. PROMPT + FIXTURE
-    const rules = allRules(), why = checkHandover({ rules, agent: role, prompt: c.prompt, done: [] }), rec = pickRecorded(this.results, role, c.prompt, servedInTask(st, task), true);   // `after` may name a result of ANOTHER agent (stage chains): task-wide   // strict: never a result of another agent/suite
+    const rules = allRules(mockEv?.guard), why = checkHandover({ rules, agent: role, prompt: c.prompt, done: [] }), rec = pickRecorded(mockEv?.ids ? this.results.filter((r) => mockEv.ids!.includes(r.id)) : this.results, role, c.prompt, servedInTask(st, task), true);   // `after` may name a result of ANOTHER agent (stage chains): task-wide   // strict: never a result of another agent/suite
     const verify = (): RunResult => {   // a "check / what did you do" ask: answered from the session table (history + files on disk now). No new work, no model, no claude -p.
       const row = session ?? st.fixtureSessions.find((x) => x.task_id === task && x.role === role && x.served.length)!;
       const files = [...snap(ws).keys()].slice(0, 80);
-      const reply = `SESSION of ${row.agent_id} (fixture, state ${row.state}, version ${row.version}; nothing new was run). History:\n${historyDigest(row)}\n\nFILES ON DISK NOW (${files.length}, shared workspace run_test/):\n${files.map((p) => "  " + p).join("\n")}`;
+      const reply = `THIS AGENT IS A RECORDED TEST FIXTURE: it cannot run new commands or change files, whatever you ask, and nothing new was run for this request. Do not ask it again: look at the files yourself and tell the person what is really there, including any difference from what they asked.\nSESSION of ${row.agent_id} (fixture, state ${row.state}, version ${row.version}; nothing new was run). History:\n${historyDigest(row)}\n\nFILES ON DISK NOW (${files.length}, shared workspace run_test/):\n${files.map((p) => "  " + p).join("\n")}`;
       st.tx(() => recordTurn(st, c, task, role, ws, { kind: "verify", result: rec?.id, reply }));
       log({ verdict: "extra", result: rec?.id });
       return ret(reply);

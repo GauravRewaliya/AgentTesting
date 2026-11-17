@@ -61,7 +61,6 @@ export async function runBeforeNode(c: Pick<Case, "id" | "before_node_run" | "af
       const sd = join(dirname(o.workspace), "store"); mkdirSync(sd, { recursive: true }); writeFileSync(join(sd, "auto_run.json"), JSON.stringify({ case: c.id, found: a.found, commits }, null, 1) + "\n");
       return { commits };
     },
-    reset_qa: () => rmSync(join(dirname(o.workspace), "store", "qa_state.json"), { force: true }),
     log: (m) => print(`   ${phase}_node_run${phase === "after" ? "   " : "  "}: ${m}`) };
   await ((phase === "after" ? c.after_node_run : c.before_node_run) ?? defaultBeforeNodeRun)(ctx);
 }

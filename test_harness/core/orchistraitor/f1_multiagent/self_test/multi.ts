@@ -5,7 +5,7 @@ import { customDef } from "../harness/core/custom.ts";
 import { spawnSync } from "node:child_process";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkRepo, results, rm, setSuite, t, writeReport } from "./lib.ts";
@@ -13,6 +13,12 @@ import { agentCall, costOf, defaultPolicy, markStalled, stopAgent, type CallReq,
 import { callAgent, checkAgents, RealRunner, ScriptRunner, projectDirFor, transcriptExistsAnywhere, transcriptExistsIn, transcriptFor, type AgentDef, type RunCall } from "../harness/core/base.ts";
 import { MStore, boardStatus, inbox, noteContext, say, sessionStats } from "../harness/core/board.ts";
 import { runCallee, sharedContext } from "../harness/core/callee.ts";
+import { appendRow, checkedOf, leftOf, memoryBlock, needsChangesOf, planChecks, projectStamp, readRows, renderQa, verdictOf, writeMemory } from "../harness/core/loops_ai.ts";
+import { setupFailLines } from "../../../../infra/qa/web_dev_qa.ts";
+import { videoAfterRun } from "../../helper/video.ts";
+import { sandboxable } from "../harness/core/base/docker_runner.ts";
+import { usesTeamTools } from "../harness/core/base/agents.ts";
+import { vueFlags } from "../../../../../TestCases/test_folders/agent_fixture/store/web_setup/scaffold.ts";
 import { isStatusOnly, statusReply } from "../harness/core/status_reply.ts";
 import { lintPlan } from "../harness/core/plan_lint.ts";
 import { finishedTurn } from "../harness/core/base/hung.ts";
@@ -68,7 +74,7 @@ const code = (r: CallRes) => (r.ok ? "granted" : r.code);
 async function offline() {
   setSuite("offline: agent.call authority");
   { const bad = checkAgents(defs);
-    t("M1", "agents:check passes; lead declares its sub-agents in agent.json (8 or more, lookup included) (and may call custom ones); .claude/agents is empty everywhere", bad.length === 0 && defs.get("lead")!.agents.length >= 8 && defs.get("lead")!.agents.includes("lookup") && defs.get("lead")!.custom === true, bad.join("; "));
+    t("M1", "agents:check passes; lead declares its sub-agents in agent.json (the 6 real ones: researcher, lookup, planner, builder, ux-designer, qa-reviewer; test stand-ins live in TestCases/test_folders/agent_fixture/agents) (and may call custom ones); .claude/agents is empty everywhere", bad.length === 0 && defs.get("lead")!.agents.length === 6 && defs.get("lead")!.agents.includes("lookup") && defs.get("lead")!.custom === true, bad.join("; "));
     const d = declarations(defs.get("lead")!, defs);
     t("M1b", "declarations are built at run time from the callees' agent.json and tell the lead their REAL tools: researcher has web access, builder can write but has NO web access", /researcher \(read-only; has web access; tools: [^)]*WebFetch/.test(d) && /builder \(can write; must declare --writes; NO web access; tools:/.test(d), d); }
   { const w = world({ agentMaxDepth: 1 });
@@ -232,6 +238,51 @@ async function offline() {
     const fc = runner.calls[runner.calls.length - 1]!;
     t("M7c", "fork: researcher#3 starts from a copy of #2's session (fork_from) under a NEW session id, with the full brief; #2 is unchanged", fc.session.fork_from === s2 && fc.session.id !== s2 && f.agent.session_id === fc.session.id && r2.agent.session_id === s2 && fc.prompt.startsWith("TASK"), `${fc.session.fork_from?.slice(0, 4)} ${fc.session.id.slice(0, 4)}`);
     t("M7d", "cost rolls up the call tree: the lead's total = its sub-agents' reports", Math.abs(costOf(w.store, "t", "lead#1") - 0.004) < 1e-9, String(costOf(w.store, "t", "lead#1"))); }
+  // FUNCTIONAL proof (real runCallee, recorded prompts): the project memory is in front of a READ-ONLY agent's first call, in front of a RESUMED call, and a qa-reviewer's answer lands in QA.md
+  { const lp2 = mkdtempSyncSafe(), pj = join(lp2, "run_test", "app"); mkdirSync(pj, { recursive: true }); writeFileSync(join(pj, "package.json"), JSON.stringify({ scripts: { dev: "vite" } }));
+    appendRow(pj, { kind: "review", by: "qa-reviewer#9", verdict: "FAIL", stamp: projectStamp(pj), task: "earlier-task", note: "FAIL\nNEEDS_CHANGES: src/a.ts: error TS2304 Cannot find name x" }); writeMemory(pj, { dir: "app" });
+    const runner = new ScriptRunner(async () => "FAIL\nthe footer is not translated at stop 6."), w = world(), ctx = { store: w.store, runner, defs, sessionCap: 3 };
+    const q = (o: Partial<CallReq> = {}): CallReq => ({ ...base, ...o }), rr = defs.get("researcher")!, qd = defs.get("qa-reviewer")!;
+    const r1 = granted(agentCall(w.store, w.d, w.policy, q({ objective: "look at the page for the person" })));
+    await runCallee(ctx, w.policy, r1, q({ objective: "look at the page for the person" }), rr, { cwd: lp2, writerMode: "shared" }); const first = runner.calls[runner.calls.length - 1]!;
+    const r2 = granted(agentCall(w.store, w.d, w.policy, q({ session_arg: r1.agent.agent_id, objective: "and the second page" })));
+    await runCallee(ctx, w.policy, r2, q({ session_arg: r1.agent.agent_id, objective: "and the second page" }), rr, { cwd: lp2, writerMode: "shared" }); const resumed = runner.calls[runner.calls.length - 1]!;
+    const g3 = agentCall(w.store, w.d, w.policy, q({ role: "qa-reviewer", objective: "check the built page against the plan" })); let qaOk = false, qaMd = "";
+    if ("agent" in g3) { await runCallee(ctx, w.policy, g3 as never, q({ role: "qa-reviewer", objective: "check the built page against the plan" }), qd, { cwd: lp2, writerMode: "shared" }); qaMd = readFileSync(join(pj, ".loopsAI", "QA.md"), "utf8"); qaOk = /QA REVIEW by qa-reviewer#1 · FAIL/.test(qaMd) && /footer is not translated/.test(qaMd); }
+    t("CX26", "FUNCTIONAL: the project memory (latest QA verdict, what QA asked for; information only, no call to run QA) is in the prompt of a READ-ONLY agent's first call AND of its resumed call, and what a qa-reviewer answers is written into the project's QA.md by the harness",
+      /PROJECT MEMORY/.test(first.prompt) && /last QA review FAIL/.test(first.prompt) && /TS2304/.test(first.prompt) && /information only/.test(first.prompt) && !/qa_check/.test(first.prompt) && first.prompt.indexOf("PROJECT MEMORY") < first.prompt.indexOf("OBJECTIVE:")
+      && resumed.session.resume === true && /PROJECT MEMORY/.test(resumed.prompt) && /and the second page/.test(resumed.prompt) && qaOk, JSON.stringify([/PROJECT MEMORY/.test(first.prompt), /PROJECT MEMORY/.test(resumed.prompt), "agent" in g3, qaMd.length])); }
+  // QA keeps ONE session per task: "new" on a singleton role continues the agent that exists (its memory), it never starts a fresh QA agent again and again
+  { const runner = new ScriptRunner(async () => "review done"), w = world(), ctx = { store: w.store, runner, defs, sessionCap: 5 }, qd = defs.get("qa-reviewer")!, rd = defs.get("researcher")!;
+    const q = (o: Partial<CallReq> = {}): CallReq => ({ ...base, role: "qa-reviewer", session_arg: "new", ...o });
+    const a1 = granted(agentCall(w.store, w.d, w.policy, q({ objective: "check the built page" }))); await runCallee(ctx, w.policy, a1, q({ objective: "check the built page" }), qd, { cwd: tmpdir(), writerMode: "shared" });
+    const a2 = granted(agentCall(w.store, w.d, w.policy, q({ objective: "check it again after the fix" }))); await runCallee(ctx, w.policy, a2, q({ objective: "check it again after the fix" }), qd, { cwd: tmpdir(), writerMode: "shared" });
+    const second = runner.calls[runner.calls.length - 1]!, one = w.store.agentsOf("t").filter((a) => a.name === "qa-reviewer").length;
+    a2.agent.status = "running"; const busy = agentCall(w.store, w.d, w.policy, q({ objective: "and a third time" })); a2.agent.status = "failed";
+    const afterFail = granted(agentCall(w.store, w.d, w.policy, q({ objective: "a failed QA agent does not block" }))), two = w.store.agentsOf("t").filter((a) => a.name === "qa-reviewer").length;
+    const r1 = granted(agentCall(w.store, w.d, w.policy, q({ role: "researcher", objective: "topic one for the person" }))), r2 = granted(agentCall(w.store, w.d, w.policy, q({ role: "researcher", objective: "topic two for the person" })));
+    t("CX28", "QA keeps ONE session per task: 'new' on qa-reviewer while it exists CONTINUES it (same agent id, resumed session, reused=true), a busy one is told to wait (agent_busy), a failed one does not block a new one, and a normal role (researcher) still gets separate instances",
+      a2.agent.agent_id === a1.agent.agent_id && a2.kind === "resume" && a2.reused === true && second.session.resume === true && second.session.id === a1.agent.session_id && one === 1
+      && busy.ok === false && (busy as { code: string }).code === "agent_busy" && afterFail.kind === "new" && afterFail.agent.agent_id !== a1.agent.agent_id && two === 2 && r1.agent.agent_id !== r2.agent.agent_id && !r2.reused && qd.singleton === true && !rd.singleton, JSON.stringify([a1.agent.agent_id, a2.agent.agent_id, a2.kind, a2.reused, one, (busy as { code?: string }).code, two])); }
+  // the QA agent works in a THROWAWAY COPY: it may edit and run anything there, the copy is deleted, the real project stays as it was, no patch is made; touching the real project is flagged
+  { const ws = mkdtempSyncSafe(); mkdirSync(join(ws, "run_test", "app"), { recursive: true }); writeFileSync(join(ws, "run_test", "app", "index.html"), "REAL"); writeFileSync(join(ws, "run_test", "app", "package.json"), "{}");
+    execFileSync("git", ["-C", ws, "init", "-q"]); execFileSync("git", ["-C", ws, "-c", "user.name=h", "-c", "user.email=h@h", "add", "-A"]); execFileSync("git", ["-C", ws, "-c", "user.name=h", "-c", "user.email=h@h", "commit", "-qm", "base"]);
+    let seen: { cwd: string; real?: string; scratch?: string; sawFile: string } | null = null, mode: "copy" | "real" = "copy";
+    const runner = new ScriptRunner(async (c) => { const f = join(c.cwd, "run_test", "app", "index.html"); seen = { cwd: c.cwd, real: c.env?.HARNESS_REAL_CWD, scratch: c.env?.HARNESS_SCRATCH, sawFile: existsSync(f) ? readFileSync(f, "utf8") : "" }; writeFileSync(mode === "copy" ? f : join(ws, "run_test", "app", "index.html"), "MODIFIED BY QA"); return "PARTIAL\nNEEDS_CHANGES: app/index.html needs a login stub"; });
+    const w = world(), ctx = { store: w.store, runner, defs, sessionCap: 5 }, qd = defs.get("qa-reviewer")!, q = (o: Partial<CallReq> = {}): CallReq => ({ ...base, role: "qa-reviewer", session_arg: "new", ...o });
+    const g1 = granted(agentCall(w.store, w.d, w.policy, q({ objective: "check the login flow with a fake user" }))); const r1 = await runCallee(ctx, w.policy, g1, q({ objective: "check the login flow with a fake user" }), qd, { cwd: ws, writerMode: "worktree" });
+    const realAfter = readFileSync(join(ws, "run_test", "app", "index.html"), "utf8"), copyGone = !!seen && !existsSync((seen as { cwd: string }).cwd);
+    mode = "real"; const g2 = granted(agentCall(w.store, w.d, w.policy, q({ session_arg: g1.agent.agent_id, objective: "check again" }))); const r2 = await runCallee(ctx, w.policy, g2, q({ session_arg: g1.agent.agent_id, objective: "check again" }), qd, { cwd: ws, writerMode: "worktree" });
+    t("CX29", "the QA agent runs in a THROWAWAY COPY of run_test/ (a different folder, it sees the real files, HARNESS_REAL_CWD points back at the real workspace), edits there freely, the copy is deleted afterwards, the real project is unchanged, no patch is registered, its NEEDS_CHANGES: reaches the parent; if it touches the REAL project anyway that is flagged as a violation",
+      !!seen && (seen as { cwd: string }).cwd !== ws && (seen as { real?: string }).real === ws && (seen as { scratch?: string }).scratch === "1" && (seen as { sawFile: string }).sawFile === "REAL" && copyGone && realAfter === "REAL" && w.store.patches.length === 0 && r1.violations.length === 0 && /NEEDS_CHANGES: app\/index\.html/.test(r1.reply) && r2.violations.length === 1 && /REAL project/.test(r2.violations[0]!), JSON.stringify([realAfter, copyGone, w.store.patches.length, r1.violations, r2.violations])); }
+  // a builder's VERIFIED block goes into the project's memory (QA skips it, the master sees it); NOT VERIFIED stays out of it
+  { const ws = mkdtempSyncSafe(); mkdirSync(join(ws, "run_test", "app"), { recursive: true }); writeFileSync(join(ws, "run_test", "app", "package.json"), JSON.stringify({ scripts: { dev: "vite" } }));
+    const runner = new ScriptRunner(async () => "Built the page.\n\nVERIFIED:\n- pnpm exec tsc --noEmit: 0 errors\n- opened the page in a browser: no console errors, 12 stops\nNOT VERIFIED: the video, the French captions"), w = world(), ctx = { store: w.store, runner, defs, sessionCap: 5 }, bd = defs.get("builder")!;
+    const wr = ["run_test/app/index.html"], q = (o: Partial<CallReq> = {}): CallReq => ({ ...base, role: "builder", session_arg: "new", writes: wr, ...o });
+    const g = granted(agentCall(w.store, w.d, w.policy, q({ objective: "build the landing page of the app" }))); await runCallee(ctx, w.policy, g, q({ objective: "build the landing page of the app" }), bd, { cwd: ws, writerMode: "shared" });
+    const rows = readRows(join(ws, "run_test", "app")), vr = rows.find((r) => r.kind === "builder"), mb = memoryBlock(join(ws, "run_test"));
+    t("CX30", "a builder's VERIFIED: block is stored in the project's memory (kind builder, who said it), shown to every agent ('builder ... verified: tsc ..., opened the page ...'), and is never a QA verdict (it has no verdict); what it listed as NOT VERIFIED is not claimed",
+      !!vr && /tsc --noEmit: 0 errors/.test(vr.note ?? "") && /12 stops/.test(vr.note ?? "") && !/French captions/.test(vr.note ?? "") && /builder builder#1 verified: .*tsc/.test(mb) && rows.every((r) => r.kind === "builder") && existsSync(join(ws, "run_test", "app", ".loopsAI", "config.json")), JSON.stringify([vr?.note, mb.slice(0, 200)])); }
   { const slow = new ScriptRunner(async () => { await sleep(300); return "late"; });
     const w = world(), ctx = { store: w.store, runner: slow, defs, sessionCap: 3 }, res = defs.get("researcher")!;
     const r1 = granted(agentCall(w.store, w.d, w.policy, base)); r1.agent.session_id = "OLD";
@@ -240,9 +291,9 @@ async function offline() {
     t("M7e", "agent_stop: the instance goes idle at once, its late result is discarded (stopped), its older session is kept, the call row says stopped",
       rows.length === 1 && !out.ok && out.error === "stopped" && st(r1.agent) === "idle" && r1.agent.session_id === "OLD" && w.store.calls[0]!.reason === "stopped", `${out.error} ${r1.agent.status}`);
     const w2 = world(); const b = granted(call(w2, { role: "builder", writes: ["a"] })); b.agent.status = "running";
-    const rv = granted(agentCall(w2.store, w2.d, w2.policy, { ...base, caller_agent_id: "builder#1", role: "reviewer" })); rv.agent.status = "running";
+    const rv = granted(agentCall(w2.store, w2.d, w2.policy, { ...base, caller_agent_id: "builder#1", role: "researcher" })); rv.agent.status = "running";
     stopAgent(w2.store, "t", "builder#1");
-    t("M7f", "stop cascades down the call tree (builder -> its reviewer)", st(b.agent) === "idle" && st(rv.agent) === "idle", "");
+    t("M7f", "stop cascades down the call tree (builder -> its researcher)", st(b.agent) === "idle" && st(rv.agent) === "idle", "");
     const w3 = world(); const r = granted(call(w3)); r.agent.status = "running"; r.agent.last_event_at = Date.now() - 60_000;
     t("M7g", "a running agent with no events for the stall time is marked stalled (the lead is told on its next resume)", markStalled(w3.store, Date.now(), 30_000).length === 1 && st(r.agent) === "stalled", ""); }
 
@@ -623,9 +674,9 @@ async function regressSuite() {
 async function sessionsSuite() {
   setSuite("sessions: persistence proven end to end through the real runner against a stand-in CLI with the real CLI's session rules; every failure case must CRASH");
   const { symlinkSync, writeFileSync: wf, chmodSync } = await import("node:fs");
-  const home = mkdtempSyncSafe(), bin = mkdtempSyncSafe(), saved = { HOME: process.env.HOME, PATH: process.env.PATH, FORGET: process.env.FAKE_CLAUDE_FORGET };
+  const home = mkdtempSyncSafe(), bin = mkdtempSyncSafe(), saved = { HOME: process.env.HOME, PATH: process.env.PATH, FORGET: process.env.FAKE_CLAUDE_FORGET, CFG: process.env.CLAUDE_CONFIG_DIR };
   wf(join(bin, "claude"), `#!/bin/sh\nexec bun --smol ${join(import.meta.dirname, "fake_claude.ts")} "$@"\n`); chmodSync(join(bin, "claude"), 0o755);
-  process.env.HOME = home; process.env.PATH = bin + ":" + process.env.PATH;
+  process.env.HOME = home; delete process.env.CLAUDE_CONFIG_DIR; process.env.PATH = bin + ":" + process.env.PATH;   // the temp HOME only isolates if CLAUDE_CONFIG_DIR (which wins over HOME) is not set: otherwise the suite wrote its fake transcripts into the REAL session folder
   const dirs = ["A", "B", "C", "D"].map((n) => { const d = join(home, "work", n); mkdirSync(d, { recursive: true }); return d; });
   const res = defs.get("researcher")!, root = join(home, ".claude", "projects");
   const mk = (o: { strict?: boolean; fileCheck?: ((cwd: string, id: string) => boolean) | null } = {}) => {
@@ -666,7 +717,7 @@ async function sessionsSuite() {
       const fo = await callAgent(m.ctx, m.w.store.agent("t", f.agent_id)!, dirs[2]!, () => "side job", { id: randomUUID(), resume: false, fork_from: src.session_id! }, { intent: "fork" });
       const back = await step(m, dirs[3]!, 3, "resume"), fr = m.w.store.agent("t", f.agent_id)!;
       t("SP8", "FORK: the branch gets its own session id and file but starts with the source's memory; the source can still be continued afterwards from another folder under its own id", !fid && fo.ok && fo.session_id !== first.session_id && !!findTranscript(fo.session_id) && back.mode === "resumed" && back.session_id === first.session_id && back.reply.startsWith(canaryFor("t", src.agent_id)) && fr.parent_session_id === src.session_id, `fork=${fo.session_id.slice(0, 6)} src=${first.session_id.slice(0, 6)} back=${back.mode}`); }
-  } finally { process.env.HOME = saved.HOME; process.env.PATH = saved.PATH; if (saved.FORGET === undefined) delete process.env.FAKE_CLAUDE_FORGET; rm(home); rm(bin); }
+  } finally { process.env.HOME = saved.HOME; process.env.PATH = saved.PATH; if (saved.CFG === undefined) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = saved.CFG; if (saved.FORGET === undefined) delete process.env.FAKE_CLAUDE_FORGET; rm(home); rm(bin); }
   function findTranscript(id: string) { try { return readdirSync(root).some((d) => existsSync(join(root, d, id + ".jsonl"))); } catch { return false; } }
 }
 
@@ -928,9 +979,9 @@ async function protoKitSuite() {
 async function slotsSuite() {
   setSuite("process slots: a waiting lead never takes a worker's place; time spent waiting for a slot is visible in the log (stand-in CLI with a delay)");
   const { writeFileSync: wf, chmodSync } = await import("node:fs");
-  const home = mkdtempSyncSafe(), bin = mkdtempSyncSafe(), saved = { HOME: process.env.HOME, PATH: process.env.PATH, MAX: process.env.HARNESS_MAX_PROCS };
+  const home = mkdtempSyncSafe(), bin = mkdtempSyncSafe(), saved = { HOME: process.env.HOME, PATH: process.env.PATH, MAX: process.env.HARNESS_MAX_PROCS, CFG: process.env.CLAUDE_CONFIG_DIR };
   wf(join(bin, "claude"), `#!/bin/sh\nexec bun --smol ${join(import.meta.dirname, "fake_claude.ts")} "$@"\n`); chmodSync(join(bin, "claude"), 0o755);
-  process.env.HOME = home; process.env.PATH = bin + ":" + process.env.PATH; process.env.HARNESS_MAX_PROCS = "3";
+  process.env.HOME = home; delete process.env.CLAUDE_CONFIG_DIR; process.env.PATH = bin + ":" + process.env.PATH; process.env.HARNESS_MAX_PROCS = "3";
   try {
     const mk = () => { const w = world(); return { w, ctx: { store: w.store, runner: new RealRunner(30_000), defs, sessionCap: 20 } }; };
     const run = (m: ReturnType<typeof mk>, name: string, ms: number) => { const row = m.w.store.addAgent("t", defs.get(name)!, { level: 2, caller: "lead#1" }); return callAgent(m.ctx, row, home, () => "work", undefined, { intent: "new" }, { env: { FAKE_CLAUDE_DELAY_MS: String(ms) } }); };
@@ -944,7 +995,7 @@ async function slotsSuite() {
     { const m = mk(), outs = await Promise.all([run(m, "researcher", 1500), run(m, "researcher", 1500), run(m, "researcher", 1500), run(m, "researcher", 1500)]), w = waits(m).sort((x, y) => x - y);
       t("SL2", "the cap still holds for workers (3 at a time): a fourth waits for a free slot, and the wait is RECORDED on its agent.done event (waited_ms) so a hidden delay shows up in the log and the summary",
         outs.every((o) => o.ok) && w[0]! < 500 && w[2]! < 500 && w[3]! >= 900 && trace.renderSummary(m.w.store, "t").includes("waited for a process slot"), `waited_ms sorted=${w}`); }
-  } finally { process.env.HOME = saved.HOME; process.env.PATH = saved.PATH; if (saved.MAX === undefined) delete process.env.HARNESS_MAX_PROCS; else process.env.HARNESS_MAX_PROCS = saved.MAX; rm(home); rm(bin); }
+  } finally { process.env.HOME = saved.HOME; process.env.PATH = saved.PATH; if (saved.CFG === undefined) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = saved.CFG; if (saved.MAX === undefined) delete process.env.HARNESS_MAX_PROCS; else process.env.HARNESS_MAX_PROCS = saved.MAX; rm(home); rm(bin); }
 }
 
 // ---------------------------------------------------------------------------- the master (lead) and the PM are conversations: found in real UI sessions
@@ -999,7 +1050,7 @@ async function offlineParallel() {
   seed();
   const rs = await Promise.all(Array.from({ length: 8 }, (_, i) => tool(["say", "--to", "researcher#1", "--text", "note " + i])));
   const st0 = new MStore(file);
-  t("M10", "the shared store under load: 8 processes writing at once lose NOTHING (before the transaction lock this lost one: 7 of 8)", rs.every((r) => r.json.ok) && st0.notes.length === 8 && new Set(st0.notes.map((n) => n.text)).size === 8, `notes=${st0.notes.length}`);
+  t("M10", "the shared store under load: 8 processes writing at once lose NOTHING (before the transaction lock this lost one: 7 of 8)", rs.every((r) => r.json.ok) && st0.notes.length === 8 && new Set(st0.notes.map((n) => n.text)).size === 8, `notes=${st0.notes.length} texts=${[...new Set(st0.notes.map((n) => n.text))].join("|")} results=${JSON.stringify(rs.map((r) => [r.json.ok ?? false, r.ms, String(r.json.reason ?? r.json.raw ?? "").slice(0, 80)]))}`);
 
   const F = ["--objective", "o", "--output", "x", "--boundaries", "b"], DELAY = { HARNESS_FAKE_DELAY_MS: "2000" };
   const t0 = Date.now();
@@ -1128,9 +1179,9 @@ async function contextSuite() {
   const leadMd = readFileSync(join(H, "agents", "lead", ".claude", "CLAUDE.md"), "utf8"), builderMd = readFileSync(join(H, "agents", "builder", ".claude", "CLAUDE.md"), "utf8");
   t("CX1", "the lead's CLAUDE.md is a short core (under 200 lines and 9 KB), the builder's under 6 KB; every chapter it names exists", leadMd.split("\n").length < 200 && leadMd.length < 9000 && builderMd.length < 6000
     && [...leadMd.matchAll(/`(clone|prototype|qa|preview_bg|parallel|planning|new_project|artifact)`/g)].every((m) => existsSync(join(H, "agents", "lead", "chapters", m[1] + ".md"))), `${leadMd.length} / ${builderMd.length} bytes`);
-  t("CX2", "agent.json prompts[] / team_tools[] are honoured: a builder's launch prompt documents only the team tools it lists, and agents:check is clean", (() => {
+  t("CX2", "agent.json prompts[] / team_tools[] are honoured: a builder's launch prompt documents only the team tools it lists (proto_check, browse with --video, bg_start; no preview, no site_build, no QA command), and agents:check is clean", (() => {
     const b = launchDef(defs.get("builder")!, defs, 2, 3, mkdtempSyncSafe(), "team"), txt = readFileSync(b.prompt_file, "utf8");
-    return txt.includes("team proto_check") && txt.includes("team preview") && !txt.includes("team site_build") && !txt.includes("team bg_start") && checkAgents(defs).length === 0;
+    return txt.includes("team proto_check") && txt.includes("team browse") && txt.includes("team bg_start") && txt.includes("--video") && !txt.includes("team preview") && !txt.includes("team site_build") && !txt.includes("team qa_") && checkAgents(defs).length === 0;
   })());
   // 2. chapter command: a name from the list works, a path trick is neutralised
   const cwd = mkdtempSyncSafe(); const st0 = new MStore(join(cwd, "store.json")); st0.save();
@@ -1165,7 +1216,7 @@ async function contextSuite() {
   // the loopholes found when reviewing the planner: empty sections, a recipe without steps, made-up sources, a review agent, folder overlap, vague checks, missing brand tokens
   const mkPlan = (readme: string, phases: string) => { const d = mkdtempSyncSafe(); writeFileSync(join(d, "README.md"), readme); writeFileSync(join(d, "PHASES.md"), phases); writeFileSync(join(d, "00_contract.md"), "names and routes\n"); writeFileSync(join(d, "CONTEXT.txt"), "plan/00_contract.md\n"); return d; };
   const fm = "---\naudience: both\n---\n", rows = "| F1 | a | b | 1 | planned |\n| F2 | a | b | 1 | planned |\n| F3 | a | b | 1 | planned |\n";
-  const goodR = fm + "## Build recipe\n1. build in run_test/x with the kit command now\n2. owners are listed in the task table below\n3. verify with proto_check and the preview\n## What is it\nA small public page that shows the state of things; every screen is invented in the style of comparable pages.\n## What you get\n" + rows + "## Quality bar\n- contrast 4.5:1 or better in both themes, tap targets of 40 px, and no text under 12 px anywhere\n## Research\n- https://a.example/x: it showed the component order, so the list comes first\n- https://b.example/y: it showed email subscribe is standard, so we only store the address\n";
+  const goodR = fm + "<!-- dev -->\n## Build recipe\n1. build in run_test/x with the kit command now\n2. owners are listed in the task table below\n3. verify with proto_check and the preview\n<!-- /dev -->\n## What is it\nA small public page that shows the state of things; every screen is invented in the style of comparable pages.\n## What you get\n" + rows + "## Quality bar\n- contrast 4.5:1 or better in both themes, tap targets of 40 px, and no text under 12 px anywhere\n## Research\n- https://a.example/x: it showed the component order, so the list comes first\n- https://b.example/y: it showed email subscribe is standard, so we only store the address\n";
   const goodP = "| T01 | `js/a.js` | builder |\n\n**Done when:**\n- open `#/home`: the banner shows \"All good\" and 3 rows\n- reload keeps the theme saved in `localStorage` from before\n- 0 console errors on every route at 1280 px\n- tap targets are at least 40 px at 375 px width\n";
   const gp = lintPlan(mkPlan(goodR, goodP), undefined, { fetched: ["https://a.example/x", "https://b.example/y"] });
   const stub = lintPlan(mkPlan(goodR.replace("1. build in run_test/x with the kit command now\n2. owners are listed in the task table below\n3. verify with proto_check and the preview\n", "1. go\n"), goodP));
@@ -1201,13 +1252,130 @@ async function contextSuite() {
   setup(700, 420); const stalled = attention(ms, "t", undefined, NOW)[0];
   setup(400, 30); const due1 = dueNudges(ms, "t", NOW).length; ms.ev("monitor.nudge", "t", mrow.agent_id, { started_at: mrow.started_at }); const due2 = dueNudges(ms, "t", NOW).length;
   t("CX16", "monitor: a young agent needs nothing; over 6 min but moving = slow (look once); 2 min without a tool call = silent; 5 min = stalled (stop, but verify its files first, and report); the automatic nudge is due once per call",
-    ok0 && slow?.level === "slow" && silent?.level === "silent" && stalled?.level === "stalled" && /verify|CHECK its files/i.test(stalled!.do) && /report_issue_to_admin/.test(stalled!.do) && due1 === 1 && due2 === 0, JSON.stringify([slow?.level, silent?.level, stalled?.level, due1, due2]));
+    ok0 && slow?.level === "slow" && silent?.level === "silent" && stalled?.level === "stalled" && /verify|CHECK its files/i.test(stalled!.do) && /report_bug/.test(stalled!.do) && due1 === 1 && due2 === 0, JSON.stringify([slow?.level, silent?.level, stalled?.level, due1, due2]));
   // report_issue_to_admin: appends to admin_issues.jsonl next to the store with the agent's session id, refuses an empty text, admin_issues lists it
   mrow.session_id = "11111111-2222-3333-4444-555555555555"; ms.save();
   const tcli = (...args: string[]) => JSON.parse(spawnSync("bun", ["--smol", join(H, "tools.ts"), ...args], { env: { ...process.env, HARNESS_STORE: join(mdir, "store.json"), HARNESS_TASK: "t", HARNESS_AGENT: "lead#1", HARNESS_CWD: mdir }, encoding: "utf8" }).stdout);
-  const rep = tcli("report_issue_to_admin", "--agent", mrow.agent_id, "--kind", "hung", "--text", "answered but the call stayed running; stopped it, files complete"), repBad = tcli("report_issue_to_admin", "--agent", mrow.agent_id), lst = tcli("admin_issues");
+  const rep = tcli("report_bug", "--agent", mrow.agent_id, "--kind", "hung", "--text", "answered but the call stayed running; stopped it, files complete"), repBad = tcli("report_bug", "--agent", mrow.agent_id, "--text", ""), lst = tcli("admin_issues");
   t("CX17", "report_issue_to_admin records the issue with the agent's session id for the admins (admin_issues.jsonl + an admin.issue event), refuses an empty text, and admin_issues lists it",
     rep.ok === true && rep.session_id === "11111111-2222-3333-4444-555555555555" && repBad.ok === false && lst.issues?.length === 1 && lst.issues[0].kind === "hung" && existsSync(join(mdir, "admin_issues.jsonl")), JSON.stringify([rep.ok, repBad.ok, lst.issues?.length]));
+  // report_bug: any agent files a bug about ITSELF (no --agent), the harness attaches its session id, the log file and the severity; an unknown severity falls back to medium
+  const tcliAs = (agent: string, ...args: string[]) => JSON.parse(spawnSync("bun", ["--smol", join(H, "tools.ts"), ...args], { env: { ...process.env, HARNESS_STORE: join(mdir, "store.json"), HARNESS_TASK: "t", HARNESS_AGENT: agent, HARNESS_CWD: mdir }, encoding: "utf8" }).stdout);
+  const own = tcliAs(mrow.agent_id, "report_bug", "--kind", "tool_error", "--severity", "high", "--text", "pnpm install failed with ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION; pinned an older vite"), odd = tcliAs(mrow.agent_id, "report_bug", "--severity", "nope", "--text", "x"), all = tcli("admin_issues").issues ?? [];
+  const mine = all.find((i: { kind: string }) => i.kind === "tool_error");
+  t("CX17b", "report_bug: an agent files a bug about itself with no --agent; the session id, severity and reporter are recorded; a bad severity becomes medium; an empty text is refused",
+    own.ok === true && own.session_id === "11111111-2222-3333-4444-555555555555" && mine?.agent === mrow.agent_id && mine?.severity === "high" && mine?.reporter === mrow.agent_id && odd.ok === true && all.find((i: { text: string }) => i.text === "x")?.severity === "medium" && tcliAs(mrow.agent_id, "report_bug").ok === false, JSON.stringify([own.ok, mine?.severity, mine?.agent]));
+  // ---- the container recorder's helpers (still used by the test runner's own video): the report keeps the lines AFTER an error, and the container uses the HOST's pnpm
+  const envLines = ["Error: ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION", "× installing dependencies", "╰─▶ 1 lockfile entries failed verification:", "- rolldown@1.2.19 (published 5 days ago)", "unrelated noise", "more noise"];
+  const sf = setupFailLines(["pnpm output", ...envLines].join("\n"));
+  t("CX19", "the container report keeps the lines AFTER an error line, so the package pnpm names is never dropped (an error-only filter dropped it and the lead had to send a builder to find it)", sf.some((x) => /rolldown@1\.2\.19/.test(x)) && sf.length <= 10, JSON.stringify(sf));
+  const qaDir = join(import.meta.dirname, "..", "..", "..", "..", "infra", "qa"), prep = readFileSync(join(qaDir, "prepare.sh"), "utf8"), wq = readFileSync(join(qaDir, "web_dev_qa.ts"), "utf8"), dockerfile = readFileSync(join(qaDir, "Dockerfile"), "utf8");
+  const pm = (pkg: object, env: Record<string, string> = {}) => { const d = mkdtempSyncSafe(), f = join(d, "package.json"); writeFileSync(f, JSON.stringify(pkg)); const r = spawnSync("node", [join(qaDir, "pin_pm.mjs"), f], { encoding: "utf8", env: { ...process.env, PNPM_DEFAULT_VERSION: "", ...env } }); return { pin: JSON.parse(readFileSync(f, "utf8")).packageManager as string | undefined, say: (r.stdout ?? "").trim() }; };
+  const hooks = (() => { const d = mkdtempSyncSafe(), f = join(d, "package.json"); writeFileSync(f, JSON.stringify({ scripts: { dev: "vite", prepare: "cypress install", postinstall: "x", "test:unit": "vitest" } })); const r = spawnSync("node", [join(qaDir, "pin_pm.mjs"), f], { encoding: "utf8" }); return { sc: JSON.parse(readFileSync(f, "utf8")).scripts as Record<string, string>, say: r.stdout ?? "" }; })();
+  const own9 = pm({ name: "a", packageManager: "pnpm@9.15.0" }), ownHash = pm({ packageManager: "pnpm@10.4.1+sha512.abcdef" }), none = pm({ name: "b" }), yarn = pm({ packageManager: "yarn@4.1.0" }), forced = pm({ packageManager: "pnpm@9.15.0" }, { PNPM_VERSION: "10.1.0" }), dflt = pm({ name: "c" }, { PNPM_DEFAULT_VERSION: "10.9.0" });
+  t("CX21", "the pnpm version follows the PROJECT: a project that pins pnpm keeps exactly its version (also with a +sha hash), a project that pins none or pins yarn/npm gets the image's DEFAULT pnpm (PNPM_DEFAULT_VERSION, 10.28.0 when unset), the project's own install hooks (prepare, postinstall ...: Cypress, husky) are dropped in the container's copy so they cannot break QA; PNPM_VERSION forces one for a run; there is no global version file, prepare.sh uses pin_pm.mjs, the default lives in the image's Dockerfile",
+    own9.pin === "pnpm@9.15.0" && /project pins pnpm@9\.15\.0/.test(own9.say) && ownHash.pin === "pnpm@10.4.1+sha512.abcdef" && none.pin === "pnpm@10.28.0" && yarn.pin === "pnpm@10.28.0" && /said yarn/.test(yarn.say) && forced.pin === "pnpm@10.1.0" && dflt.pin === "pnpm@10.9.0"
+    && !("prepare" in hooks.sc) && !("postinstall" in hooks.sc) && hooks.sc.dev === "vite" && hooks.sc["test:unit"] === "vitest" && /install hooks .* dropped for QA: postinstall, prepare/.test(hooks.say) && /node \/qa\/pin_pm\.mjs package\.json/.test(prep) && !/delete j\.packageManager/.test(prep) && !/cat \/qa\/PNPM_VERSION/.test(prep) && !existsSync(join(qaDir, "PNPM_VERSION")) && !/readFileSync\(join\(import\.meta\.dir, "PNPM_VERSION"/.test(wq) && /PNPM_DEFAULT_VERSION=10\.28\.0/.test(dockerfile), JSON.stringify([own9.pin, ownHash.pin, none.pin, yarn.pin, forced.pin, dflt.pin]));
+  // ---- the web-setup fixture's flag parser (found by a real run: "no Playwright/Cypress/e2e" produced --cypress)
+  const vf = (txt: string) => vueFlags(txt).join(" ");
+  t("CX33", "vueFlags: a negation covers a slash-joined list ('no Playwright/Cypress/e2e'), an 'or' / 'and' list and a plain word; a comma ends a plain 'no' ('no JSX, Pinia' still picks Pinia) but a 'do NOT add A, B or C' covers its whole list; a chosen option is still picked",
+    vf("Options: TypeScript yes, Vue Router yes, Pinia yes, Vitest yes. Nothing else: no JSX, no Playwright/Cypress/e2e, no ESLint, no Prettier, no devtools extras.") === "--ts --router --pinia --vitest"
+    && vf("TypeScript and Router, without Cypress or Playwright") === "--ts --router" && vf("TypeScript, no e2e, no Cypress, Vitest") === "--ts --vitest" && vf("skip ESLint/Prettier, TypeScript, Pinia") === "--ts --pinia"
+    && vf("no JSX, Pinia") === "--pinia" && vf("TypeScript and Vue Router. Do NOT add JSX, ESLint or Prettier, and no Vitest.") === "--ts --router" && vf("Do not add Cypress, Playwright. Add Pinia and TypeScript") === "--ts --pinia" && vf("skip ESLint/Prettier, TypeScript, Pinia") === "--ts --pinia" && vf("TypeScript with Cypress") === "--ts --cypress" && vf("TypeScript, Vitest and Playwright") === "--ts --vitest --playwright", [vf("no JSX, no Playwright/Cypress/e2e, TypeScript"), vf("no JSX, Pinia"), vf("TypeScript with Cypress")].join(" | "));
+  // ---- the project memory (.loopsAI): built from QA agent reviews and builder notes, per PROJECT, surviving tasks
+  const lp = mkdtempSyncSafe(), proj = join(lp, "run_test", "app"); mkdirSync(proj, { recursive: true }); writeFileSync(join(proj, "package.json"), JSON.stringify({ name: "app", scripts: { dev: "vite --port=3000", build: "vite build", lint: "tsc --noEmit" } })); writeFileSync(join(proj, "index.html"), "<p>v1</p>");
+  appendRow(proj, { kind: "builder", by: "builder#1", task: "task-A", note: "pnpm exec tsc --noEmit: 0 errors; opened the page: no console errors", stamp: projectStamp(proj) });
+  appendRow(proj, { kind: "review", by: "qa-reviewer#1", task: "task-A", verdict: "FAIL", stamp: projectStamp(proj), note: "FAIL\nThe French toggle does not change the footer.\nNEEDS_CHANGES:\n- ui/footer.js: translate the footer text" });
+  writeMemory(proj, { dir: "app", phases: [{ phase: 1, state: "passed" }, { phase: 2, state: "open" }], planTitle: "Demo", planBlurb: "A demo app." });
+  const ctxOpen = sharedContext(lp), qa1 = readFileSync(join(proj, ".loopsAI", "QA.md"), "utf8"), rd1 = readFileSync(join(proj, ".loopsAI", "README.md"), "utf8");
+  appendRow(proj, { kind: "review", by: "qa-reviewer#1", task: "task-B", verdict: "PASS", stamp: projectStamp(proj), note: "PASS\nFooter translated; screenshots run_test/_shots/fr.png" }); writeMemory(proj, {});   // a NEW task: the project's history must survive
+  const qa2 = readFileSync(join(proj, ".loopsAI", "QA.md"), "utf8"), rd2 = readFileSync(join(proj, ".loopsAI", "README.md"), "utf8");
+  t("CX22", ".loopsAI is the PROJECT's memory, rendered from qa.json: README.md (what it is, how to run, how to check, phases, QA now), QA.md (latest verdict, what QA asked for while it is not PASS, every review and builder note), config.json (the switches); a later task's PASS replaces the asked-for list but the earlier history stays; a render without plan info keeps the title and phases an earlier call knew; it reaches a fresh builder as shared context even without a plan manifest",
+    /How to run/.test(rd1) && /pnpm install/.test(rd1) && /phase 2: open/.test(rd1) && /A demo app/.test(rd1) && /Latest QA review.*FAIL/.test(qa1) && /QA asked for these changes/.test(qa1) && /ui\/footer\.js/.test(qa1) && /BUILDER builder#1 says it verified/.test(qa1) && ctxOpen.includes("run_test/app/.loopsAI/README.md")
+    && /Latest QA review.*PASS/.test(qa2) && !/QA asked for these changes/.test(qa2) && /French toggle/.test(qa2) && /Demo/.test(rd2) && /phase 2: open/.test(rd2) && readRows(proj).length === 3 && existsSync(join(proj, ".loopsAI", "config.json")) && renderQa([]).includes("No QA review yet"), JSON.stringify([readRows(proj).length, qa2.slice(0, 120)]));
+  // the stamp is the identity of the CODE (content), not of a folder or a clock
+  const proj2 = join(lp, "run_test", "app2"); mkdirSync(proj2, { recursive: true }); writeFileSync(join(proj2, "package.json"), "{}"); writeFileSync(join(proj2, "a.js"), "1");
+  const stamp0 = projectStamp(proj2), copy = join(lp, "copy"); cpSync(proj2, copy, { recursive: true }); const stCopy = projectStamp(copy);   // an untouched COPY (what a QA agent works in) is the same code
+  writeFileSync(join(proj2, "a.js"), "12345"); const st1 = projectStamp(proj2);
+  mkdirSync(join(proj2, "node_modules", "x"), { recursive: true }); writeFileSync(join(proj2, "node_modules", "x", "i.js"), "zzz"); mkdirSync(join(proj2, "_shots"), { recursive: true }); writeFileSync(join(proj2, "_shots", "a.png"), "png"); writeMemory(proj2, { dir: "app2" });
+  t("CX23", "the code stamp is a CONTENT hash: the same files in another folder (a QA agent's untouched copy) give the same stamp, a changed file gives a different one, and node_modules, screenshots and .loopsAI never count",
+    stamp0 === stCopy && stamp0 !== st1 && projectStamp(proj2) === st1, JSON.stringify([stamp0, stCopy, st1]));
+  // the QA agent's answer is parsed: verdict from the first line (markdown ignored), the asked-for changes after NEEDS_CHANGES:
+  t("CX25", "verdictOf reads PASS / FAIL / PARTIAL from the first non-empty line (bold, quotes, case ignored), says nothing when the answer does not start with one; needsChangesOf returns what follows NEEDS_CHANGES:",
+    verdictOf("PASS\nall good") === "PASS" && verdictOf("\n**FAIL** the page is blank") === "FAIL" && verdictOf("> partial: login only") === "PARTIAL" && verdictOf("I think it passes") === undefined && verdictOf("") === undefined && /ui\/footer\.js/.test(needsChangesOf("FAIL\nx\nNEEDS_CHANGES:\n- ui/footer.js: translate")) && needsChangesOf("PASS") === "");
+  // ---- the QA to-do context: from FILES (the plan's Done-when of the phase being built, the config) and from what QA itself said it checked / did not check
+  { const td = mkdtempSyncSafe(), rt = join(td, "run_test"), pp = join(rt, "shop"); mkdirSync(join(rt, "plan"), { recursive: true }); mkdirSync(pp, { recursive: true }); writeFileSync(join(pp, "package.json"), "{}");
+    writeFileSync(join(rt, "plan", "PHASES.md"), "# Phases\n\n## Phase 1 · Tower\n**Done when:**\n- the page loads and the veil fades in 0.45 s\n- 4 piers are visible\n\n---\n<a id=\"phase-2\"></a>\n## Phase 2 · Tour\n**Done when (you can check each one):**\n- stops 1 to 12 play with 0 console errors\n- dragging mid-move pauses the tour\n- Enter and the arrow keys work\n");
+    const ans = "PARTIAL\nCHECKED:\n- the page loads: run_test/_shots/load.png\n- 4 piers visible: run_test/_shots/piers.png\nNOT CHECKED:\n- the veil timing (needs a video, video is off)\nNEEDS_CHANGES:\n- ui/veil.js: fade is 1 s";
+    const p1 = planChecks(rt, [{ phase: 1, state: "open" }, { phase: 2, state: "waiting" }]), p2 = planChecks(rt, [{ phase: 1, state: "passed" }, { phase: 2, state: "open" }]);
+    writeFileSync(join(pp, ".loopsAI-tmp"), ""); mkdirSync(join(pp, ".loopsAI"), { recursive: true }); writeFileSync(join(pp, ".loopsAI", "config.json"), JSON.stringify({ qa_check: false, qa_skip: ["docs/**", "legacy/"] }));
+    writeMemory(pp, { dir: "shop", phases: [{ phase: 1, state: "passed" }, { phase: 2, state: "open" }] });
+    const qa0 = readFileSync(join(pp, ".loopsAI", "QA.md"), "utf8"), mb0 = memoryBlock(rt);
+    appendRow(pp, { kind: "review", by: "qa-reviewer#1", verdict: "PARTIAL", stamp: projectStamp(pp), note: ans, checked: checkedOf(ans), left: leftOf(ans) }); writeMemory(pp, {});
+    const qa1 = readFileSync(join(pp, ".loopsAI", "QA.md"), "utf8"), mb1 = memoryBlock(rt);
+    t("CX34", "the QA to-do context comes from files and from QA's own words: with no review yet QA.md and the memory block show the plan's Done-when of the phase being built (phase 2 when phase 1 passed, from PHASES.md); config.json's qa_check:false and qa_skip are shown; after a QA answer its CHECKED: and NOT CHECKED: are parsed and stored, and the next QA call is told what is still to check (not the whole plan again)",
+      p1?.phase === 1 && p1.items.length === 2 && p2?.phase === 2 && p2.items.length === 3 && /Enter and the arrow keys/.test(p2.items.join("|")) && /To check: the plan's own checks for phase 2/.test(qa0) && /dragging mid-move pauses the tour/.test(qa0) && /QA skips/.test(qa0) && /legacy\//.test(qa0)
+      && /plan checks to cover \(phase 2\)/.test(mb0) && /QA must skip: docs\/\*\*, legacy\//.test(mb0) && /video is OFF/.test(mb0)
+      && /4 piers visible: run_test\/_shots\/piers\.png/.test(checkedOf(ans)) && !/veil timing/.test(checkedOf(ans)) && /veil timing/.test(leftOf(ans)) && !/piers/.test(leftOf(ans)) && /Still to check/.test(qa1) && /veil timing/.test(qa1) && /Covered by QA so far/.test(qa1) && /piers\.png/.test(qa1)
+      && /QA still has to check: .*veil timing/.test(mb1) && !/plan checks to cover/.test(mb1) && mb1.length <= 1500, JSON.stringify([p1?.phase, p2?.phase, mb1.slice(0, 260)])); }
+  // ---- the host / Docker binding: an agent that uses the host's team tools is told about them AND runs on the host; one that does not use them runs in Docker and is told nothing about them (a QA agent once went to Docker, where team, background tasks, Chrome and ports do not exist)
+  { const rows = [...defs.values()].map((a) => { const uses = usesTeamTools(a), docker = sandboxable({ agent: a } as never), prompt = a.allow.some((x) => x === "Bash" || x.includes("tools.ts")) ? readFileSync(launchDef(a, defs, 2, 3, mkdtempSyncSafe(), "team").prompt_file, "utf8") : "";
+      return { name: a.name, uses, docker, docs: prompt.includes("# Shared team tools"), ok: (a.role === "lead" || a.role === "pm") ? !docker : uses ? !docker && (prompt === "" || prompt.includes("# Shared team tools")) : docker === true && !prompt.includes("# Shared team tools") }; });
+    const bad = rows.filter((r) => !r.ok).map((r) => r.name);
+    t("CX36", "ONE rule decides both: an agent that uses the host's team tools (calls other agents, lists team_tools, works in a throwaway copy, or has tools.ts in its permissions) runs on the HOST and its prompt documents them; every other agent may go to Docker and its prompt never mentions them; lead and pm always host; the QA agent, builder and planner are host agents, researcher, reviewer and web-setup are Docker agents",
+      bad.length === 0 && rows.find((r) => r.name === "qa-reviewer")!.docker === false && rows.find((r) => r.name === "qa-reviewer")!.docs && rows.find((r) => r.name === "builder")!.docker === false && rows.find((r) => r.name === "researcher")!.docker === true && rows.find((r) => r.name === "web-setup")!.docker === true, JSON.stringify(bad.length ? bad : rows.map((r) => r.name + ":" + (r.docker ? "D" : "H")).join(" ")));
+  }
+  // ---- no prompt, doc line or command list may name a command that no longer exists (the master's list once still offered qa_give_up)
+  { const removed = ["qa_check", "qa_record", "qa_give_up", "report_issue_to_admin", "preview_list", "preview_stop", "preview_restart", "team preview", "preview --dir"], files: string[] = [];
+    const walkMd = (d: string) => { for (const e of readdirSync(d, { withFileTypes: true })) { const f = join(d, e.name); if (e.isDirectory()) { if (e.name !== "skills" && e.name !== "node_modules") walkMd(f); } else if (/\.(md|json)$/.test(e.name)) files.push(f); } };
+    walkMd(join(H, "agents")); files.push(join(H, "lead.ts"), join(H, "core", "launch.ts"), join(H, "core", "proto_check.ts"), join(H, "core", "monitor.ts"));
+    const bad = files.flatMap((f) => removed.filter((w) => readFileSync(f, "utf8").includes(w) && !(w === "qa_check" && /config\.json|qa_check: false|"qa_check"|qa_check false|`qa_check`/.test(readFileSync(f, "utf8")))).map((w) => `${f.split("/harness/")[1]} names ${w}`));
+    t("CX35", "no agent prompt, chapter, tool doc or hint names a command that no longer exists (qa_give_up, preview ..., report_issue_to_admin, the QA commands); the only 'qa_check' left is the config switch name", bad.length === 0 && !existsSync(join(H, "bin", "preview")), JSON.stringify(bad.slice(0, 6))); }
+  // memory reaches every agent on every call, informs and never invites QA
+  const mb = memoryBlock(join(lp, "run_test")), calleeSrc = readFileSync(join(H, "core", "callee.ts"), "utf8"), leadSrc = readFileSync(join(H, "lead.ts"), "utf8");
+  t("CX24", "project memory reaches every agent on every call: the compact block (latest QA verdict, what QA asked for, builder notes, under 1.5 KB) is labelled information only, never tells anyone to run QA, is put in front of the prompt of ANY agent (readers, QA agent, resumed calls) and of every lead turn, and is empty when no project has a memory",
+    /PROJECT MEMORY/.test(mb) && /information only/.test(mb) && /QA is not to be started because of it/.test(mb) && /last QA review PASS/.test(mb) && /builder builder#1 verified: .*tsc/.test(mb) && !/qa_check|team qa/.test(mb) && mb.length <= 1500 && memoryBlock(join(lp, "nothing")) === ""
+    && /memoryBlock\(join\(o\.cwd, "run_test"\)\) \+ callPrompt/.test(calleeSrc) && !/first && isWriter \? memoryBlock/.test(calleeSrc) && /memoryBlock\(join\(o\.repo, "run_test"\)\)/.test(leadSrc), mb.slice(0, 200));
+  // ---- the REAL tools in a temp workspace: the QA commands are gone, the QA agent is not started for a greeting, video follows the project's switch, background tasks are generic
+  { const qd = mkdtempSyncSafe(), qp = join(qd, "run_test", "app"); mkdirSync(qp, { recursive: true }); writeFileSync(join(qp, "package.json"), "{}"); writeFileSync(join(qp, "index.html"), "<p>v1</p>");
+    const stf = join(qd, "store.json"), sq = new Store2(stf); sq.addAgent("t", defs.get("lead")!, { level: 1 }); sq.save();
+    const run = (agent: string, ...a: string[]) => { const r = spawnSync(process.execPath, ["--smol", join(H, "tools.ts"), ...a], { env: { ...process.env, HARNESS_STORE: stf, HARNESS_TASK: "t", HARNESS_AGENT: agent, HARNESS_CWD: qd, HARNESS_RUNNER: "fake" }, encoding: "utf8", timeout: 60_000 }); try { return JSON.parse(r.stdout.trim().split("\n").pop()!); } catch { return { raw: r.stdout + r.stderr }; } };
+    const gone = ["qa_check", "qa_record", "qa_give_up", "preview", "preview_list", "preview_stop", "preview_restart", "report_issue_to_admin"].map((c) => run("lead#1", c, "--dir", "app"));
+    const hi = run("lead#1", "delegate", "--role", "qa-reviewer", "--session", "new", "--objective", "check the app", "--output", "a verdict", "--boundaries", "read only");   // a greeting: no writer in the task
+    const asked = run("lead#1", "delegate", "--role", "qa-reviewer", "--session", "new", "--objective", "check the login flow", "--output", "a verdict", "--boundaries", "read only", "--user-asked");
+    const sb = new Store2(stf); sb.addAgent("t", defs.get("builder")!, { level: 2 }); const bb = sb.agentsOf("t").find((x) => x.name === "builder")!; bb.runs = 1; sb.save();
+    const built = run("lead#1", "delegate", "--role", "qa-reviewer", "--session", "new", "--objective", "check what the builder made", "--output", "a verdict", "--boundaries", "read only");
+    mkdirSync(join(qp, ".loopsAI"), { recursive: true }); writeFileSync(join(qp, ".loopsAI", "config.json"), JSON.stringify({ qa_check: false })); appendRow(qp, { kind: "review", verdict: "PASS", note: "PASS" });
+    const vidOff = run("planner#1", "browse", "--url", "http://127.0.0.1:1", "--video"), shotOk = run("planner#1", "browse", "--url", "http://127.0.0.1:1");
+    t("CX27", "FUNCTIONAL, the real tools: (1) qa_check, qa_record, qa_give_up, the four preview_* commands and the old report alias no longer exist; (2) the master cannot start the QA agent for a greeting (no writer in the task): refused with the reason, even without a model call; (3) --user-asked starts it; (4) after a builder worked it starts; (5) a project with .loopsAI/config.json qa_check:false refuses VIDEO for any agent (a planner here) but not a screenshot",
+      gone.every((g) => g.ok === false && /unknown command/.test(String(g.reason))) && hi.ok === false && /QA was NOT started/.test(hi.reason) && !/QA was NOT started/.test(String(asked.reason ?? "")) && !/QA was NOT started/.test(String(built.reason ?? ""))
+      && vidOff.ok === false && /video is OFF/.test(String(vidOff.reason)) && !/video is OFF/.test(String(shotOk.reason ?? "")), JSON.stringify([gone.map((g) => String(g.reason ?? g.raw).slice(0, 30)), hi.reason?.slice(0, 40), String(asked.reason ?? asked.raw ?? "").slice(0, 60), String(vidOff.reason).slice(0, 50), String(shotOk.reason ?? "").slice(0, 40)]));
+    // background tasks are GENERIC: any command, a description, a status, a log file; a port on request; no time limit, no project logic
+    const one = run("builder#1", "bg_start", "--cmd", "echo hello from a task; sleep 1", "--label", "one-off", "--wait", "5");
+    const titled = run("builder#1", "bg_start", "--cmd", "sleep 1", "--title", "preview", "--label", "landing page preview", "--wait", "3");
+    const srv = run("builder#1", "bg_start", "--cmd", "python3 -m http.server {port} --bind 127.0.0.1", "--dir", "run_test/app", "--port", "auto", "--label", "app folder", "--wait", "10");
+    let served = ""; try { served = (spawnSync("curl", ["-s", "-m", "3", String(srv.url)], { encoding: "utf8" }).stdout ?? "").slice(0, 20); } catch { /* no curl */ }
+    const pub = run("builder#1", "get_public_url", "--id", String(srv.id)), pubPort = run("builder#1", "get_public_url", "--port", String(srv.port), "--path", "x"), pubNone = run("builder#1", "get_public_url");
+    const fixed = run("builder#1", "bg_start", "--cmd", "python3 -m http.server 5377 --bind 127.0.0.1", "--label", "a server that chose its own port", "--wait", "3"), unlinked = fixed.public_url === undefined && fixed.port === undefined;
+    const linkedRes = run("builder#1", "get_public_url", "--port", "5377", "--id", String(fixed.id)), listed = (run("builder#1", "bg_list").tasks ?? []).find((x: { id: string }) => x.id === fixed.id); run("builder#1", "bg_stop", "--id", String(fixed.id));
+    const restarted = run("builder#1", "bg_restart", "--id", String(srv.id)); const stopped = run("builder#1", "bg_stop", "--id", String(restarted.id ?? srv.id)), left = run("builder#1", "bg_list");
+    t("CX31", "background tasks are generic: any command with a title (default server_run, or a kind like preview), a description, a status, an exit code and a log file; --port auto gives a free port and a url the task really answers on; restart keeps the port; get_public_url turns a PORT into the address a person's browser opens (and says whether it answers), and with --id links that port to a task that had none, so bg_list shows it; stop ends it; no default time limit and no project detection",
+      one.status === "succeeded" && one.exit_code === 0 && one.description === "one-off" && one.title === "server_run" && titled.title === "preview" && /hello from a task/.test(one.log) && typeof one.log_file === "string" && srv.ready === true && srv.port >= 5300 && /p>v1/.test(served) && srv.timeout_s === undefined && restarted.port === srv.port && pub.ok === true && pub.reachable === true && /^http:\/\/127\.0\.0\.1:\d+$/.test(pub.url) && /^http:\/\/[^/]+:\d+$/.test(pub.public_url) && pub.public_url.endsWith(":" + srv.port) && /:\d+\/x$/.test(pubPort.public_url) && pubNone.ok === false && unlinked && linkedRes.linked_task === fixed.id && linkedRes.reachable === true && listed?.port === 5377 && /^http:\/\/[^/]+:5377$/.test(listed?.public_url ?? "") && stopped.ok === true && (left.tasks ?? []).length === 0,
+      JSON.stringify([one.status, srv.ready, srv.port, served, restarted.port, stopped.ok, (left.tasks ?? []).length])); }
+  // ---- the "no video" switch really switches video off in EVERY place a video can be made, also when config.json is the only file of .loopsAI (before any QA note exists)
+  { const wd = mkdtempSyncSafe(), wp = join(wd, "run_test", "site"); mkdirSync(join(wp, ".loopsAI"), { recursive: true }); writeFileSync(join(wp, "index.html"), "<p>x</p>");
+    const stf = join(wd, "store.json"); new Store2(stf).save();
+    const brw = (...a: string[]) => { const r = spawnSync(process.execPath, ["--smol", join(H, "tools.ts"), "browse", "--url", "http://127.0.0.1:1", ...a], { env: { ...process.env, HARNESS_STORE: stf, HARNESS_TASK: "t", HARNESS_AGENT: "planner#1", HARNESS_CWD: wd }, encoding: "utf8", timeout: 60_000 }); try { return JSON.parse(r.stdout.trim().split("\n").pop()!); } catch { return { raw: r.stdout + r.stderr }; } };
+    const sd = join(wd, "store"); mkdirSync(sd, { recursive: true });
+    writeFileSync(join(wp, ".loopsAI", "config.json"), JSON.stringify({ qa_check: false }));
+    const offTool = brw("--video"), offShot = brw(), offRun = await videoAfterRun({ workspace: wd, storeDir: sd, qa: { enabled: true, kind: "static", app: "site" } as never });
+    writeFileSync(join(wp, ".loopsAI", "config.json"), JSON.stringify({ qa_check: true }));
+    const onTool = brw("--video"), onRun = await videoAfterRun({ workspace: wd, storeDir: sd, qa: { enabled: true, kind: "static", app: "nope" } as never });   // an app that is not there: the switch must NOT be what stops it
+    rmSync(join(wp, ".loopsAI", "config.json")); const noCfg = brw("--video");
+    t("CX32", "the no-video switch (.loopsAI/config.json qa_check:false) works with NOTHING else in .loopsAI: browse --video is refused for any agent, a plain screenshot is not, and the test runner's --video is skipped with a NO_VIDEO.txt; with qa_check true or no config the switch is not what stops them",
+      offTool.ok === false && /video is OFF/.test(String(offTool.reason)) && !/video is OFF/.test(String(offShot.reason ?? "")) && offRun.ok === false && /video is OFF/.test(String(offRun.skipped)) && existsSync(join(sd, "qa", "NO_VIDEO.txt"))
+      && !/video is OFF/.test(String(onTool.reason ?? "")) && !/video is OFF/.test(String(onRun.skipped ?? "")) && /does not exist/.test(String(onRun.skipped)) && !/video is OFF/.test(String(noCfg.reason ?? "")),
+      JSON.stringify([String(offTool.reason).slice(0, 40), String(offShot.reason ?? "").slice(0, 30), String(offRun.skipped).slice(0, 40), String(onTool.reason ?? "").slice(0, 40), String(onRun.skipped).slice(0, 50), String(noCfg.reason ?? "").slice(0, 30)])); }
   // the backstop: 10 minutes without a tool call and nobody acted = the harness stops it; a moving agent never; waits are long (4 min minimum) and end early
   setup(900, 650); const stopDue = dueAutoStops(ms, "t", NOW).map((x) => x.agent_id).join(), notYet = (setup(900, 400), dueAutoStops(ms, "t", NOW).length), moving = (setup(900, 20), dueAutoStops(ms, "t", NOW).length);
   t("CX18", "backstop: an agent silent for 10 min is due for the harness stop, one silent for 6.6 min or still moving is not; a requested wait of 30 s or more lasts at least 4 min (it ends early on events), a quick look stays short",

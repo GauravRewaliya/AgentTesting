@@ -1,0 +1,25 @@
+{
+  "note": "Shape of the content data, shown with stops 2 and 12 as examples. Full content: build_inputs/02_stops_and_text.md",
+  "stops": [
+    {
+      "number": 2,
+      "id": "1887_05_caissons",
+      "photo": { "id": "13", "file": "references/photos/13_320.jpg" },
+      "pose": { "position": [18.2, 9.5, 24.0], "lookAt": [0, 40, 0], "fov": 42 },
+      "text": {
+        "en": { "date": "21 Apr 1887", "headline": "Foundation Caissons" },
+        "fr": { "date": "21 avr. 1887", "headline": "Caissons de fondation" }
+      },
+      "holdSeconds": 2.6
+    },
+    {
+      "number": 12,
+      "id": "1889_hero_3d_showcase_finale",
+      "photo": null,
+      "heroPresets": ["overview", "detail_1", "detail_2", "detail_3", "detail_4"],
+      "fov": { "desktop": 42, "portrait": 56 },
+      "holdSeconds": 4.0
+    }
+  ],
+  "state": { "mode": "landing", "index": 0, "lang": "en", "playing": false }
+}

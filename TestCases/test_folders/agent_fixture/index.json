@@ -260,8 +260,8 @@
   "id": "adv-broken-build",
   "suite": "advance_test",
   "file": "results/advance_test/adv-broken-build.ts",
-  "title": "stage-builder: counter-bad (type error, says Done)",
-  "agent": "stage-builder",
+  "title": "builder: counter-bad (type error, says Done)",
+  "agent": "builder",
   "keywords": [
    "counter-bad"
   ],
@@ -271,8 +271,8 @@
   "id": "adv-broken-fix",
   "suite": "advance_test",
   "file": "results/advance_test/adv-broken-fix.ts",
-  "title": "stage-builder: counter-bad fix (TS2345)",
-  "agent": "stage-builder",
+  "title": "builder: counter-bad fix (TS2345)",
+  "agent": "builder",
   "keywords": [
    "counter-bad",
    "ts2345"
@@ -283,8 +283,8 @@
   "id": "adv-ctx-build",
   "suite": "advance_test",
   "file": "results/advance_test/adv-ctx-build.ts",
-  "title": "stage-builder: copy-demo (plain copy of index.html)",
-  "agent": "stage-builder",
+  "title": "builder: copy-demo (plain copy of index.html)",
+  "agent": "builder",
   "keywords": [
    "copy-demo"
   ],
@@ -294,8 +294,8 @@
   "id": "adv-ctx-review-aware",
   "suite": "advance_test",
   "file": "results/advance_test/adv-ctx-review-aware.ts",
-  "title": "stage-reviewer: copy-demo review WITH the request (approves)",
-  "agent": "stage-reviewer",
+  "title": "qa-reviewer: copy-demo review WITH the request (approves)",
+  "agent": "qa-reviewer",
   "keywords": [
    "copy-demo",
    "backup"
@@ -306,8 +306,8 @@
   "id": "adv-ctx-review-blind",
   "suite": "advance_test",
   "file": "results/advance_test/adv-ctx-review-blind.ts",
-  "title": "stage-reviewer: copy-demo review WITHOUT the request (harmful finding)",
-  "agent": "stage-reviewer",
+  "title": "qa-reviewer: copy-demo review WITHOUT the request (harmful finding)",
+  "agent": "qa-reviewer",
   "keywords": [
    "copy-demo"
   ],
@@ -317,8 +317,8 @@
   "id": "adv-gap-build",
   "suite": "advance_test",
   "file": "results/advance_test/adv-gap-build.ts",
-  "title": "stage-builder: slugify-gap build (GAPPY first build: no trim, no accents, 1 test)",
-  "agent": "stage-builder",
+  "title": "builder: slugify-gap build (GAPPY first build: no trim, no accents, 1 test)",
+  "agent": "builder",
   "keywords": [
    "slugify-gap"
   ],
@@ -328,8 +328,8 @@
   "id": "adv-gap-fix",
   "suite": "advance_test",
   "file": "results/advance_test/adv-gap-fix.ts",
-  "title": "stage-builder: slugify-gap FIX (closes the review findings)",
-  "agent": "stage-builder",
+  "title": "builder: slugify-gap FIX (closes the review findings)",
+  "agent": "builder",
   "keywords": [
    "slugify-gap"
   ],
@@ -339,8 +339,8 @@
   "id": "adv-gap-plan",
   "suite": "advance_test",
   "file": "results/advance_test/adv-gap-plan.ts",
-  "title": "stage-planner: slugify-gap plan",
-  "agent": "stage-planner",
+  "title": "planner: slugify-gap plan",
+  "agent": "planner",
   "keywords": [
    "slugify-gap"
   ],
@@ -350,8 +350,8 @@
   "id": "adv-gap-review",
   "suite": "advance_test",
   "file": "results/advance_test/adv-gap-review.ts",
-  "title": "stage-reviewer: slugify-gap review (finds 3 findings)",
-  "agent": "stage-reviewer",
+  "title": "qa-reviewer: slugify-gap review (finds 3 findings)",
+  "agent": "qa-reviewer",
   "keywords": [
    "slugify-gap"
   ],
@@ -361,8 +361,8 @@
   "id": "adv-ok-build",
   "suite": "advance_test",
   "file": "results/advance_test/adv-ok-build.ts",
-  "title": "stage-builder: slugify-ok build (complete build)",
-  "agent": "stage-builder",
+  "title": "builder: slugify-ok build (complete build)",
+  "agent": "builder",
   "keywords": [
    "slugify-ok"
   ],
@@ -372,8 +372,8 @@
   "id": "adv-ok-plan",
   "suite": "advance_test",
   "file": "results/advance_test/adv-ok-plan.ts",
-  "title": "stage-planner: slugify-ok plan",
-  "agent": "stage-planner",
+  "title": "planner: slugify-ok plan",
+  "agent": "planner",
   "keywords": [
    "slugify-ok"
   ],
@@ -383,8 +383,8 @@
   "id": "adv-ok-review",
   "suite": "advance_test",
   "file": "results/advance_test/adv-ok-review.ts",
-  "title": "stage-reviewer: slugify-ok review (approves)",
-  "agent": "stage-reviewer",
+  "title": "qa-reviewer: slugify-ok review (approves)",
+  "agent": "qa-reviewer",
   "keywords": [
    "slugify-ok"
   ],
@@ -394,8 +394,8 @@
   "id": "adv-qa-build",
   "suite": "advance_test",
   "file": "results/advance_test/adv-qa-build.ts",
-  "title": "stage-builder: qa-demo page",
-  "agent": "stage-builder",
+  "title": "builder: qa-demo page",
+  "agent": "builder",
   "keywords": [
    "qa-demo"
   ],
@@ -405,8 +405,8 @@
   "id": "adv-qa-video",
   "suite": "advance_test",
   "file": "results/advance_test/adv-qa-video.ts",
-  "title": "stage-qa: records a REAL video of qa-demo in a Docker container",
-  "agent": "stage-qa",
+  "title": "qa-reviewer: records a REAL video of qa-demo in a Docker container",
+  "agent": "qa-reviewer",
   "keywords": [
    "qa-demo"
   ],
@@ -416,8 +416,8 @@
   "id": "adv-stuck-build",
   "suite": "advance_test",
   "file": "results/advance_test/adv-stuck-build.ts",
-  "title": "stage-builder: counter-stuck (type error, says Done; adv_6)",
-  "agent": "stage-builder",
+  "title": "builder: counter-stuck (type error, says Done; adv_6)",
+  "agent": "builder",
   "keywords": [
    "counter-stuck"
   ],
@@ -427,8 +427,8 @@
   "id": "adv-stuck-fix",
   "suite": "advance_test",
   "file": "results/advance_test/adv-stuck-fix.ts",
-  "title": "stage-builder: counter-stuck 'fix' that changes nothing",
-  "agent": "stage-builder",
+  "title": "builder: counter-stuck 'fix' that changes nothing",
+  "agent": "builder",
   "keywords": [
    "counter-stuck"
   ],

@@ -10,7 +10,7 @@ const resultId = (caseId: string) => `role-expo-go-${caseId}`;   // the recorded
 
 const ROOT = resolve(import.meta.dir, "../../../..");
 const STORE_DIR = join(ROOT, STORE);
-const AGENTS = join(ROOT, "test_harness/core/orchistraitor/f1_multiagent/harness/agents");
+const AGENTS = join(ROOT, "test_harness/core/orchistraitor/f1_multiagent/harness/agents"), MOCKS = join(ROOT, "TestCases/test_folders/agent_fixture/agents");   // real team + test stand-ins
 const RESULTS = join(ROOT, "TestCases/test_folders/agent_fixture/results/test_expo_go");
 const SHA40 = /^[0-9a-f]{40}$/;
 
@@ -62,7 +62,7 @@ export function check(spec: SuiteSpec): Problem[] {
     if (c.after && !(seen.get(c.after) !== undefined && seen.get(c.after)! < i)) add(w, `after "${c.after}" is missing or comes later`);
     if (!c.title.startsWith("[ref ")) add(w, 'title must start with "[ref <source>]"');
     for (const t of c.tags ?? []) if (!isTag(t)) add(w, `unknown tag ${t}`);
-    for (const a of c.agents) if (!existsSync(join(AGENTS, a, "agent.json"))) add(w, `agent "${a}" has no folder in harness/agents`);
+    for (const a of c.agents) if (!existsSync(join(AGENTS, a, "agent.json")) && !existsSync(join(MOCKS, a, "agent.json"))) add(w, `agent "${a}" has no folder in harness/agents or agent_fixture/agents`);
     c.turns.forEach((t, j) => {
       if (!t.user.trim() || !t.expected.context.trim()) add(w, `turn ${j + 1}: empty user/expected.context`);
       const want = resultId(c.id), got = JSON.stringify(t.expected.expected_agents_res);
@@ -103,11 +103,11 @@ export function check(spec: SuiteSpec): Problem[] {
   for (const t of spec.tags) if (!isTag(t)) add("suite tags", `unknown tag ${t}`);
 
   // 5. the agent and its skills
-  const sk = join(AGENTS, "expo-go/.claude/skills");
+  const sk = join(AGENTS, "builder/.claude/skills");
   const skills = existsSync(sk) ? readdirSync(sk).filter((d) => existsSync(join(sk, d, "SKILL.md"))) : [];
-  if (skills.length < 12) add("agents/expo-go/.claude/skills", `expected the 12 expo-* skills, found ${skills.length}`);
-  for (const need of ["expo-router", "expo-animation", "expo-native-ui", "expo-design-system"]) if (!skills.includes(need)) add("agents/expo-go/.claude/skills", `skill missing: ${need}`);
-  if (!existsSync(join(AGENTS, "expo-go/agent.json"))) add("agents/expo-go", "agent.json missing");
+  if (skills.length < 12) add("agents/builder/.claude/skills", `expected the 12 expo-* skills, found ${skills.length}`);
+  for (const need of ["expo-router", "expo-animation", "expo-native-ui", "expo-design-system"]) if (!skills.includes(need)) add("agents/builder/.claude/skills", `skill missing: ${need}`);
+  if (!existsSync(join(MOCKS, "expo-go/agent.json"))) add("agent_fixture/agents/expo-go", "agent.json missing");
   try { source("folio-popup-book"); } catch (e) { add("sources.json", String(e)); }
   return bad;
 }

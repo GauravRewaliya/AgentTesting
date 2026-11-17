@@ -11,7 +11,8 @@ import { randomUUID } from "node:crypto";
 
 const a = process.argv.slice(2), val = (k: string) => { const i = a.indexOf(k); return i >= 0 ? a[i + 1] : undefined; };
 const prompt = a[a.indexOf("-p") + 1] ?? "", sid = val("--session-id"), res = val("--resume"), fork = a.includes("--fork-session");
-const root = join(process.env.HOME ?? "/tmp", ".claude", "projects"), here = join(root, process.cwd().replace(/[^a-zA-Z0-9]/g, "-"));
+const root = join(process.env.CLAUDE_CONFIG_DIR || join(process.env.HOME ?? "/tmp", ".claude"), "projects"),   // like the real CLI: CLAUDE_CONFIG_DIR wins, else ~/.claude (a hard-coded ~/.claude made every session test fail on a machine that sets CLAUDE_CONFIG_DIR)
+  here = join(root, process.cwd().replace(/[^a-zA-Z0-9]/g, "-"));
 const find = (id: string) => { try { for (const d of readdirSync(root)) { const f = join(root, d, id + ".jsonl"); if (existsSync(f)) return f; } } catch { /* no projects yet */ } return null; };
 const die = (m: string) => { process.stderr.write(m + "\n"); process.exit(1); };
 mkdirSync(here, { recursive: true });

@@ -1,5 +1,5 @@
 // The agents' tools as one command (plan 5.2 / 23.3):
-//   bun tools.ts <site_audit|ref_store|ref_assets|browser_status|browser_connect|browser_disconnect|browser_launch|browse|ref_compare|ref_capture|proto_init|delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop|ls|read_file|grep|qa_check|proto_check|fork_all|qa_give_up|preview|preview_list|preview_stop|preview_restart|bg_start|bg_list|bg_log|bg_stop|proc_list|proc_stop> --flag value ...
+//   bun tools.ts <site_audit|ref_store|ref_assets|browser_status|browser_connect|browser_disconnect|browser_launch|browse|ref_compare|ref_capture|proto_init|delegate|wait|apply_patches|agents_list|agent_update|say|inbox|board_status|ledger_get|agent_stop|ls|read_file|grep|proto_check|fork_all|bg_start|bg_list|bg_log|bg_restart|get_public_url|bg_stop|proc_list|proc_stop> --flag value ...
 //   ls / read_file / grep = READ-ONLY look at the shared workspace run_test/ (core/workspace_read.ts): the lead can check a result itself instead of asking a sub-agent to run commands.
 // A stand-in for the mod's registered tools: same rules (agent.call), same registry, one line of JSON out.
 // Identity comes from the environment set for THIS agent: HARNESS_STORE, HARNESS_TASK, HARNESS_AGENT, HARNESS_CWD, HARNESS_MAX_DEPTH, HARNESS_RUNNER.
@@ -27,9 +27,8 @@ import { locksFromEnv } from "./core/lockapi.ts";
 import { customDef } from "./core/custom.ts";
 import { FixtureGate } from "./core/fixture_gate.ts";
 import { wsGrep, wsLs, wsRead } from "./core/workspace_read.ts";
-import { appendFileSync, existsSync, readFileSync, readdirSync } from "node:fs";
-import { MAX_SAME, giveUp, qaFailed, readQa, recordCheck, writeQa } from "./core/qa_loop.ts";
-import { recordDevServer } from "../../../../infra/qa/web_dev_qa.ts";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
+import { memoryProjects, planBlurb, videoOffReason, writeMemory } from "./core/loops_ai.ts";
 
 const MAX_WAVE = 4;
 const HDIR = dirname(fileURLToPath(import.meta.url)), TOOLS = `bun ${join(HDIR, "tools.ts")}`;
@@ -44,14 +43,16 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 if (!file || !task) { out({ ok: false, reason: "tool environment missing (HARNESS_STORE/TASK)" }); process.exit(0); }
 
 const store = new MStore(file), defs = loadAgents(join(HDIR, "agents"));
-/** An issue for the admins: append-only log next to the store (session id included) + an `admin.issue` event. Used by report_issue_to_admin and by the harness backstop. */
-const logIssue = (o: { agent?: string; kind: string; text: string; reporter: string; session_id?: string | null }) => {
+/** An issue for the admins: append-only log next to the store (session id included) + an `admin.issue` event. Used by report_bug and by the harness backstop. */
+const logIssue = (o: { agent?: string; kind: string; text: string; reporter: string; session_id?: string | null; severity?: string }) => {
   store.reload(); const a = o.agent ? store.agent(task, o.agent) : undefined, ts = a ? store.events.filter((e) => e.task_id === task && e.agent_id === a.agent_id && e.kind === "tool.used").map((e) => e.t) : [];
-  const rec = { id: "iss_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), t: Date.now(), at: new Date().toISOString(), task, reporter: o.reporter, agent: o.agent || null, role: a?.role ?? null, session_id: o.session_id ?? a?.session_id ?? null, kind: o.kind, status: a?.status ?? null, activity: a?.activity ?? null, running_s: a?.started_at && a.status === "running" ? Math.round((Date.now() - a.started_at) / 1000) : null, last_tool_s_ago: ts.length ? Math.round((Date.now() - Math.max(...ts)) / 1000) : null, tool_calls: ts.length, text: o.text.slice(0, 2000) };
+  const rec = { id: "iss_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), t: Date.now(), at: new Date().toISOString(), task, reporter: o.reporter, agent: o.agent || null, role: a?.role ?? null, session_id: o.session_id ?? a?.session_id ?? null, kind: o.kind, severity: o.severity ?? "medium", log_file: a?.log_file ?? null, status: a?.status ?? null, activity: a?.activity ?? null, running_s: a?.started_at && a.status === "running" ? Math.round((Date.now() - a.started_at) / 1000) : null, last_tool_s_ago: ts.length ? Math.round((Date.now() - Math.max(...ts)) / 1000) : null, tool_calls: ts.length, text: o.text.slice(0, 2000) };
   appendFileSync(join(dirname(file), "admin_issues.jsonl"), JSON.stringify(rec) + "\n");
   store.ev("admin.issue", task, o.reporter, { id: rec.id, agent: rec.agent, kind: o.kind, session_id: rec.session_id }); store.save(); return rec;
 };
 /** The harness watches while the lead is blocked in `wait` / `plan_status` (throttled to every 10 s, free): ONE status nudge to an agent over 6 min (core/monitor.ts), and a BACKSTOP: an agent with no tool call for 10 min is stopped, its locks released, and the issue logged + the lead told. Returns true when the lead is needed NOW. */
+/** Has any WRITER (builder, ux-designer ... anything whose agent.json says writes) worked in THIS task? Without one there is nothing new to verify: the QA agent is not started unless the person asked (--user-asked). Resumed turns of the same task still count (the agents stay in the store). */
+const writerRanInTask = () => store.agentsOf(task).some((a) => a.name !== "lead" && defs.get(a.name)?.writes === true && (a.runs ?? 0) > 0);
 let lastMonitorTick = 0;
 const monitorTick = async (only?: string[]): Promise<boolean> => {
   if (Date.now() - lastMonitorTick < 10_000) return false; lastMonitorTick = Date.now();
@@ -74,6 +75,10 @@ for (const [n, m] of Object.entries(JSON.parse(E.HARNESS_MODELS ?? "{}") as Reco
 const locks = locksFromEnv(store);
 const policy = defaultPolicy({ agentMaxDepth: Number(E.HARNESS_MAX_DEPTH ?? 1), maxInstancesPerRole: Number(E.HARNESS_MAX_INSTANCES ?? 4), externalLocks: locks.kind === "redis", lockTtlMs: Number(E.HARNESS_LOCK_TTL_MS ?? 1_200_000), budgetUsd: Number(E.HARNESS_PROJECT_BUDGET_USD ?? 0) });
 const cwd = E.HARNESS_CWD ?? process.cwd();
+/** The QA agent works in a throwaway COPY (HARNESS_CWD = the copy); everything that must outlive the call (QA memory, videos, checkpoints) goes to the REAL workspace. */
+const realCwd = E.HARNESS_REAL_CWD ?? cwd;
+/** Video is the one heavy thing a project can switch off: .loopsAI/config.json { "qa_check": false }. Screenshots and everything else stay available. */
+const videoOff = (): string | undefined => { const why = videoOffReason(join(realCwd, "run_test")); return why ? why + "; screenshots still work" : undefined; };
 
 /** A writer called without --writes would be refused by the lock hook on its first Write and cost a second call: default to the run_test/<project> folder the objective names. */
 function withWrites(req: CallReq): CallReq {
@@ -196,19 +201,18 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
   const q = (x: string) => "'" + x.replace(/'/g, "'\\''") + "'", args = [cmd!, ...rest.filter((x) => x !== "--async")].map(q).join(" ");
   spawn("sh", ["-c", `bun --smol ${q(join(HDIR, "tools.ts"))} ${args} > ${q(join(jd, id + ".json"))} 2> ${q(join(jd, id + ".err"))}; echo $? > ${q(join(jd, id + ".done"))}`], { detached: true, stdio: "ignore", env: { ...process.env, HARNESS_JOB: id } }).unref();
   out({ ok: true, job_id: id, tool: cmd, status: "running", next: `Keep working. When you need the result: wait --any --agents ${id} (it can be mixed with agent ids: it returns the moment the first of them is done).` });
-} else if (cmd === "delegate" && qaFailed(readQa(dirname(file)))) {
-  out({ ok: false, reason: `the QA loop ended (${readQa(dirname(file)).reason}); the test is marked failed. Do not delegate again: give your final answer and say it failed and why.` });
 } else if (cmd === "delegate") {
   const asyncMode = rest.includes("--async");
   const req: CallReq = { task_id: task, caller_agent_id: me, role: flag("role") ?? "", session_arg: flag("session"), mode: flag("mode") === "ask" ? "ask" : "work",
     objective: flag("objective"), output: flag("output"), boundaries: flag("boundaries"), writes: flag("writes")?.split(",").filter(Boolean), title: flag("title"), model: flag("model") };
   const mp = modelProblem(req.role, req.model); if (mp) { out({ ok: false, reason: mp }); process.exit(0); }
   const sg = siteGuard(withWrites(req)); if (sg) { out({ ok: false, reason: sg }); process.exit(0); }
+  if (req.role === "qa-reviewer" && !rest.includes("--user-asked") && !writerRanInTask()) { out({ ok: false, reason: "QA was NOT started: no builder or other writer has worked in this task, so there is nothing new to verify (a greeting, a question, a status, or a project that was only looked at). Answer the person. If the person explicitly asked you to check, test or run something, delegate again with --user-asked." }); process.exit(0); }
   const res = await grant(withWrites(req), asyncMode);   // asyncMode: claimed at once, so it counts as live and cannot be double-called
   if (!res.ok) out({ ok: false, reason: res.reason });
   else if (res.queued) out({ ok: true, queued: true, agent_id: res.agent.agent_id, position: res.queued.position, waiting_for: res.queued.heldBy, note: "its locks are held; it starts by itself when they free; use wait" });
-  else if (asyncMode) { spawnRun(res.call_id); out({ ok: true, async: true, agent_id: res.agent.agent_id, call_id: res.call_id, status: "running", note: "use wait --agents <ids> to get the answers" }); }
-  else { const { r } = await runCall(res.call_id); out({ ok: r.ok, needs_parent: r.needs_parent, agent_id: res.agent.agent_id, session: res.kind, mode: r.mode, report_id: r.report_id, patch_id: r.patch_id, summary: r.summary, violations: r.violations, error: r.error }); }
+  else if (asyncMode) { spawnRun(res.call_id); out({ ok: true, async: true, agent_id: res.agent.agent_id, call_id: res.call_id, status: "running", ...(res.reused ? { reused: `this role keeps ONE session per task: ${res.agent.agent_id} was continued (it remembers its earlier work), not started fresh` } : {}), note: "use wait --agents <ids> to get the answers" }); }
+  else { const { r } = await runCall(res.call_id); out({ ok: r.ok, needs_parent: r.needs_parent, agent_id: res.agent.agent_id, session: res.kind, ...(res.reused ? { reused: `this role keeps ONE session per task: ${res.agent.agent_id} was continued (it remembers its earlier work), not started fresh` } : {}), mode: r.mode, report_id: r.report_id, patch_id: r.patch_id, summary: r.summary, violations: r.violations, error: r.error }); }
 } else if (cmd === "fork_all") {   // N tasks for N agents, ALL STARTED AT ONCE (async): `fork_all --from builder#3 --role builder --tasks '[{"title":"..","writes":["run_test/p/js/pages/a.js"],"objective":".."}, ...]' [--output ..] [--boundaries ..]`, then ONE `wait --agents <ids>`. Parallel by construction: no per-call --async to forget.
   let tasks: { title?: string; writes?: string[] | string; model?: string; objective?: string; output?: string; boundaries?: string }[] = [];
   try { tasks = JSON.parse(flag("tasks") ?? "[]"); } catch (e) { out({ ok: false, reason: "--tasks is not valid JSON: " + String(e).slice(0, 80) }); process.exit(0); }
@@ -337,6 +341,8 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
     const text = (flag("text") ?? "").trim();
     if (!text) { o = { ok: false, reason: "--text is empty" }; return; }
     t.status = "pending"; t.session = t.agent_id; t.question = undefined; t.call_id = undefined;
+    const asker = t.agent_id ? store.agent(task, t.agent_id) : undefined;
+    if (asker) { asker.needs_parent = null; asker.activity = "answer received, continuing"; }   // the question IS answered: a stale needs_parent made plan_status / wait report "STOPPED and asks you" and return at once, every time, until the scheduler's next tick (a paid poll each)
     t.note = "ANSWER FROM YOUR PARENT to your question: " + text.slice(0, 1500) + ". Continue the task with it.";
     store.ev("plan.answered", task, me, { plan_id: p.plan_id, task: t.id, agent: t.agent_id }); o = { ok: true, task: t.id, agent_id: t.agent_id, note: "it continues the same agent and its memory" };
   });
@@ -358,23 +364,26 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
 } else if (cmd === "phase_status") {   // the phases of a plan: state, done/total, gate evidence, what blocks the next one
   store.reload(); const p = store.plans.find((x) => x.task_id === task && x.plan_id === flag("plan"));
   out(p ? { ok: true, plan_id: p.plan_id, phases: phaseRows(p), note: "a task of phase N+1 starts only after phase N is finished AND its gate is passed (phase_pass)" } : { ok: false, reason: "no such plan" });
-} else if (cmd === "phase_pass") {   // the EXIT CHECK of a phase is done: record the gate so the scheduler may start the next phase. Refused while work is open or the last qa_check failed.
+} else if (cmd === "phase_pass") {   // the EXIT CHECK of a phase is done: record the gate so the scheduler may start the next phase. Refused while work is open or an earlier phase is not passed. The gate never runs QA: asking the QA agent is the master's choice.
   let o: unknown;
-  const qa = readQa(dirname(file)), last = qa.history[qa.history.length - 1], qaOk = !(last && !last.ok) && !qaFailed(qa);
   store.tx(() => {
     const p = store.plans.find((x) => x.task_id === task && x.plan_id === flag("plan")), n = Number(flag("phase"));
     if (!p) { o = { ok: false, reason: "no such plan" }; return; }
     if (!Number.isInteger(n)) { o = { ok: false, reason: "--phase must be a whole number" }; return; }
-    const r = passPhase(p, n, me || "lead", flag("evidence") ?? "", qaOk);
+    const r = passPhase(p, n, me || "lead", flag("evidence") ?? "");
     if (!r.ok) { store.ev("plan.phase_refused", task, me, { plan_id: p.plan_id, phase: n, errors: r.errors.length }); o = { ok: false, errors: r.errors, note: "the gate stays closed" }; return; }
     if (!r.already) store.ev("plan.phase_passed", task, me, { plan_id: p.plan_id, phase: n });
+    try {   // every project that has a memory gets the new phase state in its README (a file write, no check is run)
+      const rt = join(cwd, "run_test"), ph = phaseRows(p).map((x) => ({ phase: x.phase, state: x.state })), pb = planBlurb(rt);
+      for (const d of memoryProjects(rt)) writeMemory(join(rt, d), { dir: d, phases: ph, planTitle: pb.title, planBlurb: pb.blurb });
+    } catch { /* the memory is a convenience */ }
     o = { ok: true, phase: n, already: r.already, phases: phaseRows(p).map((x) => `${x.phase}:${x.state}`) };
   });
   out(o);
-} else if (cmd === "report_issue_to_admin") {   // the lead (or any agent) records a problem with a sub-agent for the admins: stalled, hung, slow, lazy, bad output. Append-only log next to the store + an `admin.issue` event; the session id makes the agent's log findable
-  const ag = flag("agent") ?? "", text = (flag("text") ?? "").trim(), kind = (flag("kind") ?? "other").replace(/[^a-z_]/g, "").slice(0, 20) || "other";
-  if (!text) out({ ok: false, reason: "--text is required: what you saw and what you did about it" });
-  else { const rec = logIssue({ agent: ag, kind, text, reporter: me || "unknown", session_id: flag("session") }); out({ ok: true, id: rec.id, logged: "admin_issues.jsonl", session_id: rec.session_id, next: "Recorded for the admins. Carry on: the issue does not stop the work." }); }
+} else if (cmd === "report_bug") {   // ANY agent records a bug or a problem for the admins' bug tracker (UI block "Bug reports"): about ITSELF by default (a tool that failed, a broken plan, a blocker) or about another agent (--agent: stalled, hung, slow, lazy, bad output). The session id and the agent's log file are attached, so nobody has to dig. Append-only admin_issues.jsonl + an `admin.issue` event; the work carries on.
+  const ag = flag("agent") || me, text = (flag("text") ?? "").trim(), kind = (flag("kind") ?? "bug").replace(/[^a-z_]/g, "").slice(0, 20) || "bug", sev = ["low", "medium", "high"].includes(flag("severity") ?? "") ? flag("severity")! : "medium";
+  if (!text) out({ ok: false, reason: "--text is required: what happened, what you expected, what you did about it" });
+  else { const rec = logIssue({ agent: ag, kind, text: text.slice(0, 2000), severity: sev, reporter: me || "unknown", session_id: flag("session") }); out({ ok: true, id: rec.id, logged: "admin_issues.jsonl", session_id: rec.session_id, next: "Recorded in the admin bug tracker with your session id. Carry on with your task: reporting does not stop the work." }); }
 } else if (cmd === "admin_issues") {   // the issues reported in this task (or --all tasks of this store), newest last
   const f = join(dirname(file), "admin_issues.jsonl"), rows = existsSync(f) ? readFileSync(f, "utf8").split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter((x): x is { task: string } => !!x) : [];
   out({ ok: true, issues: rows.filter((r) => rest.includes("--all") || r.task === task).slice(-50) });
@@ -448,12 +457,12 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
   if (!nm || !existsSync(rd)) out({ ok: false, reason: "no such reference store: run_test/_ref/<name>" });
   else { const { buildStore } = await import("./core/ref_store.ts"); out({ ...buildStore(rd, nm), note: "STORE.md and MAP.md rebuilt" }); }
 } else if (cmd === "browse") {   // a REAL browser (Chrome DevTools Protocol): --url <http(s)://..> | --file run_test/<p>/index.html [--route "/blog"] [--scheme light|dark] [--mobile] [--shots <prefix>] [--steps '[{"scroll":900},{"click":"Features"},{"shot":"a.png"},{"eval":"document.title"},{"outline":true}]']
-  const { browse } = await import("./core/browse.ts"), { mkdirSync } = await import("node:fs"), f = flag("file"), outDir = join(cwd, "run_test", "_shots");
+  const { browse } = await import("./core/browse.ts"), { mkdirSync } = await import("node:fs"), f = flag("file"), outDir = join(realCwd, "run_test", "_shots"), wantVideo = rest.includes("--video"), vOff = wantVideo ? videoOff() : undefined;   // evidence goes to the REAL workspace (a QA agent works in a copy that is deleted)
   const ff = f ? projPath(f.replace(/\/?index\.html$/, "") || ".") : "", url = flag("url") ?? (f ? "file://" + join(ff, "index.html") + "#" + (flag("route") ?? "/") : "");
   if ((!url && !flag("tab")) || (f && !inWs(ff))) out({ ok: false, reason: "give --url https://.. or --file run_test/<project>/index.html (inside the workspace)" });
   else { mkdirSync(outDir, { recursive: true }); let steps: unknown[] = []; try { steps = JSON.parse(flag("steps") ?? "[]"); } catch { /* none */ }
-    const pre = flag("shots"), r = await browse({ url, tab: flag("tab"), clean: rest.includes("--no-clean") ? false : rest.includes("--clean") ? true : undefined, outDir, scheme: flag("scheme") === "dark" ? "dark" : "light", mobile: rest.includes("--mobile"), steps: steps as never, sectionShots: pre ? 12 : 0, tag: pre ?? "page" });
-    out({ ok: r.ok, reason: r.reason, browser: r.via === "connected" ? "connected Chrome (visible)" : "private headless Chrome (invisible)", cleaned: r.cleaned?.length ? r.cleaned : undefined, pictures_in: "run_test/_shots/ (open them with Read)", pictures: r.shots.map((x) => x.split("/").pop()), results: r.results, console_errors: r.console, outline: r.outline ? { theme: r.outline.theme, sections: r.outline.sections.map((x) => `#${x.i + 1} ${x.heading || x.tag} | ${x.cards ? x.cards + " cards" : "-"} | btn ${x.buttons.length} | img ${x.images}${x.animated ? " | animated" : ""}`), nav: r.outline.nav, fonts: r.outline.fonts } : undefined }); }
+    const pre = flag("shots"), r = vOff ? { ok: false, reason: vOff, shots: [], results: [], console: [] } as Awaited<ReturnType<typeof browse>> : await browse({ video: wantVideo, url, tab: flag("tab"), clean: rest.includes("--no-clean") ? false : rest.includes("--clean") ? true : undefined, outDir, scheme: flag("scheme") === "dark" ? "dark" : "light", mobile: rest.includes("--mobile"), steps: steps as never, sectionShots: pre ? 12 : 0, tag: pre ?? "page" });
+    out({ ok: r.ok, reason: r.reason, browser: r.via === "connected" ? "connected Chrome (visible)" : "private headless Chrome (invisible)", cleaned: r.cleaned?.length ? r.cleaned : undefined, pictures_in: "run_test/_shots/ (open them with Read)", video: r.video ? "run_test/_shots/" + r.video.split("/").pop() : undefined, video_note: r.video_note, pictures: r.shots.map((x) => x.split("/").pop()), results: r.results, console_errors: r.console, outline: r.outline ? { theme: r.outline.theme, sections: r.outline.sections.map((x) => `#${x.i + 1} ${x.heading || x.tag} | ${x.cards ? x.cards + " cards" : "-"} | btn ${x.buttons.length} | img ${x.images}${x.animated ? " | animated" : ""}`), nav: r.outline.nav, fonts: r.outline.fonts } : undefined }); }
 } else if (cmd === "ref_compare") {   // does the clone match the reference captured by ref_capture? --ref <name> --dir run_test/<project> [--route "/"]
   const nm = flag("ref") ?? "", proj = projPath(flag("dir") ?? "."), dirRel = proj.slice(resolve(cwd).length + 1), idx = join(proj, "index.html");
   if (!nm || !inWs(proj) || !existsSync(idx)) out({ ok: false, reason: "--ref <name used in ref_capture> and --dir run_test/<project> (with index.html) are required" });
@@ -466,91 +475,41 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
   const d = projPath(flag("dir") ?? "."); if (!inWs(d)) { out({ ok: false, error: "the folder must be inside the workspace" }); } else { const { protoCheck } = await import("./core/proto_check.ts"); out(protoCheck(d)); }
 } else if (cmd === "plan_lint") {   // FREE check that a plan folder can be built from alone (README sections, PHASES with Done-when, one owner per file, CONTEXT.txt, links, placeholders): the planner runs it before it reports
   const d = projPath(flag("dir") ?? "run_test/plan"); if (!inWs(d)) out({ ok: false, error: "the folder must be inside the workspace" }); else { const { lintPlan } = await import("./core/plan_lint.ts"); store.reload(); const fetched = store.events.filter((e) => e.kind === "tool.used" && e.task_id === task && /^Web(Fetch|Search)$/.test(String((e.data as { tool?: string } | undefined)?.tool))).flatMap((e) => String((e.data as { activity?: string } | undefined)?.activity ?? "").match(/https?:\/\/\S+/g) ?? []); out(lintPlan(d, join(cwd, "run_test"), { fetched })); /* fetched = what the team really read: a cited source nobody fetched is flagged */ }
-} else if (cmd === "qa_check") {   // EARLY CHECK while developing (no video): type check + dev server + page errors + dev log, in a throwaway Docker container (2 GB, 1 CPU). On a failure it first CHECKPOINTS the workspace (git commit), then tells the master what to hand to the sub-agent. Same issue 3 times in a row = STOP, the test is marked failed (harness/core/qa_loop.ts).
-  const qdir = dirname(file), qs = readQa(qdir), dir = flag("dir") ?? "", pj = join(cwd, "run_test", dir.replace(/^run_test[\\/]?/, ""), "package.json");
-  if (existsSync(join(qdir, "qa_disabled"))) out({ ok: false, disabled: true, next: "qa_check is switched off for this task by the test setup. Do not run it again and do not treat this as a failure: judge only the delegation, then give your final answer." });
-  else if (qaFailed(qs)) out({ ok: false, stop: true, reason: `the QA loop already ended (${qs.status}): ${qs.reason}. The test is marked failed. Do not call anything else: give your final answer and say it failed and why.` });
-  else if (!dir || dir.startsWith("/") || dir.includes("..") || !existsSync(pj)) out({ ok: false, reason: `--dir must be an app folder inside run_test/ with a package.json (got "${dir}")` });
+} else if (cmd === "get_public_url") {   // PORT -> the address a PERSON's browser can open (localhost works only on this machine): --port <n> [--id <background task id>] [--path /x]. With --id the port is LINKED to that task (bg_list and the UI then show its addresses); with --id alone the task's port is used. Says whether anything answers on the port right now.
+  const pv = await import("./core/preview.ts"), bgm = await import("./core/bg.ts"), sdir = dirname(file), id = flag("id"); let port = Number(flag("port") ?? 0), linked: string | undefined;
+  if (!port && id) port = bgm.getBg(sdir, id)?.port ?? 0;
+  else if (port && id) linked = bgm.linkPort(sdir, id, port) ? id : undefined;
+  if (!port) out({ ok: false, reason: "give --port <n> (and --id <background task id> to link it to that task), or --id of a task that has a port" });
   else {
-    const pk = JSON.parse(readFileSync(pj, "utf8")), deps = { ...pk.dependencies, ...pk.devDependencies };
-    const kind = deps.expo ? { start: undefined, port: undefined } : deps.next ? { start: "corepack pnpm exec next dev -p 3000", port: 3000 } : deps.vite ? { start: "corepack pnpm exec vite --host 0.0.0.0 --port 5173", port: 5173 } : { start: pk.scripts?.dev ? "corepack pnpm run dev" : "corepack pnpm start", port: 3000 };
-    const o = join(qdir, "qa", "check-" + Date.now());
-    const r = recordDevServer({ appDir: dirname(pj), out: o, mode: "check", route: flag("route") ?? "/", ...kind });
-    let checkpoint: string | undefined;
-    if (!r.ok) {   // BEFORE any fix: commit what is there now, so every attempt can be compared with / returned to this state
-      const g = (a: string[]) => spawnSync("git", ["-C", cwd, "-c", "user.name=harness", "-c", "user.email=harness@local", ...a], { encoding: "utf8" });
-      g(["add", "-A"]); g(["commit", "-qm", `qa checkpoint before fix: ${r.stage ?? "?"}: ${(r.reasons?.[0] ?? "").slice(0, 80)}`]);
-      checkpoint = g(["rev-parse", "--short", "HEAD"]).stdout.trim() || undefined;
-    }
-    const v = recordCheck(qs, { ok: r.ok, stage: r.stage ?? "?", reasons: r.reasons ?? [], checkpoint }); writeQa(qdir, qs);
-    const reasons = (r.reasons ?? []).slice(0, 8);
-    if (r.ok) out({ ok: true, stage: r.stage, seconds: r.seconds, screenshot: r.screenshot ? "qa.png in " + o : undefined, next: "healthy: you may report done" });
-    else if (v.stop) out({ ok: false, stop: true, stage: r.stage, reasons, same_issue_count: v.n, checkpoint, next: `STOP: the same issue failed ${v.n} times in a row. The test is marked failed. Do not delegate again: give your final answer, say it failed, and name the error.` });
-    else out({ ok: false, stage: r.stage, reasons, seconds: r.seconds, attempt: v.n, of: MAX_SAME, checkpoint,
-      hand_over: `The app in run_test/${dir} fails its automatic check (${r.stage}). Fix THIS, whoever caused it (pre-existing code counts: the app must pass). Errors: ${reasons.join(" | ")}. Change only what is needed; do not delete features. Say which files you changed. (Checkpoint before your change: git ${checkpoint ?? "?"}.)`,
-      next: `NOT healthy (the same issue ${v.n} of ${MAX_SAME}). Delegate the fix with the hand_over text (add PLAN.md and the folder as your agent needs), then run qa_check again. A DIFFERENT error next time is fine. If you judge it cannot be fixed, run qa_give_up --reason "...": that is allowed, the test is then marked failed.` });
+    const path = (flag("path") ?? "").replace(/^(?!\/)(.+)/, "/$1"), local = `http://127.0.0.1:${port}${path}`; let reachable = false;
+    try { reachable = (await fetch(local, { signal: AbortSignal.timeout(2500) })).status < 500; } catch { /* nothing there */ }
+    out({ ok: true, port, url: local, public_url: `http://${pv.publicHost()}:${port}${path}`, reachable, linked_task: linked, note: reachable ? "Give public_url to the person; url works only on this machine." : "Nothing answers on that port right now: start the server first (bg_start --port auto) or read bg_log." });
   }
 } else if (cmd === "proc_list" || cmd === "proc_stop") {   // the host processes inside THIS workspace (dev servers, installs, leftover shells): any agent of the team may look at them and stop one (core/procs.ts)
   const pc = await import("./core/procs.ts");
   out(cmd === "proc_list" ? { ok: true, processes: pc.listTaskProcs(cwd) } : pc.stopTaskProc(cwd, Number(flag("pid"))));
-} else if (cmd === "bg_start" || cmd === "bg_list" || cmd === "bg_log" || cmd === "bg_stop" || cmd === "preview" || cmd === "preview_list" || cmd === "preview_stop" || cmd === "preview_restart") {
-  // BACKGROUND SCRIPTS (core/bg.ts), run by the harness on the host in this workspace, with a record: status running | succeeded | failed | stopped | interrupted, exit code, log file.
-  // `preview` = a dev server as a background script with a free port and a public_url (core/preview.ts). The master sees only the RUNNING ones by default; finished ones with `bg_list --all` or `bg_log --id`.
-  const bgm = await import("./core/bg.ts"), pv = await import("./core/preview.ts"), sdir = dirname(file), by = flag("by") ?? (me || "master");
-  const brief = (r: import("./core/bg.ts").BgRow) => ({ user_requested: r.user_requested || undefined, last_checked: r.reviewed_at ? new Date(r.reviewed_at).toISOString() : undefined, closes_at: r.status === "running" && r.expires_at ? new Date(r.expires_at).toISOString() : undefined, id: r.id, kind: r.kind, status: r.status, label: r.label, cmd: r.cmd.slice(0, 120), dir: r.dir.slice(cwd.length + 1) || ".", pid: r.pid, started: new Date(r.started).toISOString(), ended: r.ended_at ? new Date(r.ended_at).toISOString() : undefined, exit_code: r.exit_code, stopped_by: r.stopped_by, public_url: r.public_url, log_bytes: r.log_bytes });
-  // THE PREVIEW IS CHECKED, not just started: a server that answers can still show a blank page. A failed preview (script ended, JavaScript error, blank page) goes through the SAME repair loop as qa_check:
-  // recorded with a signature, checkpointed (git), the broken preview stopped, a hand_over for the sub-agent returned; the same issue 3 times in a row ends the loop and the test is marked failed; qa_give_up closes it with evidence.
-  const previewGate = (r: Extract<Awaited<ReturnType<typeof pv.startPreview>>, { ok: true }>, dirRel: string) => {
-    const qdir = dirname(file), qs = readQa(qdir);
-    if (qaFailed(qs)) return { ok: false, stop: true, reason: `the QA loop already ended (${qs.status}): ${qs.reason}. The test is marked failed. Do not delegate again: give your final answer and say it failed and why.` };
-    const run = bgm.getBg(sdir, r.id), reasons: string[] = [];
-    if (run && run.status !== "running") reasons.push(`the preview script ended: ${run.status}${run.exit_code !== undefined ? ` (exit ${run.exit_code})` : ""}. ${(bgm.bgLog(sdir, r.id, 25) ?? "").split("\n").filter((x) => /error|ERR_|failed|cannot find|not found|unable/i.test(x)).slice(-4).join(" | ")}`);
-    else if (r.page?.checked && r.page.renders === false) reasons.push(...(r.page.errors.length ? r.page.errors : [r.page.why ?? "the page is blank"]));
-    else if (r.page?.route_problems?.length) reasons.push(...r.page.route_problems.map((x) => `${x.route}: ${x.problems.join("; ")}`));
-    else if (!r.ready) return undefined;   // still starting (install can take minutes): no verdict yet
-    if (!reasons.length) { recordCheck(qs, { ok: true, stage: "preview", reasons: [] }); writeQa(qdir, qs); return undefined; }
-    const g = (a: string[]) => spawnSync("git", ["-C", cwd, "-c", "user.name=harness", "-c", "user.email=harness@local", ...a], { encoding: "utf8" });
-    g(["add", "-A"]); g(["commit", "-qm", `preview checkpoint before fix: ${reasons[0]!.slice(0, 80)}`]);
-    const checkpoint = g(["rev-parse", "--short", "HEAD"]).stdout.trim() || undefined, v = recordCheck(qs, { ok: false, stage: "preview", reasons, checkpoint }); writeQa(qdir, qs);
-    bgm.stopBg(sdir, r.id, "harness", { userAsked: true });   // a broken preview is not left running
-    if (v.stop) return { ok: false, stop: true, stage: "preview", reasons, same_issue_count: v.n, checkpoint, next: `STOP: the same issue failed ${v.n} times in a row. The test is marked failed. Do not delegate again: give your final answer, say it failed, why, and what you tried.` };
-    return { ok: false, stage: "preview", reasons, attempt: v.n, of: MAX_SAME, checkpoint, preview_stopped: true,
-      hand_over: r.page?.route_problems?.length ? `The prototype in run_test/${dirRel} runs, but these screens are not finished (found by opening every route in a browser): ${reasons.join(" | ")}. Each screen is owned by the file named in brackets (PROTO.md has the table): fix ONLY your own file. Replace every stub with a finished screen: believable mock data (never undefined / lorem / TODO), a working search or filter, a row that opens a detail view, an empty state, buttons that open a modal or a toast. Use only the kit classes in PROTO.md. Say which files you changed.` : `The app in run_test/${dirRel} starts, but it is BROKEN in a browser (${reasons.join(" | ")}). Fix THIS, whoever caused it (pre-existing code counts: the app must work). Native-only packages (react-native-pulsar, keyboard-controller) are already stubbed on web by the preview, so look for the cause in the app code or its imports. Change only what is needed; do not delete features. Say which files you changed and why.`,
-      next: `The preview is NOT working (attempt ${v.n} of ${MAX_SAME}): do not give the person a link or call it done. Delegate the fix with hand_over (add PLAN.md and the folder), then run preview --dir ${dirRel} again. A DIFFERENT error next time is fine. If you judge it cannot be fixed, run qa_give_up --reason "<evidence>": that records it as an error you caught.` };
-  };
-  if (cmd === "bg_list" || cmd === "preview_list") {
-    const all = bgm.listBg(sdir, { all: true }), shown = flag("all") !== undefined || rest.includes("--all") ? all : all.filter((r) => r.status === "running");
-    bgm.touchBg(sdir, all.filter((r) => r.status === "running").map((r) => r.id));   // the master looked: the 10-minute check clock restarts
-    // a running PREVIEW is shown with a live browser check: "running" is not "works" (a blank page, a JavaScript error)
-    const withPage = shown.map((r) => ({ ...brief(r), page_check: r.kind === "preview" && r.status === "running" && r.port && pv.cfg("PREVIEW_PAGE_CHECK", "1") !== "0" ? (() => { const c = pv.checkPage(`http://127.0.0.1:${r.port}`, 12_000); return { renders: c.renders, errors: c.errors, why: c.why }; })() : undefined }));
-    const broken = withPage.filter((x) => x.page_check && x.page_check.renders === false);
-    out({ ok: true, scripts: withPage, broken_previews: broken.length ? broken.map((x) => x.id) : undefined, warning: broken.length ? "A preview is running but its page is BROKEN in a browser (see page_check). Do not present it as working: run preview --dir <folder> again for the repair loop (it returns a hand_over for the sub-agent), or qa_give_up with the evidence." : undefined, running: all.filter((r) => r.status === "running").length, finished: all.filter((r) => r.status !== "running").length, next: shown.length === all.length ? undefined : "Only running scripts are shown. `bg_list --all` also shows finished ones (succeeded/failed/stopped/interrupted); `bg_log --id <id>` reads any script's log." });
-  } else if (cmd === "bg_log") { const r = bgm.getBg(sdir, flag("id") ?? ""); if (r) bgm.touchBg(sdir, [r.id]); out(r ? { ok: true, ...brief(r), log: bgm.bgLog(sdir, r.id, Number(flag("tail") ?? 60)) ?? "" } : { ok: false, reason: "no such background script (bg_list --all shows every one)" }); }
-  else if (cmd === "bg_stop" || cmd === "preview_stop") out(bgm.stopBg(sdir, flag("id") ?? "", by, { userAsked: rest.includes("--user-asked") }));
-  else if (cmd === "bg_start") {
-    const d = flag("dir") ?? "run_test", full = d.startsWith("/") ? d : join(cwd, d.replace(/^\.?\//, ""));
-    if (d.includes("..") || !(full === cwd || full.startsWith(cwd + "/"))) out({ ok: false, reason: "--dir must be a folder inside the workspace" });
-    else if (!flag("cmd")) out({ ok: false, reason: "--cmd is required" });
+} else if (cmd === "bg_start" || cmd === "bg_list" || cmd === "bg_log" || cmd === "bg_stop" || cmd === "bg_restart") {
+  // BACKGROUND TASKS (core/bg.ts): `cmd &` with a record = a title (kind, default server_run), a description, a status and a log file. ANY command: a dev server, a static server for a wireframe, a back end, a watcher, a long build.
+  // The harness does not know or decide what it runs: no project detection, no install, no page check, no time limit unless --timeout. The agent chooses the command and the folder; it looks at a web page with `browse`.
+  const bgm = await import("./core/bg.ts"), pv = await import("./core/preview.ts"), sdir = dirname(file), by = flag("by") ?? (me || "agent"), iso = (t?: number) => (t ? new Date(t).toISOString() : undefined);
+  const brief = (r: import("./core/bg.ts").BgRow) => ({ id: r.id, title: r.title ?? "server_run", description: r.label, status: r.status, cmd: r.cmd.slice(0, 200), dir: r.dir, pid: r.pid, port: r.port, url: r.port ? `http://127.0.0.1:${r.port}` : undefined, public_url: r.port ? `http://${pv.publicHost()}:${r.port}` : undefined, started: iso(r.started), ended_at: iso(r.ended_at), exit_code: r.exit_code, stopped_by: r.stopped_by, log_file: bgm.bgLogFile(sdir, r.id), log_bytes: r.log_bytes });
+  if (cmd === "bg_list") { const rows = bgm.listBg(sdir, { all: rest.includes("--all") }); out({ ok: true, tasks: rows.map(brief), note: rest.includes("--all") ? undefined : "only the running ones; --all adds the finished ones" }); }
+  else if (cmd === "bg_log") { const r = bgm.getBg(sdir, flag("id") ?? ""); out(r ? { ok: true, id: r.id, status: r.status, exit_code: r.exit_code, log_file: bgm.bgLogFile(sdir, r.id), log: bgm.bgLog(sdir, r.id, Number(flag("tail") ?? 60)) ?? "" } : { ok: false, reason: "no such background task" }); }
+  else if (cmd === "bg_stop") out(bgm.stopBg(sdir, flag("id") ?? "", by));
+  else if (cmd === "bg_restart") { const r = await bgm.restartBg(sdir, flag("id") ?? "", by); const row = "id" in r ? bgm.getBg(sdir, r.id) : undefined; out(row ? { ok: true, ...brief(row) } : { ok: false, reason: "reason" in r ? r.reason : "could not restart" }); }
+  else {   // bg_start --cmd "<shell command>" [--dir <folder, default run_test>] [--label "<description>"] [--port auto|<n>] [--timeout <min>] [--wait <sec>]
+    const command = flag("cmd") ?? "", dirArg = flag("dir"), full = dirArg ? projPath(dirArg, ".") : join(cwd, "run_test");
+    if (!command.trim()) out({ ok: false, reason: '--cmd "<shell command>" is required' });
+    else if (!inWs(full)) out({ ok: false, reason: "--dir must be a folder inside the workspace" });
     else {
-      const port = flag("port") ? await bgm.freePort(Number(pv.cfg("PREVIEW_PORT_FROM", "5300")), Number(pv.cfg("PREVIEW_PORT_TO", "5399"))) : undefined;
-      const m = bgm.startBg(sdir, { task, cmd: flag("cmd")!, dir: full, by, port, publicHost: pv.publicHost(), label: flag("label"), timeoutMin: flag("timeout") !== undefined ? Number(flag("timeout")) : undefined, userRequested: rest.includes("--user-asked") });
-      out({ ok: true, id: m.id, pid: m.pid, public_url: m.public_url, closes_at: m.expires_at ? new Date(m.expires_at).toISOString() : undefined, next: `Running in the background (recorded); it closes itself at ${m.expires_at ? new Date(m.expires_at).toISOString() : "never"} (default 20 min, --timeout <minutes> up to 120; there is no unlimited run). bg_log --id ${m.id} reads its output, bg_list shows it, bg_stop --id ${m.id} ends it.${port ? " The command's {port} (also env PORT) is " + port + "." : ""}` });
+      mkdirSync(full, { recursive: true });
+      const pf = flag("port"), port = pf === "auto" ? await bgm.freePort(Number(pv.cfg("PREVIEW_PORT_FROM", "5300")), Number(pv.cfg("PREVIEW_PORT_TO", "5399"))) : pf && Number(pf) > 0 ? Number(pf) : undefined;
+      const tmo = Number(flag("timeout") ?? 0), m = bgm.startBg(sdir, { task, cmd: command, dir: full, by, title: flag("title"), label: flag("label") ?? flag("description"), port, publicHost: port ? pv.publicHost() : undefined, timeoutMin: tmo > 0 ? tmo : undefined });
+      const wait = Number(flag("wait") ?? 0); let ready: boolean | undefined;
+      if (wait > 0 && port) ready = (await bgm.waitReady(sdir, m.id, `http://127.0.0.1:${port}/`, wait)).ready;
+      else if (wait > 0) { for (let i = 0; i < wait && bgm.getBg(sdir, m.id)?.status === "running"; i++) await new Promise((ok) => setTimeout(ok, 1000)); }
+      const row = bgm.getBg(sdir, m.id)!;
+      out({ ok: true, ...brief(row), ready, ...(wait > 0 ? { log: bgm.bgLog(sdir, m.id, 20) ?? "" } : {}), next: port ? "Open the url with browse (public_url is for a person's browser). bg_log shows its output." : "bg_list / bg_log show it; bg_stop ends it." });
     }
-  } else if (cmd === "preview") {
-    const d = flag("dir") ?? "", rel = d.replace(/^run_test[\\/]?/, "");
-    if (!d || d.includes("..")) out({ ok: false, reason: "--dir must be an app folder inside run_test/ (or the workspace), no .." });
-    else {
-      const full = d.startsWith("/") ? d : existsSync(join(cwd, "run_test", rel)) ? join(cwd, "run_test", rel) : join(cwd, rel);
-      const r = await pv.startPreview({ storeDir: sdir, task, dir: full, allowedRoot: cwd, by, waitSec: Number(flag("wait") ?? 90), timeoutMin: flag("timeout") !== undefined ? Number(flag("timeout")) : undefined, userRequested: !rest.includes("--master-own") });
-      out((r.ok ? previewGate(r, rel) : undefined) ?? (r.ok ? { ok: true, id: r.id, page_check: r.page ? { renders: r.page.renders, errors: r.page.errors, why: r.page.why, checked: r.page.checked, webgpu_adapter: r.page.webgpu_adapter, note: r.page.note } : undefined, closes_at: r.expires_at ? new Date(r.expires_at).toISOString() : "never", public_url: r.public_url, url: r.url, status: r.status, ready: r.ready, log_tail: r.ready ? undefined : r.log,
-        next: r.ready ? `Give the person public_url (${r.public_url}): it works from another machine; url (localhost) only on this one. Browser features that need a secure context (WebGPU, camera, clipboard) only work on url (http://localhost:<port>, on the machine that runs the preview) or over HTTPS: public_url is plain http on a LAN address, so a WebGPU/3D scene stays empty there; say that. READ page_check: if renders is false the page is BLANK or broken in a browser even though the server answers: tell the person that plainly with the errors, do not call it working. It runs as background script ${r.id} and closes itself at ${r.expires_at ? new Date(r.expires_at).toLocaleTimeString() : "never"} (20 min default, --timeout <minutes> up to 120). Leave it running, close it with bg_stop --id ${r.id} when the person asks.` : r.status === "running" ? `Still starting (install can take minutes): tell the person public_url ${r.public_url}, read bg_log --id ${r.id} and check again.` : `The script ended (${r.status}): read bg_log --id ${r.id} and tell the person why.` } : r));
-    }
-  } else {   // preview_restart
-    const old = bgm.getBg(sdir, flag("id") ?? "");
-    if (!old || old.kind !== "preview") out({ ok: false, reason: "no such preview (bg_list --all shows them)" });
-    else { bgm.stopBg(sdir, old.id, by); await new Promise((ok) => setTimeout(ok, 800)); const r = await pv.startPreview({ storeDir: sdir, task, dir: old.dir, allowedRoot: cwd, by, waitSec: Number(flag("wait") ?? 90), userRequested: old.user_requested }); out((r.ok ? previewGate(r, old.dir.slice(cwd.length + 1).replace(/^run_test\//, "")) : undefined) ?? (r.ok ? { ok: true, restarted: true, id: r.id, public_url: r.public_url, ready: r.ready, status: r.status, log_tail: r.ready ? undefined : r.log } : r)); }
   }
-} else if (cmd === "qa_give_up") {   // the master is never forced to keep trying
-  const qdir = dirname(file), qs = readQa(qdir); giveUp(qs, flag("reason") ?? "no reason given"); writeQa(qdir, qs);
-  out({ ok: true, recorded: true, next: "The test is marked failed. Give your final answer now: say it failed and why." });
 } else out({ ok: false, reason: `unknown command ${cmd}` });

@@ -53,6 +53,8 @@ Bun.serve({
       if ((r = p.match(/^\/subagents\/agent\/([\w-]+)\/guard-cases$/))) return send(await guardCases(r[1]!));
       if (p === "/subagents/try" && m === "POST") { const b = (await req.json()) as { agent: string; query: string; done?: string[] }; return send(await tryCall(b.agent, b.query, b.done ?? [])); }
       if ((r = p.match(/^\/experiment\/bg\/([\w.-]+)$/))) return send(pv.bgOf(r[1]!));
+      if ((r = p.match(/^\/experiment\/evidence\/([\w.-]+)$/))) return send(pv.evidenceOf(r[1]!));   // a single load; the page gets it pushed over the socket
+      if ((r = p.match(/^\/evidence\/([\w.-]+)\/(qa|shots|qa_rec)\/(.+)$/))) { const f = pv.evidenceFile(r[1]!, r[2]!, decodeURIComponent(r[3]!)); return f ? new Response(Bun.file(f), { headers: { "cache-control": "no-cache" } }) : send({ error: "no such evidence file" }, 404); }
       if (p === "/bg/restart" && m === "POST") { const b = (await req.json()) as { task: string; id: string }; return send(await pv.restartScript(b.task, b.id)); }
       if (p === "/proc/stop" && m === "POST") { const b = (await req.json()) as { task: string; pid: number }; return send(pv.stopProc(b.task, Number(b.pid))); }
       if (p === "/bg/stop" && m === "POST") { const b = (await req.json()) as { task: string; id: string }; return send(pv.stopScript(b.task, b.id)); }
@@ -85,7 +87,6 @@ Bun.serve({
     } catch (e) { return send({ error: String((e as Error).message) }, 500); }
   },
 });
-exp.startBgWatch(Number(process.env.BG_WATCH_MS) || 60_000);   // the 10-minute check of background scripts (hidden auto_run messages to the master)
 console.log("api on http://127.0.0.1:" + (process.env.API_PORT ?? 5189));
 // at start (`bun run dev`): 2+ cases under one parent must use the branch syntax (TestCases/branch.ts)
 try { for (const w of branchWarnings((await loadSuites()).flatMap((x) => x.cases.map((c) => ({ ...c, suite: x.suite }))))) console.warn("\x1b[33mWARNING\x1b[0m " + w); } catch (e) { console.warn("branch check skipped: " + String(e).slice(0, 100)); }

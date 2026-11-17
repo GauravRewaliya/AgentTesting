@@ -1,15 +1,16 @@
 // Tests for the "power" layer: phase gates in code, agent_peek, slash commands, project budget. Offline: fake agents, real harness code. No model calls.
 //   bun self_test/power.ts
 import { spawn } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { results, setSuite, t, writeReport } from "./lib.ts";
 import { agentCall, defaultPolicy, type CallReq } from "../harness/core/agent_call.ts";
 import { MStore } from "../harness/core/board.ts";
 import { passPhase, gateBlock, phaseRows, reopenGates } from "../harness/core/phases.ts";
 import { validatePlan, type PlanRow, type PlanTask } from "../harness/core/plan.ts";
 import { peekAgent } from "../harness/core/peek.ts";
+import { appendRow, memoryBlock, projectStamp, readRows } from "../harness/core/loops_ai.ts";
 import { runSlash, slashName, SLASH_COMMANDS } from "../harness/core/slash.ts";
 import { HARNESS_DIR, loadDefs } from "../harness/main.ts";
 
@@ -27,8 +28,6 @@ setSuite("phase gates (pure)");
   t("G4", "phase 3 still waits: phase 2 is not finished", /phase 2 is not finished/.test(gateBlock(p, p.tasks[2]!)?.reason ?? ""));
   const bad = passPhase(p, 2, "lead#1", "ok");
   t("G5", "passing a phase with open tasks, short evidence and no gate-1... is refused with every reason", !bad.ok && bad.errors.some((e) => /open tasks/.test(e)) && bad.errors.some((e) => /--evidence/.test(e)));
-  const noQa = passPhase(row([{ id: "x", phase: 1, status: "done" }]), 1, "l", "ran all the checks", false);
-  t("G6", "passing is refused while the last qa_check failed", !noQa.ok && noQa.errors.some((e) => /qa_check failed/.test(e)));
   const f = row([{ id: "a", phase: 1, status: "failed" }, { id: "b", phase: 2 }]);
   t("G7", "a failed phase makes later phases dead (skipped, never started)", gateBlock(f, f.tasks[1]!)?.dead === true);
   t("G8", "passing twice is idempotent", (passPhase(p, 1, "l", "again again again") as { already?: boolean }).already === true);
@@ -68,6 +67,21 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   t("S4", "after phase_pass 2 the plan finishes: every task done, plan done", s.status === "done" && s.tasks.every((x: any) => x.status === "done"), JSON.stringify(s).slice(0, 200));
   const ph = await tool(["phase_status", "--plan", sub.plan_id]);
   t("S5", "phase_status lists three passed/ready phases", ph.ok && ph.phases.length === 3 && ph.phases[0].state === "passed");
+}
+setSuite("the phase gate never runs QA and never reads a QA verdict (QA is the QA agent's job, asked by the master)");
+{
+  const proj = join(dir, "run_test", "app"); mkdirSync(proj, { recursive: true });
+  writeFileSync(join(proj, "package.json"), JSON.stringify({ name: "app", scripts: { dev: "vite" }, devDependencies: { vite: "8.3.5" } })); writeFileSync(join(proj, "index.html"), "<p>x</p>");
+  const sub2 = await tool(["plan_submit", "--tasks", JSON.stringify([T("q1", "researcher", { phase: 1, objective: "list the pages of the status site for the plan" })])]);
+  await tool(["plan_run", "--plan", sub2.plan_id]); await sleep(4000);
+  appendRow(proj, { kind: "review", by: "qa-reviewer#1", verdict: "FAIL", stamp: projectStamp(proj), task: "an earlier task", note: "FAIL\nNEEDS_CHANGES: src/a.ts: TS2304" });
+  const before = readRows(proj).length;
+  const opened = await tool(["phase_pass", "--plan", sub2.plan_id, "--phase", "1", "--evidence", "exit checks were run by hand"]);
+  t("Q1", "no hard rule: a project whose latest QA review is FAIL does not block the gate, and the gate does not run or ask for QA (the master decides whether to ask the QA agent)", opened.ok === true && !("qa" in opened), JSON.stringify(opened).slice(0, 220));
+  t("Q2", "the gate started no QA: no new row in the project's QA history and no QA run folder in the session store", readRows(proj).length === before && !existsSync(join(dirname(file), "qa")), JSON.stringify([before, readRows(proj).length]));
+  t("Q3", "the project's memory is refreshed at the gate (a file write, no check): README.md has the phase state and how to run, QA.md still holds the earlier review and what it asked for", /phase 1: passed/.test(readFileSync(join(proj, ".loopsAI", "README.md"), "utf8")) && /How to run/.test(readFileSync(join(proj, ".loopsAI", "README.md"), "utf8")) && /TS2304/.test(readFileSync(join(proj, ".loopsAI", "QA.md"), "utf8")), "");
+  writeFileSync(join(proj, "index.html"), "<p>changed after the review</p><p>more</p>");
+  t("Q4", "code that changed after a QA review is flagged to every agent ('code changed since'): an old verdict is never presented as a verdict on new code", /code changed since/.test(memoryBlock(join(dir, "run_test"))));
 }
 setSuite("agent_peek, cost, slash commands");
 {

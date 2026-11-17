@@ -27,7 +27,6 @@
    "Bash(bun *tools.ts ls*)",
    "Bash(bun *tools.ts read_file*)",
    "Bash(bun *tools.ts grep*)",
-   "Bash(bun *tools.ts qa_check*)",
    "Bash(bun *tools.ts ref_capture*)",
    "Bash(bun *tools.ts ref_compare*)",
    "Bash(bun *tools.ts site_build*)",
@@ -41,13 +40,12 @@
    "Bash(bun *tools.ts proto_init*)",
    "Bash(bun *tools.ts proto_check*)",
    "Bash(bun *tools.ts fork_all*)",
-   "Bash(bun *tools.ts qa_give_up*)",
-   "Bash(bun *tools.ts preview*)",
    "Bash(bun *tools.ts proc_list*)",
    "Bash(bun *tools.ts proc_stop*)",
    "Bash(bun *tools.ts bg_*)",
    "Artifact",
-   "Read"
+   "Read",
+   "Bash(bun *tools.ts bg_restart*)"
   ]
  }
 }

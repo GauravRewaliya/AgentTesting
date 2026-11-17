@@ -1,4 +1,4 @@
-// Zero-dependency static file server for a prototype folder (index.html + js/css): `bun static_server.ts <port> [dir]`. Used by `preview` for a folder without package.json: nothing is installed, nothing is built.
+// Zero-dependency static file server for a prototype folder (index.html + js/css): `bun static_server.ts <port> [dir]`. Any agent may run it as a background task (`bg_start --cmd "bun <this file> {port} ." --port auto`) for a folder without package.json: nothing is installed, nothing is built.
 import { existsSync, statSync } from "node:fs";
 import { join, normalize, resolve } from "node:path";
 const port = Number(process.argv[2] ?? 8080), root = resolve(process.argv[3] ?? ".");
