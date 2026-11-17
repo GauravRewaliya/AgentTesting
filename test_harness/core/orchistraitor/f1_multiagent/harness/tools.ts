@@ -484,9 +484,10 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
     else if (rest.includes("--background") && !bgJob) {   // QUEUE: hand the script to a worker and go on at once; scripts of one tab run one after the other; the answer is in `tab result`
       const { spawn } = await import("node:child_process"), { writeFileSync } = await import("node:fs"), id = Date.now().toString(36), jf = join(outDir, `job-${id}.json`); mkdirSync(outDir, { recursive: true });
       writeFileSync(jf, JSON.stringify({ job: id, status: "queued", at: new Date().toISOString() }));
-      spawn("bun", ["--smol", join(HDIR, "tools.ts"), ...process.argv.slice(2).filter((x) => x !== "--background"), "--job-file", jf, "--keep-going"], { detached: true, stdio: "ignore", env: process.env }).unref();
+      spawn("bun", ["--smol", join(HDIR, "tools.ts"), ...process.argv.slice(2).filter((x) => x !== "--background" && x !== "--clear"), "--job-file", jf, "--keep-going"], { detached: true, stdio: "ignore", env: process.env }).unref();
       out({ ok: true, job: id, status: "queued", note: "running in the background; you can do other things. Read the outcome with `tab result --job " + id + "` (steps stop at nothing: every step is tried, failures are listed)", result_file: jf, folder: outDir });
-    } else { mkdirSync(outDir, { recursive: true });
+    } else { if (rest.includes("--clear") && !bgJob) (await import("node:fs")).rmSync(outDir, { recursive: true, force: true });   // start this folder clean: the old pictures, video and report of that name are removed first
+      mkdirSync(outDir, { recursive: true });
       const { writeFileSync, existsSync, readFileSync, rmSync } = await import("node:fs"), lock = join((await import("node:os")).tmpdir(), `agent-tab-${task}-${me || "agent"}`.replace(/[^\w.-]+/g, "_") + ".lock"), put = (o: unknown) => { if (bgJob) writeFileSync(bgJob, JSON.stringify(o, null, 1)); else out(o); };
       if (bgJob) { mkdirSync(dirname(lock), { recursive: true }); const alive = (p: number) => { try { process.kill(p, 0); return true; } catch { return false; } };   // one script at a time on a tab: wait for the one before
         for (let i = 0; i < 600; i++) { try { writeFileSync(lock, String(process.pid), { flag: "wx" }); break; } catch { try { if (!alive(Number(readFileSync(lock, "utf8")))) rmSync(lock, { force: true }); } catch { /* raced */ } await new Promise((r) => setTimeout(r, 300)); } }

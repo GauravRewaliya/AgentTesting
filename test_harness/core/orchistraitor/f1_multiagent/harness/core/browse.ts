@@ -83,11 +83,13 @@ class Cdp {
 }
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** a gap where the page did not change (waiting for the agent, a long wait) is shown for at most this long: the video PAUSES instead of idling */
+const IDLE_CAP = 1.2;
 /** The screencast frames of a run -> one .webm (VP8). Frame times come from Chrome, so the video plays at the real pace; a long idle gap is capped at 6 s so evidence stays short. */
 function encodeVideo(frames: { t: number; file: string }[], out: string): { video?: string; note?: string } {
   if (!frames.length) return { note: "no frames: the page never painted" };
   if (spawnSync("which", ["ffmpeg"]).status !== 0) return { note: "ffmpeg is not installed on this machine: no video (screenshots still work)" };
-  const list = frames.map((f, i) => `file '${f.file}'\nduration ${Math.min(6, Math.max(0.04, ((frames[i + 1]?.t ?? f.t + 800) - f.t) / 1000)).toFixed(3)}`).join("\n") + `\nfile '${frames[frames.length - 1]!.file}'\n`;
+  const list = frames.map((f, i) => `file '${f.file}'\nduration ${Math.min(IDLE_CAP, Math.max(0.04, ((frames[i + 1]?.t ?? f.t + 800) - f.t) / 1000)).toFixed(3)}`).join("\n") + `\nfile '${frames[frames.length - 1]!.file}'\n`;
   const vdir = dirname(frames[0]!.file), lf = join(vdir, "list.txt"); writeFileSync(lf, list);
   // ENCODED IN THE BACKGROUND: the run does not wait for it (it was the slowest part). nice + 2 threads so it never starves the machine; the frames folder is removed when it ends.
   const q = (x: string) => `'${x.replace(/'/g, "'\\''")}'`;
@@ -95,21 +97,22 @@ function encodeVideo(frames: { t: number; file: string }[], out: string): { vide
   return { video: out, note: "the video is being encoded in the background: the file appears in about 10 s (the report page plays it once it is there)" };
 }
 /** One row of the QA report: what was done, what it looked like, and where it is in the video. */
-export interface StepRow { n: number; name: string; action: string; ok: boolean; note?: string; shot?: string; wall: number; video_s?: number }
+export interface StepRow { n: number; name: string; action: string; ok: boolean; note?: string; shot?: string; wall: number; video_s?: number; /** the video file this row belongs to (a folder can hold several scripts) */ video?: string }
 const slug = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 28) || "step";
 /** seconds into the encoded video at which wall-clock time `ts` shows (same gap cap as encodeVideo) */
 function videoAt(frames: { t: number }[], ts: number): number {
-  let pos = 0; for (let i = 0; i < frames.length - 1 && frames[i + 1]!.t <= ts; i++) pos += Math.min(6, Math.max(0.04, (frames[i + 1]!.t - frames[i]!.t) / 1000));
+  let pos = 0; for (let i = 0; i < frames.length - 1 && frames[i + 1]!.t <= ts; i++) pos += Math.min(IDLE_CAP, Math.max(0.04, (frames[i + 1]!.t - frames[i]!.t) / 1000));
   return Math.round(pos * 10) / 10;
 }
 const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
 /** report.json + index.html next to the pictures: the video on top, every numbered step as a thumbnail that jumps the video to that moment. Plain files, opens by double-click. */
-function writeReport(dir: string, title: string, video: string | undefined, rows: StepRow[], consoleErrors: string[]): string {
-  writeFileSync(join(dir, "report.json"), JSON.stringify({ title, video: video && video.split("/").pop(), steps: rows, console_errors: consoleErrors }, null, 1));
-  const v = video ? video.split("/").pop()! : "", bad = rows.filter((r) => !r.ok).length;
-  const fail = rows.find((r) => !r.ok), fps = 25, cell = (r: StepRow) => (r.video_s !== undefined ? `<a onclick="seek(${r.video_s})">${mmss(r.video_s)}</a> <small>frame ${Math.round(r.video_s * fps)}</small>` : '<small class=mut>picture only (no video)</small>');
-  const html = `<!doctype html><meta charset=utf-8><title>${esc(title)}</title><style>body{font:14px system-ui;margin:0;background:#111;color:#eee}main{max-width:1180px;margin:auto;padding:16px}video{width:100%;max-height:60vh;background:#000}table{border-collapse:collapse;width:100%;margin-top:12px}th{font-size:12px;color:#999;text-align:left;border-bottom:1px solid #444;padding:6px}td{border-bottom:1px solid #2a2a2a;padding:6px;vertical-align:middle}td img{width:200px;cursor:pointer;border:1px solid #444;display:block}.n{font:700 18px ui-monospace}.ok{color:#6c6}.no{color:#e66}a{color:#8cf;cursor:pointer}.mut{color:#888}</style><main><h1>${esc(title)}</h1><p>${rows.length} steps, <b class=${bad ? "no" : "ok"}>${bad ? bad + " failed" : "all passed"}</b>${v ? "" : " (no video)"}</p>${fail ? `<p class=no><b>Stopped at step ${fail.n}: ${esc(fail.name)}</b> (${esc(fail.note ?? "failed")}). Page state and console: failure.json</p>` : ""}${v ? `<video id=v controls src="${esc(v)}"></video>` : ""}${consoleErrors.length ? `<p class=no>console: ${esc(consoleErrors.join(" | "))}</p>` : ""}<table><tr><th>#<th>picture<th>step<th>result<th>video time / frame (${fps} fps)<th>note</tr>${rows.map((r) => `<tr><td class=n>${r.n}<td>${r.shot ? `<a href="${esc(r.shot)}" target=_blank><img src="${esc(r.shot)}" ${r.video_s !== undefined ? `onclick="seek(${r.video_s});return false"` : ""}></a>` : ""}<td><b>${esc(r.name)}</b><br><small class=mut>${esc(r.action)}</small><td class=${r.ok ? "ok" : "no"}><b>${r.ok ? "OK" : "FAIL"}</b><td>${cell(r)}<td><small>${esc(r.note ?? "")}</small></tr>`).join("")}</table></main><script>function seek(t){var v=document.getElementById('v');if(v){v.currentTime=t;v.play();scrollTo(0,0)}}</script>`;
+function writeReport(dir: string, title: string, rows: StepRow[], consoleErrors: string[]): string {
+  const videos = [...new Set(rows.map((r) => r.video).filter((x): x is string => !!x))], video = videos[videos.length - 1];
+  writeFileSync(join(dir, "report.json"), JSON.stringify({ title, videos, steps: rows, console_errors: consoleErrors }, null, 1));
+  const v = video ?? "", bad = rows.filter((r) => !r.ok).length;
+  const fail = rows.find((r) => !r.ok), fps = 25, cell = (r: StepRow) => (r.video_s !== undefined ? `<a onclick="seek(${r.video_s},'${esc(r.video ?? '')}')">${mmss(r.video_s)}</a> <small>frame ${Math.round(r.video_s * fps)}</small>` : '<small class=mut>picture only (no video)</small>');
+  const html = `<!doctype html><meta charset=utf-8><title>${esc(title)}</title><style>body{font:14px system-ui;margin:0;background:#111;color:#eee}main{max-width:1180px;margin:auto;padding:16px}video{width:100%;max-height:60vh;background:#000}table{border-collapse:collapse;width:100%;margin-top:12px}th{font-size:12px;color:#999;text-align:left;border-bottom:1px solid #444;padding:6px}td{border-bottom:1px solid #2a2a2a;padding:6px;vertical-align:middle}td img{width:200px;cursor:pointer;border:1px solid #444;display:block}.n{font:700 18px ui-monospace}.ok{color:#6c6}.no{color:#e66}a{color:#8cf;cursor:pointer}.mut{color:#888}</style><main><h1>${esc(title)}</h1><p>${rows.length} steps, <b class=${bad ? "no" : "ok"}>${bad ? bad + " failed" : "all passed"}</b>${v ? "" : " (no video)"}</p>${fail ? `<p class=no><b>Stopped at step ${fail.n}: ${esc(fail.name)}</b> (${esc(fail.note ?? "failed")}). Page state and console: failure.json</p>` : ""}${v ? `<video id=v controls src="${esc(v)}"></video>` : ""}${consoleErrors.length ? `<p class=no>console: ${esc(consoleErrors.join(" | "))}</p>` : ""}<table><tr><th>#<th>picture<th>step<th>result<th>video time / frame (${fps} fps)<th>note</tr>${rows.map((r) => `<tr><td class=n>${r.n}<td>${r.shot ? `<a href="${esc(r.shot)}" target=_blank><img src="${esc(r.shot)}" ${r.video_s !== undefined ? `onclick="seek(${r.video_s},'${esc(r.video ?? '')}');return false"` : ""}></a>` : ""}<td><b>${esc(r.name)}</b><br><small class=mut>${esc(r.action)}</small><td class=${r.ok ? "ok" : "no"}><b>${r.ok ? "OK" : "FAIL"}</b><td>${cell(r)}<td><small>${esc(r.note ?? "")}</small></tr>`).join("")}</table></main><script>function seek(t,f){var v=document.getElementById('v');if(v){if(f&&v.getAttribute('src')!==f){v.setAttribute('src',f);v.onloadedmetadata=function(){v.currentTime=t;v.play()}}else{v.currentTime=t;v.play()}scrollTo(0,0)}}</script>`;
   writeFileSync(join(dir, "index.html"), html);
   return join(dir, "index.html");
 }
@@ -161,15 +164,18 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
     const prime = async () => { const dh = Math.min(Number(await ev("document.documentElement.scrollHeight")), 30000); for (let y = 0; y < dh; y += Math.round(h * 0.7)) { await ev(`window.scrollTo(0, ${y})`); await sleep(260); } await ev("window.scrollTo(0, 0)"); await sleep(500); };
     if (o.sectionShots || o.prime || (o.steps ?? []).some((x) => x.full)) await prime();
     let outline: Outline | undefined;
-    const numbered = (o.steps ?? []).some((x) => x.name), rows: StepRow[] = []; let stopped = false, notRun = 0, failed: { n: number; name: string; reason: string } | undefined;
+    const numbered = (o.steps ?? []).some((x) => x.name), rows: StepRow[] = [], prior: StepRow[] = (() => { try { return numbered ? (JSON.parse(readFileSync(join(o.outDir, "report.json"), "utf8")).steps as StepRow[]) ?? [] : []; } catch { return []; } })();   // scripts of one folder ADD to it (numbers go on, nothing is overwritten); --clear starts the folder empty
+    let stopped = false, notRun = 0, failed: { n: number; name: string; reason: string } | undefined;
     const later: { name: string; wall: number }[] = [];   // pictures taken from the video's own frames AFTER the run: a step never waits for its picture
     const row = async (name: string, action: string, ok: boolean, given?: string, note?: string) => {   // one numbered step: number, picture, wall-clock time (turned into a video time at the end)
-      const n = rows.length; let shot = given;
+      const n = prior.length + rows.length; let shot = given;
       if (!shot) { const fromFrames = !!o.video && frames.length > 0; shot = `${String(n).padStart(2, "0")}_${slug(name)}.${fromFrames ? "jpg" : "png"}`; if (fromFrames) later.push({ name: shot, wall: Date.now() }); else await save(shot); }   // no screencast frame yet (or no video): a normal screenshot, never a missing picture
       rows.push({ n, name, action, ok, note, shot, wall: Date.now() });
     };
-    if (numbered) await row("page loaded", "open " + o.url, true);
+    const banner = (txt: string) => ev(`(() => { let b = document.getElementById('__qa_step'); if (!b) { b = document.createElement('div'); b.id = '__qa_step'; b.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483647;background:rgba(0,0,0,.78);color:#fff;font:600 13px system-ui;padding:5px 10px;border-radius:6px;pointer-events:none'; document.documentElement.appendChild(b); } b.textContent = ${JSON.stringify(txt)}; })()`).catch(() => 0);
+    if (numbered && !prior.length) await row("page loaded", "open " + o.url, true);
     for (const st of o.steps ?? []) {
+      if (numbered && st.name && !stopped) await banner(`${prior.length + rows.length}  ${st.name}`);
       if (stopped) { if (st.snapshot) results.push({ snapshot: await ev(SNAP_JS).catch(() => null) }); else notRun++; continue; }   // a step failed: nothing after it runs (the snapshot at the end still does)
       const clicks0 = results.length; let stepErr: string | undefined;
       try {
@@ -198,7 +204,7 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
       }
       } catch (e) { stepErr = String((e as Error).message).slice(0, 140); results.push({ error: stepErr, step: st.name ?? st.click ?? st.type ?? st.key ?? "step" }); }
       const clickRes = st.click ? results.slice(clicks0).find((r) => (r as { click?: string }).click !== undefined) as { found?: boolean } | undefined : undefined, stepOk = (clickRes ? !!clickRes.found : true) && !stepErr;
-      if (!stepOk && !o.keepGoing) { stopped = true; failed = { n: rows.length, name: st.name ?? (st.click ? `click ${st.click}` : st.fill ? "fill form" : st.type ? `type into ${st.type}` : st.key ? `key ${st.key}` : "step"), reason: stepErr ?? (clickRes as { why?: string } | undefined)?.why ? `target ${(clickRes as { why?: string }).why} even after waiting` : "not found on the page" }; }
+      if (!stepOk && !o.keepGoing) { stopped = true; failed = { n: prior.length + rows.length, name: st.name ?? (st.click ? `click ${st.click}` : st.fill ? "fill form" : st.type ? `type into ${st.type}` : st.key ? `key ${st.key}` : "step"), reason: stepErr ?? (clickRes as { why?: string } | undefined)?.why ? `target ${(clickRes as { why?: string }).why} even after waiting` : "not found on the page" }; }
       if (numbered && (st.name || st.click || stepErr || st.shot)) {
         const ok = stepOk;
         await row(st.name ?? (st.click ? `click ${st.click}` : st.shot ? `picture ${st.shot}` : "step"), st.click ? `click ${st.click}` : st.fill ? "fill form" : st.type ? `type into ${st.type}` : st.key ? `key ${st.key}` : st.eval ? "eval" : "look", ok, st.shot, ok ? undefined : stepErr ?? ((clickRes as { why?: string } | undefined)?.why ? `target ${(clickRes as { why?: string }).why} even after waiting` : "not found on the page"));
@@ -211,12 +217,12 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
       for (const sec of outline.sections.slice(0, o.sectionShots)) await save(`${tag}-section-${String(sec.i + 1).padStart(2, "0")}.png`, { x: 0, y: sec.y, width: w, height: Math.min(sec.h, 2400) });
     }
     let video: string | undefined, video_note: string | undefined;
-    if (o.video) { await cdp.send("Page.stopScreencast").catch(() => 0); await sleep(150); for (const l of later) { let f = frames[0]; for (const fr of frames) if (fr.t <= l.wall) f = fr; if (f) { const dst = join(o.outDir, l.name); copyFileSync(f.file, dst); shots.push(dst); } } const e = encodeVideo(frames, join(o.outDir, `${o.tag ?? "page"}-${new Date().toISOString().replace(/\D/g, "").slice(8, 14)}.webm`)); video = e.video; video_note = e.note; if (e.video) vdirOf = ""; if (video) for (const r of rows) r.video_s = videoAt(frames, r.wall); }
+    if (o.video) { await cdp.send("Page.stopScreencast").catch(() => 0); await sleep(150); for (const l of later) { let f = frames[0]; for (const fr of frames) if (fr.t <= l.wall) f = fr; if (f) { const dst = join(o.outDir, l.name); copyFileSync(f.file, dst); shots.push(dst); } } const e = encodeVideo(frames, join(o.outDir, `${o.tag ?? "page"}-${new Date().toISOString().replace(/\D/g, "").slice(8, 14)}.webm`)); video = e.video; video_note = e.note; if (e.video) vdirOf = ""; if (video) for (const r of rows) { r.video_s = videoAt(frames, r.wall); r.video = video.split("/").pop(); } }
     if (failed) {   // evidence for later, for people and for agents that were not there: what failed, the picture (the failed row's), the console, and the page as it was
       const snap = [...results].reverse().find((r) => (r as { snapshot?: unknown }).snapshot) as { snapshot?: unknown } | undefined;
-      try { writeFileSync(join(o.outDir, "failure.json"), JSON.stringify({ failed, picture: rows[failed.n]?.shot, not_run: notRun, console: [...new Set(logs)], page: snap?.snapshot ?? null, at: new Date().toISOString() }, null, 1)); } catch { /* evidence is best effort */ }
+      try { writeFileSync(join(o.outDir, "failure.json"), JSON.stringify({ failed, picture: rows.find((r) => r.n === failed!.n)?.shot, not_run: notRun, console: [...new Set(logs)], page: snap?.snapshot ?? null, at: new Date().toISOString() }, null, 1)); } catch { /* evidence is best effort */ }
     }
-    const report = numbered ? writeReport(o.outDir, o.tag ?? "QA run", video, rows, [...new Set(logs)].slice(0, 6)) : undefined;
+    const report = numbered ? writeReport(o.outDir, o.tag ?? "QA run", [...prior, ...rows], [...new Set(logs)].slice(0, 6)) : undefined;
     return { ok: !failed, reason: failed ? `step ${failed.n} "${failed.name}" failed: ${failed.reason}; ${notRun} later step(s) did NOT run (the page state is in the snapshot)` : undefined, failed, not_run: notRun, report, steps: numbered ? rows : undefined, video, video_note, shots, outline, results, console: [...new Set(logs)].slice(0, 6), cleaned, via };
   } catch (e) { return { ok: false, reason: String((e as Error).message).slice(0, 200), shots, results, console: logs }; }
   finally { if (o.freeze && cdp) await cdp.send("Page.setWebLifecycleState", { state: "frozen" }).catch(() => 0); cdp?.close(); proc?.kill("SIGKILL"); if (vdirOf) rmSync(vdirOf, { recursive: true, force: true }); if (dir) rmSync(dir, { recursive: true, force: true }); if (ownTab && ep) { await fetch(ep + "/json/close/" + ownTab).catch(() => 0); for (let i = 0; i < 12; i++) { const gone = await fetch(ep + "/json/list").then((r) => r.json() as Promise<Tab[]>).then((l) => !l.some((t) => t.id === ownTab)).catch(() => true); if (gone) break; await sleep(150); } } }   // the person's browser is left exactly as it was: wait until our tab is really gone
