@@ -28,7 +28,7 @@ import { customDef } from "./core/custom.ts";
 import { FixtureGate } from "./core/fixture_gate.ts";
 import { wsGrep, wsLs, wsRead } from "./core/workspace_read.ts";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
-import { memoryProjects, planBlurb, videoOffReason, writeMemory } from "./core/loops_ai.ts";
+import { imagesOn, memoryProjects, planBlurb, videoOffReason, writeMemory } from "./core/loops_ai.ts";
 
 const MAX_WAVE = 4;
 const HDIR = dirname(fileURLToPath(import.meta.url)), TOOLS = `bun ${join(HDIR, "tools.ts")}`;
@@ -486,14 +486,15 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
       writeFileSync(jf, JSON.stringify({ job: id, status: "queued", at: new Date().toISOString() }));
       spawn("bun", ["--smol", join(HDIR, "tools.ts"), ...process.argv.slice(2).filter((x) => x !== "--background" && x !== "--clear"), "--job-file", jf, "--keep-going"], { detached: true, stdio: "ignore", env: process.env }).unref();
       out({ ok: true, job: id, status: "queued", note: "running in the background; you can do other things. Read the outcome with `tab result --job " + id + "` (steps stop at nothing: every step is tried, failures are listed)", result_file: jf, folder: outDir });
-    } else { if (rest.includes("--clear") && !bgJob) (await import("node:fs")).rmSync(outDir, { recursive: true, force: true });   // start this folder clean: the old pictures, video and report of that name are removed first
+    } else { if (rest.includes("--clear") && !bgJob && tb.clearOnce({ task, agent: me, dir: outDir })) (await import("node:fs")).rmSync(outDir, { recursive: true, force: true });   // start this folder clean: the old pictures, video and report of that name are removed first
       mkdirSync(outDir, { recursive: true });
       const { writeFileSync, existsSync, readFileSync, rmSync } = await import("node:fs"), lock = join((await import("node:os")).tmpdir(), `agent-tab-${task}-${me || "agent"}`.replace(/[^\w.-]+/g, "_") + ".lock"), put = (o: unknown) => { if (bgJob) writeFileSync(bgJob, JSON.stringify(o, null, 1)); else out(o); };
       if (bgJob) { mkdirSync(dirname(lock), { recursive: true }); const alive = (p: number) => { try { process.kill(p, 0); return true; } catch { return false; } };   // one script at a time on a tab: wait for the one before
         for (let i = 0; i < 600; i++) { try { writeFileSync(lock, String(process.pid), { flag: "wx" }); break; } catch { try { if (!alive(Number(readFileSync(lock, "utf8")))) rmSync(lock, { force: true }); } catch { /* raced */ } await new Promise((r) => setTimeout(r, 300)); } }
         writeFileSync(bgJob, JSON.stringify({ status: "running", at: new Date().toISOString() })); }
-      try { const r = await tb.tabDo({ task, agent: me, steps: steps as never, outDir, video: rest.includes("--video") && !vOff, tag: flag("name") ?? outRel.split("/").pop() ?? "tab", keepGoing: rest.includes("--keep-going") });
-        put(!r ? { ok: false, status: "done", reason: "no tab is open for you: run `tab open --url <address>` first" } : { ok: r.ok, status: "done", reason: r.reason, failed: r.failed, not_run: r.not_run, video_note: vOff ?? r.video_note, report: r.report ? join(outDir, "index.html") : undefined, folder: outDir, steps: r.steps?.map((x) => `${x.n} ${x.ok ? "OK" : "FAIL"} ${x.name}${x.video_s !== undefined ? " @" + x.video_s + "s" : ""}${x.note ? " (" + x.note + ")" : ""} -> ${join(outDir, x.shot ?? "")}`), video: r.video ? join(outDir, r.video.split("/").pop()!) : undefined, pictures_in: `${outDir}/ (open them with Read, by these full paths)`, results: r.results, console_errors: r.console });
+      try { const r = await tb.tabDo({ task, agent: me, steps: steps as never, outDir, video: rest.includes("--video") && !vOff, tag: flag("name") ?? outRel.split("/").pop() ?? "tab", keepGoing: rest.includes("--keep-going"), images: imagesOn(join(realCwd, "run_test")) });
+        const snap = r ? [...r.results].reverse().find((x) => (x as { snapshot?: unknown }).snapshot) as { snapshot?: unknown } | undefined : undefined, keep = r ? r.results.filter((x) => { const y = x as Record<string, unknown>; return y.eval !== undefined || y.why !== undefined || y.error !== undefined || y.found === false; }) : [];
+        put(!r ? { ok: false, status: "done", reason: "no tab is open for you: run `tab open --url <address>` first" } : { ok: r.ok, status: "done", reason: r.reason, failed: r.failed, not_run: r.not_run, report: r.report ? join(outDir, "index.html") : undefined, video: r.video ? join(outDir, "session.webm") : undefined, video_note: vOff ?? undefined, steps: r.steps?.map((x) => `${x.n} ${x.ok ? "OK" : "FAIL"} ${x.name}${x.video_s !== undefined ? " @" + x.video_s + "s" : ""}${x.note ? " (" + x.note + ")" : ""}${x.shot ? " -> " + join(outDir, x.shot) : ""}`), page: snap?.snapshot, results: keep.length ? keep : undefined, console_errors: r.console.length ? r.console : "none" });
       } finally { if (bgJob) rmSync(lock, { force: true }); } }
   } else out({ ok: false, reason: "tab open --url <u> | tab do --steps '[...]' [--background] | tab result | tab status | tab close" });
 } else if (cmd === "ref_compare") {   // does the clone match the reference captured by ref_capture? --ref <name> --dir run_test/<project> [--route "/"]

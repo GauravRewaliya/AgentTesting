@@ -2,7 +2,7 @@
 // Everything that touches the shared registry after the model call happens in ONE short transaction.
 import { randomUUID } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { appendRow, checkedOf, leftOf, memoryBlock, projectDirs, projectStamp, verdictOf, writeMemory } from "./loops_ai.ts";
+import { appendRow, checkedOf, imagesOn, leftOf, memoryBlock, projectDirs, videoOffReason, projectStamp, verdictOf, writeMemory } from "./loops_ai.ts";
 import { join, sep } from "node:path";
 import { addPatch } from "./patches.ts";
 import { release } from "./locks.ts";
@@ -61,7 +61,7 @@ export async function runCallee(ctx: Omit<CallCtx, "store"> & { store: MStore },
   const gitState = () => { try { return changedFiles(o.cwd).filter((f) => !/(^|\/)run_test\/(_shots|_qa)\//.test(f)).join("\n"); } catch { return ""; } }, realBefore = scratch ? gitState() : "";   // detective control: the real project must look the same after the call (only where it is a git repo)
   const sel = res.kind === "fork" ? { id: randomUUID(), resume: false, fork_from: res.forkFrom!.session_id! } : undefined;
   const env = { HARNESS_AGENT: aid, HARNESS_TASK: task, HARNESS_CWD: cwd, ...(scratch ? { HARNESS_REAL_CWD: o.cwd, HARNESS_SCRATCH: "1" } : {}), ...(o.env ?? {}) };
-  const out = await callAgent(ctx, res.agent, cwd, (first) => (first && isWriter ? sharedContext(o.cwd) : "") + memoryBlock(join(o.cwd, "run_test")) + callPrompt(task, req, first) + (first ? earlierBlock(store, task, aid) : "") + notesBlock(store, task, aid), sel, { call: res.call_id, intent: res.kind }, { env, extraArgs: o.extraArgs?.(def.dir) });
+  const out = await callAgent(ctx, res.agent, cwd, (first) => (first && isWriter ? sharedContext(o.cwd) : "") + (def.name === "qa-reviewer" ? `QA EVIDENCE SWITCHES: video ${videoOffReason(join(o.cwd, "run_test")) ? "OFF" : "ON"}, pictures ${imagesOn(join(o.cwd, "run_test")) ? "ON" : "OFF"}\n` : "") + memoryBlock(join(o.cwd, "run_test")) + callPrompt(task, req, first) + (first ? earlierBlock(store, task, aid) : "") + notesBlock(store, task, aid), sel, { call: res.call_id, intent: res.kind }, { env, extraArgs: o.extraArgs?.(def.dir) });
 
   let violations: string[] = [], files: string[] = [], patchText = "", base = "";
   if (wt) {   // git work first (local, quick); the registry is touched once, below

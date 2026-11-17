@@ -50,10 +50,15 @@ export function projectStamp(projectAbs: string): string {
   return `${n}:${h.digest("hex").slice(0, 16)}`;
 }
 
-/** `qa_check: false` = no video and no full check in this project. Default true. */
-export interface LoopsConfig { qa_check: boolean; /** parts QA must not test (paths or globs, words): shown to the QA agent */ qa_skip: string[] }
+/** The person's evidence switches (.loopsAI/config.json): `qa_video` (default true; the old `qa_check: false` also turns it off) and `qa_images` (default FALSE: no pictures are saved, the QA agent judges from the page snapshot, the video is the evidence). */
+export interface LoopsConfig { qa_check: boolean; qa_images: boolean; /** parts QA must not test (paths or globs, words): shown to the QA agent */ qa_skip: string[] }
 export function readConfig(projectAbs: string): LoopsConfig {
-  try { const j = JSON.parse(readFileSync(configFile(projectAbs), "utf8")) as { qa_check?: unknown; qa_skip?: unknown }; return { qa_check: j.qa_check !== false, qa_skip: Array.isArray(j.qa_skip) ? j.qa_skip.map(String).slice(0, 20) : [] }; } catch { return { qa_check: true, qa_skip: [] }; }
+  try { const j = JSON.parse(readFileSync(configFile(projectAbs), "utf8")) as { qa_check?: unknown; qa_video?: unknown; qa_images?: unknown; qa_skip?: unknown }; return { qa_check: j.qa_check !== false && j.qa_video !== false, qa_images: j.qa_images === true, qa_skip: Array.isArray(j.qa_skip) ? j.qa_skip.map(String).slice(0, 20) : [] }; } catch { return { qa_check: true, qa_images: false, qa_skip: [] }; }
+}
+/** Pictures are OFF unless the person switched them on for a project in run_test/ (or HARNESS_QA_IMAGES=1). */
+export function imagesOn(runTest: string): boolean {
+  if (process.env.HARNESS_QA_IMAGES === "1") return true;
+  try { return readdirSync(runTest).some((d) => existsSync(configFile(join(runTest, d))) && readConfig(join(runTest, d)).qa_images); } catch { return false; }
 }
 
 /** PASS / FAIL / PARTIAL from the first non-empty line of a QA answer (markdown bold and quotes ignored); undefined when it did not say. */
@@ -124,7 +129,7 @@ export function writeMemory(projectAbs: string, given: Partial<LoopsInfo>): stri
     const info = { dir: given.dir ?? all.meta.dir ?? "app", ...all.meta, ...Object.fromEntries(Object.entries(given).filter(([, v]) => v !== undefined)) } as LoopsInfo;   // what we know now wins; what an earlier call knew is kept
     all.meta = info; saveAll(projectAbs, all);
     let pj: { name?: string; scripts?: Record<string, string> } | undefined; try { pj = JSON.parse(readFileSync(join(projectAbs, "package.json"), "utf8")); } catch { /* none */ }
-    if (!existsSync(configFile(projectAbs))) writeFileSync(configFile(projectAbs), JSON.stringify({ qa_check: true, _note: "false = no video and no full QA check for this project; the QA agent still tests what changed" }, null, 2) + "\n");
+    if (!existsSync(configFile(projectAbs))) writeFileSync(configFile(projectAbs), JSON.stringify({ qa_video: true, qa_images: false, qa_skip: [], _note: "qa_video: the QA agent records one video of its flows. qa_images: also save a picture per step (off by default: pictures cost time and tokens). qa_skip: parts QA must not test." }, null, 2) + "\n");
     const stamp = projectStamp(projectAbs);
     writeFileSync(join(d, "QA.md"), renderQa(all.rows, stamp, planChecks(join(projectAbs, ".."), info.phases), readConfig(projectAbs).qa_skip)); writeFileSync(join(d, "README.md"), renderReadme(pj, all.rows, info, stamp));
     return d;
@@ -148,11 +153,11 @@ export function memoryBlock(runTest: string, max = 1500): string {
   try {
     const parts: string[] = [];
     for (const d of memoryProjects(runTest)) {
-      const p = join(runTest, d), rows = readRows(p), last = lastReview(rows), bld = rows.filter((r) => r.kind === "builder").slice(-2), off = !readConfig(p).qa_check;
+      const p = join(runTest, d), rows = readRows(p), last = lastReview(rows), bld = rows.filter((r) => r.kind === "builder").slice(-2), off = !readConfig(p).qa_check, imgs = readConfig(p).qa_images;
       const need = last && last.verdict !== "PASS" ? clip(needsChangesOf(last.note ?? ""), 220) : "";
       parts.push([`- run_test/${d}: ${last ? `last QA review ${last.verdict} at ${iso(last.t)}${last.stamp && last.stamp !== projectStamp(p) ? " (code changed since)" : ""}` : "no QA review yet"}`,
         need ? `    QA asked for: ${need}` : "",
-        off ? "    video is OFF for this project (.loopsAI/config.json qa_check false): screenshots only, test only what changed" : "",
+        `    QA evidence: video ${off ? "OFF" : "ON"}, pictures ${imgs ? "ON" : "OFF"} (.loopsAI/config.json qa_video, qa_images)`,
         last?.left ? `    QA still has to check: ${clip(last.left, 240)}` : (() => { const td = planChecks(runTest, readAll(p).meta.phases); return td ? `    plan checks to cover (phase ${td.phase}): ${td.items.slice(0, 3).map((x) => clip(x, 70)).join(" | ")}${td.items.length > 3 ? ` (+${td.items.length - 3} in QA.md)` : ""}` : ""; })(),
         readConfig(p).qa_skip.length ? `    QA must skip: ${readConfig(p).qa_skip.join(", ")}` : "",
         ...bld.map((b) => `    builder ${b.by ?? ""} verified: ${clip(b.note ?? "", 200)}`),
