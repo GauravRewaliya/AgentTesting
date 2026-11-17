@@ -7,9 +7,10 @@ import type { EvidenceItem, EvidenceOut } from "../../../shared/experiment";
 import { hm } from "./fmt";
 
 const props = defineProps<{ evidence: EvidenceOut | null }>();
-const open = ref(false), pick = ref<"all" | "image" | "video">("all");
+const open = ref(false), pick = ref<"all" | "report" | "image" | "video">("all");
+const reports = computed(() => (props.evidence?.items ?? []).filter((x) => x.kind === "report"));
 const items = computed(() => (props.evidence?.items ?? []).filter((x) => pick.value === "all" || x.kind === pick.value));
-const where = (x: EvidenceItem) => (x.root === "qa" ? "test run" : x.root === "shots" ? "browser" : "QA agent");
+const where = (x: EvidenceItem) => (x.root === "qa" ? "test run" : x.root === "shots" ? "browser" : "QA / browser");
 const size = (n: number) => (n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(0) + " kB" : (n / 1048576).toFixed(1) + " MB");
 </script>
 
@@ -22,12 +23,13 @@ const size = (n: number) => (n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFi
         <span v-if="evidence?.count" class="muted small">{{ evidence.images }} images · {{ evidence.videos }} videos</span>
         <span class="muted small hint">screenshots and videos agents made in this session</span>
       </button>
-      <div v-show="open" class="evb">
+      <div v-show="open || reports.length" class="evb">
+        <div v-for="r in reports" :key="r.url" class="rep"><a :href="r.url" target="_blank" rel="noopener">▶ Open QA report: video + numbered steps</a> <span class="muted small">{{ r.rel.split("/").slice(0, -1).join("/") }} · {{ hm(r.t) }}</span></div>
         <div v-if="!evidence?.count" class="muted small">Nothing yet. Screenshots appear when an agent uses <code>browse</code>; videos with <code>browse --video</code> or the test runner's <code>--video</code>.</div>
         <template v-else>
           <div class="tools small"><button v-for="k in (['all', 'image', 'video'] as const)" :key="k" type="button" :class="{ on: pick === k }" @click="pick = k">{{ k === "all" ? "all" : k + "s" }}</button></div>
           <div class="grid">
-            <figure v-for="x in items" :key="x.root + x.rel" class="card">
+            <figure v-for="x in items.filter((i) => i.kind !== 'report')" :key="x.root + x.rel" class="card">
               <a v-if="x.kind === 'image'" :href="x.url" target="_blank" rel="noopener"><img :src="x.url" :alt="x.name" loading="lazy" /></a>
               <video v-else-if="x.kind === 'video'" :src="x.url" controls preload="metadata" />
               <a v-else :href="x.url" target="_blank" rel="noopener" class="txt">{{ x.name }}</a>
@@ -47,6 +49,7 @@ const size = (n: number) => (n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFi
 .n { background: var(--acc, #5753c6); color: #fff; border-radius: 9px; padding: 0 8px; font-size: 11px; }
 .n.zero { background: var(--line, #ddd); color: var(--mut, #666); }
 .hint { margin-left: auto; font-weight: 400; }
+.rep { padding: 4px 0 8px; } .rep a { font-weight: 600; }
 .evb { padding: 4px 10px 10px; max-height: 420px; overflow: auto; }
 .tools { display: flex; gap: 4px; margin-bottom: 6px; }
 .tools button { border: 1px solid var(--line, #ddd); background: transparent; border-radius: 6px; padding: 1px 8px; cursor: pointer; color: inherit; }

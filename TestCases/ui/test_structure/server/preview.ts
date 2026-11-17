@@ -38,8 +38,8 @@ export const bugsOf = (task: string): { count: number; high: number; reports: Bu
 };
 
 // ---- EVIDENCE of a session: the pictures and videos agents made, so a person SEES them (the files were always on disk, nothing showed them).
-// Three folders, all inside the session: store/qa (the test runner's --video and QA containers), workspace/run_test/_shots (`browse`, any agent) and workspace/run_test/_qa.
-const EV_EXT: Record<string, "image" | "video" | "text"> = { png: "image", jpg: "image", jpeg: "image", webp: "image", gif: "image", webm: "video", mp4: "video", txt: "text" };
+// Evidence lives in <session>/store/qa/ (the workspace is the person's project only). Older sessions may still have it in store/qa (the test runner's --video and QA containers), workspace/run_test/_shots (`browse`, any agent) and workspace/run_test/_qa.
+const EV_EXT: Record<string, "image" | "video" | "text" | "report"> = { html: "report", png: "image", jpg: "image", jpeg: "image", webp: "image", gif: "image", webm: "video", mp4: "video", txt: "text" };
 const evRoots = (task: string) => ({ qa: join(storeDir(task), "qa"), shots: join(taskWorkspace(task), "run_test", "_shots"), qa_rec: join(taskWorkspace(task), "run_test", "_qa") });
 const evWalk = (root: string, rel = "", depth = 0): { rel: string; size: number; t: number }[] => {
   if (depth > 3 || !existsSync(join(root, rel))) return [];
@@ -49,16 +49,16 @@ const evWalk = (root: string, rel = "", depth = 0): { rel: string; size: number;
 export function evidenceOf(task: string): EvidenceOut {
   const safeTask = task.replace(/[^\w.-]/g, ""), items: EvidenceItem[] = [];
   for (const [root, dir] of Object.entries(evRoots(safeTask)) as ["qa" | "shots" | "qa_rec", string][]) for (const f of evWalk(dir)) {
-    const kind = EV_EXT[(f.rel.split(".").pop() ?? "").toLowerCase()]; if (!kind || (kind === "text" && !/REPORT\.txt$/.test(f.rel))) continue;
+    const kind = EV_EXT[(f.rel.split(".").pop() ?? "").toLowerCase()]; if (!kind || (kind === "text" && !/REPORT\.txt$/.test(f.rel)) || (kind === "report" && !/(^|\/)index\.html$/.test(f.rel))) continue;
     items.push({ name: f.rel, root, rel: f.rel, kind, size: f.size, t: f.t, url: `/api/evidence/${safeTask}/${root}/${f.rel.split("/").map(encodeURIComponent).join("/")}` });
   }
   items.sort((a, b) => b.t - a.t); const top = items.slice(0, 80);
-  return { count: items.length, images: items.filter((x) => x.kind === "image").length, videos: items.filter((x) => x.kind === "video").length, items: top };
+  return { count: items.length, images: items.filter((x) => x.kind === "image").length, videos: items.filter((x) => x.kind === "video").length, reports: items.filter((x) => x.kind === "report").length, items: top };
 }
 /** The absolute path of one evidence file, or undefined: the root must be one of the three, the path may not leave it, and only the allowed kinds are served. */
 export function evidenceFile(task: string, root: string, rel: string): string | undefined {
   const roots = evRoots(task.replace(/[^\w.-]/g, "")) as Record<string, string>, base = roots[root]; if (!base || !rel || rel.split("/").some((x) => x === ".." || x === "." || x === "")) return undefined;
-  const ext = (rel.split(".").pop() ?? "").toLowerCase(), kind = EV_EXT[ext]; if (!kind || (kind === "text" && !/REPORT\.txt$/.test(rel))) return undefined;
+  const ext = (rel.split(".").pop() ?? "").toLowerCase(), kind = EV_EXT[ext]; if (!kind || (kind === "text" && !/REPORT\.txt$/.test(rel)) || (kind === "report" && (!/^(qa|qa_rec)$/.test(root) || !/(^|\/)index\.html$/.test(rel)))) return undefined;
   const abs = join(base, rel); return abs.startsWith(base + "/") && existsSync(abs) ? abs : undefined;
 }
 

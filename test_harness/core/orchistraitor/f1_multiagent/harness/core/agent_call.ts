@@ -2,6 +2,8 @@
 import { acquire, isResource } from "./locks.ts";
 import type { AgentDef, AgentRow, Store } from "./base.ts";
 import { customDef, isCustomName } from "./custom.ts";
+import { statSync } from "node:fs";
+import { transcriptOf } from "./base/runner.ts";
 
 export const HARD_MAX_DEPTH = 4;
 export interface Policy { externalLocks?: boolean; agentMaxDepth: number; taskMaxAgents: number; maxInstancesPerRole: number; killSwitch: boolean; spendPaused: boolean; lockTtlMs: number; budgetUsd?: number }
@@ -73,7 +75,9 @@ export function agentCall(store: Store, defs: Map<string, AgentDef>, policy: Pol
   let target: AgentRow | undefined, kind: "new" | "resume" | "fork" = "new", forkFrom: AgentRow | undefined;
   let reused = false;
   if (s === "new" && calleeDef.singleton) {   // ONE session per task for this role (QA): "new" never starts a fresh agent while one exists; it continues that one, with its memory
-    const mine = store.agentsOf(req.task_id).filter((a) => a.name === req.role && a.status !== "failed" && a.session_id);
+    // a session whose log is huge (pictures, long browser runs) is slow and expensive to resume and drags old beliefs along: a NEW one starts instead (the project memory in .loopsAI carries what matters)
+    const bloated = (a: AgentRow) => { try { const f = transcriptOf(a.session_id!); return !!f && statSync(f).size > 600_000; } catch { return false; } };
+    const mine = store.agentsOf(req.task_id).filter((a) => a.name === req.role && a.status !== "failed" && a.session_id && !bloated(a));
     if (mine.length) {
       const idle = [...mine].reverse().find((a) => a.status !== "running");
       if (!idle) return deny("agent_busy", `${mine[mine.length - 1]!.agent_id} is the ONE ${req.role} of this task and is still working; leave it a note with say instead of calling it`, level);

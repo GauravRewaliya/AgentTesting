@@ -12,8 +12,10 @@ QA is ONE agent, `qa-reviewer`, kept for the whole task. You never run checks, s
 ## HOW to ask
 `team delegate --role qa-reviewer --session new ...` (it continues the one QA agent of this task; "new" never starts a second one). Give it: the person's words, what was built or changed (folders, files), what the builders said they verified, and what you want proof of (a screenshot, a flow, a video). It works in a throwaway copy, so it may mock data or bypass login to test; it never changes the real project.
 
+After the delegate, WAIT FOR THE ANSWER in the same turn: `team wait --agents qa-reviewer#<n>` in the foreground (repeat it if it times out); do not end your turn while QA is still working, and do not start it in the background. QA takes about a minute for a few flows. In your reply give the person QA's verdict and the FULL paths of the video and the report (`index.html`).
+
 ## What comes back
-First line `PASS`, `FAIL` or `PARTIAL`, then `CHECKED:` (each item with its screenshot or video in `run_test/_shots/`), `NOT CHECKED:` (what is left or skipped: the next QA call starts there, so a second ask costs only the rest), what is wrong most serious first, and `NEEDS_CHANGES:` when something real must change. The harness keeps all of it in the project's `.loopsAI/QA.md` (the to-do context QA reads next time).
+First line `PASS`, `FAIL` or `PARTIAL`, then `CHECKED:` (each item with the full path of its screenshot or video from store/qa), `NOT CHECKED:` (what is left or skipped: the next QA call starts there, so a second ask costs only the rest), what is wrong most serious first, and `NEEDS_CHANGES:` when something real must change. The harness keeps all of it in the project's `.loopsAI/QA.md` (the to-do context QA reads next time).
 - `NEEDS_CHANGES:` -> hand exactly that to a builder (`--writes` the files), then ask QA again.
 - Never report a broken app as done, and never tell the person "it works" without QA's PASS or evidence you named yourself.
 - If QA reports the same problem after two fixes, change the approach (a different builder, an exact instruction) or tell the person what blocks it. Do not loop.

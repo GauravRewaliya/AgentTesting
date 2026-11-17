@@ -1,9 +1,9 @@
 // REAL BROWSER for agents (Chrome DevTools Protocol, no extension, no model call): open a page, emulate light / dark / mobile, scroll, click, take screenshots (viewport, full page, one section), read computed styles
 // and an OUTLINE of the page (every section: heading, background, text colour, font, components: cards, buttons, images, lists, forms, animations). This is what a person's eyes do; WebFetch gives a model-written summary.
 // Used by `ref_capture` (study a reference site), `ref_compare` (does the clone match?) and `browse` (any steps). One Chrome per call, closed at the end: nothing is left running.
-import { SOFT_GL } from "./chrome_flags.ts";
+import { CHROME_PREFIX, SOFT_GL } from "./chrome_flags.ts";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { attachedEndpoint, chromeBin, type Tab } from "./browser_conn.ts";
@@ -13,7 +13,7 @@ export const attached = () => !!attachedEndpoint();
 export async function par<T>(jobs: (() => Promise<T>)[]): Promise<T[]> { if (!attached()) return Promise.all(jobs.map((j) => j())); const r: T[] = []; for (const j of jobs) r.push(await j()); return r; }
 export interface Section { i: number; tag: string; id: string; y: number; h: number; heading: string; headings: number; bg: string; color: string; font: string; h_size: string; h_weight: string; buttons: string[]; links: number; images: number; cards: number; lists: number; forms: number; inputs: number; animated: boolean; radius: string; text: string }
 export interface Outline { url: string; title: string; theme: { scheme: string; bg: string; color: string; font: string; accent: string }; doc_h: number; sections: Section[]; nav: string[]; fonts: string[]; keyframes: string[]; scrollReveal: boolean; links: { text: string; href: string }[] }
-export type Step = { shot?: string; full?: boolean; selector?: string; section?: number; scroll?: number; click?: string; wait?: number; eval?: string; outline?: boolean; hover?: string; clip?: { y: number; h: number } };
+export type Step = { /** how long (ms) to wait for the target to exist and be clickable before the step counts as failed (default 4000: a page that is still loading is waited for, not failed) */ timeout?: number; /** list what a person can see and press, each with a ref "@e5": use that ref as the target of click / fill / type / hover / waitfor instead of guessing a selector (refs are valid until the page changes: take a new snapshot) */ snapshot?: boolean; /** go to another address in the SAME tab */ goto?: string; /** fill a form: { "#email": "a@b.c", "[name=pw]": "x" } (sets the value and fires input + change) */ fill?: Record<string, string>; /** type text into the element with this selector (needs `text`) */ type?: string; text?: string; /** press a key: Enter, Tab, Escape, ArrowRight, ArrowLeft, Space ... */ key?: string; /** wait until this selector exists (max 8 s) */ waitfor?: string; /** a NUMBERED step: it gets a number, a picture (auto-named NN_<name>.png) and a time in the video; any step with a name turns the report on. A step that fails is recorded and the run GOES ON (autopilot) */ /** a NUMBERED step: it gets a number, a picture (auto-named NN_<name>.png) and a time in the video; any step with a name turns the report on */ name?: string; shot?: string; full?: boolean; selector?: string; section?: number; scroll?: number; click?: string; wait?: number; eval?: string; outline?: boolean; hover?: string; clip?: { y: number; h: number } };
 
 const OUTLINE_JS = `(() => {
   const vis = (e) => { const r = e.getBoundingClientRect(), s = getComputedStyle(e); return r.height > 40 && r.width > 200 && s.display !== 'none' && s.visibility !== 'hidden'; };
@@ -59,6 +59,22 @@ const CLEAN_JS = `(() => {
   return removed.slice(0, 14);
 })()`;
 
+
+/** What is on screen that a person can press or fill, with a ref each (@e1, @e2 ...): the agent reads this once and acts by ref, no selector guessing. Refs are written into the page as data-qaref. */
+const SNAP_JS = `(() => {
+  document.querySelectorAll('[data-qaref]').forEach((e) => e.removeAttribute('data-qaref'));
+  const vis = (e) => { const r = e.getBoundingClientRect(), s = getComputedStyle(e); return r.width > 1 && r.height > 1 && s.visibility !== 'hidden' && s.display !== 'none' && +s.opacity > 0.05 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth && !e.closest('[hidden],[aria-hidden=true]'); };
+  const label = (e) => ((e.getAttribute('aria-label') || e.innerText || e.getAttribute('title') || e.getAttribute('placeholder') || e.getAttribute('alt') || e.value || '') + '').replace(/\\s+/g, ' ').trim().slice(0, 50);
+  const els = [...document.querySelectorAll('a[href],button,input,select,textarea,summary,[role=button],[role=link],[role=tab],[role=checkbox],[role=switch],[role=menuitem],[onclick],[tabindex]:not([tabindex="-1"])')].filter(vis);
+  const seen = new Set(), lines = []; let n = 0;
+  for (const e of els) { if (seen.has(e) || n >= 80) continue; seen.add(e); n++; e.setAttribute('data-qaref', 'e' + n);
+    const t = e.tagName.toLowerCase(), role = e.getAttribute('role') || (t === 'input' ? 'input:' + (e.type || 'text') : t === 'a' ? 'link' : t), st = [e.disabled && 'disabled', e.checked && 'checked', e.getAttribute('aria-pressed') === 'true' && 'pressed', e.getAttribute('aria-selected') === 'true' && 'selected', e.id && '#' + e.id].filter(Boolean).join(' ');
+    lines.push('@e' + n + ' ' + role + ' "' + label(e) + '"' + (st ? ' [' + st + ']' : '') + (/^(input|textarea|select)$/.test(t) && e.value ? ' value="' + String(e.value).slice(0, 30) + '"' : '')); }
+  const heads = [...document.querySelectorAll('h1,h2,h3')].filter(vis).slice(0, 5).map((h) => (h.innerText || '').trim().slice(0, 60));
+  return { url: location.href, title: document.title, headings: heads, elements: lines, more: Math.max(0, els.length - n) };
+})()`;
+const sel = (q: string) => (q.startsWith("@") ? `[data-qaref="${q.slice(1)}"]` : q);
+
 class Cdp {
   private id = 0; private pend = new Map<number, (v: any) => void>(); private ws!: WebSocket;
   static async open(wsUrl: string) { const c = new Cdp(); c.ws = new WebSocket(wsUrl); await new Promise<void>((ok, bad) => { c.ws.onopen = () => ok(); c.ws.onerror = () => bad(new Error("cdp connect failed")); }); c.ws.onmessage = (m) => { const d = JSON.parse(String(m.data)); if (d.id && c.pend.has(d.id)) { c.pend.get(d.id)!(d); c.pend.delete(d.id); } }; return c; }
@@ -72,12 +88,33 @@ function encodeVideo(frames: { t: number; file: string }[], out: string): { vide
   if (!frames.length) return { note: "no frames: the page never painted" };
   if (spawnSync("which", ["ffmpeg"]).status !== 0) return { note: "ffmpeg is not installed on this machine: no video (screenshots still work)" };
   const list = frames.map((f, i) => `file '${f.file}'\nduration ${Math.min(6, Math.max(0.04, ((frames[i + 1]?.t ?? f.t + 800) - f.t) / 1000)).toFixed(3)}`).join("\n") + `\nfile '${frames[frames.length - 1]!.file}'\n`;
-  const lf = join(dirname(frames[0]!.file), "list.txt"); writeFileSync(lf, list);
-  const r = spawnSync("ffmpeg", ["-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", lf, "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=25", "-c:v", "libvpx", "-b:v", "1M", "-pix_fmt", "yuv420p", out], { encoding: "utf8", timeout: 120_000 });
-  return r.status === 0 && existsSync(out) ? { video: out } : { note: "ffmpeg failed: " + String(r.stderr ?? "").trim().split("\n")[0]!.slice(0, 120) };
+  const vdir = dirname(frames[0]!.file), lf = join(vdir, "list.txt"); writeFileSync(lf, list);
+  // ENCODED IN THE BACKGROUND: the run does not wait for it (it was the slowest part). nice + 2 threads so it never starves the machine; the frames folder is removed when it ends.
+  const q = (x: string) => `'${x.replace(/'/g, "'\\''")}'`;
+  spawn("sh", ["-c", `nice -n 10 ffmpeg -y -loglevel error -f concat -safe 0 -i ${q(lf)} -threads 2 -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=25" -c:v libvpx -deadline realtime -cpu-used 8 -b:v 1M -pix_fmt yuv420p -f webm ${q(out + ".part")} && mv ${q(out + ".part")} ${q(out)}; rm -rf ${q(vdir)}`], { stdio: "ignore", detached: true }).unref();
+  return { video: out, note: "the video is being encoded in the background: the file appears in about 10 s (the report page plays it once it is there)" };
 }
-export interface BrowseOpts { url: string; outDir: string; width?: number; height?: number; scheme?: "light" | "dark"; mobile?: boolean; steps?: Step[]; settleMs?: number; sectionShots?: number; tag?: string; tab?: string; endpoint?: string; prime?: boolean; clean?: boolean; /** record the whole run (navigation, every step) as a .webm in outDir: Chrome screencast frames + ffmpeg */ video?: boolean }
-export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: string; video?: string; video_note?: string; shots: string[]; outline?: Outline; results: unknown[]; console: string[]; cleaned?: string[]; via?: "connected" | "headless" }> {
+/** One row of the QA report: what was done, what it looked like, and where it is in the video. */
+export interface StepRow { n: number; name: string; action: string; ok: boolean; note?: string; shot?: string; wall: number; video_s?: number }
+const slug = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 28) || "step";
+/** seconds into the encoded video at which wall-clock time `ts` shows (same gap cap as encodeVideo) */
+function videoAt(frames: { t: number }[], ts: number): number {
+  let pos = 0; for (let i = 0; i < frames.length - 1 && frames[i + 1]!.t <= ts; i++) pos += Math.min(6, Math.max(0.04, (frames[i + 1]!.t - frames[i]!.t) / 1000));
+  return Math.round(pos * 10) / 10;
+}
+const esc = (x: string) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+const mmss = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
+/** report.json + index.html next to the pictures: the video on top, every numbered step as a thumbnail that jumps the video to that moment. Plain files, opens by double-click. */
+function writeReport(dir: string, title: string, video: string | undefined, rows: StepRow[], consoleErrors: string[]): string {
+  writeFileSync(join(dir, "report.json"), JSON.stringify({ title, video: video && video.split("/").pop(), steps: rows, console_errors: consoleErrors }, null, 1));
+  const v = video ? video.split("/").pop()! : "", bad = rows.filter((r) => !r.ok).length;
+  const fail = rows.find((r) => !r.ok), fps = 25, cell = (r: StepRow) => (r.video_s !== undefined ? `<a onclick="seek(${r.video_s})">${mmss(r.video_s)}</a> <small>frame ${Math.round(r.video_s * fps)}</small>` : '<small class=mut>picture only (no video)</small>');
+  const html = `<!doctype html><meta charset=utf-8><title>${esc(title)}</title><style>body{font:14px system-ui;margin:0;background:#111;color:#eee}main{max-width:1180px;margin:auto;padding:16px}video{width:100%;max-height:60vh;background:#000}table{border-collapse:collapse;width:100%;margin-top:12px}th{font-size:12px;color:#999;text-align:left;border-bottom:1px solid #444;padding:6px}td{border-bottom:1px solid #2a2a2a;padding:6px;vertical-align:middle}td img{width:200px;cursor:pointer;border:1px solid #444;display:block}.n{font:700 18px ui-monospace}.ok{color:#6c6}.no{color:#e66}a{color:#8cf;cursor:pointer}.mut{color:#888}</style><main><h1>${esc(title)}</h1><p>${rows.length} steps, <b class=${bad ? "no" : "ok"}>${bad ? bad + " failed" : "all passed"}</b>${v ? "" : " (no video)"}</p>${fail ? `<p class=no><b>Stopped at step ${fail.n}: ${esc(fail.name)}</b> (${esc(fail.note ?? "failed")}). Page state and console: failure.json</p>` : ""}${v ? `<video id=v controls src="${esc(v)}"></video>` : ""}${consoleErrors.length ? `<p class=no>console: ${esc(consoleErrors.join(" | "))}</p>` : ""}<table><tr><th>#<th>picture<th>step<th>result<th>video time / frame (${fps} fps)<th>note</tr>${rows.map((r) => `<tr><td class=n>${r.n}<td>${r.shot ? `<a href="${esc(r.shot)}" target=_blank><img src="${esc(r.shot)}" ${r.video_s !== undefined ? `onclick="seek(${r.video_s});return false"` : ""}></a>` : ""}<td><b>${esc(r.name)}</b><br><small class=mut>${esc(r.action)}</small><td class=${r.ok ? "ok" : "no"}><b>${r.ok ? "OK" : "FAIL"}</b><td>${cell(r)}<td><small>${esc(r.note ?? "")}</small></tr>`).join("")}</table></main><script>function seek(t){var v=document.getElementById('v');if(v){v.currentTime=t;v.play();scrollTo(0,0)}}</script>`;
+  writeFileSync(join(dir, "index.html"), html);
+  return join(dir, "index.html");
+}
+export interface BrowseOpts { url: string; outDir: string; width?: number; height?: number; scheme?: "light" | "dark"; mobile?: boolean; steps?: Step[]; settleMs?: number; sectionShots?: number; tag?: string; tab?: string; endpoint?: string; prime?: boolean; clean?: boolean; /** record the whole run (navigation, every step) as a .webm in outDir: Chrome screencast frames + ffmpeg */ video?: boolean; /** do not stop at the first failed step */ keepGoing?: boolean; /** keep-open tab: freeze the page when the script ends (a 3D page would otherwise render for ever and eat the CPU) and wake it at the start of the next one */ freeze?: boolean }
+export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: string; failed?: { n: number; name: string; reason: string }; not_run?: number; report?: string; steps?: StepRow[]; video?: string; video_note?: string; shots: string[]; outline?: Outline; results: unknown[]; console: string[]; cleaned?: string[]; via?: "connected" | "headless" }> {
   mkdirSync(o.outDir, { recursive: true });
   const shots: string[] = [], results: unknown[] = [], logs: string[] = [];
   let ep = o.endpoint ?? attachedEndpoint(), reuse = false, ownTab = "", proc: ChildProcess | undefined, dir = "", cdp: Cdp | undefined, vdirOf = "";
@@ -96,7 +133,7 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
       } else { const nt = await (await fetch(ep + "/json/new?about:blank", { method: "PUT" })).json() as Tab; wsUrl = nt.webSocketDebuggerUrl!; ownTab = nt.id; }
     } else {
       dir = mkdtempSync(join(tmpdir(), "cdp-"));
-      proc = spawn(bin!, ["--headless=new", "--no-sandbox", ...SOFT_GL, "--hide-scrollbars", "--allow-file-access-from-files", "--remote-debugging-port=0", `--user-data-dir=${dir}`, "about:blank"], { stdio: "ignore" });
+      proc = spawn(CHROME_PREFIX[0]!, [...CHROME_PREFIX.slice(1), bin!, "--headless=new", "--no-sandbox", ...SOFT_GL, "--hide-scrollbars", "--allow-file-access-from-files", "--remote-debugging-port=0", `--user-data-dir=${dir}`, "about:blank"], { stdio: "ignore" });
       let port = 0; for (let i = 0; i < 80 && !port; i++) { await sleep(100); try { port = Number(readFileSync(join(dir, "DevToolsActivePort"), "utf8").split("\n")[0]); } catch { /* not yet */ } }
       if (!port) return { ok: false, reason: "Chrome did not start", shots, results, console: logs };
       wsUrl = ((await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()) as Tab[]).find((t) => t.type === "page")!.webSocketDebuggerUrl!;
@@ -104,13 +141,14 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
     cdp = await Cdp.open(wsUrl);
     const w = o.width ?? (o.mobile ? 390 : 1440), h = o.height ?? (o.mobile ? 844 : 900);
     await cdp.send("Page.enable"); await cdp.send("Runtime.enable");
+    if (o.freeze) await cdp.send("Page.setWebLifecycleState", { state: "active" }).catch(() => 0);
     if (!reuse) { await cdp.send("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile: !!o.mobile }); await cdp.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: o.scheme ?? "light" }] }); }
     if (ownTab) await cdp.send("Page.bringToFront").catch(() => 0);   // a background tab of a visible browser is throttled
     await cdp.send("Network.enable").catch(() => 0);
     const frames: { t: number; file: string }[] = [], vdir = o.video ? mkdtempSync(join(tmpdir(), "bvid-")) : ""; vdirOf = vdir;   // screencast frames, written to disk as they arrive
     const ws = (cdp as unknown as { ws: WebSocket }).ws, prev = ws.onmessage!;
     ws.onmessage = (m) => { prev(m); try { const d = JSON.parse(String(m.data)); if (d.method === "Page.screencastFrame") { const file = join(vdir, `f${String(frames.length).padStart(5, "0")}.jpg`); writeFileSync(file, Buffer.from(d.params.data, "base64")); frames.push({ t: (d.params.metadata?.timestamp ?? Date.now() / 1000) * 1000, file }); cdp?.send("Page.screencastFrameAck", { sessionId: d.params.sessionId }).catch(() => 0); } if (d.method === "Runtime.exceptionThrown") logs.push("Uncaught " + (d.params.exceptionDetails.exception?.description ?? d.params.exceptionDetails.text).split("\n")[0].slice(0, 160)); if (d.method === "Runtime.consoleAPICalled" && d.params.type === "error") logs.push(d.params.args.map((a: any) => a.value ?? a.description ?? "").join(" ").slice(0, 160)); } catch { /* ignore */ } };
-    if (o.video) await cdp.send("Page.startScreencast", { format: "jpeg", quality: 70, everyNthFrame: 1 });
+    if (o.video) await cdp.send("Page.startScreencast", { format: "jpeg", quality: 80, everyNthFrame: 1 });
     if (!reuse) { await cdp.send("Page.navigate", { url: o.url }); await sleep(900); }
     for (let i = 0; i < 40; i++) { const r = await cdp.send("Runtime.evaluate", { expression: "document.readyState" }); if (r.result.value === "complete") break; await sleep(250); }
     await sleep(o.settleMs ?? 1500);
@@ -123,10 +161,32 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
     const prime = async () => { const dh = Math.min(Number(await ev("document.documentElement.scrollHeight")), 30000); for (let y = 0; y < dh; y += Math.round(h * 0.7)) { await ev(`window.scrollTo(0, ${y})`); await sleep(260); } await ev("window.scrollTo(0, 0)"); await sleep(500); };
     if (o.sectionShots || o.prime || (o.steps ?? []).some((x) => x.full)) await prime();
     let outline: Outline | undefined;
+    const numbered = (o.steps ?? []).some((x) => x.name), rows: StepRow[] = []; let stopped = false, notRun = 0, failed: { n: number; name: string; reason: string } | undefined;
+    const later: { name: string; wall: number }[] = [];   // pictures taken from the video's own frames AFTER the run: a step never waits for its picture
+    const row = async (name: string, action: string, ok: boolean, given?: string, note?: string) => {   // one numbered step: number, picture, wall-clock time (turned into a video time at the end)
+      const n = rows.length; let shot = given;
+      if (!shot) { const fromFrames = !!o.video && frames.length > 0; shot = `${String(n).padStart(2, "0")}_${slug(name)}.${fromFrames ? "jpg" : "png"}`; if (fromFrames) later.push({ name: shot, wall: Date.now() }); else await save(shot); }   // no screencast frame yet (or no video): a normal screenshot, never a missing picture
+      rows.push({ n, name, action, ok, note, shot, wall: Date.now() });
+    };
+    if (numbered) await row("page loaded", "open " + o.url, true);
     for (const st of o.steps ?? []) {
+      if (stopped) { if (st.snapshot) results.push({ snapshot: await ev(SNAP_JS).catch(() => null) }); else notRun++; continue; }   // a step failed: nothing after it runs (the snapshot at the end still does)
+      const clicks0 = results.length; let stepErr: string | undefined;
+      try {
       if (st.scroll !== undefined) { await ev(`window.scrollTo(0, ${Number(st.scroll)})`); await sleep(700); }
-      if (st.hover) { await ev(`(() => { const e = document.querySelector(${JSON.stringify(st.hover)}); if (e) { e.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); } return !!e; })()`); await sleep(300); }
-      if (st.click) { const hit = await ev(`(() => { const q = ${JSON.stringify(st.click)}; let e = null; try { e = document.querySelector(q); } catch (x) {} if (!e) e = [...document.querySelectorAll('a,button,[role=button]')].find((x) => ((x.innerText || '') + ' ' + (x.getAttribute('aria-label') || '') + ' ' + (x.getAttribute('title') || '')).toLowerCase().includes(q.toLowerCase())); if (e) { e.click(); return true; } return false; })()`); results.push({ click: st.click, found: hit }); await sleep(900); }
+      if (st.hover) { await ev(`(() => { const e = document.querySelector(${JSON.stringify(sel(st.hover))}); if (e) { e.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })); } return !!e; })()`); await sleep(300); }
+      if (st.click) {   // AUTO-WAIT: the target must exist, be visible and enabled; a page that is still loading is waited for (250 ms polls) instead of failing the step at once
+        const q = JSON.stringify(sel(st.click)), probe = `(() => { const q = ${q}; let e = null; try { e = document.querySelector(q); } catch (x) {} if (!e) e = [...document.querySelectorAll('a,button,[role=button]')].find((x) => ((x.innerText || '') + ' ' + (x.getAttribute('aria-label') || '') + ' ' + (x.getAttribute('title') || '')).toLowerCase().includes(q.toLowerCase())); if (!e) return 'notfound'; const r = e.getBoundingClientRect(); if (e.disabled || e.getAttribute('aria-disabled') === 'true') return 'disabled'; if (r.width < 1 || r.height < 1 || getComputedStyle(e).visibility === 'hidden') return 'hidden'; e.click(); return 'clicked'; })()`;
+        let state = "notfound"; const until = Date.now() + (st.timeout ?? 4000);
+        for (;;) { state = String(await ev(probe)); if (state === "clicked" || Date.now() >= until) break; await sleep(250); }
+        results.push({ click: st.click, found: state === "clicked", ...(state === "clicked" ? {} : { why: state }) }); await sleep(600);
+      }
+      if (st.goto) { await cdp.send("Page.navigate", { url: st.goto }); await sleep(900); for (let i = 0; i < 40; i++) { const r = await cdp.send("Runtime.evaluate", { expression: "document.readyState" }); if (r.result.value === "complete") break; await sleep(250); } await sleep(o.settleMs ?? 1000); results.push({ goto: st.goto }); }
+      if (st.snapshot) results.push({ snapshot: await ev(SNAP_JS) });
+      if (st.waitfor) { let ok = false; for (let i = 0; i < 32 && !ok; i++) { ok = !!(await ev(`!!document.querySelector(${JSON.stringify(sel(st.waitfor))})`)); if (!ok) await sleep(250); } if (!ok) throw new Error(`waitfor ${st.waitfor}: never appeared`); }
+      if (st.fill) for (const [q, v] of Object.entries(st.fill)) { const hit = await ev(`(() => { const e = document.querySelector(${JSON.stringify(sel(q))}); if (!e) return false; e.focus(); const set = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(e), 'value')?.set; set ? set.call(e, ${JSON.stringify(v)}) : (e.value = ${JSON.stringify(v)}); e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`); results.push({ fill: q, found: hit }); if (!hit) throw new Error(`fill ${q}: not found`); }
+      if (st.type) { const hit = await ev(`(() => { const e = document.querySelector(${JSON.stringify(sel(st.type))}); if (!e) return false; e.focus(); return true; })()`); if (!hit) throw new Error(`type ${st.type}: not found`); await cdp.send("Input.insertText", { text: st.text ?? "" }); results.push({ type: st.type, chars: (st.text ?? "").length }); }
+      if (st.key) { const K: Record<string, [string, number]> = { Enter: ["Enter", 13], Tab: ["Tab", 9], Escape: ["Escape", 27], ArrowRight: ["ArrowRight", 39], ArrowLeft: ["ArrowLeft", 37], ArrowUp: ["ArrowUp", 38], ArrowDown: ["ArrowDown", 40], Space: [" ", 32] }, [k, code] = K[st.key] ?? [st.key, 0]; for (const t of ["keyDown", "keyUp"]) await cdp.send("Input.dispatchKeyEvent", { type: t, key: k, code: k === " " ? "Space" : k, windowsVirtualKeyCode: code, text: t === "keyDown" && k.length === 1 ? k : undefined }); results.push({ key: st.key }); await sleep(300); }
       if (st.wait) await sleep(Math.min(st.wait, 10_000));
       if (st.eval) results.push({ eval: await ev(st.eval) });
       if (st.outline) outline = await ev(OUTLINE_JS) as Outline;
@@ -136,6 +196,13 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
         else if (st.full) { const dh = Math.min(Number(await ev("document.documentElement.scrollHeight")), 9000); await save(st.shot, { x: 0, y: 0, width: w, height: dh }); }
         else await save(st.shot);
       }
+      } catch (e) { stepErr = String((e as Error).message).slice(0, 140); results.push({ error: stepErr, step: st.name ?? st.click ?? st.type ?? st.key ?? "step" }); }
+      const clickRes = st.click ? results.slice(clicks0).find((r) => (r as { click?: string }).click !== undefined) as { found?: boolean } | undefined : undefined, stepOk = (clickRes ? !!clickRes.found : true) && !stepErr;
+      if (!stepOk && !o.keepGoing) { stopped = true; failed = { n: rows.length, name: st.name ?? (st.click ? `click ${st.click}` : st.fill ? "fill form" : st.type ? `type into ${st.type}` : st.key ? `key ${st.key}` : "step"), reason: stepErr ?? (clickRes as { why?: string } | undefined)?.why ? `target ${(clickRes as { why?: string }).why} even after waiting` : "not found on the page" }; }
+      if (numbered && (st.name || st.click || stepErr || st.shot)) {
+        const ok = stepOk;
+        await row(st.name ?? (st.click ? `click ${st.click}` : st.shot ? `picture ${st.shot}` : "step"), st.click ? `click ${st.click}` : st.fill ? "fill form" : st.type ? `type into ${st.type}` : st.key ? `key ${st.key}` : st.eval ? "eval" : "look", ok, st.shot, ok ? undefined : stepErr ?? ((clickRes as { why?: string } | undefined)?.why ? `target ${(clickRes as { why?: string }).why} even after waiting` : "not found on the page"));
+      }
     }
     if (o.sectionShots && !outline) outline = await ev(OUTLINE_JS) as Outline;
     if (o.sectionShots && outline) {   // one full-page shot + one picture per section (what a person scrolls through)
@@ -144,9 +211,14 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
       for (const sec of outline.sections.slice(0, o.sectionShots)) await save(`${tag}-section-${String(sec.i + 1).padStart(2, "0")}.png`, { x: 0, y: sec.y, width: w, height: Math.min(sec.h, 2400) });
     }
     let video: string | undefined, video_note: string | undefined;
-    if (o.video) { await cdp.send("Page.stopScreencast").catch(() => 0); await sleep(150); const e = encodeVideo(frames, join(o.outDir, `${o.tag ?? "page"}-${new Date().toISOString().replace(/\D/g, "").slice(8, 14)}.webm`)); video = e.video; video_note = e.note; }
-    return { ok: true, video, video_note, shots, outline, results, console: [...new Set(logs)].slice(0, 6), cleaned, via };
+    if (o.video) { await cdp.send("Page.stopScreencast").catch(() => 0); await sleep(150); for (const l of later) { let f = frames[0]; for (const fr of frames) if (fr.t <= l.wall) f = fr; if (f) { const dst = join(o.outDir, l.name); copyFileSync(f.file, dst); shots.push(dst); } } const e = encodeVideo(frames, join(o.outDir, `${o.tag ?? "page"}-${new Date().toISOString().replace(/\D/g, "").slice(8, 14)}.webm`)); video = e.video; video_note = e.note; if (e.video) vdirOf = ""; if (video) for (const r of rows) r.video_s = videoAt(frames, r.wall); }
+    if (failed) {   // evidence for later, for people and for agents that were not there: what failed, the picture (the failed row's), the console, and the page as it was
+      const snap = [...results].reverse().find((r) => (r as { snapshot?: unknown }).snapshot) as { snapshot?: unknown } | undefined;
+      try { writeFileSync(join(o.outDir, "failure.json"), JSON.stringify({ failed, picture: rows[failed.n]?.shot, not_run: notRun, console: [...new Set(logs)], page: snap?.snapshot ?? null, at: new Date().toISOString() }, null, 1)); } catch { /* evidence is best effort */ }
+    }
+    const report = numbered ? writeReport(o.outDir, o.tag ?? "QA run", video, rows, [...new Set(logs)].slice(0, 6)) : undefined;
+    return { ok: !failed, reason: failed ? `step ${failed.n} "${failed.name}" failed: ${failed.reason}; ${notRun} later step(s) did NOT run (the page state is in the snapshot)` : undefined, failed, not_run: notRun, report, steps: numbered ? rows : undefined, video, video_note, shots, outline, results, console: [...new Set(logs)].slice(0, 6), cleaned, via };
   } catch (e) { return { ok: false, reason: String((e as Error).message).slice(0, 200), shots, results, console: logs }; }
-  finally { cdp?.close(); proc?.kill("SIGKILL"); if (vdirOf) rmSync(vdirOf, { recursive: true, force: true }); if (dir) rmSync(dir, { recursive: true, force: true }); if (ownTab && ep) { await fetch(ep + "/json/close/" + ownTab).catch(() => 0); for (let i = 0; i < 12; i++) { const gone = await fetch(ep + "/json/list").then((r) => r.json() as Promise<Tab[]>).then((l) => !l.some((t) => t.id === ownTab)).catch(() => true); if (gone) break; await sleep(150); } } }   // the person's browser is left exactly as it was: wait until our tab is really gone
+  finally { if (o.freeze && cdp) await cdp.send("Page.setWebLifecycleState", { state: "frozen" }).catch(() => 0); cdp?.close(); proc?.kill("SIGKILL"); if (vdirOf) rmSync(vdirOf, { recursive: true, force: true }); if (dir) rmSync(dir, { recursive: true, force: true }); if (ownTab && ep) { await fetch(ep + "/json/close/" + ownTab).catch(() => 0); for (let i = 0; i < 12; i++) { const gone = await fetch(ep + "/json/list").then((r) => r.json() as Promise<Tab[]>).then((l) => !l.some((t) => t.id === ownTab)).catch(() => true); if (gone) break; await sleep(150); } } }   // the person's browser is left exactly as it was: wait until our tab is really gone
 }
 export { existsSync };

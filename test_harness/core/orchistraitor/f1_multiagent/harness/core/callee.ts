@@ -58,7 +58,7 @@ export async function runCallee(ctx: Omit<CallCtx, "store"> & { store: MStore },
   const scratch = def.scratch === true && (req.mode ?? "work") === "work";   // the QA agent: a THROWAWAY copy (a git worktree) it may edit, run and mock in; always discarded, never a patch, no file locks
   const sc = scratch ? scratchCopy(o.cwd, aid) : null, wt = !scratch && isWriter && o.writerMode === "worktree" ? addWorktree(o.cwd, aid) : null;
   const cwd = sc?.dir ?? wt?.dir ?? o.cwd;
-  const gitState = () => { try { return changedFiles(o.cwd).join("\n"); } catch { return ""; } }, realBefore = scratch ? gitState() : "";   // detective control: the real project must look the same after the call (only where it is a git repo)
+  const gitState = () => { try { return changedFiles(o.cwd).filter((f) => !/(^|\/)run_test\/(_shots|_qa)\//.test(f)).join("\n"); } catch { return ""; } }, realBefore = scratch ? gitState() : "";   // detective control: the real project must look the same after the call (only where it is a git repo)
   const sel = res.kind === "fork" ? { id: randomUUID(), resume: false, fork_from: res.forkFrom!.session_id! } : undefined;
   const env = { HARNESS_AGENT: aid, HARNESS_TASK: task, HARNESS_CWD: cwd, ...(scratch ? { HARNESS_REAL_CWD: o.cwd, HARNESS_SCRATCH: "1" } : {}), ...(o.env ?? {}) };
   const out = await callAgent(ctx, res.agent, cwd, (first) => (first && isWriter ? sharedContext(o.cwd) : "") + memoryBlock(join(o.cwd, "run_test")) + callPrompt(task, req, first) + (first ? earlierBlock(store, task, aid) : "") + notesBlock(store, task, aid), sel, { call: res.call_id, intent: res.kind }, { env, extraArgs: o.extraArgs?.(def.dir) });
@@ -101,6 +101,7 @@ export async function runCallee(ctx: Omit<CallCtx, "store"> & { store: MStore },
     if (result.promoted.length) store.ev("lock.promoted", task, aid, { calls: result.promoted });
   });
   if (wt) removeWorktree(o.cwd, wt.dir, wt.branch);
+  try { await (await import("./tab.ts")).tabClose({ task, agent: aid }); } catch { /* no tab was open */ }   // an agent that forgot `tab close` does not leave its Chrome running
   if (sc) removeScratch(sc.dir);   // the QA agent's copy and every change in it are discarded
   return result;
 }

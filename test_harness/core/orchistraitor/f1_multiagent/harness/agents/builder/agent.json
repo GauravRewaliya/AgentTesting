@@ -21,6 +21,7 @@
  "team_tools": [
   "proto_check",
   "browse",
+  "tab",
   "bg_start",
   "bg_list",
   "bg_log",

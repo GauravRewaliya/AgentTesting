@@ -79,6 +79,6 @@ export interface BugReport { id: string; at: string; t: number; reporter: string
 export interface BugsOut { count: number; high: number; reports: BugReport[] }
 
 /** What agents showed as proof in a session: screenshots and videos (QA, `browse`, the test runner's --video) and their reports. */
-export interface EvidenceItem { name: string; root: "qa" | "shots" | "qa_rec"; rel: string; kind: "image" | "video" | "text"; size: number; t: number; url: string }
-export interface EvidenceOut { count: number; images: number; videos: number; items: EvidenceItem[] }
+export interface EvidenceItem { name: string; root: "qa" | "shots" | "qa_rec"; rel: string; kind: "image" | "video" | "text" | "report"; size: number; t: number; url: string }
+export interface EvidenceOut { count: number; images: number; videos: number; reports?: number; items: EvidenceItem[] }
 

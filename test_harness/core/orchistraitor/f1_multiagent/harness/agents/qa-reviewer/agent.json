@@ -17,6 +17,7 @@
  "timeout_s": 900,
  "team_tools": [
   "browse",
+  "tab",
   "bg_start",
   "bg_list",
   "bg_log",
