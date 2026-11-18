@@ -1,0 +1,33 @@
+{
+ "role": "builder",
+ "description": "Builds the pages / files it is given from a brief or a spec, fixes findings, reports what it changed. For a WEBSITE clone it is started by site_build (one builder per screens file, from its brief), never alone.",
+ "model": "sonnet",
+ "session": "persistent",
+ "writes": true,
+ "max_children": 2,
+ "agents": [
+  "researcher"
+ ],
+ "tiers": [
+  "T1",
+  "T2",
+  "T3",
+  "T4"
+ ],
+ "timeout_s": 1200,
+ "prompts": [
+  "CLAUDE.md"
+ ],
+ "team_tools": [
+  "proto_check",
+  "browse",
+  "tab",
+  "bg_start",
+  "bg_list",
+  "bg_log",
+  "bg_stop",
+  "bg_restart",
+  "get_public_url",
+  "ref_assets"
+ ]
+}

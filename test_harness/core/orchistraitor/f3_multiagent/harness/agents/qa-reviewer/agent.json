@@ -1,0 +1,29 @@
+{
+ "role": "qa-reviewer",
+ "description": "THE QA agent (one per task, kept between calls): verifies what was built or changed, in a throwaway copy where it may edit, mock data, bypass auth or run a partial flow; uses a real browser, screenshots and video as evidence; reports what works, what does not and what it needs changed. Not for whole-project audits nobody asked for.",
+ "model": "sonnet",
+ "session": "persistent",
+ "writes": false,
+ "max_children": 0,
+ "agents": [],
+ "tiers": [
+  "T1",
+  "T2",
+  "T3",
+  "T4"
+ ],
+ "singleton": true,
+ "scratch": true,
+ "timeout_s": 900,
+ "team_tools": [
+  "browse",
+  "tab",
+  "bg_start",
+  "bg_list",
+  "bg_log",
+  "bg_stop",
+  "bg_restart",
+  "get_public_url",
+  "proto_check"
+ ]
+}

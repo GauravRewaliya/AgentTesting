@@ -1,0 +1,19 @@
+{
+ "typescript": {
+  "command": "${CLAUDE_PLUGIN_ROOT}/lsp.sh",
+  "args": [],
+  "extensionToLanguage": {
+   ".ts": "typescript",
+   ".tsx": "typescriptreact",
+   ".js": "javascript",
+   ".jsx": "javascriptreact",
+   ".mjs": "javascript",
+   ".cjs": "javascript"
+  },
+  "initializationOptions": {
+   "tsserver": {
+    "path": "/opt/ts-lib"
+   }
+  }
+ }
+}

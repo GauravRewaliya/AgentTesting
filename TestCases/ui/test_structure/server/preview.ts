@@ -1,14 +1,14 @@
 // UI API for BACKGROUND SCRIPTS of a session (harness/core/bg.ts: record + status + log, run on the host) and the host processes in its workspace.
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { STATE_BASE } from "@core/paths.ts";
+import { STATE_BASE, STATE_VERSION } from "@core/paths.ts";
 import { bgLog, getBg, listBg, restartBg, stopBg } from "@core/orchistraitor/f1_multiagent/harness/core/bg.ts";
 import { publicHost } from "@core/orchistraitor/f1_multiagent/harness/core/preview.ts";
 import { listTaskProcs, stopTaskProc } from "@core/orchistraitor/f1_multiagent/harness/core/procs.ts";
 
 const safe = (t: string) => t.replace(/[^\w.-]/g, "");
-export const taskWorkspace = (task: string) => join(STATE_BASE, "v1", safe(task), "workspace");
-const storeDir = (task: string) => join(STATE_BASE, "v1", safe(task), "store");
+export const taskWorkspace = (task: string) => join(STATE_BASE, STATE_VERSION, safe(task), "workspace");
+const storeDir = (task: string) => join(STATE_BASE, STATE_VERSION, safe(task), "store");
 const pub = (r: ReturnType<typeof listBg>[number]) => ({ id: r.id, title: r.title ?? "server_run", status: r.status, label: r.label, cmd: r.cmd.slice(0, 160), dir: r.dir, pid: r.pid, port: r.port, started: r.started, ended_at: r.ended_at, exit_code: r.exit_code, by: r.by, stopped_by: r.stopped_by, public_url: r.port ? `http://${publicHost()}:${r.port}` : "" });
 export type BgScript = ReturnType<typeof pub>;
 

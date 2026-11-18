@@ -1,6 +1,7 @@
 // The one place that knows where things live. Import it as "@core/paths.ts".
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { ENGINE } from "./orchistraitor/engine.ts";
 import { allSuites } from "../../TestCases/test_folders/Cases/index.ts";
 
 export const ROOT = join(import.meta.dir, "../..");            // agent_testing
@@ -43,8 +44,8 @@ export const CORE = join(HARNESS, "core");
 //   .state/<version>/current_pointer.json   {"current_workspace":"01"}
 //   .state/<version>/index.json             session_id -> folder (see core/state/store.ts)
 //   .state/<version>/data/<workspace>/      workspace.json, last/, cache/, runs/, sessions/<task>/ (session.json, events.jsonl, run/, workspace/, children/)
-// STATE_VERSION is changed BY HAND when the orchestrator changes: a new version starts fresh (empty), the old one stays on disk untouched.
-export const STATE_VERSION = process.env.STATE_VERSION ?? "v1";
+// STATE_VERSION default = ENGINE.stateVersion (test_harness/core/orchistraitor/engine.ts), env STATE_VERSION overrides one run. A new version starts fresh (empty), the old one stays on disk untouched.
+export const STATE_VERSION: string = process.env.STATE_VERSION ?? ENGINE.stateVersion;   // default comes from orchistraitor/engine.ts: change it THERE
 export const STATE_BASE = join(HARNESS, ".state");
 export const STATE_ROOT = join(STATE_BASE, STATE_VERSION);
 /** The workspace the pointer names RIGHT NOW. A long-lived process (the dashboard API) must call this on every request, so a changed pointer is followed without a restart. */

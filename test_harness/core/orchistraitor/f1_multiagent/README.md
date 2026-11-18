@@ -22,6 +22,11 @@ The f1 multi-agent harness: a lead agent that delegates to sub-agents, with a re
 * `testrun/`  runs the **shared** cases (`TestCases/test_folders/Cases/<suite>/main.ts`) on this harness.
 * `self_test/` this harness's **own** tests and experiments.
 
+## Claude profile
+- **Docker** (real sub-agents, `HARNESS_SANDBOX=docker`): ALWAYS `~/.claude-personal`. `test_harness/infra/docker-compose.yml` mounts it as the container's Claude config dir (`/claude`); it does not follow your shell's `CLAUDE_CONFIG_DIR` (`CLAUDE_PROFILE_DIR` overrides it).
+- **Local** (the lead and any `claude -p` the harness starts on the host): whatever profile your shell uses. `~/.claude-personal` is recommended (`export CLAUDE_CONFIG_DIR=$HOME/.claude-personal`); using the normal `~/.claude` by accident is fine for now. Nothing in the code enforces it.
+- A session is resumed in whichever profile holds it (`runner.ts` `profileOfSession`).
+
 ## Tests: two kinds, and only one of them is global
 | | where | scope | run |
 |---|---|---|---|

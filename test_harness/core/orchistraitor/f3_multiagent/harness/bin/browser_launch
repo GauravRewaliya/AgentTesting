@@ -1,0 +1,3 @@
+#!/bin/sh
+# on the PATH of every agent: `browser_launch ...` = `bun tools.ts browser_launch ...`
+exec bun --smol "$(dirname "$0")/../tools.ts" browser_launch "$@"

@@ -1,0 +1,15 @@
+{
+ "role": "ux-designer",
+ "description": "Writes a short UX spec (screens, flows, states, copy) as markdown for a NEW product. NOT for cloning or matching a real website (the lookup agents and site_build do that from pictures).",
+ "model": "sonnet",
+ "session": "persistent",
+ "writes": true,
+ "max_children": 0,
+ "agents": [],
+ "tiers": [
+  "T1",
+  "T2",
+  "T3",
+  "T4"
+ ]
+}

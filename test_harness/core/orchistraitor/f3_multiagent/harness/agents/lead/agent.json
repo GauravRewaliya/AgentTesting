@@ -1,0 +1,29 @@
+{
+ "role": "lead",
+ "description": "Talks to the person, splits work, calls sub-agents, never reads or edits files itself",
+ "model": "sonnet",
+ "session": "persistent",
+ "writes": false,
+ "max_children": 6,
+ "agents": [
+  "researcher",
+  "lookup",
+  "planner",
+  "builder",
+  "ux-designer",
+  "qa-reviewer"
+ ],
+ "tiers": [
+  "T0",
+  "T1",
+  "T2",
+  "T3",
+  "T4"
+ ],
+ "session_cap": 60,
+ "custom": true,
+ "timeout_s": 1800,
+ "prompts": [
+  "CLAUDE.md"
+ ]
+}

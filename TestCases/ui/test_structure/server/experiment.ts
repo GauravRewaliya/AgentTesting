@@ -4,6 +4,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { bgOf, taskProcs } from "./preview.ts";
+import { STATE_VERSION } from "@core/paths.ts";
 import { MStore, say } from "@core/orchistraitor/f1_multiagent/harness/core/board.ts";
 import { claudeDirs } from "@core/orchistraitor/f1_multiagent/harness/core/base.ts";
 import { activeMs, lastCall } from "@core/orchistraitor/f1_multiagent/harness/core/peek.ts";
@@ -21,7 +22,7 @@ mkdirSync(RUNS, { recursive: true }); mkdirSync(SESS, { recursive: true });
 
 // f1's testrun now keeps ONE store per master session (.state/<version>/<task>/store/store.json, workspace in .state/<version>/<task>/workspace) and one exp file per case
 // (.state/<version>/f1_exp/<case>.json). The old shared ui/.ui-data store is still read (UI_STORE / older runs); everything is MERGED here so no run is invisible.
-const STATE_DIR = join(F1, "..", "..", "..", ".state", process.env.STATE_VERSION ?? "v1"), EXP_DIR = join(STATE_DIR, "f1_exp");
+const STATE_DIR = join(F1, "..", "..", "..", ".state", STATE_VERSION), EXP_DIR = join(STATE_DIR, "f1_exp");
 const taskHomes = (): string[] => {   // every session folder: <task>/ and its branches <task>/branches/<branch>/ (a branch has its own store and workspace)
   const has = (d: string) => existsSync(join(d, "store", "store.json")), out: string[] = [];
   try { for (const d of readdirSync(STATE_DIR, { withFileTypes: true })) if (d.isDirectory()) { const h = join(STATE_DIR, d.name); if (has(h)) out.push(h);

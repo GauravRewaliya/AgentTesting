@@ -1,0 +1,18 @@
+{
+ "role": "lookup",
+ "description": "UI/UX reference analyst (visual): studies a reference store (run_test/_ref/<name>/: contact-sheet pictures, outline, assets) and writes the layouts + builder briefs for the pages it is given. USE WHEN a website or dashboard is cloned or restyled from a reference. Does a small job itself; splits a big one across COPIES of itself that run in parallel. Normally started by the harness command site_build. NOT for facts (researcher), NOT for code (builder).",
+ "model": "haiku",
+ "session": "persistent",
+ "writes": true,
+ "max_children": 3,
+ "agents": [
+  "lookup"
+ ],
+ "tiers": [
+  "T1",
+  "T2",
+  "T3",
+  "T4"
+ ],
+ "timeout_s": 600
+}

@@ -1,6 +1,6 @@
 // DockerRunner: the SAME `claude -p` call as RealRunner, started inside a throwaway Docker container instead of on the host, so whatever the agent installs or builds (pnpm install, dev servers, browsers) cannot touch the host.
 // Switch: HARNESS_SANDBOX=docker (read in harness/tools.ts for sub-agents). The orchestrator (the lead, tools.ts, the store) stays on the host.
-//   - login: your `claude-personal` profile (CLAUDE_CONFIG_DIR, default ~/.claude) is mounted at /claude, so there is no new login, and the session transcripts land in the same place as for host runs.
+//   - login: your `claude-personal` profile (host ~/.claude-personal, always, see infra/docker-compose.yml; CLAUDE_PROFILE_DIR overrides) is mounted as the container's Claude config dir (/claude), so there is no new login, and the session transcripts land in the same place as for host runs.
 //     KNOWN RISK: an agent with Bash can read that mounted profile (loopferry splits users to prevent this, see docs/SANDBOX.md). Do not use this runner with agents you do not trust.
 //   - workspace: the agent's cwd is mounted READ-WRITE at the SAME absolute path (so session ids and transcript folders match); nothing else of the host is visible except the agent's prompt file (read-only).
 //   - limits: 2 GB, 1 cpu, 512 pids, all capabilities dropped, no-new-privileges (compose service `sandbox` in test_harness/infra/docker-compose.yml), non-root (your uid), --rm. Network on (the CLI and the package registries need it).
