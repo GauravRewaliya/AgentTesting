@@ -2,13 +2,14 @@
 // this does its work from the developer's REAL history instead: phase 1 puts the start state (bases/<name>) into run_test/<dir>,
 // then the commit's real diff (patches/<name>/NN_<sha>.patch) is applied with `git apply`, PLAN.md gets the phase section, and a REPORT line comes back.
 // Not a results/*.ts file on purpose: loadResults imports every .ts in results/ and wants a default export there.
-import { cpSync, existsSync, mkdirSync, readFileSync, appendFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, appendFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import type { Req } from "@core/types.ts";
 import { phases, source } from "../../../Cases/real_usecases/test_expo_go/lib/data.ts";   // parsed + validated against lib/types.ts
 import type { ExpoGoVerdict } from "../../../Cases/real_usecases/test_expo_go/lib/types.ts";
 import { buildSlim } from "./slim_demo.ts";
+import { FOLIO_BUILD } from "./folio_build.ts";
 
 export type PhaseRun = { name: string; n: number; dir: string; skills: string[]; expo_go: ExpoGoVerdict; blockers?: string[] };
 
@@ -45,11 +46,42 @@ export function applyPhase(req: Req, r: PhaseRun): string {
 }
 
 export type ModuleRun = { name: string; n: number; N: number; dir_src: string; dir_out: string; title: string; files: string; skills: string[]; expo_go: ExpoGoVerdict; blockers: string[] };
-/** One module step of a single-commit repo: no diff exists, so step 1 provides the source and every step writes its PLAN.md section + an honest REPORT. */
+
+// Expo Go ships these native modules; everything else that is not a plain JS package needs a development build.
+const IN_EXPO_GO = /^(expo|expo-[a-z-]+|react|react-native|react-native-gesture-handler|react-native-reanimated|react-native-worklets|react-native-safe-area-context|@shopify\/react-native-skia|react-native-skia)$/;
+const USES: [RegExp, string][] = [[/\bGPU[A-Z]\w+|navigator\.gpu|@vertex|@fragment/, "react-native-webgpu"], [/\bSkia\b|CanvasKit|SkSurface/, "@shopify/react-native-skia"], [/useSharedValue|'worklet'|"worklet"/, "react-native-reanimated"], [/\bGesture\.[A-Z]/, "react-native-gesture-handler"]];
+const BUILTIN = new Set(["fs", "path", "os", "url", "crypto", "child_process", "util", "assert"]);
+const pkgOf = (spec: string) => (spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0]!);
+const walk = (root: string, rel: string): string[] => !existsSync(join(root, rel)) ? [] : statSync(join(root, rel)).isDirectory() ? readdirSync(join(root, rel)).flatMap((e) => walk(root, `${rel}/${e}`)) : [rel];
+
+/** What the step READ, taken from the real source in run_test/<dir_src>: files with line counts + a one-line purpose, and every external package with its Expo Go verdict. */
+function readNotes(req: Req, r: ModuleRun): { lines: string[]; total: number; packages: Map<string, boolean> } {
+  const root = join(req.ws, r.dir_src), files = r.files.split(",").map((x) => x.trim()).flatMap((g) => (g.endsWith("/*") ? walk(root, g.slice(0, -2)) : walk(root, g))).sort();
+  const packages = new Map<string, boolean>(), lines: string[] = []; let total = 0;
+  for (const f of files) {
+    const txt = readFileSync(join(root, f), "utf8"), n = txt.split("\n").length; total += txt.length;
+    const why = (txt.split("\n").find((l) => /^\s*(\/\/|\/\*\*?|#)\s*\S/.test(l)) ?? "").replace(/^\s*(\/\/|\/\*\*?|#)\s*/, "").slice(0, 110);
+    lines.push(`- ${f} (${n} lines)${why ? `: ${why}` : ""}`);
+    if (/\.(tsx?|jsx?|js)$/.test(f)) for (const m of txt.matchAll(/(?:from\s+|import\s+|require\()['"]([^'"]+)['"]/g)) { const spec = m[1]!; if (!spec.startsWith(".") && !spec.startsWith("node:") && !BUILTIN.has(spec)) packages.set(pkgOf(spec), IN_EXPO_GO.test(pkgOf(spec))); }
+    // code that gets its API passed in (a GPUDevice, a Skia object) imports nothing: the API it USES names the package
+    for (const [re, pkg] of USES) if (re.test(txt)) packages.set(pkg, IN_EXPO_GO.test(pkg));
+    if (/^(modules|plugins)\//.test(f)) packages.set(`${f.split("/").slice(0, 2).join("/")} (local native code / config plugin)`, false);
+    if (f === "app.json") packages.set(`(config) ${f}`, !/plugins|withSceneLifecycle/.test(txt));
+  }
+  return { lines, total, packages };
+}
+
+/** One module step of a single-commit repo: no diff exists, so step 1 provides the source and every step writes its PLAN.md section (derived from the real source) + the small deliverables of FOLIO_BUILD + an honest REPORT. */
 export function applyModule(req: Req, r: ModuleRun): string {
   if (r.n === 1) putBase(req, r.name, r.dir_src);
-  plan(req, r.dir_out, `\n## Step ${r.n} of ${r.N}: ${r.title}\n- reads: ${r.files}\n- Expo Go check: ${r.expo_go}${r.blockers.length ? `, blockers: ${r.blockers.join(", ")}` : ""}\n`);
-  return `STEP ${r.n}/${r.N} DONE: ${r.title}\n` + report({ summary: r.title, files: [`${r.dir_out}/PLAN.md`], skills: r.skills, expo_go: r.expo_go, blockers: r.blockers });
+  const notes = readNotes(req, r), built = Object.keys(FOLIO_BUILD[r.n] ?? {}).filter(() => r.name === "folio-popup-book");
+  for (const f of built) { const to = join(req.ws, r.dir_out, f); mkdirSync(dirname(to), { recursive: true }); writeFileSync(to, FOLIO_BUILD[r.n]![f]!); }
+  const pk = [...notes.packages].sort(([a], [b]) => a.localeCompare(b));
+  plan(req, r.dir_out, [`\n## Step ${r.n} of ${r.N}: ${r.title}`, `Read (${notes.lines.length} files, ~${Math.round(notes.total / 1024)} KB) in run_test/${r.dir_src} (read-only):`, ...notes.lines,
+    `\nExpo Go check: ${r.expo_go}${r.blockers.length ? `, blockers: ${r.blockers.join(", ")}` : ""}`, "| package | stock Expo Go |", "|---|---|", ...pk.map(([k, ok]) => `| ${k} | ${ok ? "runs" : "does NOT run (needs a development build)"} |`),
+    built.length ? `\nBuilt in run_test/${r.dir_out}: ${built.join(", ")}` : "\nBuilt: nothing (this step is analysis only)"].join("\n"));
+  return `STEP ${r.n}/${r.N} DONE: ${r.title}\nThis answer is COMPLETE: the explanation and the Expo Go table are in run_test/${r.dir_out}/PLAN.md (the section for this step), ${built.length ? "the code is in " + built.map((f) => `run_test/${r.dir_out}/${f}`).join(", ") : "no code was needed"}. Nothing is left to do for this step.\n`
+    + report({ summary: r.title, files: [`${r.dir_out}/PLAN.md`, ...built.map((f) => `${r.dir_out}/${f}`)], skills: r.skills, expo_go: r.expo_go, blockers: r.blockers });
 }
 
 

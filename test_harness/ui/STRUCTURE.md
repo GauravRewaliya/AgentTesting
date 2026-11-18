@@ -36,3 +36,11 @@ Rules (enforced in `test_harness/core/orchistraitor/harness_own_custom/runner/st
 |---|---|
 | `test_harness/core/orchistraitor/harness_own_custom/runner/run.ts` (fixture sub-agents; `test_basic`, `test_workflows`, ...) | directly: `runner/state/record.ts` + `store.ts`; hook/stand-in write `run/` through `TRACE_FILE`, `GUARD_FILE`, `HARNESS_LOG` |
 | Experiment page (f1 harness) | its engine DB stays in `f1_multiagent/ui/.ui-data/`; the UI server (`server/state.ts`) copies each session in after a turn |
+
+
+## User home (not run data): `test_harness/.state/home/`
+Settings (agents, integrations), secrets (mode 600), `custom_claude/{agents,skills}`, `chrome-profile/`, `browser.json`, `artifact_runs/`. One folder per user (one user now); it sits beside `v3/`, not inside a run version. Code: `test_harness/core/userhome.ts`. Plan/status: `ui/PLAN_SETTINGS.md`.
+
+
+## TestCases page (first page)
+Tabs: PromptTesting (TestCases/test_folders/prompt_test, results in `.state/<version>/prompt_tests/`), Real cases (real_usecases + subagents; readiness marks in `.state/home/case_marks.json`), Core (core_testing). Code: `src/pages/TestCasesPage.vue`, `PromptTestingPage.vue`, `src/components/prompt/`, `server/prompttests.ts`.

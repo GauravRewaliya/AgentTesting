@@ -1,6 +1,6 @@
 // MODEL POLICY. Every real agent runs on sonnet (agent.json). A caller may pick the cheaper haiku for ONE call when the job is small
 // (a copy, a rename, a one-file edit, a lookup): `delegate --model haiku`, a `model` on a fork_all / plan task. Only the execution roles may be
-// downgraded; the lead, planner, pm and reviewer always stay on sonnet (their mistakes cost the most). Nothing else is accepted.
+// downgraded; the lead, planner and reviewer always stay on sonnet (their mistakes cost the most). Nothing else is accepted.
 export const MODELS = ["sonnet", "haiku"] as const;
 export type ModelName = (typeof MODELS)[number];
 export const SMALL_JOB_ROLES = new Set(["builder", "researcher", "writer", "package-researcher"]);

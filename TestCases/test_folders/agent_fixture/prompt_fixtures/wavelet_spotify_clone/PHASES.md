@@ -27,7 +27,7 @@ status: phase 1 of 4 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T01 | scaffold Vite + TypeScript + React, tokens in `styles.css`, 300 px | 1fr grid | builder | - |
+| T01 | scaffold Vite + TypeScript + React, tokens in `styles.css`, page grid (300 px sidebar, 1fr main) | builder | - |
 | T02a | `data.ts` (8 playlists, 40 tracks) + `covers.ts` | builder | T01 |
 | T02b | `tones.ts` (arpeggio to WAV) + `router.ts` (3 hash routes) | builder | T01 |
 

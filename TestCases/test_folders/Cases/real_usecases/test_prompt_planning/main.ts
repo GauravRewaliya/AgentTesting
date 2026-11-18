@@ -24,7 +24,7 @@ import { join } from "node:path";
 //   enzo_clerk_toast, linear_tab_bar  reverse-planned from real git histories; plans used as they are (flat folders, several phases, no shape split)
 //   composio_admin_dashboard  no earlier build; only PHASE 1 (look and screens, fake data) is asked for
 // Video (--video) is not used yet: qa is disabled on every case.
-export const tags: TestTag[] = ["multi_ag", "multi_prompt", "coding"];
+export const tags: TestTag[] = ["multi_ag", "multi_prompt", "coding", "ready_to_build"];
 const NO_VIDEO = (): ((r: unknown) => QaSpec) => () => ({ enabled: false, why: "video test comes later; first judge the built result by hand" });
 const base = { needs: ["multiagent.spawn", "sandbox.files"], lead: "lead_team", tools: ["Agent"], agents: ["planner", "ux-designer", "builder", "lookup", "qa-reviewer"], allow_real_subAg: true as const, max_agent_calls: 8, qa: NO_VIDEO() } as const satisfies Partial<Case>;
 

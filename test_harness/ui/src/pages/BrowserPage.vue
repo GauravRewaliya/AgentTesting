@@ -2,15 +2,16 @@
 // The CONNECTED BROWSER: the Chrome that agents use to look at websites (a person can see it and has logged in to it). Connect, launch, list the open tabs, see a tab, and try a page the way an agent does.
 import DebugFrame from "@/components/common/DebugFrame.vue";
 import { api, type BrowserOverview, type BrowserTry } from "@/store/api";
-import { onBeforeUnmount, onMounted, ref } from "vue";
+import { useLive } from "@/store/live";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 
-const o = ref<BrowserOverview | null>(null), err = ref(""), busy = ref(""), endpoint = ref("http://127.0.0.1:9222");
+const live = useLive(), o = computed(() => (live.browser.value && !("error" in live.browser.value) ? live.browser.value : null)), err = ref(""), busy = ref(""), endpoint = ref("http://127.0.0.1:9222");
 const snap = ref<{ title: string; image: string | null; tab: string } | null>(null);
 const tryUrl = ref("https://upwatchr.io/blog"), tryScheme = ref<"light" | "dark">("light"), tryOut = ref<BrowserTry | null>(null);
 const openUrl = ref("");
-let timer: ReturnType<typeof setInterval> | undefined;
 
-async function load() { try { o.value = await api.browser(); err.value = ""; } catch (e) { err.value = (e as Error).message; } }
+// the browser status is PUSHED over the socket (topic `browser`); after an action we only ask the hub to re-check now
+const load = () => live.kick();
 async function act<T>(label: string, f: () => Promise<T>) { busy.value = label; err.value = ""; try { const r = await f() as { ok?: boolean; reason?: string }; if (r && r.ok === false) err.value = r.reason ?? "failed"; } catch (e) { err.value = (e as Error).message; } busy.value = ""; await load(); }
 const connect = () => act("connect", () => api.browserConnect(endpoint.value));
 const launch = () => act("launch", () => api.browserLaunch());
@@ -19,8 +20,8 @@ const toggle = (on: boolean) => act("toggle", () => api.browserToggle(on));
 const openTab = () => act("open", async () => { const r = await api.browserOpen(openUrl.value); openUrl.value = ""; return r; });
 async function seeTab(t: { id: string; title: string }) { busy.value = "snapshot"; try { const r = await api.browserSnapshot(t.id); snap.value = { title: r.title || t.title, image: r.image, tab: t.id }; if (!r.ok) err.value = r.reason ?? "no picture"; } catch (e) { err.value = (e as Error).message; } busy.value = ""; }
 async function runTry() { busy.value = "try"; tryOut.value = null; err.value = ""; try { tryOut.value = await api.browserTry(tryUrl.value, tryScheme.value); } catch (e) { err.value = (e as Error).message; } busy.value = ""; }
-onMounted(() => { load(); timer = setInterval(load, 5000); });
-onBeforeUnmount(() => clearInterval(timer));
+onMounted(() => { live.start(); live.always({ browser: true }); });
+onUnmounted(() => live.stop());
 </script>
 
 <template>

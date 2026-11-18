@@ -1,2 +1,15 @@
-{ "role": "researcher", "description": "TEXT-based researcher: reads repositories, docs and the web and answers one focused factual question with evidence (read-only). NOT for how a website LOOKS (a WebFetch is a model-written summary with no pictures or styles: use ref_capture and the lookup agents / site_build).", "model": "sonnet",
-  "session": "persistent", "writes": false, "max_children": 0, "agents": [], "tiers": ["T1", "T2", "T3", "T4"] }
+{
+ "role": "researcher",
+ "description": "Researcher: reads repositories, docs and the web, answers one focused factual question with evidence, writes the findings as a short .md report in run_test/research/ and reports to its parent (the lead or the planner). NOT for how a website LOOKS (a WebFetch is a model-written summary with no pictures or styles: use ref_capture and the lookup agents / site_build).",
+ "model": "sonnet",
+ "session": "persistent",
+ "writes": false,
+ "max_children": 0,
+ "agents": [],
+ "tiers": [
+  "T1",
+  "T2",
+  "T3",
+  "T4"
+ ]
+}

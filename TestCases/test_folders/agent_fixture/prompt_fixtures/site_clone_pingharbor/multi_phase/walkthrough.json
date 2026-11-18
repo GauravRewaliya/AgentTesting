@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "title": "PingHarbor (clone of a real website)",
+  "tagline": "A 5-page marketing site for an uptime-monitor app: scroll animation, light and dark theme, every link working, all text original.",
+  "status": "phase 1 of 3 · planned",
+  "plan": {
+    "label": "Plan",
+    "steps": [
+      { "id": "glance", "title": "At a glance", "goal": "Decide in two minutes: **is this the site I want built?** Nothing is built yet.",
+        "blocks": [
+          { "type": "text", "md": "A **5-page website** (Home, Blog with article views, Article, Features, Download) built with no build step: a sticky header, a dark footer, a theme that follows the system with a toggle, and content that animates in as you scroll. The brand is **PingHarbor**, a small Windows app that checks your sites on a timer. All text is original; the reference site's names, logos and sentences are never reused." },
+          { "type": "facts", "items": [
+            { "k": "Who it is for", "v": "Teams who want a polished marketing-style site fast, and a **test of whether a builder can reproduce a real site from a written plan alone**" },
+            { "k": "Real vs invented", "v": "Sections, order, type, colours and motion are **measured** from the reference. Brand, every word, logo and mock data are **invented**" },
+            { "k": "The bar", "v": "Audit score 80 or more with no high finding (step 5)" },
+            { "k": "What we need from you", "v": "One question: is 80 the bar for done? Default yes" }
+          ] }
+        ] },
+      { "id": "pages", "title": "The five pages",
+        "goal": "Click a page to see **what is on it** and where it links.",
+        "blocks": [
+          { "type": "mermaid", "title": "Page map: every link goes somewhere real", "code": "flowchart LR\n  H[Header: logo, links, theme, Download] --> HOME[#/home]\n  H --> BLOG[#/blog]\n  H --> FEAT[#/features]\n  H --> DL[#/download]\n  BLOG -->|card| ART[#/blog/slug: article view]\n  HOME -->|latest posts| ART\n  ART -->|Keep reading| ART\n  ART -->|CTA band| DL\n  HOME -->|download band| DL\n  F[Footer: 4 columns] --> HOME\n  F --> BLOG\n  F --> FEAT\n  F --> DL" },
+          { "type": "cards", "items": [
+            { "tag": "F1", "title": "Home", "text": "hero, bento, AI split, channels, steps", "detail": "Hero with an app-window mock (9 sites x 40 heat-map cells), 8-card feature bento, AI-assistant split with chat mock, alert channels, status-page split, 3 how-it-works steps, sister products, download band, latest posts.", "files": ["build_inputs/10_layout_home.md"] },
+            { "tag": "F2", "title": "Blog", "text": "6 posts", "detail": "Category, date, author on each card; a card opens its own article view at `#/blog/<slug>`; an unknown slug shows \"Article not found\".", "files": ["build_inputs/13_layout_blog.md"] },
+            { "tag": "F3", "title": "Article", "text": "reading page", "detail": "Back link, chip, meta; 680 px reading column with callout, code block, pull quote; author card; \"Keep reading\" 3 cards; CTA band; reading progress bar.", "files": ["build_inputs/14_layout_article.md"] },
+            { "tag": "F4", "title": "Features", "text": "full features page", "files": ["build_inputs/11_layout_features.md"] },
+            { "tag": "F5", "title": "Download", "text": "hero + steps", "detail": "Download button, install and verify steps, what happens next, closing band.", "files": ["build_inputs/12_layout_download.md"] },
+            { "tag": "F6", "title": "Header, footer, navigation", "text": "sticky 56 px header, dark footer, mobile menu", "detail": "**A dead link is a defect.** Every link is a real route or a full URL; never `#`." }
+          ] },
+          { "type": "ref", "title": "Layout of the Home page (builder file)", "file": "build_inputs/10_layout_home.md" }
+        ] },
+      { "id": "look", "title": "Look and motion", "goal": "Say **\"keep\" or \"change\"** to the look before anyone builds.",
+        "blocks": [
+          { "type": "cards", "items": [
+            { "tag": "◆", "title": "One green accent", "text": "about 5% of pixels", "detail": "Eyebrows, one highlighted word per heading, buttons, dates. `#059669` light / `#10b981` dark; small accent text on light must use `#047857` (readable)." },
+            { "tag": "☀", "title": "Light and dark", "text": "follows the system, toggle in header", "detail": "The toggle sets `dark-theme`, kept in the browser, applied before first paint so there is no flash (F7)." },
+            { "tag": "Aa", "title": "Type", "text": "DM Sans + mono", "detail": "Hero heading 72 px (mobile 40), section heading 48 px (mobile 32), body 16/1.6." },
+            { "tag": "▭", "title": "Layout", "text": "80 rem container, 42 rem prose", "detail": "Sections about 96 px apart (64 mobile); grids collapse to one column under 768 px." }
+          ] },
+          { "type": "table", "title": "Motion", "head": ["What", "How", "Time"], "rows": [
+            ["scroll reveal", "fades up 16 px when it enters the screen; children stagger 80-120 ms", "0.7 s"],
+            ["live status dots", "pulse", "1.6 s, repeating"],
+            ["mock grid rows", "flash when a cell changes; new log lines tick in", "1.1 s / 0.3 s"],
+            ["background glow", "slow drift", "22 s / 28 s"],
+            ["scan line across the mock window", "moves across", "3.4 s"],
+            ["button / card hover", "ring and fill / rises 2 px", "0.15 s"],
+            ["reduced motion", "no transforms, no loops; fades only", "rule"]
+          ] },
+          { "type": "ref", "title": "Full design system", "file": "build_inputs/01_design_system.md" }
+        ] },
+      { "id": "how", "title": "How the build works",
+        "goal": "Click through **who does what**, so you know the plan can be built in parallel.",
+        "blocks": [
+          { "type": "mermaid", "code": "flowchart LR\n  U[you: build the plan] --> L[lead: reads README, PHASES, contract]\n  L --> PI[kit setup: site kit, PROTO.md, theme.css]\n  PI --> B1[builder 1: Home + Blog]\n  PI --> B2[builder 2: Features + Article]\n  PI --> B3[builder 3: Download]\n  B1 --> V[site audit + preview]\n  B2 --> V\n  B3 --> V\n  V -->|only if the audit is under 80| FIX[fix round]" },
+          { "type": "cards", "title": "Rules that make the clone work", "items": [
+            { "tag": "1", "title": "Linking", "text": "a dead link is a defect", "detail": "Pages: `#/home`, `#/blog` (+ `#/blog/<slug>`), `#/article`, `#/features`, `#/download`." },
+            { "tag": "2", "title": "Own brand and text", "text": "PingHarbor only", "detail": "Never the reference's names, logos or sentences. Mock content is believable and specific: 4-8 posts with dates, authors, categories. Never lorem ipsum, never TODO." },
+            { "tag": "3", "title": "One owner per file", "text": "3 builders in parallel", "detail": "builder 1: `part-1` (Home + Blog); builder 2: `part-2` (Features + Article); builder 3: `part-3` (Download). Kit files are never edited." },
+            { "tag": "4", "title": "Blog slugs defined once", "text": "six slugs", "detail": "`security-headers-2026`, `ai-crawler-robots`, `saas-status-pages`, `tls-certificates-2026`, `windows-uptime-guide`, `welcome-to-the-blog`. (The first audit found two briefs listing different slugs.)" }
+          ] }
+        ] },
+      { "id": "decide", "title": "Decisions and quality", "goal": "One question is open; here is **the bar for done**.",
+        "blocks": [
+          { "type": "decisions", "items": [
+            { "id": "D-01", "q": "Recipe for a new build", "state": "agreed", "default": "no reference capture (it is in build_inputs); no questions; builders in parallel" },
+            { "id": "D-02", "q": "Stack", "state": "agreed", "default": "no build; Vue 3 from a CDN; kit files are not edited" },
+            { "id": "D-03", "q": "Page briefs", "state": "agreed", "default": "one brief per screens file; a builder starts the moment its brief exists" },
+            { "id": "D-04", "q": "A lone builder for a site", "state": "agreed", "default": "refused: 3 builders in parallel" },
+            { "id": "Q1", "q": "Is a score of 80 on the site audit the bar for done?", "state": "open", "default": "yes" }
+          ] },
+          { "type": "checks", "title": "Quality bar", "items": [
+            "Site audit score 80 or more with 0 high findings (the earlier run ended at 72: 1 high, 4 medium, 3 low)",
+            "Text contrast at least 4.5:1 on every page, light and dark, desktop and mobile",
+            "Tap targets at least 40x40 px on a phone",
+            "Every page has a meta description, headings stay in order, no text under 12 px",
+            "No dead link and no \"not found\" behind a link",
+            "Reduced-motion and mobile (390 px) checked; the original brand name never appears"
+          ] }
+        ] }
+    ]
+  },
+  "work": {
+    "label": "Phases & tasks",
+    "steps": [
+      { "id": "roadmap", "title": "Roadmap", "goal": "Three phases: kit, pages, then measured fixes.",
+        "blocks": [
+          { "type": "mermaid", "code": "flowchart LR\n  P1[\"1 Kit and contract<br/>demo: empty site, 5 routes, theme\"] --> P2[\"2 Build the pages<br/>demo: five linked pages\"] --> P3[\"3 Verify and fix<br/>demo: audit 80+\"]" },
+          { "type": "table", "head": ["#", "Phase", "Goal", "Covers"], "rows": [
+            ["1", "Kit and contract", "the empty site exists with working header, footer, theme and 5 routes", "F6, F7"],
+            ["2", "Build the pages", "five linked pages with original text", "F1-F5, F8"],
+            ["3", "Verify and fix", "measured quality, defects fixed", "F1-F8"]
+          ] }
+        ] },
+      { "id": "p1", "title": "Phase 1 · Kit and contract", "goal": "**An empty site with working header, footer, theme and five routes.**",
+        "blocks": [
+          { "type": "checks", "title": "Done when", "items": ["the project folder exists with the 5 routes", "header and footer link to EVERY page", "theme follows the system and has a toggle", "content marked for reveal animates on scroll"] },
+          { "type": "tasks", "items": [
+            { "id": "T01", "what": "Run the site kit for project `pingharbor`: accent #10b981, DM Sans, dark background #0e1318, 5 routes", "owner": "lead", "needs": [], "files": ["PROTO.md", "css/theme.css", "index.html", "css/site.css", "js/site.js"] },
+            { "id": "T02", "what": "Check the contract matches the generated PROTO.md (routes, owners, linking rules)", "owner": "lead", "needs": ["T01"], "files": ["build_inputs/00_contract.md"] }
+          ] }
+        ] },
+      { "id": "p2", "title": "Phase 2 · Build the pages", "goal": "**Five linked pages with original text, built by three builders at once.**",
+        "blocks": [
+          { "type": "checks", "title": "Done when", "items": ["every page replaced its stub (no 'TODO', no lorem ipsum)", "all links resolve; the six blog slugs work; an unknown slug shows 'Article not found'", "dark theme works; original text and brand only", "each builder touched only its own two files"] },
+          { "type": "tasks", "items": [
+            { "id": "T03", "what": "Home (sections S1-S9) and Blog list with article views", "owner": "builder 1", "needs": ["T01", "T02"], "files": ["js/screens/part-1.js", "css/pages-part-1.css"], "reads": "02_brief_home_blog; layouts 10, 13" },
+            { "id": "T04", "what": "Features and Article", "owner": "builder 2", "needs": ["T01", "T02"], "files": ["js/screens/part-2.js", "css/pages-part-2.css"], "reads": "03_brief_features_article; layouts 11, 14" },
+            { "id": "T05", "what": "Download", "owner": "builder 3", "needs": ["T01", "T02"], "files": ["js/screens/part-3.js", "css/pages-part-3.css"], "reads": "04_brief_download; layout 12" }
+          ] }
+        ] },
+      { "id": "p3", "title": "Phase 3 · Verify and fix", "goal": "**Measured quality: audit score 80 or more, defects fixed.**",
+        "blocks": [
+          { "type": "checks", "title": "Done when", "items": ["audit score 80 or more with 0 high findings", "preview opens with 0 console errors", "all 5 pages reachable from the header on desktop and phone"] },
+          { "type": "tasks", "items": [
+            { "id": "T06", "what": "Site audit + preview (the picture compare is not possible: no live reference is supplied)", "owner": "qa-reviewer", "needs": ["T03", "T04", "T05"] },
+            { "id": "T07", "what": "Fix contrast: small accent text on light uses `#047857`; all text 4.5:1 or better", "needs": ["T06"] },
+            { "id": "T08", "what": "Fix phone tap targets (40x40 px), add a meta description to every page, keep heading order, no text under 12 px", "needs": ["T06"] }
+          ] }
+        ] },
+      { "id": "team", "title": "Who owns which file", "goal": "**No file is owned twice.** Kit files are never edited.",
+        "blocks": [
+          { "type": "who", "items": [
+            { "name": "lead", "does": "runs the kit, hands each builder its brief, checks and reports", "tasks": ["T01", "T02"] },
+            { "name": "builder 1", "does": "Home + Blog", "tasks": ["js/screens/part-1.js", "css/pages-part-1.css"] },
+            { "name": "builder 2", "does": "Features + Article", "tasks": ["js/screens/part-2.js", "css/pages-part-2.css"] },
+            { "name": "builder 3", "does": "Download", "tasks": ["js/screens/part-3.js", "css/pages-part-3.css"] }
+          ] },
+          { "type": "ref", "title": "Build recipe", "file": "README.md", "heading": "Build recipe", "dev": true },
+          { "type": "ref", "title": "Build contract", "file": "build_inputs/00_contract.md", "dev": true }
+        ] }
+    ]
+  }
+}

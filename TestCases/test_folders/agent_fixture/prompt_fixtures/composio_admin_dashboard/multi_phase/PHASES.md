@@ -58,9 +58,9 @@ status: phase 1 of 4 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T01 | SQLite schema + seed from the data model (6 tables) | builder-3 | T00, T01, T02, T03, T04, T07, T08, T09, T10, T11, T12 |
-| T02 | mock server routes: list/create/update/delete for toolkits, auth configs, accounts, triggers, keys | builder-3 | T01 |
-| T03 | screens read and write through the server instead of in-file data | builder-1 | T02 |
+| P2-T01 | SQLite schema + seed from the data model (6 tables) | builder-3 | P1-T12 |
+| P2-T02 | mock server routes: list/create/update/delete for toolkits, auth configs, accounts, triggers, keys | builder-3 | P2-T01 |
+| P2-T03 | screens read and write through the server instead of in-file data | builder-1 | P2-T02 |
 
 **Done when (you can check each one):**
 - create an auth config, restart the server, reload: it is still there
@@ -76,9 +76,9 @@ status: phase 1 of 4 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T01 | `POST /run`: mock a tool call, store an execution row (tool, account, status, ms, request, response) | builder-3 | T01, T02, T03 |
-| T02 | Logs reads executions with search, status, toolkit and time filters; CSV export | builder-2 | T01 |
-| T03 | end-to-end check: Run in Playground, row on top of Logs, still there after restart | qa-reviewer | T02 |
+| P3-T01 | `POST /run`: mock a tool call, store an execution row (tool, account, status, ms, request, response) | builder-3 | P2-T02 |
+| P3-T02 | Logs reads executions with search, status, toolkit and time filters; CSV export | builder-2 | P3-T01 |
+| P3-T03 | end-to-end check: Run in Playground, row on top of Logs, still there after restart | qa-reviewer | P3-T02 |
 
 **Done when (you can check each one):**
 - Run in Playground: a new row is on top of Logs
@@ -94,8 +94,8 @@ status: phase 1 of 4 · planned
 
 | task | what | owner | needs |
 |---|---|---|---|
-| T01 | responsive 390 px, menu drawer | builder-1 | T01, T02, T03 |
-| T02 | sweep: `proto_check`, `preview` all routes, `site_audit`, `ref_compare` | qa-reviewer | T01 |
+| P4-T01 | responsive 390 px, menu drawer | builder-1 | P1-T12 |
+| P4-T02 | sweep: `proto_check`, `preview` all routes, `site_audit`, `ref_compare` | qa-reviewer | P4-T01 |
 
 **Done when (you can check each one):**
 - 390 px: no horizontal scroll, drawer works, all routes visited

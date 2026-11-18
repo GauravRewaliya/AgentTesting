@@ -1,0 +1,8 @@
+{
+  "plans": [
+    { "id": "eiffel", "title": "Eiffel Tower 3D", "tagline": "A quiet 1889 museum exhibit: a 12-stop camera tour, archival photos, English and French.", "status": "phase 1 of 3 · planned", "base": "../../../TestCases/test_folders/agent_fixture/prompt_fixtures/aistudio_eiffel_tower_3d/" },
+    { "id": "agentdeck", "title": "AgentDeck (Composio-style dashboard)", "tagline": "10-screen admin dashboard for connecting tools to AI agents, then a SQLite mock server.", "status": "phase 1 of 4 · planned", "base": "../../../TestCases/test_folders/agent_fixture/prompt_fixtures/composio_admin_dashboard/multi_phase/" },
+    { "id": "wavelet", "title": "Wavelet (music player)", "tagline": "Desktop-style web player with its own violet look, drawn covers and synthesized songs.", "status": "phase 1 of 4 · planned", "base": "../../../TestCases/test_folders/agent_fixture/prompt_fixtures/wavelet_spotify_clone/" },
+    { "id": "pingharbor", "title": "PingHarbor (site clone)", "tagline": "5-page marketing site with scroll animation, light and dark theme and every link working.", "status": "phase 1 of 3 · planned", "base": "../../../TestCases/test_folders/agent_fixture/prompt_fixtures/site_clone_pingharbor/multi_phase/" }
+  ]
+}

@@ -5,7 +5,7 @@ import type { Case } from "@core/types.ts";
 // Phase 2 of the TODO: the lead decides a planner is needed, the planner plans with the user and has the FE team make a PROTOTYPE.
 // REAL sub-agents (no recorded fixtures, `allow_real_subAg`), so run only by case id, inside the docker sandbox (HARNESS_SANDBOX=docker), never in routine runs.
 // The reference sites are interactive; the agents only look at their FLOW and feature set on the web, they do not copy the UI.
-export const tags: TestTag[] = ["multi_ag", "single_prompt", "split_task"];
+export const tags: TestTag[] = ["multi_ag", "single_prompt", "split_task", "ready_to_plan"];
 const base = {
   needs: ["multiagent.spawn", "sandbox.files"], lead: "lead_team", tools: ["Agent"],
   agents: ["planner", "ux-designer", "builder", "researcher", "qa-reviewer"],
@@ -22,7 +22,7 @@ export const cases: Case[] = [
     }],
   },
   {
-    id: "real_composio_admin_prototype", title: "[real_planning_prototype] Composio-like admin dashboard: plan the features, then a FE-only prototype", ...base,
+    id: "real_composio_admin_prototype", tags: ["ready_to_start"], title: "[real_planning_prototype] Composio-like admin dashboard: plan the features, then a FE-only prototype", ...base,
     turns: [{
       user: "I want an admin dashboard like Composio's. Check the web for how Composio works (only its features and flow, not its exact UI): connected apps / integrations catalog, auth configs, connected accounts, tools and actions, triggers, logs of executions, API keys, projects and team settings, usage and billing. Plan it properly and show me a prototype I can click through before we build anything real. It is only a prototype to see the layout and the flow, so use fake data for now (faker-style; sqlite or a real backend comes later, so nobody needs to decide yet where a column or its data comes from). Work in run_test.",
       expected: { context: "(see the expectation comment at the end of this file)", expected_agents_res: [] },

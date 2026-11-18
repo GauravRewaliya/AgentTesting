@@ -6,8 +6,10 @@ import HeadPicker from "@/components/flow/HeadPicker.vue";
 import FlowCanvas from "@/components/flow/FlowCanvas.vue";
 import SubAgentPanel from "@/components/panels/SubAgentPanel.vue";
 import { busyElsewhere, chainPlan, isRunning, resumeRuns, runCase, runsHere } from "@/store/runs";
-import { computed } from "vue";
+import { computed, watch } from "vue";
 import type { Status } from "@/types";
+const props = defineProps<{ group: "real" | "core" }>();
+watch(() => props.group, (g) => { state.group = g; state.head = "__first"; state.selectedCaseId = null; state.readyFilter.clear(); if (activeHead.value) selectHead(activeHead.value); }, { immediate: true });
 const picked = computed(() => state.cards.flatMap((c) => c.cases).find((r) => r.caseId === state.selectedCaseId) ?? null);
 onMounted(async () => { await loadCards(); loadSubagents(); void resumeRuns(); if (!state.selectedCaseId && activeHead.value) selectHead(activeHead.value); });   // the first head is picked at start: its first node is selected
 const statuses: Status[] = ["pass", "fail", "skipped", "never_run"];
@@ -15,7 +17,7 @@ const toggle = (s: Status) => (state.statusFilter.has(s) ? state.statusFilter.de
 </script>
 <template>
   <DebugFrame name="FlowPage">
-    <HeadPicker />
+    <HeadPicker :group="group" />
     <div class="bar runbar">
       <button class="primary" :disabled="!picked || isRunning" :title="picked ? 'same runner as the CLI (testrun/run.ts)' : 'select a case first'" @click="picked && runCase(picked.caseId)">{{ runsHere ? "running…" : !picked ? "▶ Run (select a node)" : picked.ran ? "▶ Run: " + picked.caseId : "▶ Run" + (chainPlan.n > 1 ? ` all (${chainPlan.n} steps): ` : ": ") + picked.caseId }}</button>
       <span v-if="picked" class="mono small" :style="{ color: picked.status === 'pass' ? 'var(--pass)' : picked.status === 'fail' ? 'var(--fail)' : 'var(--mute)' }">{{ picked.ran ? picked.status + (picked.at ? " · " + picked.at.slice(5, 16).replace("T", " ") : "") : "not run yet" }}</span>

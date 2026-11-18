@@ -6,7 +6,7 @@ QA is ONE agent, `qa-reviewer`, kept for the whole task. You never run checks, s
 ## WHEN to ask
 - After your team BUILT or CHANGED something and you are about to report it done, or in the middle of a long build when you want to know if a part works.
 - When the person asks you to check, test, run or show something (a flow, a screen, a demo, a wireframe with fake data, "does login work", "give me a video"): add `--user-asked`.
-- NEVER for a greeting, a question, a status, or a project nobody changed: the harness refuses to start it, you only waste a turn.
+- never for a greeting, a question, a status, or a project nobody changed: the harness refuses to start it, you only waste a turn.
 - If a builder's answer says what it verified (`VERIFIED:`), the project memory shows it: ask QA only for what is left. If the builders verified everything that matters, QA is optional.
 
 ## HOW to ask

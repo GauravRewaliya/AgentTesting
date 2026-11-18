@@ -115,7 +115,15 @@ export class FixtureGate implements Runner {
     if (session?.state === "real") return real();   // a follow-up of a session that was a real call: it is real, no fixture involved
     const followUp = !!session && session.served.length > 0;
     // 2. PROMPT + FIXTURE
-    const rules = allRules(mockEv?.guard), why = checkHandover({ rules, agent: role, prompt: c.prompt, done: [] }), rec = pickRecorded(mockEv?.ids ? this.results.filter((r) => mockEv.ids!.includes(r.id)) : this.results, role, c.prompt, servedInTask(st, task), true);   // `after` may name a result of ANOTHER agent (stage chains): task-wide   // strict: never a result of another agent/suite
+    const rules = allRules(mockEv?.guard), why = checkHandover({ rules, agent: role, prompt: c.prompt, done: [] });
+    let rec = pickRecorded(mockEv?.ids ? this.results.filter((r) => mockEv.ids!.includes(r.id)) : this.results, role, c.prompt, servedInTask(st, task), true);
+    // BY THE CASE, NOT BY WORDING: the case declares which recorded results it expects (mockEv.ids). When no keyword of the hand-over matches but the case expects exactly ONE not-yet-served result of this role
+    // (and its `after` is served), that result is the answer: a good hand-over that does not repeat an incidental phrase of the case (eg_tw_01 needed 'phase 1 of 1') must not fail. Hand-over QUALITY stays the job
+    // of the guard rules (checkHandover, `why`), which still apply. The event `fixture.by_case` makes every such serve visible in the logs.
+    if (!rec && mockEv?.ids?.length && why.length === 0 && !isVerifyAsk(c.prompt)) {
+      const served = servedInTask(st, task), open = this.results.filter((r) => mockEv.ids!.includes(r.id) && (!r.agent || r.agent === role) && !served.includes(r.id) && (!r.after || served.includes(r.after)));
+      if (open.length === 1) { rec = open[0]; st.tx(() => st.ev("fixture.by_case", task, c.row.agent_id, { role, result: rec!.id, reason: "no keyword of the hand-over matched; the case expects exactly this one result of the role, so it was served" })); }
+    }   // `after` may name a result of ANOTHER agent (stage chains): task-wide   // strict: never a result of another agent/suite
     const verify = (): RunResult => {   // a "check / what did you do" ask: answered from the session table (history + files on disk now). No new work, no model, no claude -p.
       const row = session ?? st.fixtureSessions.find((x) => x.task_id === task && x.role === role && x.served.length)!;
       const files = [...snap(ws).keys()].slice(0, 80);

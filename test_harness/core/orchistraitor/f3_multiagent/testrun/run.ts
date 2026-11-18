@@ -1,4 +1,4 @@
-// bun testrun/run.ts <suite> [case_id ... | --all] [--approach=a1_team_cli] [--again] [--list] [--fake] [--rerun] [--video] [--no-planning] [--stop-pause] [--say="next"]
+// bun testrun/run.ts <suite> [case_id ... | --all] [--approach=a1_team_cli] [--no-stamp] [--again] [--list] [--fake] [--rerun] [--video] [--no-planning] [--stop-pause] [--say="next"]
 //   --again        send the case's prompts AGAIN into its existing session (same task + workspace + lead conversation; nothing archived) and judge the answers. The UI's "Run" on a case that already ran.
 //   --stop-pause   step mode, "next next next": the lead does ONE step (plan files -> layout wireframe -> themed UI), reports, and STOPS to wait for you. Only the first turn of the case runs; no qa_check, no full build.
 //   --resume       RESUME the latest run of each named case instead of starting a new task (no --rerun): same task, same workspace, the lead conversation is resumed; the lead is told to carry on (or give your own words with --say="..."). Cases never run before start normally.
@@ -96,7 +96,10 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   // the lead then answers "already done", calls no builder, and the record of the first (valid) run is overwritten with "(none)". So that case gets a FRESH session instead (old one archived), as with --rerun.
   again = againFlag && !(c.allow_real_subAg && !sayMsg);
   if (againFlag && !again) console.log(`   (--again on a case with real sub-agents: running it in a fresh session; the old one is archived)`);
-  const rerun = !!exp[c.id], planned = taskFor(c, all, exp), task = planned;   // a rerun never overwrites: it is a new task you can compare
+  const rerun = !!exp[c.id], planned = taskFor(c, all, exp);
+  // EVERY real run of a ROOT case gets its OWN dated folder (t_<case>-<YYYYMMDD-HHMMSS>): past runs stay on disk untouched and runs of two approaches can be compared side by side. --no-stamp = the old fixed name (a rerun then archives the old folder). A case that continues a parent (`after`), --again, --say and --resume keep the parent's / existing task.
+  const stampOn = !fake && !flags.has("--no-stamp") && !c.after && !sayMsg && !againFlag && !(resumeArg), d8 = new Date(), p2 = (n: number) => String(n).padStart(2, "0"),
+    stamp = `${d8.getFullYear()}${p2(d8.getMonth() + 1)}${p2(d8.getDate())}-${p2(d8.getHours())}${p2(d8.getMinutes())}${p2(d8.getSeconds())}`, task = stampOn ? `${planned}-${stamp}` : planned;   // a rerun never overwrites: it is a new task you can compare
   if (rerun && !flags.has("--rerun") && !sayMsg && !againFlag) { console.log(`\n## ${c.id}: already ran in task ${exp[c.id]!.task} (--rerun runs it again in a new task)`); continue; }
   // HOME of this run: a root case has its own; a case that CONTINUES its parent uses the parent's; a BRANCH (a second child of the same parent) starts from a COPY of the parent's session folder (same task id, so the parent's agents and sessions are still there)
   const parentEnt = c.after ? (exp[c.after] as { task: string; home?: string } | undefined) : undefined, isBranch = !!parentEnt && planned !== parentEnt.task, sfx = task.slice(planned.length);
@@ -113,7 +116,8 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   else if (perTask && isBranch) { const pk = parentEnt!.home ?? parentEnt!.task, b = branchRun({ parentDir: homeOf(pk), alias: c.id }); homeKey = pk + "/branches/" + b.branch; branchInfo = { branch: b.branch, parentDir: homeOf(pk) }; }
   const ent = (exp[c.id] = reuse(sayMsg) && exp[c.id] ? (exp[c.id] as never) : { case: c.id, task: runTask, home: homeKey, suite, agents: agentsFor(c), marks: [] as number[], started: [] as number[], done: 0, at: Date.now() } as { case: string; task: string; suite: string; agents: string[]; marks: number[]; started: number[]; done: number; at: number });
   console.log(`\n## ${c.id}: ${c.title}   [task ${runTask}${homeKey !== runTask ? ", home " + homeKey : ""}, agents: ${ent.agents.join(", ")}]`);
-  const store = perTask ? new MStore(storeOf(homeKey)) : gstore, REPO = repoOf(homeKey);   // this master session's own store and workspace (see LAYOUT)
+  const store = perTask ? new MStore(storeOf(homeKey)) : gstore, REPO = repoOf(homeKey);
+  if (!fake && perTask) { const freed = reconcileDead(store); if (freed.length) console.log(`   (freed ${freed.length} agent(s) left running by a run that is gone: ${freed.join(", ")})`); }   // per-task mode too: a killed run must not stay 'running' forever   // this master session's own store and workspace (see LAYOUT)
   if (perTask) { mkdirSync(join(homeOf(homeKey), "store"), { recursive: true }); ensureRepo(REPO); }
   if (!c.after && !reuse(sayMsg)) { rmSync(join(REPO, "run_test"), { recursive: true, force: true }); mkdirSync(join(REPO, "run_test"), { recursive: true }); }   // an EXISTING empty run_test: the first patch of a writer must find its folder (it was lost when the folder was missing)   // ISOLATION: a case that does not continue another starts with an empty workspace (the lead can now `ls` it: leftovers of the case before would mislead it)
   { const seeded = c.after || reuse(sayMsg) ? null : seedStart(c.turns[0]!.user, REPO); if (seeded) console.log(`   starting state   : ${seeded}`); }
@@ -128,6 +132,7 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   const judged = []; let cost = 0, leadCost = 0;
   for (let i = 0; i < turns.length; i++) {
     store.reload(); ent.marks[i] = store.calls.filter((x) => x.task_id === runTask).length; ent.started[i] = Date.now(); saveExp(ent);
+    const costBase = (() => { const l = store.agentsOf(runTask).find((x) => x.name === "lead"); return l ? costOf(store, runTask, l.agent_id) : 0; })();   // a chain (`after`) SHARES the task: the cost cap below judges only what THIS turn spent
     declareGateLimit(store, runTask, c);
     store.tx(() => { const n = say(store, runTask, "user", "lead", turns[i]!.user, chatRefs, Infinity); n.read_by.push("lead"); });   // (auto run: tagged auto_run, hidden in the chat)   // the chat of the UI (Experiment page) shows these notes: a test run has a conversation too
     // a branch's lead is a clone of the parent's lead session, made NOW (status pending -> cloned), not when the branch folder was made
@@ -144,7 +149,7 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
     judged.push(j); ent.done = i + 1; ((ent as { ends?: number[] }).ends ??= [])[i] = store.calls.filter((x) => x.task_id === runTask).length; saveExp(ent);
     if (j.reply && !fake) store.tx(() => { const n = say(store, runTask, "lead", "user", j.reply, chatRefs, Infinity); n.read_by.push("user"); });   // the lead's final answer of this turn (the chat shows it)
     leadCost += (out as { cost?: number }).cost ?? 0; cost = costOf(store, runTask, out.row.agent_id);   // lead + real sub-agents, from the agent.done events (fixtures cost 0); same number the UI shows
-    { const cap = (c as { max_cost_usd?: number }).max_cost_usd ?? Number(process.env.HARNESS_CASE_CAP_USD ?? 1); if (!fake && cap > 0 && cost > cap) j.gate = (j.gate ? j.gate + "; " : "") + `COST CAP: $${cost.toFixed(4)} is over the case cap $${cap} (case.max_cost_usd or env HARNESS_CASE_CAP_USD)`; }   // a runaway real lead fails the case instead of silently spending
+    { const cap = (c as { max_cost_usd?: number }).max_cost_usd ?? Number(process.env.HARNESS_CASE_CAP_USD ?? 1); if (!fake && cap > 0 && cost - costBase > cap) j.gate = (j.gate ? j.gate + "; " : "") + `COST CAP: $${(cost - costBase).toFixed(4)} this turn is over the case cap $${cap} (case.max_cost_usd or env HARNESS_CASE_CAP_USD)`; }   // a runaway real lead fails the case instead of silently spending
     console.log(`-- turn ${i + 1}  ${j.match && !j.guard && !j.gate && !j.reply_problem ? "MATCH" : "DIFFERS"}${j.guard ? "  GUARD: a distractor was called" : ""}${j.gate ? "  GATE FAILED: " + j.gate : ""}   lead_ok=${out.ok}   cost so far=$${cost.toFixed(4)} (lead $${leadCost.toFixed(4)})${j.reply_problem ? "   REPLY: " + j.reply_problem : ""}`);
     console.log("   EXPECTED context : " + j.expectedContext);
     console.log("   EXPECTED calls   : " + (j.expected.map((e) => `${e.kind}:${e.role}`).join(", ") || "(none: the lead must not delegate)"));

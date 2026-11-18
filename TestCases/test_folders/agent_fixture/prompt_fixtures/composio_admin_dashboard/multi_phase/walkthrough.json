@@ -1,0 +1,801 @@
+{
+  "version": 1,
+  "title": "AgentDeck (Composio-style dashboard)",
+  "tagline": "An admin dashboard where a developer connects tools (GitHub, Slack, ...) to AI agents: 10 screens, light and dark, then a small SQLite mock server.",
+  "status": "phase 1 of 4 · planned",
+  "plan": {
+    "label": "Plan",
+    "steps": [
+      {
+        "id": "glance",
+        "title": "At a glance",
+        "goal": "Decide in two minutes: **is this the dashboard I want built?** Nothing is built yet.",
+        "blocks": [
+          {
+            "type": "text",
+            "md": "Ten screens with a left menu: **set up** apps (Toolkits, Auth Configs, Connected Accounts), **use** them (Triggers, Playground, Logs), and **manage** (Settings, API Keys, Docs). Light and dark theme, working buttons. First it runs on **fake data**; then a small mock server with a SQLite file keeps what you create after a restart; then Playground runs are really stored and shown in Logs."
+          },
+          {
+            "type": "facts",
+            "items": [
+              {
+                "k": "Who reads it",
+                "v": "You and your team, to review the screens **before** building"
+              },
+              {
+                "k": "Name",
+                "v": "AgentDeck: original copy, no Composio logo or text (D-01)"
+              },
+              {
+                "k": "Real vs invented",
+                "v": "Only the login page of the real dashboard was captured, so **every screen is invented** in its style and marked so"
+              },
+              {
+                "k": "What we need from you",
+                "v": "Two open questions: how to fill the screens, and which animations (step 6)"
+              }
+            ]
+          },
+          {
+            "type": "ref",
+            "title": "Full written overview",
+            "file": "README.md",
+            "heading": "What is it"
+          }
+        ]
+      },
+      {
+        "id": "walk",
+        "title": "A typical walk-through",
+        "goal": "Follow **one user journey** across the screens. Click a step to see what happens.",
+        "blocks": [
+          {
+            "type": "flow",
+            "steps": [
+              {
+                "title": "Home",
+                "text": "4 stats and a 3-step quickstart with a code sample. Numbers count up once; bars grow.",
+                "see": "Stats, tab \"30 days\" changes the bars; \"Connect\" in step 2 jumps to Connected Accounts."
+              },
+              {
+                "title": "Create an auth config",
+                "text": "Auth Configs lists how sign-in works per app; **create** opens a form that validates.",
+                "see": "A new row; a field error if the form is wrong."
+              },
+              {
+                "title": "Connect an account",
+                "text": "Connected Accounts: connect in 2 steps (drawer slides in from the right), reconnect when expired.",
+                "see": "A new account row with status Active."
+              },
+              {
+                "title": "Playground → Run",
+                "text": "Pick a toolkit and action, edit the JSON, press **Run**.",
+                "see": "A fake response, and a new row is added to the shared list of runs."
+              },
+              {
+                "title": "Logs",
+                "text": "Every run, newest first; search, filter (status, toolkit), open a row for detail, export.",
+                "see": "The run you just made is the top row."
+              }
+            ]
+          },
+          {
+            "type": "mermaid",
+            "title": "How the screens connect",
+            "code": "flowchart LR\n  subgraph Shell[Shell: always visible]\n    SB[Left menu, 10 routes] --- TB[Top bar + theme]\n  end\n  HM[Home] --> TK[Toolkits] --> AC[Auth Configs] --> CA[Connected Accounts]\n  CA --> PG[Playground] --> LG[Logs]\n  CA --> TR[Triggers]\n  ST[Settings] --- AK[API Keys] --- DC[Docs]\n  Shell --- HM\n  subgraph Later[Phase 2-3]\n    API[Mock server] --> DB[(SQLite file)]\n  end\n  AC -.saved by.-> API\n  PG -.run stored by.-> API\n  API -.read by.-> LG"
+          }
+        ]
+      },
+      {
+        "id": "screens",
+        "title": "Screens and wireframe",
+        "goal": "Judge the **layout and each screen**. Click a screen to see what it does; open its page only if you want every detail.",
+        "blocks": [
+          {
+            "type": "wireframe",
+            "title": "Shell: menu, top bar, content",
+            "src": "wireframes/shell.html",
+            "caption": "Try \"Phone width\": the menu becomes a drawer at 390 px (phase 4)."
+          },
+          {
+            "type": "cards",
+            "title": "The 10 screens (click one)",
+            "items": [
+              {
+                "tag": "1",
+                "title": "Home",
+                "text": "stats + quickstart",
+                "detail": "4 stats, 3-step quickstart with code sample."
+              },
+              {
+                "tag": "2",
+                "title": "Toolkits",
+                "text": "12 app cards",
+                "detail": "Live search, category chips, a card opens `#/toolkits/<slug>`, empty state for no match.",
+                "files": [
+                  "02_ux/screens/toolkits.md"
+                ]
+              },
+              {
+                "tag": "3",
+                "title": "Auth Configs",
+                "text": "list, create, detail",
+                "detail": "How sign-in works per app.",
+                "files": [
+                  "02_ux/screens/auth-configs.md"
+                ]
+              },
+              {
+                "tag": "4",
+                "title": "Connected Accounts",
+                "text": "connect in 2 steps",
+                "detail": "Accounts per end user; reconnect.",
+                "files": [
+                  "02_ux/screens/connected-accounts.md"
+                ]
+              },
+              {
+                "tag": "5",
+                "title": "Triggers",
+                "text": "switches, create, events",
+                "detail": "On/off switches, recent events, replay.",
+                "files": [
+                  "02_ux/screens/triggers.md"
+                ]
+              },
+              {
+                "tag": "6",
+                "title": "Playground",
+                "text": "pick a tool, Run",
+                "detail": "Edit JSON params, see the response, a Logs row is added.",
+                "files": [
+                  "02_ux/screens/playground.md"
+                ]
+              },
+              {
+                "tag": "7",
+                "title": "Logs",
+                "text": "every run",
+                "detail": "Newest first; search, filter, detail drawer, export.",
+                "files": [
+                  "02_ux/screens/logs.md"
+                ]
+              },
+              {
+                "tag": "8",
+                "title": "Settings",
+                "text": "profile, members, appearance",
+                "detail": "Appearance holds the dark-mode switch, kept after reload.",
+                "files": [
+                  "02_ux/screens/settings.md"
+                ]
+              },
+              {
+                "tag": "9",
+                "title": "API Keys",
+                "text": "create, copy once, revoke",
+                "detail": "The key is shown once.",
+                "files": [
+                  "02_ux/screens/api-keys.md"
+                ]
+              },
+              {
+                "tag": "10",
+                "title": "Docs",
+                "text": "reading page",
+                "detail": "3-column page with quickstart and errors.",
+                "files": [
+                  "02_ux/screens/docs.md"
+                ]
+              }
+            ]
+          },
+          {
+            "type": "ref",
+            "title": "Open the Toolkits screen page",
+            "file": "02_ux/screens/toolkits.md"
+          },
+          {
+            "type": "ref",
+            "title": "UX index: all routes in one table",
+            "file": "02_ux/README.md"
+          }
+        ]
+      },
+      {
+        "id": "look",
+        "title": "Look and motion",
+        "goal": "Colours and animation, so you can say **\"keep\" or \"change\"** before anyone builds.",
+        "blocks": [
+          {
+            "type": "cards",
+            "items": [
+              {
+                "tag": "☀",
+                "title": "Light (default)",
+                "text": "#fcfcfc, black buttons, lavender accent",
+                "detail": "Accent `#b1a9ff` / `#5753c6` for links and highlights."
+              },
+              {
+                "tag": "☾",
+                "title": "Dark",
+                "text": "#000 background, #191919 surface",
+                "detail": "Set in Settings > Appearance, kept after reload."
+              },
+              {
+                "tag": "Aa",
+                "title": "Type",
+                "text": "IBM Plex Mono for code and ids"
+              },
+              {
+                "tag": "▦",
+                "title": "Shared kit",
+                "text": "cards, tables, badges, modals, drawers, toasts",
+                "detail": "They come from one shared kit; nobody edits them per screen."
+              }
+            ]
+          },
+          {
+            "type": "table",
+            "title": "Motion",
+            "head": [
+              "Where",
+              "Animation",
+              "Time"
+            ],
+            "rows": [
+              [
+                "buttons, nav items, rows",
+                "colour fade on hover",
+                "120 ms"
+              ],
+              [
+                "modal / drawer",
+                "fade + 8 px slide up / slide in from right",
+                "160 ms"
+              ],
+              [
+                "toast",
+                "slides in bottom-right, hides after 3 s",
+                "160 ms"
+              ],
+              [
+                "Home stats and bars",
+                "numbers count up once; bars grow from 0",
+                "600 ms / 300 ms"
+              ],
+              [
+                "theme switch",
+                "colours cross-fade",
+                "150 ms"
+              ],
+              [
+                "reduced motion",
+                "turns all of it off",
+                "rule"
+              ]
+            ],
+            "caption": "No looping or decorative animation. Invented (the capture found none); real motion can replace it (Q2)."
+          },
+          {
+            "type": "ref",
+            "title": "Full theme tokens",
+            "file": "02_ux/theme.md"
+          },
+          {
+            "type": "ref",
+            "title": "Full motion list",
+            "file": "02_ux/motion.md"
+          }
+        ]
+      },
+      {
+        "id": "features",
+        "title": "What you get",
+        "goal": "14 features, each tied to one phase.",
+        "blocks": [
+          {
+            "type": "table",
+            "head": [
+              "id",
+              "Feature",
+              "What you see or do",
+              "Phase"
+            ],
+            "rows": [
+              [
+                "F1",
+                "Shell and menu",
+                "left menu with 10 routes, top bar, active route highlighted",
+                "1"
+              ],
+              [
+                "F2",
+                "Light and dark",
+                "#fcfcfc light; dark choice kept after reload",
+                "1"
+              ],
+              [
+                "F3-F11",
+                "The 10 screens",
+                "Home, Toolkits, Auth Configs, Connected Accounts, Triggers, Settings, API Keys, Docs, Playground + Logs (Run adds a row)",
+                "1"
+              ],
+              [
+                "F12",
+                "Things stay after restart",
+                "what you create is saved in a SQLite file by a small mock server",
+                "2"
+              ],
+              [
+                "F13",
+                "Real stored runs",
+                "Playground Run is stored; Logs filters and exports real rows",
+                "3"
+              ],
+              [
+                "F14",
+                "Phone width",
+                "works at 390 px; menu becomes a drawer",
+                "4"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "id": "decide",
+        "title": "Decisions and quality",
+        "goal": "Two open questions. Each has a default, so silence means the default.",
+        "blocks": [
+          {
+            "type": "decisions",
+            "items": [
+              {
+                "id": "Q1",
+                "q": "How to fill the 10 screens?",
+                "state": "open",
+                "default": "(a) we invent them from typical agent platforms",
+                "ifNo": "(b) you log in once in the connected browser and we capture the real dashboard, or (c) you drop screenshots in `ref_notes/`"
+              },
+              {
+                "id": "Q2",
+                "q": "Animations: keep the small invented set or send the real ones?",
+                "state": "open",
+                "default": "keep",
+                "ifNo": "real motion replaces it if you supply a logged-in capture"
+              },
+              {
+                "id": "D-01",
+                "q": "Name",
+                "state": "agreed",
+                "default": "AgentDeck, original copy, no Composio logo or text"
+              },
+              {
+                "id": "D-02",
+                "q": "Where mock data lives in phase 1",
+                "state": "agreed",
+                "default": "inside each screen file; only the list of runs is shared"
+              },
+              {
+                "id": "D-03",
+                "q": "A screens file holds how many screens?",
+                "state": "open",
+                "default": "split further if a file passes 600 lines"
+              },
+              {
+                "id": "D-04",
+                "q": "Phase 2 backend",
+                "state": "proposed",
+                "default": "Bun + `bun:sqlite`, one file `agentdeck.sqlite`, no auth, seeded from the data model"
+              }
+            ]
+          },
+          {
+            "type": "checks",
+            "title": "Quality bar",
+            "items": [
+              "Every list has search or filter, an empty state and a row that opens a detail view; every button acts (no \"TODO\", no \"coming soon\")",
+              "Forms validate and show a field error",
+              "Light and dark both pass text contrast 4.5:1",
+              "Works at 390 px (menu becomes a drawer); no horizontal scroll",
+              "0 console errors on every route; no file owned by two builders",
+              "Honest labels: invented screens are marked invented"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "work": {
+    "label": "Phases & tasks",
+    "steps": [
+      {
+        "id": "roadmap",
+        "title": "Roadmap",
+        "goal": "Four phases; each ends with something you can **open and judge**.",
+        "blocks": [
+          {
+            "type": "mermaid",
+            "code": "flowchart LR\n  P1[\"1 Look and screens<br/>demo: click every screen\"] --> P2[\"2 Mock backend<br/>demo: restart, data stays\"] --> P3[\"3 Live Playground and Logs<br/>demo: Run, see the stored row\"] --> P4[\"4 Hardening<br/>demo: phone width, audit\"]"
+          },
+          {
+            "type": "table",
+            "head": [
+              "#",
+              "Phase",
+              "Goal",
+              "Status",
+              "Covers"
+            ],
+            "rows": [
+              [
+                "1",
+                "Look and screens",
+                "all 10 screens look right and every button works, on fake data",
+                "planned",
+                "F1-F11"
+              ],
+              [
+                "2",
+                "Mock backend (SQLite)",
+                "what you create stays after a restart",
+                "planning",
+                "F12"
+              ],
+              [
+                "3",
+                "Live Playground and Logs",
+                "a Playground run is a real stored row that Logs shows",
+                "planning",
+                "F13"
+              ],
+              [
+                "4",
+                "Hardening",
+                "phone width, audit, reference match",
+                "planning",
+                "F14"
+              ]
+            ]
+          },
+          {
+            "type": "text",
+            "md": "**Next up:** decide the reference (T00), then shell and theme, then the screens in parallel groups."
+          }
+        ]
+      },
+      {
+        "id": "p1",
+        "title": "Phase 1 · Look and screens",
+        "goal": "**Click through all 10 screens on fake data; every button works; light and dark both look right.**",
+        "blocks": [
+          {
+            "type": "checks",
+            "title": "Done when (you can check each one)",
+            "items": [
+              "every route loads with 0 console errors",
+              "page background is rgb(252,252,252), primary button rgb(0,0,0), accent link #5753c6",
+              "Settings > Appearance > Dark, reload: still dark",
+              "Home: click tab '30 days', bars change; click Connect in step 2, you land on Connected Accounts",
+              "Toolkits: type 'git', the list filters; click the first card, GitHub detail opens; 'zzz' shows the empty state",
+              "Playground: pick GitHub + create issue, Run: the response fills and Logs has a new top row",
+              "Logs: filter Failed shows only failed rows; click a row opens detail",
+              "every list has search or filter, an empty state and a row that opens detail; forms show a field error; no button without a handler; no 'TODO' text"
+            ]
+          },
+          {
+            "type": "tasks",
+            "title": "Tasks (three builders in parallel after the kit exists)",
+            "items": [
+              {
+                "id": "T00",
+                "what": "Decide capture source (Q1); if you log in, re-capture the dashboard",
+                "owner": "lookup",
+                "needs": []
+              },
+              {
+                "id": "T01",
+                "what": "Run the kit setup, then shell + light theme",
+                "owner": "builder-1",
+                "needs": [
+                  "T00"
+                ],
+                "files": [
+                  "css/pages-part-1.css"
+                ]
+              },
+              {
+                "id": "T02",
+                "what": "Dark theme + toggle in Settings",
+                "owner": "builder-3",
+                "needs": [
+                  "T01"
+                ],
+                "files": [
+                  "css/pages-part-3.css"
+                ],
+                "detail": "`html[data-theme=dark]` tokens, key `agentdeck-theme`."
+              },
+              {
+                "id": "T03",
+                "what": "Home, Toolkits",
+                "owner": "builder-1",
+                "needs": [
+                  "T01"
+                ],
+                "files": [
+                  "js/screens/part-1.js"
+                ]
+              },
+              {
+                "id": "T04",
+                "what": "Auth Configs, Connected Accounts",
+                "owner": "builder-1",
+                "needs": [
+                  "T01"
+                ],
+                "files": [
+                  "js/screens/part-1.js"
+                ]
+              },
+              {
+                "id": "T07",
+                "what": "Triggers",
+                "owner": "builder-2",
+                "needs": [
+                  "T01"
+                ],
+                "files": [
+                  "js/screens/part-2.js",
+                  "css/pages-part-2.css"
+                ]
+              },
+              {
+                "id": "T08",
+                "what": "Playground (Run adds a row to the shared list)",
+                "owner": "builder-2",
+                "needs": [
+                  "T01"
+                ],
+                "files": [
+                  "js/screens/part-2.js"
+                ]
+              },
+              {
+                "id": "T09",
+                "what": "Logs (reads the shared list)",
+                "owner": "builder-2",
+                "needs": [
+                  "T08"
+                ],
+                "files": [
+                  "js/screens/part-2.js"
+                ]
+              },
+              {
+                "id": "T10",
+                "what": "Settings (all tabs incl. Appearance)",
+                "owner": "builder-3",
+                "needs": [
+                  "T02"
+                ],
+                "files": [
+                  "js/screens/part-3.js"
+                ]
+              },
+              {
+                "id": "T11",
+                "what": "API Keys",
+                "owner": "builder-3",
+                "needs": [
+                  "T01"
+                ],
+                "files": [
+                  "js/screens/part-3.js"
+                ]
+              },
+              {
+                "id": "T12",
+                "what": "Docs",
+                "owner": "builder-3",
+                "needs": [
+                  "T01"
+                ],
+                "files": [
+                  "js/screens/part-3.js"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "p2",
+        "title": "Phase 2 · Mock backend (SQLite)",
+        "goal": "**Create something, restart the server, reload: it is still there.**",
+        "blocks": [
+          {
+            "type": "checks",
+            "title": "Done when",
+            "items": [
+              "create an auth config, restart the server, reload: it is still there",
+              "delete the SQLite file and restart: the seed data comes back",
+              "all screens still work (no console errors)"
+            ]
+          },
+          {
+            "type": "tasks",
+            "items": [
+              {
+                "id": "P2-T01",
+                "what": "SQLite schema + seed from the data model (6 tables)",
+                "owner": "builder-3",
+                "needs": [
+                  "P1-T12"
+                ]
+              },
+              {
+                "id": "P2-T02",
+                "what": "Mock server routes: list/create/update/delete for toolkits, auth configs, accounts, triggers, keys",
+                "owner": "builder-3",
+                "needs": [
+                  "P2-T01"
+                ]
+              },
+              {
+                "id": "P2-T03",
+                "what": "Screens read and write through the server instead of in-file data",
+                "owner": "builder-1",
+                "needs": [
+                  "P2-T02"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "p3",
+        "title": "Phase 3 · Live Playground and Logs",
+        "goal": "**Run in Playground and see a real stored row at the top of Logs, even after a restart.**",
+        "blocks": [
+          {
+            "type": "checks",
+            "title": "Done when",
+            "items": [
+              "Run in Playground: a new row is on top of Logs",
+              "restart the server: the row is still there",
+              "filter status = Failed and export CSV match what is shown"
+            ]
+          },
+          {
+            "type": "tasks",
+            "items": [
+              {
+                "id": "P3-T01",
+                "what": "`POST /run`: mock a tool call, store an execution row (tool, account, status, ms, request, response)",
+                "owner": "builder-3",
+                "needs": [
+                  "P2-T02"
+                ]
+              },
+              {
+                "id": "P3-T02",
+                "what": "Logs reads executions with search, status, toolkit and time filters; CSV export",
+                "owner": "builder-2",
+                "needs": [
+                  "P3-T01"
+                ]
+              },
+              {
+                "id": "P3-T03",
+                "what": "End-to-end check: Run, row on top of Logs, still there after restart",
+                "owner": "qa-reviewer",
+                "needs": [
+                  "P3-T02"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "p4",
+        "title": "Phase 4 · Hardening",
+        "goal": "**Phone width works, nothing is broken, and the look still matches the reference.**",
+        "blocks": [
+          {
+            "type": "checks",
+            "title": "Done when",
+            "items": [
+              "390 px: no horizontal scroll, the drawer works, all routes visited",
+              "0 console errors, no dead links",
+              "reference match score is at least the value recorded after phase 1",
+              "no file owned by two packages"
+            ]
+          },
+          {
+            "type": "tasks",
+            "items": [
+              {
+                "id": "P4-T01",
+                "what": "Responsive 390 px, menu drawer",
+                "owner": "builder-1",
+                "needs": [
+                  "P1-T12"
+                ]
+              },
+              {
+                "id": "P4-T02",
+                "what": "Sweep: checker, preview of all routes, site audit, reference compare",
+                "owner": "qa-reviewer",
+                "needs": [
+                  "P4-T01"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "team",
+        "title": "Who owns which file",
+        "goal": "**No file is owned twice.** That is what lets three builders work at the same time.",
+        "blocks": [
+          {
+            "type": "who",
+            "items": [
+              {
+                "name": "builder-1",
+                "does": "Home, Toolkits, Auth Configs, Connected Accounts; the shell and the light theme",
+                "tasks": [
+                  "js/screens/part-1.js",
+                  "css/pages-part-1.css"
+                ]
+              },
+              {
+                "name": "builder-2",
+                "does": "Triggers, Playground, Logs; the shared list of runs",
+                "tasks": [
+                  "js/screens/part-2.js",
+                  "css/pages-part-2.css"
+                ]
+              },
+              {
+                "name": "builder-3",
+                "does": "Settings, API Keys, Docs; the dark theme and toggle",
+                "tasks": [
+                  "js/screens/part-3.js",
+                  "css/pages-part-3.css"
+                ]
+              },
+              {
+                "name": "qa-reviewer",
+                "does": "checks every phase in a real browser; writes pass/fail, never builds",
+                "tasks": [
+                  "P3-T03",
+                  "P4-T02"
+                ]
+              }
+            ]
+          },
+          {
+            "type": "ref",
+            "title": "Build recipe",
+            "file": "README.md",
+            "heading": "Build recipe",
+            "dev": true
+          },
+          {
+            "type": "ref",
+            "title": "Requirements, data model, test plan",
+            "file": "build_inputs/01_requirements_data_flow_tests.md",
+            "heading": "Requirements (EARS)",
+            "dev": true
+          }
+        ]
+      }
+    ]
+  }
+}

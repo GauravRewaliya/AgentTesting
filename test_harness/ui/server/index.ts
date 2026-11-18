@@ -10,6 +10,10 @@ import * as runs from "./runs.ts";
 import * as pv from "./preview.ts";
 import * as hub from "./hub.ts";
 import * as br from "./browser.ts";
+import * as st from "./settings.ts";
+import * as pt from "./prompttests.ts";
+import { usage } from "./usage.ts";
+import { PROMPT_LIMIT, emphasisWarnings, promptWarnings } from "@core/agents/prompt_sizes.ts";
 import { caseEvents } from "./data.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -60,6 +64,25 @@ Bun.serve({
       if (p === "/proc/stop" && m === "POST") { const b = (await req.json()) as { task: string; pid: number }; return send(pv.stopProc(b.task, Number(b.pid))); }
       if (p === "/bg/stop" && m === "POST") { const b = (await req.json()) as { task: string; id: string }; return send(pv.stopScript(b.task, b.id)); }
       if (p === "/bg/log" ) return send(pv.scriptLog(u.searchParams.get("task") ?? "", u.searchParams.get("id") ?? "", Number(u.searchParams.get("tail") ?? 80)));
+      if (p === "/prompt-tests" && m === "GET") return send(await pt.catalog());   // the catalog is one load; results and runs are pushed (topic prompttests)
+      if (p === "/prompt-tests/run" && m === "POST") return send(pt.startRun((await req.json()) as never));
+      if (p === "/prompt-tests/log") return send({ text: pt.runLog(u.searchParams.get("id") ?? "") });
+      if (p === "/prompt-tests/mark" && m === "POST") { const b = (await req.json()) as { caseId: string; mark: string | null }; return send(pt.setPMark(b.caseId, b.mark)); }   // "fixed" / "known" on a failing prompt case (it stays FAILED until a re-run passes)
+      if (p === "/case-marks" && m === "GET") return send(pt.marks());
+      if (p === "/case-marks" && m === "POST") { const b = (await req.json()) as { caseId: string; mark: string | null }; return send(pt.setMark(b.caseId, b.mark)); }
+      if (p === "/settings" && m === "GET") return send(st.state());
+      if (p === "/usage") return send(usage());
+      if (p === "/settings/agents" && m === "POST") { const b = (await req.json()) as { clone?: string; name: string; parent?: string; description: string; model?: string; prompt?: string; tools?: string[]; writes?: boolean }; return send(b.clone ? st.clone(b.clone, b.name, b.parent) : st.create(b)); }
+      if ((r = p.match(/^\/settings\/agents\/([\w-]+)$/))) { const n = r[1]!; if (m === "PUT") return send(st.edit(n, (await req.json()) as never)); if (m === "DELETE") return send(st.remove(n)); }
+      if ((r = p.match(/^\/settings\/agents\/([\w-]+)\/(enable|disable|move)$/)) && m === "POST") return send(r[2] === "move" ? st.move(r[1]!, (await req.json()) as never) : st.setDisabled(r[1]!, r[2] === "disable"));
+      if (p === "/settings/agents/connect" && m === "POST") { const b = (await req.json()) as { from: string; to: string }; return send(st.connect(b.from, b.to)); }
+      if (p === "/settings/agents/disconnect" && m === "POST") { const b = (await req.json()) as { from: string; to: string }; return send(st.disconnect(b.from, b.to)); }
+      if (p === "/settings/agents/reset-lines" && m === "POST") return send(st.resetLines());
+      if (p === "/settings/scan-connectors" && m === "POST") return send(await st.scanConnectors());
+      if ((r = p.match(/^\/settings\/plugins\/([^/]+)$/)) && m === "PUT") return send(st.setPlugin(decodeURIComponent(r[1]!), ((await req.json()) as { agents?: string[] }).agents ?? []));
+      if ((r = p.match(/^\/settings\/plugins\/([^/]+)$/)) && m === "PUT") return send(st.setPlugin(decodeURIComponent(r[1]!), ((await req.json()) as { agents: string[] }).agents ?? []));
+      if ((r = p.match(/^\/settings\/integrations\/(\w+)$/)) && m === "PUT") return send(st.setIntegration(r[1]!, (await req.json()) as never));
+      if ((r = p.match(/^\/settings\/integrations\/(\w+)\/test$/)) && m === "POST") return send(await st.testIntegration(r[1]!));
       if (p === "/browser") return send(await br.overview());
       if (p === "/browser/connect" && m === "POST") return send(await br.connect(((await req.json()) as { url: string }).url));
       if (p === "/browser/launch" && m === "POST") return send(await br.launch(Number(((await req.json()) as { port?: number }).port ?? 9222)));
@@ -93,3 +116,5 @@ console.log("api on http://127.0.0.1:" + (process.env.API_PORT ?? 5189));
 try { for (const w of branchWarnings((await loadSuites()).flatMap((x) => x.cases.map((c) => ({ ...c, suite: x.suite }))))) console.warn("\x1b[33mWARNING\x1b[0m " + w); } catch (e) { console.warn("branch check skipped: " + String(e).slice(0, 100)); }
 // at start: leftovers worth a look. Reported only; nothing is cleaned up automatically.
 try { const hints = exp.cleanupHints(); if (hints.length) { console.warn(`\x1b[33mWARNING\x1b[0m ${hints.length} possible leftover(s) in .state (cleanup candidates, NOT cleaned automatically):`); for (const h of hints) console.warn("  - " + h); } } catch (e) { console.warn("cleanup scan skipped: " + String(e).slice(0, 100)); }
+// at start: an agent prompt or chapter over the size limit (see core/agents/prompt_sizes.ts; `bun test_harness/scripts/check_prompts.ts` shows the table). Reported only.
+try { const w = promptWarnings(); if (w.length) { console.warn(`\x1b[33mWARNING\x1b[0m ${w.length} agent prompt(s) over ${PROMPT_LIMIT} characters (they are sent on every turn; keep them short, move details into chapters/):`); for (const x of w) console.warn("  - " + x); } const adv = emphasisWarnings(); if (adv.length) console.warn(`\x1b[33mADVICE\x1b[0m ${adv.length} prompt file(s) shout (MUST / NEVER ...): plain wording works better with the newer models:`), adv.forEach((x) => console.warn("  - " + x)); } catch (e) { console.warn("prompt size check skipped:", (e as Error).message); }

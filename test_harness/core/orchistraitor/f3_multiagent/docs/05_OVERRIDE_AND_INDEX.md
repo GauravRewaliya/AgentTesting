@@ -40,3 +40,14 @@ approaches/a1_team_cli/prompts/lead.md          default lead prompt for a1
 approaches/custom/a1_team_cli/prompts/lead.md   wins for a1 only
 approaches/custom/_all/rules/builder_rules.json wins for every approach
 ```
+
+## Switching approach (works today)
+| How | Command |
+|---|---|
+| default for everything | `approach:` in `test_harness/core/config.ts` |
+| one run, env | `APPROACH=a2_native_hook bun testrun/run.ts <suite> <ids>` |
+| one run, flag | `bun testrun/run.ts <suite> <ids> --approach=a2_native_hook` |
+Built: `a1_team_cli` (team shell commands), `a2_native_hook` (stock Agent tool, the hook ANSWERS it from fixtures: cheap), `a2_native_observe` (stock Agent tool runs REAL native sub-agents from `--agents`; hooks PreToolUse/PostToolUse/SubagentStop only record + police: tests that native works; costs real sub-agent calls, no fixtures/locks/patches). Offline check of a2: `bun self_test/approach_a2.ts`.
+A2 prompt: `approaches/a2_native_hook/prompts/lead.md`; override per `custom/a2_native_hook/prompts/lead.md` (first line `<!-- CUSTOM: overrides approaches/a2_native_hook/prompts/lead.md -->`).
+
+A2 lead tools: native `Agent`/`SendMessage` (answered by `hook.ts`), plus typed MCP tools `mcp__team__*` (`approaches/a2_native_hook/team_mcp.ts`: wait, fork_all, plan_*, phase_pass, apply_patches, ledger_get, ls/read_file/grep, agents_list, board_status, chapter, team_tool for the rest). No Bash, no `delegate` tool.

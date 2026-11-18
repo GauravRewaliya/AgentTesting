@@ -9,11 +9,35 @@ async function call<T>(path: string, body?: unknown): Promise<T> {
   return j as T;
 }
 
+async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const r = await fetch(`/api${path}`, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const j = await r.json(); if (!r.ok) throw new Error(j.error ?? r.statusText); return j as T;
+}
+type SR = import("../../shared/settings").SettingsState;
+
 export interface BrowserTab { id: string; title: string; url: string }
 export interface BrowserOverview { ok?: false; reason?: string; mode: "attached" | "headless"; saved?: string | null; endpoint?: string; browser?: string; reachable?: boolean; since?: string; tabs?: BrowserTab[]; note: string; chrome: boolean; display: boolean; profile: string | null; defaultPort: number; howto: string[] }
 export interface BrowserTry { ok: boolean; reason?: string; ms?: number; via?: string; image?: string | null; title?: string; theme?: { scheme: string; bg: string; font: string; accent: string }; sections?: { i: number; tag: string; heading: string; cards: number; buttons: number; images: number; animated: boolean }[]; console?: string[] }
 export const api = {
   cards: () => call<CardOut[]>("/cards"),
+  settingsAgentNew: (b: Record<string, unknown>) => send<SR>("POST", "/settings/agents", b),
+  settingsAgentEdit: (n: string, b: Record<string, unknown>) => send<SR>("PUT", `/settings/agents/${n}`, b),
+  settingsAgentDelete: (n: string) => send<SR>("DELETE", `/settings/agents/${n}`),
+  settingsAgentToggle: (n: string, on: boolean) => send<SR>("POST", `/settings/agents/${n}/${on ? "enable" : "disable"}`, {}),
+  settingsAgentConnect: (from: string, to: string) => send<SR>("POST", `/settings/agents/connect`, { from, to }),
+  settingsAgentDisconnect: (from: string, to: string) => send<SR>("POST", `/settings/agents/disconnect`, { from, to }),
+  settingsAgentResetLines: () => send<SR>("POST", `/settings/agents/reset-lines`, {}),
+  settingsAgentMove: (n: string, b: { parent?: string; x?: number; y?: number }) => send<SR>("POST", `/settings/agents/${n}/move`, b),
+  settingsIntegration: (id: string, b: Record<string, unknown>) => send<SR>("PUT", `/settings/integrations/${id}`, b),
+  settingsPlugin: (name: string, agents: string[]) => send<SR>("PUT", `/settings/plugins/${encodeURIComponent(name)}`, { agents }),
+  promptCatalog: () => call<import("../../shared/prompttests").PtCatalog>("/prompt-tests"),
+  promptRun: (b: { suite: string; ids?: string[]; tag?: string; skipTag?: string; runs?: number }) => call<import("../../shared/prompttests").PtRunRow | { error: string }>("/prompt-tests/run", b),
+  promptLog: (id: string) => call<{ text: string }>(`/prompt-tests/log?id=${encodeURIComponent(id)}`),
+  caseMarks: () => call<Record<string, string>>("/case-marks"),
+  setCaseMark: (caseId: string, mark: string | null) => call<Record<string, string> | { error: string }>("/case-marks", { caseId, mark }),
+  promptMark: (caseId: string, mark: string | null) => call<Record<string, unknown> | { error: string }>("/prompt-tests/mark", { caseId, mark }),
+  settingsScanConnectors: () => send<SR>("POST", "/settings/scan-connectors", {}),
+  settingsIntegrationTest: (id: string) => send<{ ok: boolean; reason?: string; who?: string }>("POST", `/settings/integrations/${id}/test`, {}),
   browser: () => call<BrowserOverview>("/browser"),
   browserConnect: (url: string) => call<BrowserOverview>("/browser/connect", { url }),
   browserLaunch: (port = 9222) => call<BrowserOverview>("/browser/launch", { port }),

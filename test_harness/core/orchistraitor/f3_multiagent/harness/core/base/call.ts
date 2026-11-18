@@ -13,6 +13,7 @@ export const canaryFor = (task: string, agent: string) => "W-" + [...(task + age
 export type Mode = "new" | "resumed" | "rolled" | "forked";
 export interface CallOut extends RunResult { mode: Mode; prompt_chars: number }
 
+import { warnBigPrompt } from "./prompt_warn.ts";
 export async function callAgent(ctx: CallCtx, row0: AgentRow, cwd: string, makePrompt: (first: boolean) => string,
   forceSel?: Selection, evExtra: Record<string, unknown> = {}, extra?: Pick<RunCall, "env" | "extraArgs">): Promise<CallOut> {
   const { store } = ctx, task = row0.task_id, id = row0.agent_id;
@@ -54,8 +55,13 @@ export async function callAgent(ctx: CallCtx, row0: AgentRow, cwd: string, makeP
 
   const onWait = (slot: string, pid?: number) => { store.tx(() => { const w = store.agent(task, id); if (w && w.status === "running") w.activity = `queued: waiting for a ${slot} slot${pid ? ` (held by pid ${pid})` : ""}`; store.ev("agent.queued", task, id, { slot, held_by_pid: pid }); }); };
   const onGo = (waited_ms: number) => { store.tx(() => { const w = store.agent(task, id); if (w && w.status === "running") w.activity = `${mode} session`; store.ev("agent.dequeued", task, id, { waited_ms }); }); };
+  warnBigPrompt(store, def, prompt, task, id);   // the FINAL launch prompt: too big = a console warning + an admin report (shown in the dashboard)
   const r = await ctx.runner.run({ agent: def, row: store.agent(task, id) ?? row0, cwd, prompt, session: sel, onWait, onGo, ...(extra ?? {}) });
 
+  // COST: the CLI's total_cost_usd of a RESUMED session is the running total of the whole session, not of this run. costOf() sums the events, so recording the total made every turn count all turns before it
+  // (a 3-turn chain showed $1.64 for $0.74 spent). Record the DELTA as `cost`; keep the running total as `cost_total` (the next resumed run subtracts it).
+  const prevTotal = [...store.events].reverse().find((e) => e.task_id === task && e.agent_id === id && (e.kind === "agent.done" || e.kind === "agent.failed") && typeof e.data?.cost_total === "number")?.data?.cost_total as number | undefined;
+  const runCost = sel.resume && prevTotal !== undefined && r.cost >= prevTotal ? r.cost - prevTotal : r.cost;
   let archived: string | null = null, archiveErr = "";   // a real run must leave a log; keep our own copy of it, and SAY SO if there is none
   if (tExists && store.file) {
     try { archived = archiveTranscript(store.file, task, id, r.session_id || sel.id, cwd); if (!archived && r.ok) archiveErr = `no log file found for session ${r.session_id || sel.id}`; }
@@ -67,11 +73,11 @@ export async function callAgent(ctx: CallCtx, row0: AgentRow, cwd: string, makeP
     else if (archived) { const rw = store.agent(task, id); if (rw) rw.log_file = archived; }
     const row = store.agent(task, id)!;
     row.last_event_at = Date.now();
-    if (row.activity === "stopped" || (row.epoch ?? 0) !== epoch0) { stopped = true; store.ev("agent.stopped", task, id, { cost: r.cost }); return; }
+    if (row.activity === "stopped" || (row.epoch ?? 0) !== epoch0) { stopped = true; store.ev("agent.stopped", task, id, { cost: runCost, cost_total: r.cost }); return; }
     row.finished_at = Date.now(); row.runs = (row.runs ?? 0) + 1; row.final_response = r.reply;   // the full final answer, on the agent's row
     if (r.ok) { afterRun(row, sel); row.status = "idle"; row.activity = "done"; } else { row.status = "failed"; row.activity = r.error ?? "failed"; }
     if (r.ok && r.session_id !== sel.id) store.ev("session.id_mismatch", task, id, { wanted: sel.id, got: r.session_id });
-    store.ev(r.ok ? "agent.done" : "agent.failed", task, id, { mode, cost: r.cost, error: r.error, waited_ms: r.waited_ms, ...(r.hung_after_answer ? { hung_after_answer: true, cost_estimated: true } : {}) });   // waited_ms: time spent waiting for a process slot before the run could start
+    store.ev(r.ok ? "agent.done" : "agent.failed", task, id, { mode, cost: runCost, cost_total: r.cost, error: r.error, waited_ms: r.waited_ms, ...(r.hung_after_answer ? { hung_after_answer: true, cost_estimated: true } : {}) });   // waited_ms: time spent waiting for a process slot before the run could start
   });
   if (sel.resume && !r.ok && /no conversation found/i.test(r.error ?? "")) store.violation("resume_lost_session", task, id, { said_by: "the CLI", error: (r.error ?? "").slice(0, 140), session: sel.id });   // our own file check was skipped or wrong: the CLI says it is gone
   if (stopped) return { ...r, ok: false, error: "stopped", mode, prompt_chars: prompt.length };

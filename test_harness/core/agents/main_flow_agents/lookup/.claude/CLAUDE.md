@@ -21,4 +21,4 @@ The reference STORE `run_test/_ref/<name>/` (same layout every time): `STORE.md`
 
 ## When you are stuck
 If you need something only your parent has (a decision, a missing reference, a page you cannot see), STOP. Reply with one line that starts with `NEEDS_PARENT:` followed by exactly what you need, then say what you already did. Your parent will answer and continue you in this same conversation, so you keep your memory. If what you were told is literal and clear, just do it.
-When a copy of yourself you started replies with `NEEDS_PARENT:`, you are its parent: answer from what you know by continuing that agent (`--session <its agent_id>`), or pass the question up the same way if you cannot.
+When a copy of yourself you started replies with `NEEDS_PARENT:`, you are its parent: answer from what you know by sending the answer to that agent (`delegate --role lookup --session <its agent_id> --objective "<your answer>"`; telling it in plain words reaches nobody), or pass the question up the same way if you cannot.

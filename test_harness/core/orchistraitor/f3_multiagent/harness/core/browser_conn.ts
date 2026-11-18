@@ -6,8 +6,9 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { spawn, spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 
-const STATE = join(import.meta.dir, "..", "..", "..", "..", "..", ".state"), PROFILE = join(STATE, "chrome-profile");
-const file = () => process.env.HARNESS_BROWSER_STATE || join(STATE, "browser.json");   // tests point this at a scratch file so a real saved connection is never read or changed
+import { HOME_DIR, chromeProfile } from "@core/userhome.ts";
+const STATE = join(import.meta.dir, "..", "..", "..", "..", "..", ".state"), PROFILE = chromeProfile();   // the user home's profile (test_harness/.state/home/chrome-profile; the legacy .state/chrome-profile while only that exists)
+const file = () => process.env.HARNESS_BROWSER_STATE || (existsSync(join(HOME_DIR, "browser.json")) || !existsSync(join(STATE, "browser.json")) ? join(HOME_DIR, "browser.json") : join(STATE, "browser.json"));   // the user home; the legacy .state/browser.json while only that exists   // tests point this at a scratch file so a real saved connection is never read or changed
 export const chromeBin = () => ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"].find((c) => spawnSync("which", [c]).status === 0);
 export interface Tab { id: string; title: string; url: string; type: string; webSocketDebuggerUrl?: string }
 export interface Status { mode: "attached" | "headless"; endpoint?: string; browser?: string; userAgent?: string; tabs?: Tab[]; reachable?: boolean; since?: string; note: string }

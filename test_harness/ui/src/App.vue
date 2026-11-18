@@ -1,19 +1,20 @@
 <script setup lang="ts">
 import { debug } from "@/store/debug";
 import { theme, toggleTheme } from "@/store/theme";
-import { onMounted, ref } from "vue";
+import { useLive } from "@/store/live";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 const ws = ref<{ id: string; version: string; harness?: string; after?: string } | null>(null);
 onMounted(async () => { try { ws.value = (await (await fetch("/api/health")).json()).workspace ?? null; } catch { /* API down */ } });
-// which browser do agents use right now? (the connected Chrome you can watch, or the invisible private one): shown on every page
-const br = ref<{ mode: string; reachable?: boolean; tabs?: unknown[] } | null>(null);
-const pollBrowser = async () => { try { br.value = await (await fetch("/api/browser")).json(); } catch { br.value = null; } };
-onMounted(() => { pollBrowser(); setInterval(pollBrowser, 5000); });
+// which browser do agents use right now? (the connected Chrome you can watch, or the invisible private one): shown on every page, PUSHED over the socket (no polling)
+const live = useLive(), br = computed(() => (live.browser.value && !("error" in live.browser.value) ? live.browser.value : null));
+onMounted(() => { live.start(); live.always({ browser: true }); });
+onUnmounted(() => live.stop());
 </script>
 <template>
   <header class="top">
     <strong>Test_agent_3</strong>
-    <router-link to="/">Flow</router-link><router-link to="/subagents">Sub-agents</router-link><router-link to="/experiment">ExperimentRun</router-link><router-link to="/browser">Browser</router-link>
-    <router-link v-if="br" to="/browser" class="brchip" :class="br.mode === 'attached' ? (br.reachable ? 'ok' : 'bad') : 'off'" :title="br.mode === 'attached' ? (br.reachable ? 'Agents use your connected Chrome (you can watch it)' : 'The connected Chrome does not answer: agents use the invisible private Chrome. Press Launch on the Browser page.') : 'No browser connected: agents use the invisible private Chrome (same pictures, nothing to watch)'">{{ br.mode === "attached" ? (br.reachable ? "● Chrome connected" : "● Chrome not answering") : "○ headless" }}</router-link>
+    <router-link to="/">TestCases</router-link><router-link to="/subagents">Sub-agents</router-link><router-link to="/experiment">ExperimentRun</router-link><router-link to="/settings">Settings</router-link>
+    <router-link v-if="br" to="/settings/browser" class="brchip" :class="br.mode === 'attached' ? (br.reachable ? 'ok' : 'bad') : 'off'" :title="br.mode === 'attached' ? (br.reachable ? 'Agents use your connected Chrome (you can watch it)' : 'The connected Chrome does not answer: agents use the invisible private Chrome. Press Launch on the Browser page.') : 'No browser connected: agents use the invisible private Chrome (same pictures, nothing to watch)'">{{ br.mode === "attached" ? (br.reachable ? "● Chrome connected" : "● Chrome not answering") : "○ headless" }}</router-link>
     <span v-if="ws" class="wsbadge mono" :title="ws.harness">.state/{{ ws.version }}/{{ ws.id }}<template v-if="ws.after"> · after {{ ws.after }}</template> · {{ ws.harness }}</span>
     <label class="dbgsw"><input v-model="debug" type="checkbox" /> Debug (D)</label>
     <button class="themebtn" :title="theme === 'dark' ? 'Switch to light' : 'Switch to dark'" :aria-label="'Theme: ' + theme" @click="toggleTheme">{{ theme === "dark" ? "☀ Light" : "☾ Dark" }}</button>

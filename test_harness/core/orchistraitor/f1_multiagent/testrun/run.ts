@@ -138,6 +138,7 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   const judged = []; let cost = 0, leadCost = 0;
   for (let i = 0; i < turns.length; i++) {
     store.reload(); ent.marks[i] = store.calls.filter((x) => x.task_id === runTask).length; ent.started[i] = Date.now(); saveExp(ent);
+    const costBase = (() => { const l = store.agentsOf(runTask).find((x) => x.name === "lead"); return l ? costOf(store, runTask, l.agent_id) : 0; })();   // a chain (`after`) SHARES the task: the cost cap below judges only what THIS turn spent
     declareGateLimit(store, runTask, c);
     store.tx(() => { const n = say(store, runTask, "user", "lead", turns[i]!.user, chatRefs, Infinity); n.read_by.push("lead"); });   // (auto run: tagged auto_run, hidden in the chat)   // the chat of the UI (Experiment page) shows these notes: a test run has a conversation too
     // a branch's lead is a clone of the parent's lead session, made NOW (status pending -> cloned), not when the branch folder was made
@@ -154,7 +155,7 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
     judged.push(j); ent.done = i + 1; ((ent as { ends?: number[] }).ends ??= [])[i] = store.calls.filter((x) => x.task_id === runTask).length; saveExp(ent);
     if (j.reply && !fake) store.tx(() => { const n = say(store, runTask, "lead", "user", j.reply, chatRefs, Infinity); n.read_by.push("user"); });   // the lead's final answer of this turn (the chat shows it)
     leadCost += (out as { cost?: number }).cost ?? 0; cost = costOf(store, runTask, out.row.agent_id);   // lead + real sub-agents, from the agent.done events (fixtures cost 0); same number the UI shows
-    { const cap = (c as { max_cost_usd?: number }).max_cost_usd ?? Number(process.env.HARNESS_CASE_CAP_USD ?? 1); if (!fake && cap > 0 && cost > cap) j.gate = (j.gate ? j.gate + "; " : "") + `COST CAP: $${cost.toFixed(4)} is over the case cap $${cap} (case.max_cost_usd or env HARNESS_CASE_CAP_USD)`; }   // a runaway real lead fails the case instead of silently spending
+    { const cap = (c as { max_cost_usd?: number }).max_cost_usd ?? Number(process.env.HARNESS_CASE_CAP_USD ?? 1); if (!fake && cap > 0 && cost - costBase > cap) j.gate = (j.gate ? j.gate + "; " : "") + `COST CAP: $${(cost - costBase).toFixed(4)} this turn is over the case cap $${cap} (case.max_cost_usd or env HARNESS_CASE_CAP_USD)`; }   // a runaway real lead fails the case instead of silently spending
     console.log(`-- turn ${i + 1}  ${j.match && !j.guard && !j.gate && !j.reply_problem ? "MATCH" : "DIFFERS"}${j.guard ? "  GUARD: a distractor was called" : ""}${j.gate ? "  GATE FAILED: " + j.gate : ""}   lead_ok=${out.ok}   cost so far=$${cost.toFixed(4)} (lead $${leadCost.toFixed(4)})${j.reply_problem ? "   REPLY: " + j.reply_problem : ""}`);
     console.log("   EXPECTED context : " + j.expectedContext);
     console.log("   EXPECTED calls   : " + (j.expected.map((e) => `${e.kind}:${e.role}`).join(", ") || "(none: the lead must not delegate)"));

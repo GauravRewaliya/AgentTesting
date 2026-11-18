@@ -12,6 +12,7 @@ export const cases: Case[] = [
   {
     ...expoGo,
     id: "eg_tw_01_0073f46",
+    tags: [...expoGo.tags, "test_ready"],
     qa: twQa,
     title: "[ref expo/examples/with-tailwindcss] phase 1/1 · snapshot of the latest 0073f46 (2026-07-02) \"with-tailwindcss at the latest Expo SDK (state of 0073f46: Upgraded Ex\"",
     turns: [{
@@ -26,6 +27,7 @@ export const cases: Case[] = [
   {
     ...expoGo,
     id: "eg_tw_02_spring",
+    tags: [...expoGo.tags, "to_scrap"],
     after: "eg_tw_01_0073f46",
     title: "[ref expo/examples/with-tailwindcss] grow the app: a card that springs when pressed (Reanimated)",
     turns: [{

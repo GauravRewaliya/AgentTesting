@@ -15,8 +15,7 @@
   "T4"
  ],
  "prompts": [
-  "CLAUDE.md",
-  "plan_format.md"
+  "CLAUDE.md"
  ],
  "team_tools": [
   "ref_capture",

@@ -8,18 +8,13 @@ status: phase 1 of 4 · planned
 
 > **This plan is ready to build.** File and folder names below are the layout of the new app; nothing here depends on any other project's files. Build from this plan alone.
 
+> **Builders:** the build recipe and file owners are in the grey DEV block at the end of this file (switch the viewer to Builder). Everyone else can stop reading at *Share and change*.
+
 | who reads | what | where |
 |---|---|---|
 | **Audience (users)** | Someone learning how a music app is built, or who needs a believable player to demo or extend, with zero legal risk: no logo, icon, font, cover art, audio or brand text is copied. | this page: What is it, What you get, Look, Motion |
 | **Stakeholders** | decide scope, answer questions | Decisions and open questions, Phases at a glance |
 | **Builders (dev)** | stack: React 18 + TypeScript + Vite, one `<audio>` element, hash routing, lucide-react; no server; pnpm only | `PHASES.md` and the grey DEV blocks (switch to Dev) |
-
-## Build recipe
-1. **Where:** build in `run_test/wavelet` (React 18 + TypeScript + Vite, hash routing, one `<audio>`, `lucide-react`; **pnpm only**: `pnpm create vite wavelet --template react-ts`, then `pnpm add lucide-react`). No source code is given: the plan, `wireframes/layout.html` and `build_inputs/01_content.md` are everything.
-2. **Order (PHASES.md):** Foundations (`data.ts` from `build_inputs/01_content.md`, `covers.ts`, `tones.ts`, tokens in `styles.css`), then Engine (`player.ts`, `color.ts`), then Screens (Sidebar, Home, Search, PlaylistView + TrackTable, NowPlaying, PlayerBar), then a check.
-3. **Owners (no file owned twice):** builder A = `src/data.ts`, `src/covers.ts`, `src/tones.ts`; builder B = `src/player.ts`, `src/color.ts`, `src/router.ts`; builder C = `src/components/*`, `src/App.tsx`, `src/styles.css`. The lead owns `package.json` and `index.html`.
-4. **Verify (the lead runs it, no review agent):** `pnpm build` and `pnpm exec tsc --noEmit` pass; open the preview and check every row of the *Behaviour rules* table; `grep -ri spotify src` is empty; 0 console errors. Say what could not be checked (real audio, the 480 ms fade).
-
 
 ## What is it
 Wavelet plays music in the browser. **Left:** a 300 px sidebar with Home, Search and your 8 playlists. **Middle:** Home (quick tiles and playlist cards), Search results, or one playlist with a track table. **Right (optional, 320 px):** a Now Playing panel. **Bottom (88 px):** the player bar. When you open a playlist or play a song, the page colour fades to a colour taken from that cover. There is no server and no accounts: 8 made-up playlists with 40 made-up tracks; each track is a 16-30 s arpeggio synthesized in code and rendered to WAV the first time you play it.
@@ -145,3 +140,11 @@ research: none (reverse-planned from one finished reference project; every layou
 - **Share:** press *Copy link* in the plan viewer; one link = one page.
 - **Change something:** press *Ask Claude* on the page and write your wish. Claude edits THIS file (and the phase page if scope moves), so `git diff docs/` shows what the plan changed.
 - Status words: planning = still being written or missing facts · planned = split into tasks, **nothing built yet** · in progress · review · done.
+
+<!-- dev -->
+## Build recipe
+1. **Where:** build in `run_test/wavelet` (React 18 + TypeScript + Vite, hash routing, one `<audio>`, `lucide-react`; **pnpm only**: `pnpm create vite wavelet --template react-ts`, then `pnpm add lucide-react`). No source code is given: the plan, `wireframes/layout.html` and `build_inputs/01_content.md` are everything.
+2. **Order (PHASES.md):** Foundations (`data.ts` from `build_inputs/01_content.md`, `covers.ts`, `tones.ts`, tokens in `styles.css`), then Engine (`player.ts`, `color.ts`), then Screens (Sidebar, Home, Search, PlaylistView + TrackTable, NowPlaying, PlayerBar), then a check.
+3. **Owners (no file owned twice):** builder A = `src/data.ts`, `src/covers.ts`, `src/tones.ts`; builder B = `src/player.ts`, `src/color.ts`, `src/router.ts`; builder C = `src/components/*`, `src/App.tsx`, `src/styles.css`. The lead owns `package.json` and `index.html`.
+4. **Verify (the lead runs it, no review agent):** `pnpm build` and `pnpm exec tsc --noEmit` pass; open the preview and check every row of the *Behaviour rules* table; `grep -ri spotify src` is empty; 0 console errors. Say what could not be checked (real audio, the 480 ms fade).
+<!-- /dev -->

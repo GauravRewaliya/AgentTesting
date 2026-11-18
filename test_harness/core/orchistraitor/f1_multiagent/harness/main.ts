@@ -52,7 +52,7 @@ if (import.meta.main) {
     const rep = r.report, locks = locksFromEnv(st);
     for (const c of r.releaseCalls) await locks.release(rep.run.task_id, c, 120_000);   // locks of cut-off calls go back at once (Redis: also expire by lease)
     console.log([`run ${rep.run.id} (task ${rep.run.task_id}) is active again, resumed ${rep.run.resumed_count}x`,
-      `main agent: ${rep.main.agent_id ?? "-"}  claude session ${rep.main.session_id ?? "-"}`, `project manager: ${rep.pm.agent_id ?? "-"}  claude session ${rep.pm.session_id ?? "-"}`,
+      `main agent: ${rep.main.agent_id ?? "-"}  claude session ${rep.main.session_id ?? "-"}`,
       `cut-off agents (now idle, will continue their own session): ${rep.interrupted_agents.join(", ") || "none"}`, `calls ended as interrupted: ${rep.ended_calls.length}`,
       `tasks re-queued to continue the same agent: ${rep.tasks_requeued.join(", ") || "none"}`, `plans to restart: ${rep.plans_to_restart.join(", ") || "none"}`,
       ...rep.next.map((n) => "next: " + n)].join("\n"));
@@ -62,19 +62,13 @@ if (import.meta.main) {
       console.log(`scheduler restarted for ${pid}`);
     }
   }
-  else if (cmd === "board" || cmd === "chat") {   // the user's window onto the team, and the line to the project manager
+  else if (cmd === "board") {   // the user's window onto the team
     const a2 = process.argv.slice(2), arg = (k: string) => { const i = a2.indexOf("--" + k); return i >= 0 ? a2[i + 1] : undefined; };
     const f = arg("store"), task = taskOf(f, arg("task"), arg("run"));
-    if (!f || !task || !existsSync(f)) { console.error(`usage: main.ts ${cmd} --store <file> (--task <id> | --run <session_run_id>) ${cmd === "chat" ? '--say "<message>" [--repo <dir>] [--runner real|fake]' : "[--watch]"}`); process.exit(2); }
-    const { renderBoard, chatPM } = await import("./core/pm.ts"), { RealRunner, ScriptRunner } = await import("./core/base.ts");
-    if (cmd === "chat" && !(arg("say") ?? "").trim()) { console.error('chat needs a message: --say "<message>"'); process.exit(2); }
+    if (!f || !task || !existsSync(f)) { console.error(`usage: main.ts ${cmd} --store <file> (--task <id> | --run <session_run_id>) [--watch]`); process.exit(2); }
+    const { renderBoard } = await import("./core/board_view.ts");
     needTask(new MStore(f), task);
     if (cmd === "board") { do { const st = new MStore(f); if (a2.includes("--watch")) process.stdout.write("\x1b[2J\x1b[H"); console.log(renderBoard(st, task)); if (!a2.includes("--watch")) break; await new Promise((r) => setTimeout(r, 2000)); } while (true); }
-    else {
-      const st = new MStore(f), real = (arg("runner") ?? "real") === "real", runner = real ? new RealRunner(300_000) : new ScriptRunner(() => "(fake project manager)");
-      const out = await chatPM({ store: st, runner, defs, sessionCap: SESSION_CAP }, { task_id: task, repo: arg("repo") ?? process.cwd(), text: arg("say") ?? "", runner: real ? "real" : "fake" });
-      console.log(out.queued ? out.reply : out.ok ? out.reply : "error: " + out.error);
-    }
   }
   else if (cmd === "watch") {
     const a2 = process.argv.slice(2), lf = a2[a2.indexOf("--log") + 1]; if (!lf) { console.error("usage: main.ts watch --log <file.jsonl>"); process.exit(2); }

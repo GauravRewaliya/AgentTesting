@@ -1,0 +1,265 @@
+{
+  "version": 1,
+  "title": "Eiffel Tower 3D",
+  "tagline": "A quiet 1889 museum exhibit in your browser: a 12-stop camera tour, archival photos, English and French.",
+  "status": "phase 1 of 3 · planned",
+  "plan": {
+    "label": "Plan",
+    "steps": [
+      {
+        "id": "glance",
+        "title": "At a glance",
+        "goal": "Decide in two minutes: **is this what I want built?** Nothing is built yet; this is the proposal.",
+        "blocks": [
+          { "type": "text", "md": "A calm, grey-toned **3D exhibit of Gustave Eiffel's tower as it stood in 1889**, drawn live in the browser from code (no model files, no account, no server, no AI). A visitor presses **Explore** and the camera glides through **12 stops**: Eiffel's design drawing, the foundations, the rising ironwork, the finished tower. Eleven stops pair the 3D view with an archival photograph; the last stop is the whole tower to turn around yourself. One button switches every caption between English and French." },
+          { "type": "facts", "items": [
+            { "k": "Who it is for", "v": "Visitors who want a quiet, museum-style visit; also a good test of smooth, jump-free camera work" },
+            { "k": "Where it runs", "v": "Any modern desktop or phone browser with 3D (WebGL); works offline after the first load" },
+            { "k": "What it is not", "v": "No backend, login, analytics, AI, audio or VR" },
+            { "k": "What we need from you", "v": "Three small decisions, each with a safe default (step 7)" }
+          ] },
+          { "type": "table", "title": "Scope", "head": ["In", "Out (not in this build)"], "rows": [
+            ["The procedural tower and its 1889 surroundings", "Backend, accounts, saving progress"],
+            ["12-stop guided tour, drag to look around, keyboard control", "Audio guide, VR, night and dusk looks"],
+            ["11 archival photos matched to the 3D view", "Loading ready-made 3D model files"],
+            ["English and French captions", "Any third language, translation tools"],
+            ["Desktop and phone layouts", "A debug panel, an archive \"light table\" room"]
+          ] },
+          { "type": "ref", "title": "Read the full written overview", "file": "README.md", "heading": "Executive summary" }
+        ]
+      },
+      {
+        "id": "visit",
+        "title": "The visit, click by click",
+        "goal": "See **what the visitor does and sees**, in order. Click a step (or Next) to move through it.",
+        "blocks": [
+          { "type": "flow", "steps": [
+            { "title": "Opens the page", "text": "A short veil appears, then fades away as the scene is ready.", "see": "*Paris · Champ-de-Mars · 1887-1889*, then the tower in daylight, 4 piers and 3 platforms.", "files": [{ "name": "F1 The tower" }, { "name": "F2 1889 Paris" }] },
+            { "title": "Presses Explore (or Enter)", "text": "The camera glides to stop 1.", "see": "Eiffel's design drawing, with its caption.", "files": [{ "name": "F3 Guided tour" }] },
+            { "title": "Watches or presses Next (→)", "text": "Stops 2 to 11 follow: foundations, ironwork rising. Each holds 2.6 s.", "see": "An archival photo cross-fades in, lined up with the 3D tower.", "files": [{ "name": "F3" }, { "name": "F5 Archival photos" }] },
+            { "title": "Drags with mouse or finger", "text": "The tour pauses and the camera follows the visitor. A moment after they let go it eases back onto the route (about 0.6 s).", "see": "No jump, ever.", "files": [{ "name": "F3" }] },
+            { "title": "Reaches stop 12", "text": "The complete tower turns slowly. The visitor can orbit it and use 4 detail views (5 view buttons).", "see": "The whole tower, no photo.", "files": [{ "name": "F4 Final stop" }] },
+            { "title": "Presses FR at any time", "text": "Every caption, label and button flips to French at once. The choice is remembered.", "see": "Same stop, French text.", "files": [{ "name": "F6 English / French" }] }
+          ] },
+          { "type": "cards", "title": "Who uses it (click a card)", "items": [
+            { "tag": "A", "title": "The curious visitor (desktop)", "text": "Wants a calm, guided visit with real photos.", "detail": "One button, 12 stops, captions in serif, nothing to configure." },
+            { "tag": "B", "title": "The visitor on a phone", "text": "The same visit, with thumbs.", "detail": "390 px layout, 40 px targets, photo card above the bar." },
+            { "tag": "C", "title": "The French reader", "text": "The same story in French.", "detail": "One toggle, every caption and label flips at once." },
+            { "tag": "D", "title": "You, the reviewer", "text": "Wants proof the camera is smooth and nothing is faked.", "detail": "Jump-free moves, a built-in audit, and an honest report of what was and was not checked." }
+          ] },
+          { "type": "ref", "title": "Full experience page", "file": "01_experience.md", "heading": "The visit, step by step" }
+        ]
+      },
+      {
+        "id": "screens",
+        "title": "Screens and wireframes",
+        "goal": "Judge the **look**. Grey boxes are placeholders for the real 3D and photos; the labels are the real wording.",
+        "blocks": [
+          { "type": "wireframe", "title": "Landing, tour stop, final stop, phone", "src": "wireframes/screens.html", "caption": "Use the tabs inside the frame. Try \"Phone width\" to see the 390 px layout." },
+          { "type": "cards", "title": "Look and feel (click to read)", "items": [
+            { "tag": "Aa", "title": "Mood", "text": "A gallery at rest.", "detail": "Dark matte frame and plates, light paper cards, grey borders." },
+            { "tag": "■", "title": "Colour", "text": "Neutral grey only.", "detail": "No brown or sepia anywhere in the interface (decision D-03). The sky and fog are one warm light grey, the only warm tone." },
+            { "tag": "Tt", "title": "Type", "text": "Serif captions, plain sans buttons.", "detail": "Mono for the facts line. No web fonts." },
+            { "tag": "◧", "title": "Shape", "text": "Sharp or 2 px corners.", "detail": "Soft shadows, no glass blur." },
+            { "tag": "◐", "title": "Intro", "text": "A veil, then a plaque.", "detail": "Veil text *Paris · Champ-de-Mars · 1887-1889* and *La Tour de 300 Mètres*; a plaque sits top left. The French subtitle is guessed." }
+          ] },
+          { "type": "table", "title": "Motion", "head": ["What", "How it feels", "Time"], "rows": [
+            ["Tour move", "smooth curve around the piers, always looking at the tower, no jump", "holds 2.6 s (4.0 s at stop 12)"],
+            ["Drag to look", "tour pauses, camera follows you, then eases back", "about 0.6 s (guessed)"],
+            ["Photo card", "cross-fades with the 3D view", "1.3 s"],
+            ["Intro veil", "fades when the scene is ready", "0.45 s"],
+            ["Header line", "a thin light line sweeps across the rule, repeating", "1.8 s"],
+            ["Reduced motion", "nothing loops, moves are instant", "rule"]
+          ] }
+        ]
+      },
+      {
+        "id": "parts",
+        "title": "Parts and data",
+        "goal": "See **what is inside the system, what is outside, and what data exists**. Use *enlarge* on a diagram to read it full screen.",
+        "blocks": [
+          { "type": "mermaid", "title": "System context: one page that talks to nobody", "code": "flowchart LR\n  V([Visitor]) -->|opens, clicks, drags, keys| APP\n  subgraph APP[Eiffel Tower 3D page]\n    direction TB\n    X[Experience]\n  end\n  APP -->|draws with| GPU[(Browser 3D: WebGL)]\n  APP -.->|remembers language| LS[(Browser storage)]\n  APP -.->|textures off the main thread| WK[(Background worker)]\n  AI{{AI services, servers, analytics}} -. none, by decision D-01 .- APP" },
+          { "type": "mermaid", "title": "Five layers, each talks only to the one below", "code": "flowchart TB\n  UI[\"<b>Experience</b><br/>header, plaque, language switch, Explore button, tour bar, photo card\"]\n  CT[\"<b>Controllers</b><br/>tour controller, camera rigs, photo alignment, language\"]\n  DM[\"<b>Scene model</b><br/>tower, materials, sky, light, 1889 Paris\"]\n  DT[(\"<b>Data</b><br/>12 stops, EN and FR text, 11 photo poses, 5 view presets\")]\n  PF[\"<b>Browser platform</b><br/>WebGL, Worker, local storage\"]\n  UI --> CT\n  CT --> DM\n  CT --> DT\n  DM --> PF" },
+          { "type": "mermaid", "title": "Data model: fixed catalogs, no database", "code": "erDiagram\n  STOP ||--o| PHOTO : \"has (stops 1-11)\"\n  PHOTO ||--|| PHOTO_POSE : \"is aligned by\"\n  STOP ||--|{ TEXT : \"is told in\"\n  LANGUAGE ||--|{ TEXT : \"selects\"\n  HERO_PRESET }|--|| STOP : \"belongs to stop 12\"" },
+          { "type": "ref", "title": "One real stop, as data", "file": "data_samples/stop_example.json", "open": false },
+          { "type": "ref", "title": "Full architecture page", "file": "02_architecture.md", "heading": "Technology choices" }
+        ]
+      },
+      {
+        "id": "flow",
+        "title": "How it behaves",
+        "goal": "What happens **when the visitor presses Explore**, and **which states the tour can be in**.",
+        "blocks": [
+          { "type": "mermaid", "title": "Press Explore, fly to the next stop", "code": "sequenceDiagram\n  actor V as Visitor\n  participant UI as Experience\n  participant TC as Tour controller\n  participant CR as Camera rig\n  participant PC as Photo card\n  V->>UI: press Explore or Next\n  UI->>TC: go to stop n\n  TC->>CR: fly from current pose to pose n\n  CR-->>TC: first frame equals last frame (no jump)\n  TC->>PC: cross-fade photo n in (stops 1-11)\n  TC->>UI: update bar and caption in current language\n  Note over V,CR: a drag now pauses the tour, then eases back", "caption": "The heart of the product: the camera has one owner per mode, so a drag and a fly-to never fight." },
+          { "type": "mermaid", "title": "Tour states", "code": "stateDiagram-v2\n  [*] --> Landing\n  Landing --> Touring: Explore\n  Touring --> Dragging: visitor drags\n  Dragging --> Touring: eases back\n  Touring --> Paused: pause\n  Paused --> Touring: play\n  Touring --> Finale: stop 12\n  Finale --> Touring: Previous" },
+          { "type": "table", "title": "Targets (how we will know)", "head": ["Area", "Target", "Real / guessed"], "rows": [
+            ["Errors", "0 console errors across the whole tour, both languages", "real"],
+            ["Smoothness", "under 0.001 m camera difference at every move start and end", "real"],
+            ["Speed", "60 fps laptop target, 30 fps floor while touring", "guessed"],
+            ["Accessibility", "contrast 4.5:1, targets 40 px, text 11 px or more, reduced motion honoured", "real"],
+            ["Phone", "usable at 390 px, no sideways scroll", "guessed"],
+            ["Privacy", "no network calls after load, no keys, no tracking", "real"]
+          ] }
+        ]
+      },
+      {
+        "id": "features",
+        "title": "What you get",
+        "goal": "Six features. Each lands in one phase, so you can see **what arrives when**. Click a feature for detail.",
+        "blocks": [
+          { "type": "cards", "items": [
+            { "tag": "F1", "title": "The tower", "text": "Phase 1 · real numbers, guessed detail level", "detail": "Lattice ironwork, 4 piers, 3 platforms, iron material, a sketch/blueprint look." },
+            { "tag": "F2", "title": "1889 Paris around it", "text": "Phase 1 · real light, guessed city", "detail": "Sky, fog, ground, lawn, low blocks, daylight, nothing self-glowing." },
+            { "tag": "F3", "title": "Guided tour", "text": "Phase 2 · real", "detail": "12 stops on smooth curves, no jump at start or end; drag to look around and it eases back." },
+            { "tag": "F4", "title": "Final stop", "text": "Phase 2 · real", "detail": "The whole tower to orbit, 4 detail views, framing for desktop and phone." },
+            { "tag": "F5", "title": "Archival photos", "text": "Phase 3 · real photos, guessed alignment", "detail": "A photo placard at 11 stops, lined up with the 3D view." },
+            { "tag": "F6", "title": "English / French", "text": "Phase 3 · real text", "detail": "One toggle swaps every caption and label." }
+          ] },
+          { "type": "table", "title": "The 12 stops", "head": ["Stop", "Date and subject"], "rows": [
+            ["1", "1884-1889 · Designing the Tower"], ["2", "21 Apr 1887 · Foundation Caissons"], ["3", "18 Jul 1887 · Base Shoes"], ["4", "14 Jan 1888 · Central Timber Falsework"], ["5", "26 Mar 1888 · First-Floor Belt"], ["6", "15 May 1888 · Second-Stage Piers"], ["7", "21 Aug 1888 · Second Platform"], ["8", "23 Nov 1888 · Upper Shaft at 216 m"], ["9", "May 1889 · Exposition Opening"], ["10", "Summer 1889 · Lower Arch View"], ["11", "Summer 1889 · Basin and Piers"], ["12", "1889 · Complete 3D Tower"]
+          ], "caption": "Every stop has an English and a French headline, caption and facts line, supplied in full." },
+          { "type": "ref", "title": "All stop text, EN and FR (builder file)", "file": "build_inputs/02_stops_and_text.md", "dev": true }
+        ]
+      },
+      {
+        "id": "decide",
+        "title": "Decisions and risks",
+        "goal": "Three questions are still **open**. Each has a default, so silence means the default.",
+        "blocks": [
+          { "type": "decisions", "items": [
+            { "id": "D-01", "q": "AI in the app", "state": "agreed", "default": "none: no key, no model calls, no network after install", "ifNo": "adds a key, a server and cost" },
+            { "id": "D-02", "q": "3D library", "state": "agreed", "default": "three.js r186, installed (not copied, not from a CDN)", "ifNo": "none of the visuals; only how it ships" },
+            { "id": "D-03", "q": "UI colour", "state": "agreed", "default": "neutral grey, no sepia", "ifNo": "a restyle pass in phase 3" },
+            { "id": "Q1", "q": "How detailed is the tower?", "state": "open", "default": "simple lattice (boxes and tubes), 4 piers, 3 platforms", "ifNo": "a finer 13-part model is possible but is a large extra phase" },
+            { "id": "Q2", "q": "How much of Paris 1889?", "state": "open", "default": "ground, lawn, a few low blocks, fog; if that is too heavy: ground and sky only (we will say so)", "ifNo": "a richer city means more work and a slower page" },
+            { "id": "Q3", "q": "Photo-to-3D matching", "state": "open", "default": "camera pose and field of view from the data table; if it does not line up: the photo card shows without alignment (we will say so)", "ifNo": "none" }
+          ] },
+          { "type": "table", "title": "Risks and what we do", "head": ["Risk", "Likelihood", "Impact", "What we do"], "rows": [
+            ["Camera \"pops\" when a tour move meets a drag", "medium", "high", "one owner of the camera per mode; a pose log must show under 0.001 m jump"],
+            ["Page is slow on a phone", "medium", "medium", "pixel ratio capped; extras only if the speed target is missed"],
+            ["Tower geometry looks too plain", "medium", "medium", "Q1 default is explicit; detail added only if you ask"],
+            ["No 3D in the test browser, so the team cannot see the result", "known", "high", "the team says plainly what it could not check; you judge the tour in your browser"],
+            ["Photos do not line up with the 3D view", "medium", "low", "Q3 fallback"]
+          ] }
+        ]
+      },
+      {
+        "id": "done",
+        "title": "How we will know it is done",
+        "goal": "Tick these as you check them. **\"Looks good\" is not a check**; each one is a click path or a number.",
+        "blocks": [
+          { "type": "checks", "items": [
+            "**No errors:** the page console stays at 0 errors across the whole tour in both languages.",
+            "**Look:** neutral grey only; caption contrast at least 4.5:1; every button at least 40 x 40 px; no text under 11 px.",
+            "**Speed:** 60 fps on a laptop is the target and 30 the floor while touring (guessed, measured and reported).",
+            "**Phone:** usable at 390 px wide, no sideways scroll.",
+            "**Motion:** with reduced motion on, nothing loops forever and moves become instant.",
+            "**Nothing self-glowing:** a built-in audit reports 0 offenders.",
+            "**Honest report:** the builders list every difference from this plan and every check they could not run."
+          ] },
+          { "type": "text", "md": "**Share and change.** Copy the link to share this exact step. To change the plan, ask Claude: the plan files are edited, and `git diff` shows exactly what moved. A scope change names the phase it lands in. Next: the **Phases & tasks** page (a separate page, for delivery order and the build)." }
+        ]
+      }
+    ]
+  },
+  "work": {
+    "label": "Phases & tasks",
+    "steps": [
+      {
+        "id": "roadmap",
+        "title": "Roadmap",
+        "goal": "Three phases. Each ends with something you can **open and judge**; the next starts only after you accept.",
+        "blocks": [
+          { "type": "mermaid", "code": "flowchart LR\n  P1[\"1 Tower and world<br/>demo: orbit the tower\"] --> P2[\"2 Camera and tour<br/>demo: the 12-stop tour\"] --> P3[\"3 Photos and language<br/>demo: photos and French\"]" },
+          { "type": "table", "head": ["#", "Phase", "Outcome", "Demo you can run", "Features", "Needs", "Size"], "rows": [
+            ["1", "Tower and world", "a lit tower you can orbit", "open the page, turn around the tower in daylight", "F1, F2", "-", "4 tasks"],
+            ["2", "Camera and tour", "the 12-stop tour and the final stop", "press Explore, watch stops 1 to 12, drag and it recovers", "F3, F4", "1", "3 tasks"],
+            ["3", "Photos and language", "photos at each stop and French", "stops 1-11 show their photo; EN/FR flips every caption", "F5, F6", "2", "3 tasks"]
+          ] },
+          { "type": "flow", "title": "How a phase is accepted", "steps": [
+            { "title": "Team runs the checks", "text": "It runs the acceptance checks itself and reports **each result as seen**, not as intended." },
+            { "title": "Names what it could not check", "text": "For example no 3D in its test browser. You judge that part in your own browser." },
+            { "title": "Lists every difference", "text": "Anything that differs from this plan is listed." },
+            { "title": "You answer", "text": "*accept* opens the next phase; *change* sends it back. Only *accept* moves on." }
+          ] }
+        ]
+      },
+      {
+        "id": "p1",
+        "title": "Phase 1 · Tower and world",
+        "goal": "You will be able to **open the page, watch the veil fade, and turn around the tower in 1889 daylight**.",
+        "blocks": [
+          { "type": "checks", "title": "Acceptance (you can check each one)", "items": [
+            "the page loads and the veil fades away in about half a second",
+            "you see 4 piers and 3 platforms and can orbit freely",
+            "nothing glows by itself (the built-in audit reports 0 offenders)",
+            "the browser console shows 0 errors",
+            "the package list has the 3D library at the agreed version and no AI library"
+          ] },
+          { "type": "text", "md": "**Not in this phase:** the tour, photos, French." },
+          { "type": "tasks", "title": "Tasks", "items": [
+            { "id": "T01", "what": "Page shell, pinned packages, boot veil", "needs": [], "files": ["package.json", "tsconfig.json", "vite.config.ts", "index.html", "style.css", "startup_orchestrator.js"], "reads": "Build recipe, Contract (Stack), Look file 1-3, 8", "detail": "`pnpm add three@0.186.0`, no `@google/genai`." },
+            { "id": "T02", "what": "Procedural iron and stone textures, material bank", "needs": ["T01"], "files": ["pbr_worker.js", "model/materials.js"], "reads": "Contract (R2, Edge cases)", "detail": "Main-thread fallback when the worker is blocked." },
+            { "id": "T03", "what": "The tower: 4 piers, platforms, lantern, mast", "needs": ["T02"], "files": ["model/tower_controller.js", "model/zones/*.js"], "reads": "Contract (R1), README Q1, Look file 4", "detail": "Platforms at 58, 116, 276 m; lantern 300 m; mast 312 m (simple lattice)." },
+            { "id": "T04", "what": "Sky, fog, lights, shadows, audit; ground, lawn, low blocks", "needs": ["T01"], "files": ["world/atmosphere.js", "world/paris_1889.js"], "reads": "Contract (R3), README Q2, Look file 4", "detail": "Includes `auditZeroEmissive`." }
+          ] },
+          { "type": "mermaid", "title": "Task order", "dev": true, "code": "flowchart LR\n  T01 --> T02 --> T03\n  T01 --> T04" }
+        ]
+      },
+      {
+        "id": "p2",
+        "title": "Phase 2 · Camera and tour",
+        "goal": "You will be able to **press Explore and watch 12 stops without a jump, drag and see it ease back, and orbit the finished tower**.",
+        "blocks": [
+          { "type": "checks", "title": "Acceptance (you can check each one)", "items": [
+            "stops 1 to 12 play with 0 console errors and the camera never passes through a pier",
+            "no visible jump when a move starts or ends (a pose log shows under 0.001 m)",
+            "dragging mid-move pauses the tour, then it eases back",
+            "Enter, Arrow Right, Arrow Left, Home, End and V each do what the Experience page says",
+            "stop 12 shows the complete tower turning slowly; the 5 view buttons fly to their views"
+          ] },
+          { "type": "text", "md": "**Not in this phase:** photos and French captions (stops show their title only)." },
+          { "type": "tasks", "title": "Tasks", "items": [
+            { "id": "T05", "what": "Tour path rig: smooth helix paths clear of the piers, zero-jump start and end, drag and recovery", "needs": ["T03", "T04"], "files": ["camera/tour_rig.js"], "reads": "Contract (R5-R7), Look file 7" },
+            { "id": "T06", "what": "Final-stop rig: turntable sway, 5 view presets", "needs": ["T05"], "files": ["camera/hero_rig.js"], "reads": "Contract (R9), Look file 5", "detail": "Portrait field of view 56." },
+            { "id": "T07", "what": "Explore button, tour bar, holds, keys, `?stop=` clamp", "needs": ["T05"], "files": ["ui/museum_header.js", "ui/landing_intro.js", "ui/walkthrough_controller.js"], "reads": "Contract (R4, R11, Edge cases), Look file 8, Stops file 9", "detail": "Holds 2.6 s, 4.0 s at stop 12." }
+          ] }
+        ]
+      },
+      {
+        "id": "p3",
+        "title": "Phase 3 · Photos and language",
+        "goal": "You will be able to **see the right archival photo at stops 1-11, flip every caption to French, and use the page on a phone**.",
+        "blocks": [
+          { "type": "checks", "title": "Acceptance (you can check each one)", "items": [
+            "stops 1 to 11 each show the photo named in the content file; stop 12 shows none",
+            "the language button at stops 1, 6 and 12 changes every caption and label; 0 console errors in both languages",
+            "at 390 x 844 there is no sideways scroll, contrast is 4.5:1 or better and buttons are 40 px or more",
+            "with reduced motion on, nothing loops forever",
+            "the final build passes and no AI library is in the package list"
+          ] },
+          { "type": "text", "md": "**Not in this phase:** anything outside the scope: backend, audio, VR, extra languages." },
+          { "type": "tasks", "title": "Tasks", "items": [
+            { "id": "T08", "what": "Photo placards lined up with the 3D view; copy the 11 photos", "needs": ["T06", "T07"], "files": ["portals/photo_portals.js", "data/photo_cameras_3d.json", "photos/ (11)"], "reads": "Contract (R8), README Q3, Look file 6" },
+            { "id": "T09", "what": "English and French stop text; language toggle; page language", "needs": ["T06", "T07"], "files": ["story/stops_en.js", "story/stops_fr.js", "story/i18n.js"], "reads": "Contract (R10, Content), Stops file 10, 11" },
+            { "id": "T10", "what": "Wiring, reduced motion, 390 px layout, contrast pass, final checks", "needs": ["T08", "T09"], "files": ["app.js"], "reads": "Quality bar, Contract (Done-when)" }
+          ] }
+        ]
+      },
+      {
+        "id": "team",
+        "title": "Team and build rules",
+        "goal": "Who does what, and the rules the builders follow. Switch to **Builder** mode (top right) for the full recipe.",
+        "blocks": [
+          { "type": "who", "items": [
+            { "name": "builder", "does": "writes the code of its own files only (no file is owned twice)", "tasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T08", "T09", "T10"] },
+            { "name": "lead", "does": "hands over this plan, runs the checks itself, reports deviations in the person's words", "tasks": ["verifies each phase"] }
+          ] },
+          { "type": "ref", "title": "Build recipe (stack pins, file tree, self-check)", "file": "README.md", "heading": "Build recipe", "dev": true },
+          { "type": "ref", "title": "Build contract", "file": "build_inputs/00_contract.md", "dev": true },
+          { "type": "text", "md": "Task rules: every task is 15-30 minutes, one owner, and reads only the parts in its *reads* list. Statuses move forward only when work really starts." }
+        ]
+      }
+    ]
+  }
+}

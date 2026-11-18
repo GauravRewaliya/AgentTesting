@@ -9,7 +9,7 @@ import { trace } from "./base.ts";
 import { MStore } from "./board.ts";
 import { phaseText } from "./phases.ts";
 import { peekAgent, peekText } from "./peek.ts";
-import { planTable } from "./pm.ts";
+import { planTable } from "./board_view.ts";
 
 const TOOLS = join(dirname(fileURLToPath(import.meta.url)), "..", "tools.ts");
 export const SLASH_COMMANDS: Record<string, string> = {

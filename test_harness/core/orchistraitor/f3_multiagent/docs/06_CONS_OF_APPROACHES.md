@@ -22,6 +22,13 @@
 - Haiku-specific: the thin sub-agent relies on haiku copying a heredoc verbatim (hook path). ref `harness_own_custom/core/agent_prompt.md`
 - A mod in a shared Claude profile would also intercept f1's real `claude -p` calls (see 09).
 
+## A2 status (2026-11-18): BUILT as `approaches/a2_native_hook/` (hook, not the mod)
+- The lost mod is NOT rebuilt. The lead calls the stock `Agent` / `SendMessage`; a PreToolUse hook (`hook.ts`) turns the call into `tools.ts delegate` (shared core: agentCall, FixtureGate, store rows, patches), so `judgeTurn` sees the calls exactly as in a1. The answer goes back as the deny reason `AGENT RESULT ...` (no extra haiku sub-agent, unlike `harness_own_custom/runner`).
+- Parity powers (2026-11-18): `Agent{run_in_background}` = `delegate --async`; the lead also has the `team` commands (wait, fork_all, plan_*, phase_pass, apply_patches, ledger_get, ls/read_file/grep); locks/worktrees/patches/FixtureGate come from the same core; the lead's routing rules are the same CLAUDE.md as a1 (+ `prompts/translate.md`). Real runs, same verdict as a1: ho_8 (2 calls), wf_1, wf_2, eg_tw_01.
+- Cons: reply is not the native Agent tool_result shape (it arrives as a hook deny reason); only a hook-supporting Claude Code build; the lead has `Bash(team *)` so it COULD still call `team delegate` (prompt forbids it).
+- `a2_native_observe` findings (real run 2026-11-18): this Claude build launches native sub-agents in the BACKGROUND (`status: async_launched`, agentId in the tool_response object); PostToolUse is the launch, the `SubagentStop` hook (field `agent_id`) is the end. Sub-agents share the lead's permission list; our lock hook / FixtureGate / patches do not see their tools.
+- Still open from the list above: the dead mod branch in `harness_own_custom/runner/claude.ts`.
+
 ## A3: native stock subagents ("Backend N", inside f1)
 - // TODO: defined (`f1_multiagent/harness/core/launch.ts:63-75`) and only unit-tested (`self_test/multi.ts:160-161`, key count + env values). Never launched: no `HARNESS_BACKEND`, `runLead` has no `--agents` hook (`lead.ts:17`).
 - `Agent` is not in `--tools` / `--allowedTools`, and `dontAsk` refuses it. ref `f1_multiagent/harness/core/base/runner.ts:76-81`

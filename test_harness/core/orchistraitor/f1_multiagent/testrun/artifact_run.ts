@@ -5,11 +5,12 @@
 // PASS needs ALL of: (1) the lead really called the Artifact tool and it succeeded, (2) the reply contains that exact claude.ai/artifact link,
 // (3) the reply has no other artifact link (an invented one), (4) per case: art_3 says plainly it is not a Figma file, art_4's page really works in Chrome.
 // Exit code 1 on any FAIL, so a broken artifact flow can never pass silently again.
+import { ARTIFACT_RUNS } from "@core/userhome.ts";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadSuites } from "./cases.ts";
 
-const OUT = join(import.meta.dir, "..", "..", "..", "..", ".state", "artifact_runs"); mkdirSync(OUT, { recursive: true });
+const OUT = ARTIFACT_RUNS; mkdirSync(OUT, { recursive: true });   // the user home (test_harness/.state/home/artifact_runs)
 const LINK = /https:\/\/claude\.ai\/(?:code\/)?artifact\/[A-Za-z0-9-]+/g;
 const allowedTools = ["Artifact", "ArtifactComments", "Write", "Read", "Skill"];
 

@@ -6,7 +6,7 @@
 import type { Case } from "@core/types.ts";
 import type { TestTag } from "../../../../tags.ts";
 
-export const tags: TestTag[] = ["multi_ag", "coding"];
+export const tags: TestTag[] = ["multi_ag", "coding", "ready_to_qa"];
 const base = { needs: ["multiagent.spawn", "guard.roles", "sandbox.files"], guard: "web_rules.json", agents: ["web-setup"], tools: ["Agent"], max_agent_calls: 4, tags: ["multi_prompt"] } as const satisfies Partial<Case>;
 const viteQa: Case["qa"] = (req) => ({ enabled: true, kind: "dev-server", app: req.apps[0] ?? "app", start: "corepack pnpm exec vite --host 127.0.0.1 --port 5173", port: 5173, viewport: "1000x640",
   guide: "To test: the new project must install with pnpm (`pnpm install`) and `pnpm dev` must serve a page in the browser. Do not install packages in the workspace yourself: the QA step installs them in a container, with the shared pnpm store." });

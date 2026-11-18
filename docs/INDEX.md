@@ -21,3 +21,4 @@
 | `TestCases/test_folders/agent_fixture/prompt_fixtures/` | the plan catalog and every frozen plan (README, plan_scores, method/); open them in `dev_exp/plan_viewer` |
 | `aistudio_examples/` | draft `prompt.md` per AI Studio app (eiffel, terrarium, clockwork, voxel, comics, ...); source info only in its index.md |
 | `dev_exp/plan_viewer/` | static viewer for plan folders: md + mermaid + inline html wireframes, User/Dev toggle (prototype, untested) |
+| `dev_exp/walkthrough/` | click-through plan player (plan page + separate phases & tasks page; flows, wireframes, expandable refs); each plan declares `walkthrough.json`; spec in `dev_exp/WALKTHROUGH_SPEC.md`; check `bun docs/dev_exp/walkthrough/validate.ts` |

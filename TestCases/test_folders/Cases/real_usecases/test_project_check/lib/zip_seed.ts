@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from
 import { join } from "node:path";
 import type { NodeRunCtx } from "../../../../../types.ts";
 
-export const PROJECT_ZIPS = join(import.meta.dir, "..", "..", "agent_fixture", "store", "projects");
+export const PROJECT_ZIPS = join(import.meta.dir, "..", "..", "..", "..", "agent_fixture", "store", "projects");
 
 /** Unpack `<zip>.zip` into `<ctx.run_test>/<dir>` (replaced if it is already there). Throws when the zip is missing or unzip fails. */
 export function seedProject(ctx: NodeRunCtx, zip: string, dir: string): void {

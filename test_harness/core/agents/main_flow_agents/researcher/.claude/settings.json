@@ -1,10 +1,13 @@
 {
- "permissions": {
-  "allow": [
-   "Read",
-   "Glob",
-   "Grep",
-   "WebFetch"
-  ]
- }
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "WebSearch",
+      "Write(run_test/research/*)",
+      "Edit(run_test/research/*)"
+    ]
+  }
 }

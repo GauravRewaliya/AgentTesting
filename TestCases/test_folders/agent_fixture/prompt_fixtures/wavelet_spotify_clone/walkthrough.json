@@ -1,0 +1,144 @@
+{
+  "version": 1,
+  "title": "Wavelet (music player)",
+  "tagline": "A web music player with the layout and behaviour of a desktop streaming app, but its own violet look, drawn covers and synthesized songs.",
+  "status": "phase 1 of 4 · planned",
+  "plan": {
+    "label": "Plan",
+    "steps": [
+      { "id": "glance", "title": "At a glance",
+        "goal": "Decide in two minutes: **is this the player I want built?** Nothing is built yet.",
+        "blocks": [
+          { "type": "text", "md": "Wavelet plays music in the browser. **Left:** a 300 px sidebar with Home, Search and 8 playlists. **Middle:** Home, Search results, or one playlist with a track table. **Right (optional, 320 px):** a Now Playing panel. **Bottom (88 px):** the player bar. Open a playlist and the whole page **fades to a colour found in its cover**." },
+          { "type": "facts", "items": [
+            { "k": "Who it is for", "v": "Someone learning how a music app is built, or who needs a believable player to demo or extend, with zero legal risk" },
+            { "k": "No copying", "v": "No logo, icon, font, cover art, audio or brand text is copied: covers are drawn in code, songs are rendered on first play" },
+            { "k": "Not built (on purpose)", "v": "Real accounts, streaming, lyrics, queue editing, likes, podcasts, Connect devices" },
+            { "k": "What we need from you", "v": "Nothing: all decisions are agreed (step 5)" }
+          ] }
+        ] },
+      { "id": "screens", "title": "Layout and screens",
+        "goal": "See **where everything sits**. Click a region to read what lives there.",
+        "blocks": [
+          { "type": "wireframe", "title": "Wavelet layout", "src": "wireframes/layout.html", "caption": "Below 900 px wide the layout changes to a narrower arrangement." },
+          { "type": "cards", "title": "Regions and screens (click one)", "items": [
+            { "tag": "L", "title": "Sidebar (300 px)", "text": "brand, Home, Search, 8 playlists", "detail": "The playing playlist is shown in the accent colour." },
+            { "tag": "M", "title": "Home (`/`)", "text": "title, quick tiles, playlist cards", "detail": "A play button fades in and rises 8 px on hover or focus." },
+            { "tag": "M", "title": "Search (`/search/:query`)", "text": "type to filter 40 tracks", "detail": "No match shows a message." },
+            { "tag": "M", "title": "Playlist (`/playlist/:id`)", "text": "cover, title, owner, track table", "detail": "Double-click a row, or hover and press its play button." },
+            { "tag": "R", "title": "Now Playing (320 px)", "text": "large cover and song", "detail": "Takes the same page colour." },
+            { "tag": "B", "title": "Player bar (88 px)", "text": "play, previous, next, shuffle, repeat, seek, volume", "detail": "Previous restarts the song if you are more than 3 s in. Repeat cycles off, all, one." }
+          ] }
+        ] },
+      { "id": "color", "title": "The colour trick",
+        "goal": "Click through **how a cover becomes a page colour**, the one clever behaviour of this app.",
+        "blocks": [
+          { "type": "flow", "steps": [
+            { "title": "Draw the cover small", "text": "The cover is drawn on a 48x48 canvas.", "see": "Nothing yet; this is invisible work.", "files": [{ "name": "color.ts" }] },
+            { "title": "Skip the boring pixels", "text": "Near-black, near-white and grey pixels are skipped." },
+            { "title": "Vote by hue", "text": "The rest are grouped into 36 hue buckets, weighted by saturation and mid-lightness; the heaviest bucket's average is the raw colour." },
+            { "title": "Make white text readable", "text": "Keep the hue and darken until white text reaches **4.7:1** contrast (the standard asks 4.5:1).", "see": "Readable text on every playlist." },
+            { "title": "Fade the page", "text": "`--page` is a registered colour, so the gradient itself animates. The old colour stays until the new one is ready, so there is no flash.", "see": "A 480 ms fade across the top 520 px of the main view." }
+          ] },
+          { "type": "table", "title": "Motion", "head": ["What", "How", "Time"], "rows": [
+            ["page colour between playlists", "gradient animates; old colour stays until the new is ready", "480 ms ease (measured 452 ms)"],
+            ["hover on rows, cards, nav", "background or colour change", "150 ms"],
+            ["round buttons", "grow to 1.05 and brighten", "short"],
+            ["focus", "2 px accent outline", "instant"],
+            ["reduced motion", "transitions off", "rule"]
+          ], "caption": "No looping or decorative animation." }
+        ] },
+      { "id": "parts", "title": "Parts and rules",
+        "goal": "What is inside, and the **8 behaviour rules** that each become a test.",
+        "blocks": [
+          { "type": "mermaid", "title": "Parts", "code": "flowchart LR\n  subgraph UI[\"App grid: sidebar, main, now playing, player bar\"]\n    SB[Sidebar] --- MV[Home / Search / Playlist + track table]\n    MV --- NP[Now Playing]\n    PB[Player bar]\n  end\n  PB --> PL[player: one audio element]\n  PL --> TN[tones: arpeggio to WAV]\n  MV --> CL[color: 48x48 canvas, 36 hue buckets]\n  CL --> PG[page colour, 480 ms fade]\n  DA[data: 8 playlists, 40 tracks] --> MV\n  CV[covers: drawn in code] --> SB\n  RT[router: hash routes] --> MV" },
+          { "type": "table", "title": "Behaviour rules (each row is a test)", "head": ["id", "When", "Then"], "rows": [
+            ["W-01", "you press Space", "play/pause, except while typing in a field"],
+            ["W-02", "you press previous", "restarts the song if more than 3 s in, else the previous song"],
+            ["W-03", "you press repeat", "cycles off, all, one"],
+            ["W-04", "you click, drag or use arrow keys on a slider", "the value changes accordingly"],
+            ["W-05", "you double-click a track row", "that track plays"],
+            ["W-06", "you open another playlist", "the page colour fades to that cover's colour in 500 ms or less"],
+            ["W-07", "you reload", "the volume is what you left"],
+            ["W-08", "the colour is chosen", "white text on it is at least 4.7:1"]
+          ] },
+          { "type": "ref", "title": "Test ids (mirror the original player)", "file": "README.md", "heading": "Test ids", "dev": true }
+        ] },
+      { "id": "decide", "title": "Decisions and quality",
+        "goal": "All decisions are **agreed**; this is the bar for \"professional\".",
+        "blocks": [
+          { "type": "decisions", "items": [
+            { "id": "D-01", "q": "Colour source", "state": "agreed", "default": "computed in the browser from the cover" },
+            { "id": "D-02", "q": "Accounts, streaming, real music", "state": "agreed", "default": "none: made-up data, synthesized sound" },
+            { "id": "D-03", "q": "Routing", "state": "agreed", "default": "hash routes, no router library" },
+            { "id": "Q1", "q": "More playlists or real song names?", "state": "agreed", "default": "keep the 8 playlists / 40 made-up tracks" }
+          ] },
+          { "type": "checks", "title": "Quality bar", "items": [
+            "Text contrast at least 4.7:1 on every playlist colour",
+            "The colour fade settles in 500 ms or less (the real number is recorded)",
+            "0 console errors; no brand strings in the source",
+            "Everything works by keyboard (Space, arrow keys on sliders, visible focus ring)",
+            "Reduced-motion users get no transitions",
+            "No media files: covers and songs come from code"
+          ] }
+        ] }
+    ]
+  },
+  "work": {
+    "label": "Phases & tasks",
+    "steps": [
+      { "id": "roadmap", "title": "Roadmap", "goal": "Four phases, from empty app to measured numbers.",
+        "blocks": [
+          { "type": "mermaid", "code": "flowchart LR\n  P1[\"1 Foundations<br/>demo: app starts, 3 routes open\"] --> P2[\"2 Engine<br/>demo: sound and colour logic\"] --> P3[\"3 Screens<br/>demo: use the whole player\"] --> P4[\"4 Verify<br/>demo: numbers measured\"]" },
+          { "type": "table", "head": ["#", "Phase", "Goal", "Covers"], "rows": [
+            ["1", "Foundations", "the empty app runs and has its data, covers, tones and routes", "F3"],
+            ["2", "Engine", "sound plays and the colour logic works, with no screens yet", "F1, F2, F10"],
+            ["3", "Screens", "all screens usable with sound and colour", "F1, F4-F9"],
+            ["4", "Verify", "the numbers promised in this plan are measured", "F11"]
+          ] }
+        ] },
+      { "id": "p1", "title": "Phase 1 · Foundations", "goal": "**The empty app starts and has its data, covers, tones and routes.**",
+        "blocks": [
+          { "type": "checks", "title": "Done when", "items": ["app starts with 0 console errors", "every playlist has a drawn cover", "the 3 routes open (empty pages are fine)"] },
+          { "type": "tasks", "items": [
+            { "id": "T01", "what": "Scaffold Vite + TypeScript + React, colour tokens, 300 px | 1fr grid", "needs": [], "files": ["package.json", "index.html", "src/styles.css"] },
+            { "id": "T02a", "what": "Data (8 playlists, 40 tracks) and drawn covers", "needs": ["T01"], "files": ["src/data.ts", "src/covers.ts"], "reads": "build_inputs/01_content.md" },
+            { "id": "T02b", "what": "Synthesized songs (arpeggio to WAV) and the 3 hash routes", "needs": ["T01"], "files": ["src/tones.ts", "src/router.ts"] }
+          ] }
+        ] },
+      { "id": "p2", "title": "Phase 2 · Engine", "goal": "**Sound plays and the colour logic works, with no screens yet.**",
+        "blocks": [
+          { "type": "checks", "title": "Done when", "items": ["all 6 player verbs have a test that passes", "rules W-02, W-03, W-07, W-08 hold", "text contrast is at least 4.7:1 for every playlist"] },
+          { "type": "tasks", "items": [
+            { "id": "T03", "what": "One audio element; verbs skipToNext, skipToPrevious, seekTo, setVolume, setShuffle, setRepeat; volume kept", "needs": ["T01"], "files": ["src/player.ts"] },
+            { "id": "T04", "what": "Colour from cover (48x48 canvas, 36 buckets, darken to 4.7:1) + `--page` colour", "needs": ["T01"], "files": ["src/color.ts"] }
+          ] }
+        ] },
+      { "id": "p3", "title": "Phase 3 · Screens", "goal": "**Use the whole player: sidebar, pages, Now Playing and the bar, with sound and colour.**",
+        "blocks": [
+          { "type": "checks", "title": "Done when", "items": ["rules W-01, W-04, W-05, W-06 hold", "search for a word: matching tracks show; no match shows a message", "the layout still works below 900 px"] },
+          { "type": "tasks", "items": [
+            { "id": "T05", "what": "Sidebar + Player bar", "needs": ["T03", "T04"], "files": ["src/components/*"] },
+            { "id": "T06", "what": "Home + Search", "needs": ["T03", "T04"], "files": ["src/components/*"] },
+            { "id": "T07", "what": "Playlist page + track table", "needs": ["T03", "T04"], "files": ["src/components/*"] },
+            { "id": "T08", "what": "Now Playing panel", "needs": ["T03", "T04"], "files": ["src/components/*", "src/App.tsx"] }
+          ] }
+        ] },
+      { "id": "p4", "title": "Phase 4 · Verify", "goal": "**Every number promised in this plan is measured and written down.**",
+        "blocks": [
+          { "type": "checks", "title": "Done when", "items": ["contrast >= 4.7:1 on every playlist", "fade settles <= 500 ms (record the real value; the original measured 452 ms)", "the listed test ids exist", "the production build passes"] },
+          { "type": "tasks", "items": [{ "id": "T09", "what": "Measure contrast, fade time, test ids, brand strings", "owner": "lead", "needs": ["T05", "T06", "T07", "T08"] }] }
+        ] },
+      { "id": "team", "title": "Who owns which file", "goal": "**No file is owned twice.**",
+        "blocks": [
+          { "type": "who", "items": [
+            { "name": "builder A", "does": "data, covers, tones", "tasks": ["src/data.ts", "src/covers.ts", "src/tones.ts"] },
+            { "name": "builder B", "does": "player, colour, router", "tasks": ["src/player.ts", "src/color.ts", "src/router.ts"] },
+            { "name": "builder C", "does": "all components, App, styles", "tasks": ["src/components/*", "src/App.tsx", "src/styles.css"] },
+            { "name": "lead", "does": "package.json and index.html; runs the checks itself and says what could not be checked (real audio, the 480 ms fade)" }
+          ] },
+          { "type": "ref", "title": "Build recipe", "file": "README.md", "heading": "Build recipe", "dev": true }
+        ] }
+    ]
+  }
+}

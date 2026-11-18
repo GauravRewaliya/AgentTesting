@@ -5,14 +5,18 @@
 import type { ServerWebSocket } from "bun";
 import * as exp from "./experiment.ts";
 import * as pv from "./preview.ts";
+import * as br from "./browser.ts";
+import * as st from "./settings.ts";
+import * as pt from "./prompttests.ts";
+import { usage } from "./usage.ts";
 
-interface Sub { task?: string; detail?: string; transcript?: string }
+interface Sub { task?: string; detail?: string; transcript?: string; settings?: boolean; usage?: boolean; browser?: boolean; prompttests?: boolean }
 export interface Client { sub: Sub; sent: Map<string, string> }
 type Ws = ServerWebSocket<Client>;
 
 const TICK_MS = Number(process.env.WS_TICK_MS) || 1500, OVERVIEW_EVERY = 4;   // the case list changes rarely: every 4th tick
 const clients = new Set<Ws>();
-let timer: ReturnType<typeof setInterval> | undefined, running = false, n = 0, ovCache: unknown = null;
+let timer: ReturnType<typeof setInterval> | undefined, running = false, n = 0, ovCache: unknown = null, usageCache: unknown = null;
 
 function emit(ws: Ws, topic: string, data: unknown) {
   const s = JSON.stringify(data ?? null);
@@ -22,14 +26,25 @@ function emit(ws: Ws, topic: string, data: unknown) {
 }
 const safe = <T>(fn: () => T): T | { error: string } => { try { return fn(); } catch (e) { return { error: (e as Error).message }; } };
 
+let lastSweep = 0;
 async function tick(force = false) {
   if (running || !clients.size) return; running = true;
   try {
+    if (Date.now() - lastSweep > 20_000) { lastSweep = Date.now(); const freed = exp.sweepStale(); if (freed.length) console.log(`[hub] freed ${freed.length} stale agent(s) of killed runs: ${freed.slice(0, 6).join(", ")}`); }   // a killed run must not show as running
     if (force || n++ % OVERVIEW_EVERY === 0) ovCache = await exp.overview();
     const lv = exp.live(), results = new Map<string, unknown>();
+    // Settings topics: computed ONCE per tick for everybody, and only when some page asked (the files are re-read on our own tick: they cannot notify us; usage parses a transcript once per mtime+size)
+    const want = (k: "settings" | "usage" | "browser" | "prompttests") => [...clients].some((c) => c.data.sub[k]);
+    const settingsNow = want("settings") ? safe(() => st.state()) : undefined, usageNow = want("usage") && (!usageCache || n % 4 === 1) ? safe(() => usage()) : undefined, browserNow = want("browser") ? await br.overview().catch((e) => ({ error: String(e) })) : undefined;
+    const ptNow = want("prompttests") ? safe(() => pt.live()) : undefined;
+    if (usageNow) usageCache = usageNow;
     for (const ws of clients) {
       const { task, detail, transcript } = ws.data.sub, s = task ? lv.find((x) => x.task === task) : undefined;
       emit(ws, "overview", ovCache); emit(ws, "live", lv);
+      if (ws.data.sub.settings && settingsNow) emit(ws, "settings", settingsNow);
+      if (ws.data.sub.usage && (usageNow ?? usageCache)) emit(ws, "usage", usageNow ?? usageCache);
+      if (ws.data.sub.browser && browserNow) emit(ws, "browser", browserNow);
+      if (ws.data.sub.prompttests && ptNow) emit(ws, "prompttests", ptNow);
       if (!task) continue;
       emit(ws, "chat", safe(() => exp.chat(task)));
       emit(ws, "bg", safe(() => pv.bgOf(task)));
@@ -47,7 +62,7 @@ export const websocket = {
   message(ws: Ws, raw: string | Buffer) {
     try {
       const m = JSON.parse(String(raw)) as { sub?: Sub; kick?: number };
-      if (m.sub) { console.log("[hub] <- client now listens to", JSON.stringify(m.sub)); ws.data.sub = { task: m.sub.task || undefined, detail: m.sub.detail || undefined, transcript: m.sub.transcript || undefined }; ws.data.sent.clear(); }
+      if (m.sub) { console.log("[hub] <- client now listens to", JSON.stringify(m.sub)); ws.data.sub = { task: m.sub.task || undefined, detail: m.sub.detail || undefined, transcript: m.sub.transcript || undefined, settings: !!m.sub.settings, usage: !!m.sub.usage, browser: !!m.sub.browser, prompttests: !!m.sub.prompttests }; ws.data.sent.clear(); }
       void tick(true);
     } catch { /* ignore junk */ }
   },

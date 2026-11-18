@@ -62,7 +62,7 @@ export class RealRunner implements Runner {
     if (fatal && Date.now() < fatal.until) return { reply: "", session_id: c.session.id, cost: 0, ok: false, error: fatal.error };   // fail fast: the account is out of credits
     // At most HARNESS_MAX_PROCS WORKERS at once. The project manager and the lead each have a slot of their own: they spend most of their turn waiting
     // for others, and a waiting parent must never take a worker's place (this cost a researcher 9 s in the first strict multi-agent run).
-    const t0 = Date.now(), release = c.agent.role === "pm" ? await acquireSlot("pm", 1, undefined, c.onWait) : c.agent.role === "lead" ? await acquireSlot("lead", Math.max(1, Number(process.env.HARNESS_MAX_LEADS ?? 3)), undefined, c.onWait)   /* HARNESS_MAX_LEADS: how many leads may run at once machine-wide (default 3: a lead mostly waits for its builders; the case cost cap is the guard. Before, 1: a second run's lead sat 6.5 min behind the first and looked "running") */ : await acquireSlot("claude", maxProcs(), undefined, c.onWait), waited = Date.now() - t0;
+    const t0 = Date.now(), release = c.agent.role === "lead" ? await acquireSlot("lead", Math.max(1, Number(process.env.HARNESS_MAX_LEADS ?? 3)), undefined, c.onWait)   /* HARNESS_MAX_LEADS: how many leads may run at once machine-wide (default 3: a lead mostly waits for its builders; the case cost cap is the guard. Before, 1: a second run's lead sat 6.5 min behind the first and looked "running") */ : await acquireSlot("claude", maxProcs(), undefined, c.onWait), waited = Date.now() - t0;
     if (waited > 300) { try { c.onGo?.(waited); } catch { /* ignore */ } }
     try {
       const r = await this.spawnOne(c);
@@ -129,10 +129,11 @@ export class MixedRunner implements Runner {
 /** Offline runner: the script answers each call (and may write files, like a builder would). It still gets the real session choice. */
 export class ScriptRunner implements Runner {
   calls: RunCall[] = [];
+  private total = new Map<string, number>();   // like the real CLI: `total_cost_usd` of a RESUMED session is the running total of the whole session, not of this call
   constructor(public script: (c: RunCall, n: number) => string | Promise<string>, public cost = 0.001) {}
   async run(c: RunCall): Promise<RunResult> {
     this.calls.push(c);
-    try { return { reply: await this.script(c, this.calls.length), session_id: c.session.id, cost: this.cost, ok: true }; }
+    try { const reply = await this.script(c, this.calls.length), sum = (this.total.get(c.session.id) ?? 0) + this.cost; this.total.set(c.session.id, sum); return { reply, session_id: c.session.id, cost: sum, ok: true }; }
     catch (e) { return { reply: "", session_id: c.session.id, cost: 0, ok: false, error: String(e) }; }
   }
 }

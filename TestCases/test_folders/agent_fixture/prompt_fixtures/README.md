@@ -1,7 +1,7 @@
 ---
 audience: both
 title: Plan catalog
-status: 15 plans
+status: 12 plans
 ---
 # Plan catalog: how every plan looks
 > **These are plans, not products.** Each plan stands alone: everything a builder needs is in its folder (README, PHASES, `build_inputs/`, `CONTEXT.txt`); no plan refers to any other project's files. Cases in `TestCases/test_folders/Cases/real_usecases/test_prompt_planning/` give a plan to the lead and judge the build. Open any plan in the plan viewer (`docs/dev_exp/plan_viewer/`).
@@ -20,7 +20,7 @@ status: 15 plans
 | [Research Visualization](aistudio_research_visualization/README.md) | science visualisation with 3D and charts | phase 1 of 3 · planned |
 | [NES MIDI Gen](aistudio_nes_midi_gen/README.md) | chiptune generator (2 pulse, triangle, noise) with .mid export; **DRAFT 3/10, needed because it is the complex one: TODO 7.a** | draft, not ready |
 | [NES Player (jsnes)](nes_player_jsnes/README.md) | browser NES player around the jsnes library: speed, controllers, save states as a tree per ROM with export and import | phase 1 of 3 · planned |
-| [PingHarbor (site clone)](site_clone_pingharbor/multi_phase/README.md) | clone of a real website, 5 pages | phase 1 of 5 · planned |
+| [PingHarbor (site clone)](site_clone_pingharbor/multi_phase/README.md) | clone of a real website, 5 pages | phase 1 of 3 · planned |
 
 **Parked** (`_parked/`, not buildable to a verifiable result today): `aistudio_info_genius`, `aistudio_image_to_voxel`, `aistudio_personalized_comics` (they need a live AI model or image generation; a mocked build can only check the screens).
 

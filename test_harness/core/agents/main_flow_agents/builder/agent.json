@@ -4,10 +4,8 @@
  "model": "sonnet",
  "session": "persistent",
  "writes": true,
- "max_children": 2,
- "agents": [
-  "researcher"
- ],
+ "max_children": 0,
+ "agents": [],
  "tiers": [
   "T1",
   "T2",

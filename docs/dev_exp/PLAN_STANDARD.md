@@ -56,6 +56,10 @@ A diagram has at most about 12 boxes. Name the boxes in user words and put the f
 
 The same split applies to messages. See `agents/lead/.claude/CLAUDE.md`, section *Talking to the person*. Short form: **Outcome, Evidence, Needs from you, Next**, in that order, in the person's words.
 
+## The guided walkthrough (what a stakeholder opens first)
+
+The pack above is the truth; the **walkthrough** is how a person reads it: click-through steps, flows, wireframes and expandable detail, with the plan and the phases & tasks on **two separate pages**. Each plan declares it in `walkthrough.json` next to its README; one player renders them all. Spec, block types and rules: [WALKTHROUGH_SPEC.md](WALKTHROUGH_SPEC.md). Reference plan: `aistudio_eiffel_tower_3d/walkthrough.json`. The markdown `plan_viewer/` stays for plans not yet declared.
+
 ## Checklist before a plan goes to a stakeholder
 
 - [ ] The first screen of README answers: what is it, what do I get, what do you need from me.
@@ -64,3 +68,4 @@ The same split applies to messages. See `agents/lead/.claude/CLAUDE.md`, section
 - [ ] Open decisions and risks are on the front page, with defaults.
 - [ ] No internal word in a Decide block (search for `pnpm`, `.js`, `T0`, `agent`).
 - [ ] Builder material is inside dev blocks and `plan_lint` passes.
+- [ ] `walkthrough.json` exists, `bun docs/dev_exp/walkthrough/validate.ts` passes, and the first Plan step answers what / what you get / what we need from you.

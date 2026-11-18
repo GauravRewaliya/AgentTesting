@@ -5,7 +5,7 @@ import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { NodeRunCtx } from "../../../../../types.ts";
 
-export const PROMPT_FIXTURES = join(import.meta.dir, "..", "..", "agent_fixture", "prompt_fixtures");
+export const PROMPT_FIXTURES = join(import.meta.dir, "..", "..", "..", "..", "agent_fixture", "prompt_fixtures");
 
 export type Shape = "multi_phase" | "one_phase_complete";
 

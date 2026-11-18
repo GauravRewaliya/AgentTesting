@@ -7,10 +7,10 @@
 <style>
 :root{--bg:#f6f6f4;--panel:#fff;--ink:#1c1c1a;--mute:#76766f;--line:#e4e4de;--me:#1c1c1a;--meink:#fff;--bot:#efefea;
   --working:#d97706;--running:#2563eb;--active:#16a34a;--idle:#9a9a92;--bad:#dc2626;--chip:#f0f0ea;
-  --c-master:#7c3aed;--c-builder:#d97706;--c-researcher:#2563eb;--c-planner:#0d9488;--c-reviewer:#db2777;--c-pm:#6b7280}
+  --c-master:#7c3aed;--c-builder:#d97706;--c-researcher:#2563eb;--c-planner:#0d9488;--c-reviewer:#db2777}
 @media (prefers-color-scheme:dark){:root{--bg:#141413;--panel:#1c1c1a;--ink:#ecece6;--mute:#8d8d85;--line:#2e2e2a;--me:#ecece6;--meink:#141413;--bot:#262624;
   --working:#f59e0b;--running:#60a5fa;--active:#4ade80;--idle:#6f6f68;--bad:#f87171;--chip:#262624;
-  --c-master:#a78bfa;--c-builder:#fbbf24;--c-researcher:#60a5fa;--c-planner:#2dd4bf;--c-reviewer:#f472b6;--c-pm:#9ca3af}}
+  --c-master:#a78bfa;--c-builder:#fbbf24;--c-researcher:#60a5fa;--c-planner:#2dd4bf;--c-reviewer:#f472b6}}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column}
@@ -75,7 +75,7 @@ h2:first-child{margin-top:0}
 .dot.idle{background:var(--idle)}.dot.stalled,.dot.failed,.dot.stale{background:var(--bad)}
 @keyframes p{0%,100%{opacity:1}50%{opacity:.35}}
 .tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.06em;padding:1px 7px;border-radius:5px;color:var(--c,var(--mute));background:color-mix(in srgb,var(--c,var(--mute)) 15%,transparent);flex:none;vertical-align:middle}
-.t-master,.t-lead{--c:var(--c-master)}.t-builder{--c:var(--c-builder)}.t-researcher{--c:var(--c-researcher)}.t-planner{--c:var(--c-planner)}.t-reviewer{--c:var(--c-reviewer)}.t-pm{--c:var(--c-pm)}
+.t-master,.t-lead{--c:var(--c-master)}.t-builder{--c:var(--c-builder)}.t-researcher{--c:var(--c-researcher)}.t-planner{--c:var(--c-planner)}.t-reviewer{--c:var(--c-reviewer)}
 .master{border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer}
 .master:hover{border-color:var(--mute)}
 .master .row{display:flex;align-items:center;justify-content:space-between;gap:8px}

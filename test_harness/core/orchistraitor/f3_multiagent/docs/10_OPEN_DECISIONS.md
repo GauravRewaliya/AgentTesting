@@ -1,6 +1,6 @@
 # 10 Open decisions (none answered here)
 
-1. **A2 source.** Rebuild the mod from the recovered copy, keep the hook + thin-agent path as a sub-mode, or both? The evidence in `06` conflicts: the mod is described as the latest approach, but `claude.ts:36` and `run.ts` say it is not available and force `mod:false`.
+1. **A2 source. DECIDED 2026-11-18: hook, no mod** (`approaches/a2_native_hook`, see 06). Original question: Rebuild the mod from the recovered copy, keep the hook + thin-agent path as a sub-mode, or both? The evidence in `06` conflicts: the mod is described as the latest approach, but `claude.ts:36` and `run.ts` say it is not available and force `mod:false`.
 2. **f1 handling.** New folder beside f1 with f1 untouched, or `git mv`? It affects the ~15 outside importers in `08`.
 3. **A3 scope.** In scope now, or only a documented placeholder?
 4. **Lookup/guard home.** `core/fixtures/` (what the coupling data suggests) or a neutral shared folder?

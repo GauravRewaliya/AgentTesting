@@ -1,13 +1,15 @@
 {
- "permissions": {
-  "allow": [
-   "Read",
-   "Write",
-   "Edit",
-   "Glob",
-   "Grep",
-   "LSP",
-   "Bash"
-  ]
- }
+  "permissions": {
+    "allow": [
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "LSP",
+      "Bash",
+      "WebFetch",
+      "WebSearch"
+    ]
+  }
 }

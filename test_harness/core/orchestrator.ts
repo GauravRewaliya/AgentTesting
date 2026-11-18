@@ -19,5 +19,8 @@ export { publicHost } from "./orchistraitor/f3_multiagent/harness/core/preview.t
 export { listTaskProcs, stopTaskProc } from "./orchistraitor/f3_multiagent/harness/core/procs.ts";
 export * as browserConn from "./orchistraitor/f3_multiagent/harness/core/browser_conn.ts";
 export { browse } from "./orchistraitor/f3_multiagent/harness/core/browse.ts";
-export { judgeTurn, loadSuites, readExp, statusOf, unsupported, writeExp } from "./orchistraitor/f3_multiagent/testrun/cases.ts";
+export { judgeTurn, loadSuites, reconcileDead, readExp, statusOf, unsupported, writeExp } from "./orchistraitor/f3_multiagent/testrun/cases.ts";
 export type { ExpEntry, SuiteCase } from "./orchistraitor/f3_multiagent/testrun/cases.ts";
+export { loadAgentsRaw } from "./orchistraitor/f3_multiagent/harness/core/base/agents.ts";
+export { launchDef } from "./orchistraitor/f3_multiagent/harness/core/launch.ts";
+export { buildLead } from "./orchistraitor/f3_multiagent/approaches/a2_native_hook/adapter.ts";

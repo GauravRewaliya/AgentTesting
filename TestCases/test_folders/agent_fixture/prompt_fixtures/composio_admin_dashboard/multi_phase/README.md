@@ -8,31 +8,13 @@ status: phase 1 of 4 · planned
 
 > **This plan is ready to build.** File and folder names below are the layout of the new app; nothing here depends on any other project's files. Build from this plan alone.
 
+> **Builders:** the build recipe and file owners are in the grey DEV block at the end of this file (switch the viewer to Builder). Everyone else can stop reading at *Share and change*.
+
 | who reads | what | where |
 |---|---|---|
 | **Audience (users)** | You and your team, to review the screens before building; builders, who work from the same pages. | this page: What is it, What you get, Look, Motion |
 | **Stakeholders** | decide scope, answer questions | Decisions and open questions, Phases at a glance |
 | **Builders (dev)** | stack: Vue 3 from a CDN, no build (phase 1); Bun + `bun:sqlite` mock server with one SQLite file (phases 2-3); pnpm only | `PHASES.md` and the grey DEV blocks (switch to Dev) |
-
-## Build recipe (read this first)
-1. **Read in this order:** this README, `PHASES.md`, `02_ux/README.md`, `02_ux/theme.md`, `02_ux/motion.md`, then the screen pages in `02_ux/screens/`.
-2. **Where it is built:** `run_test/agentdeck/` (brand AgentDeck).
-3. **Start from the kit:** run the harness tool exactly as `proto_init --dir run_test/agentdeck --title "AgentDeck" --accent "#5753c6" --nav '[{"label":"Home","file":"part-1"},{"label":"Toolkits","file":"part-1"},{"label":"Auth Configs","file":"part-1"},{"label":"Connected Accounts","file":"part-1"},{"label":"Triggers","file":"part-2"},{"label":"Playground","file":"part-2"},{"label":"Logs","file":"part-2"},{"label":"Settings","file":"part-3"},{"label":"API Keys","file":"part-3"},{"label":"Docs","file":"part-3"}]'` (a no-build Vue 3 prototype: `index.html`, `css/kit.css`, `js/kit.js`, the 10 routes). The nav text FIXES the file names and the split below; never edit the kit files.
-4. **Build only the phase you are asked for.** Phase 1 = look and screens on FAKE data (no server, no SQLite: those are phases 2-3).
-5. **Three builders in parallel, one per screens file** (groups below); each edits ONLY its own two files. Do not give one builder many screens: the lead stops waiting after three waits on the same builder.
-
-**File groups (fixed by the nav above, so the work splits evenly):**
-| file | owner | screens | also owns |
-|---|---|---|---|
-| `js/screens/part-1.js` + `css/pages-part-1.css` | builder-1 | Home, Toolkits, Auth Configs, Connected Accounts | the shell and the LIGHT theme overrides (`#fcfcfc`, black buttons, lavender accent) |
-| `js/screens/part-2.js` + `css/pages-part-2.css` | builder-2 | Triggers, Playground, Logs | `window.AgentDeck.executions` (Playground writes a row, Logs reads it: both in this file) |
-| `js/screens/part-3.js` + `css/pages-part-3.css` | builder-3 | Settings, API Keys, Docs | the DARK theme (`html[data-theme=dark]` tokens, toggle in Settings > Appearance, `localStorage` key `agentdeck-theme`, applied at load) |
-
-6. **Verify** with `proto_check` and the preview, then the *Done when* list of the phase.
-7. **Do not invent** screens, files or features the plan does not name. The real dashboard was not captured (only its login page): screens are invented in the plan's style and marked so.
-8. **This plan IS the planning.** Do not write a new plan, a separate wireframe or placeholder screens. Each builder delivers its screens FINISHED in one pass: fake data, the theme (light and dark) and the interactions in the screen pages.
-9. **Builders self-check before reporting:** `node --check` on their file, the kit's `proto_check`, and every route and link exists in `PROTO.md`. They report any difference from the screen pages.
-10. **The lead verifies before it claims.** Run `proto_check` and the preview, open every route, read EVERY builder report, and state only what the checks and reports show. List every deviation from the plan. If a check could not be run, say so.
 
 ## What is it
 Ten screens with a left menu: set up apps (Toolkits, Auth Configs, Connected Accounts), use them (Triggers, Playground, Logs), and manage (Settings, API Keys, Docs). Light and dark theme, working buttons. First it runs on fake data; then it gets a small mock server with a SQLite file so what you create stays after a restart; then Playground runs are really stored and shown in Logs.
@@ -116,13 +98,14 @@ Look and feel: [theme](02_ux/theme.md) · animations: [motion](02_ux/motion.md) 
 No looping or decorative animation. Source: invented (the capture found none); full list: [motion](02_ux/motion.md). Real motion can replace it if you supply a logged-in capture (Q2).
 
 ## Team: who does what
+> Task ids: phase 1 uses T00-T12; later phases are written `P2-T01`, `P3-T02` ... (same ids as `tasks.json`), so no id repeats.
 | who | does | tasks |
 |---|---|---|
 | lookup (one call) | reads the reference and writes the briefs | T00 |
 | builder-1 | writes `part-1` (Home, Toolkits, Auth Configs, Connected Accounts) and the shell + light theme; its own files only | T01, T03-T06 |
 | builder-2 | writes `part-2` (Triggers, Playground, Logs) and `window.AgentDeck.executions`; its own files only | T07-T09 |
 | builder-3 | writes `part-3` (Settings, API Keys, Docs) and the dark theme + toggle; its own files only | T02, T10-T12 |
-| qa-reviewer | checks every phase in a real browser or build; writes pass/fail, never builds | T03, T02 |
+| qa-reviewer | checks every phase in a real browser or build; writes pass/fail, never builds | P3-T03, P4-T02 |
 
 You (the owner) answer the open questions and judge each phase; Claude edits this plan when you ask (see Share and change).
 
@@ -156,80 +139,27 @@ You (the owner) answer the open questions and judge each phase; Claude edits thi
 - Status words: planning = still being written or missing facts · planned = split into tasks, **nothing built yet** · in progress · review · done.
 
 <!-- dev -->
-## Packages and owners (no file owned twice)
-> Status: draft · Updated: 2026-11-16
+## Build recipe
+1. **Read in this order:** this README, `PHASES.md`, `build_inputs/01_requirements_data_flow_tests.md` (requirements, data model, code flow, tests, file owners), `02_ux/README.md`, `02_ux/theme.md`, `02_ux/motion.md`, then the screen pages in `02_ux/screens/`.
+2. **Where it is built:** `run_test/agentdeck/` (brand AgentDeck).
+3. **Start from the kit:** run the harness tool exactly as `proto_init --dir run_test/agentdeck --title "AgentDeck" --accent "#5753c6" --nav '[{"label":"Home","file":"part-1"},{"label":"Toolkits","file":"part-1"},{"label":"Auth Configs","file":"part-1"},{"label":"Connected Accounts","file":"part-1"},{"label":"Triggers","file":"part-2"},{"label":"Playground","file":"part-2"},{"label":"Logs","file":"part-2"},{"label":"Settings","file":"part-3"},{"label":"API Keys","file":"part-3"},{"label":"Docs","file":"part-3"}]'` (a no-build Vue 3 prototype: `index.html`, `css/kit.css`, `js/kit.js`, the 10 routes). The nav text FIXES the file names and the split below; never edit the kit files.
+4. **Build only the phase you are asked for.** Phase 1 = look and screens on FAKE data (no server, no SQLite: those are phases 2-3).
+5. **Three builders in parallel, one per screens file** (groups below); each edits ONLY its own two files. Do not give one builder many screens: the lead stops waiting after three waits on the same builder.
 
-| file | owner agent | owns (no one else touches) | tasks |
+**File groups (fixed by the nav above, so the work splits evenly):**
+| file | owner | screens | also owns |
 |---|---|---|---|
-| part-1 | builder-1 | `js/screens/part-1.js`, `css/pages-part-1.css` (Home, Toolkits, Auth Configs, Connected Accounts; shell + light theme) | T01, T03-T06 |
-| part-2 | builder-2 | `js/screens/part-2.js`, `css/pages-part-2.css` (Triggers, Playground, Logs; `window.AgentDeck.executions`) | T07-T09 |
-| part-3 | builder-3 | `js/screens/part-3.js`, `css/pages-part-3.css` (Settings, API Keys, Docs; dark theme + toggle) | T02, T10-T12 |
-| research | lookup (ONE call, only if a re-capture is asked) | `_ref/*` | T00 |
-| qa | qa-reviewer | nothing (read only) | every task |
+| `js/screens/part-1.js` + `css/pages-part-1.css` | builder-1 | Home, Toolkits, Auth Configs, Connected Accounts | the shell and the LIGHT theme overrides (`#fcfcfc`, black buttons, lavender accent) |
+| `js/screens/part-2.js` + `css/pages-part-2.css` | builder-2 | Triggers, Playground, Logs | `window.AgentDeck.executions` (Playground writes a row, Logs reads it: both in this file) |
+| `js/screens/part-3.js` + `css/pages-part-3.css` | builder-3 | Settings, API Keys, Docs | the DARK theme (`html[data-theme=dark]` tokens, toggle in Settings > Appearance, `localStorage` key `agentdeck-theme`, applied at load) |
 
-Parallel: the three builders run at the same time after the kit exists (disjoint files).
+6. **Verify** with `proto_check` and the preview, then the *Done when* list of the phase.
+7. **Do not invent** screens, files or features the plan does not name. The real dashboard was not captured (only its login page): screens are invented in the plan's style and marked so.
+8. **This plan IS the planning.** Do not write a new plan, a separate wireframe or placeholder screens. Each builder delivers its screens FINISHED in one pass: fake data, the theme (light and dark) and the interactions in the screen pages.
+9. **Builders self-check before reporting:** `node --check` on their file, the kit's `proto_check`, and every route and link exists in `PROTO.md`. They report any difference from the screen pages.
+10. **The lead verifies before it claims.** Run `proto_check` and the preview, open every route, read EVERY builder report, and state only what the checks and reports show. List every deviation from the plan. If a check could not be run, say so.
 
-## Requirements (EARS)
-
-| id | requirement | source |
-|---|---|---|
-| R1 | The app shall show a left sidebar with the 10 routes; the active route is highlighted. | invented (typical) |
-| R2 | When the user switches Settings > Appearance to dark, every screen shall use the dark palette in `theme.md` and keep the choice after reload. | user-given |
-| R3 | Toolkits shall be a card grid with live search and category chips; a card opens `#/toolkits/<slug>`. | invented |
-| R4 | Every list shall have a working search or filter, an empty state, and a row that opens a detail view. | PROTO rule |
-| R5 | Every button shall do something (modal, drawer, toast, route). No "TODO" / "coming soon" text. | PROTO rule |
-| R6 | Playground shall let the user pick a toolkit + action, edit JSON params, press Run, and see a mock response and a new row in Logs. | invented |
-| R7 | Forms shall validate and show `.field-error`. | PROTO rule |
-| R8 | The layout shall work at 390px width (sidebar becomes a drawer). | user-given ("exact" site is responsive) |
-
-
-## Data model (mock)
-> Status: draft · Updated: 2026-11-16
-
-Shared shapes so Logs/Playground/Home show consistent names (types in words; no TS in a no-build prototype):
-| entity | fields | used by |
-|---|---|---|
-| Toolkit | slug, name, category, auth ("OAuth 2"/"API key"), actions (n), connected (n), description | Toolkits, Home, Playground |
-| AuthConfig | id, toolkit, scheme, name, created, status | Auth Configs |
-| ConnectedAccount | id, toolkit, label, user, status (active/expired), created | Connected Accounts, Playground |
-| Trigger | id, toolkit, event, target_url, status | Triggers |
-| Execution | time, tool (mono `GITHUB_CREATE_ISSUE`), account, status (Success/Failed), ms | Logs, Home (recent), Playground (new row) |
-| ApiKey | id, name, prefix (`ad_live_ab12…`), created, last_used | API Keys |
-
-Slugs fixed across screens: github, slack, gmail, notion, linear, google-sheets, hubspot, jira, salesforce, stripe, google-calendar, dropbox.
-<!-- dev -->
-Cross-screen link: Playground "Run" appends an Execution to a `window.AgentDeck.executions` array that Logs reads (the only shared runtime state; owner: part-2 (builder-2); Home in part-1 only READS it).
-<!-- /dev -->
-
-## Code flow
-> Status: draft · Updated: 2026-11-16 · Raw generated contract: `04_code_flow_proto_contract.md`
-
-- No build, no npm: `index.html` + `css/kit.css` + `js/kit.js` (Vue 3 CDN). Done by `proto_init`; nobody edits.
-- Router: hash routes; `Screens.<Name> = { template, data, computed, methods }` in the owner's file; detail views branch on `$route.parts[1]`.
-- Helpers from the kit: `$go(path)`, `$toast(msg)`, `ui-modal`, `ui-drawer`, `ui-badge`, `ui-empty`.
-- Styles: each builder adds only its own classes in its own `css/pages-part-N.css`; shell/light-theme overrides in `css/pages-part-1.css`, dark theme in `css/pages-part-3.css`.
-- Only runtime link between packages: `window.AgentDeck.executions` (see `03_data_model.md`).
-- Check: `proto_check --dir run_test/agentdeck` (<1 s), then `preview`, then the browser steps.
-
-## Test plan (original)
-> Status: draft · Updated: 2026-11-16
-
-| task | steps (human-style) | pass when |
-|---|---|---|
-| P1-T01 theme | open `#/home`; read computed page bg, button bg | page bg rgb(252,252,252), primary button rgb(0,0,0), accent link #5753c6 |
-| P1-T02 dark | Settings > Appearance > Dark; reload | bg #000, surface #191919, choice kept (R2) |
-| P2-T01 home | open `#/home`; click tab "30 days"; click "Connect" in step 2 | bars change; route becomes `#/connected-accounts` |
-| P2-T02 toolkits | type "git" in search; click chip Developer; click first card; clear search | list filters, detail `#/toolkits/github` opens, empty state shows for "zzz" |
-| P2-T09 playground | pick GitHub + create issue; Run | response panel fills; Logs has a new top row (R6) |
-| P2-T10 logs | filter status=Failed; click a row | only Failed rows; detail drawer opens |
-| P3-T01 responsive | resize 390px; open sidebar drawer; visit all routes | no horizontal scroll, drawer works (R8) |
-| P3-T02 sweep | `proto_check`, `preview` all routes, `site_audit`, `ref_compare` | 0 console errors, no dead links, score >= Phase 1 value |
-(Other P2 screens follow the R4/R5/R7 pattern: search, empty state, detail, buttons act, form validates.)
-
-Negative cases (the evaluator must catch these): a button with no handler; a screen showing "TODO"; two packages editing one file; a hard-coded colour outside tokens.
-
-## Planner notes
-Capture facts come from `_ref/composio/REF.md` (copy of key lines in `ref_notes/capture_facts.md`). The login URL carries a session token: never store it. The raw generated contract is kept as `04_code_flow_proto_contract.md` (dev, not for reading).
+**Moved out of this page:** requirements (EARS), the mock data model, code flow, the original test plan and the file-owner table are in `build_inputs/01_requirements_data_flow_tests.md`.
 <!-- /dev -->
 
 research: none (the real dashboard was not captured, only its login page, see ref_notes/capture_facts.md; every screen is invented in the plan's style and marked so)

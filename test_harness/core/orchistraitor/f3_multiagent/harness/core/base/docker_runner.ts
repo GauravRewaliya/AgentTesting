@@ -5,7 +5,7 @@
 //   - workspace: the agent's cwd is mounted READ-WRITE at the SAME absolute path (so session ids and transcript folders match); nothing else of the host is visible except the agent's prompt file (read-only).
 //   - limits: 2 GB, 1 cpu, 512 pids, all capabilities dropped, no-new-privileges (compose service `sandbox` in test_harness/infra/docker-compose.yml), non-root (your uid), --rm. Network on (the CLI and the package registries need it).
 //   - pnpm only (CLAUDE.md): the store is the docker volume agent-testing-pnpm-store. Claude Code is BUILT INTO the image (infra/claude/Dockerfile); nothing is installed at run time.
-//   - an agent that needs the HOST's tools.ts (it delegates: agents[] not empty, or an allow entry for tools.ts), the lead and the pm run on the host exactly as before.
+//   - an agent that needs the HOST's tools.ts (it delegates: agents[] not empty, or an allow entry for tools.ts), the lead runs on the host exactly as before.
 //   - a timeout or killAll() kills the container by name (stopping the docker client alone would leave it running).
 import { spawn, spawnSync } from "node:child_process";
 import { usesTeamTools } from "./agents.ts";
@@ -14,7 +14,7 @@ import { LSP_PLUGIN_DIR, RealRunner, lspArgs, wantsLsp } from "./runner.ts";
 import type { RunCall, RunResult } from "./types.ts";
 import { cliErrorText } from "./parse.ts";
 
-export const sandboxable = (c: RunCall) => c.agent.role !== "lead" && c.agent.role !== "pm" && !usesTeamTools(c.agent);   // an agent that uses the host's team tools runs on the host (see usesTeamTools)
+export const sandboxable = (c: RunCall) => c.agent.role !== "lead" && !usesTeamTools(c.agent);   // an agent that uses the host's team tools runs on the host (see usesTeamTools)
 
 export const COMPOSE_FILE = resolve(import.meta.dir, "../../../../../../infra/docker-compose.yml");   // test_harness/infra/docker-compose.yml: the ONE place that declares image, limits, security and volumes
 
@@ -29,7 +29,7 @@ export class DockerRunner extends RealRunner {
   private names = new Set<string>();
   override killAll() { for (const n of this.names) spawnSync("docker", ["kill", n], { timeout: 20_000 }); super.killAll(); }
   protected override spawnOne(c: RunCall): Promise<RunResult> {
-    if (!sandboxable(c)) return super.spawnOne(c);   // lead / pm / delegating agents: host, as before
+    if (!sandboxable(c)) return super.spawnOne(c);   // lead / delegating agents: host, as before
     const claudeArgs = ["-p", c.prompt, "--output-format", "json", "--model", c.agent.model, "--setting-sources", "", "--strict-mcp-config", "--append-system-prompt-file", c.agent.prompt_file,
       "--tools", c.agent.tools.join(","), "--permission-mode", "dontAsk",
       ...(c.stateless ? ["--no-session-persistence"] : c.session.fork_from ? ["--resume", c.session.fork_from, "--fork-session", "--session-id", c.session.id] : [c.session.resume ? "--resume" : "--session-id", c.session.id]),

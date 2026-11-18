@@ -8,7 +8,7 @@ import { callAgent, type AgentDef, type CallCtx } from "./core/base.ts";
 import type { MStore } from "./core/board.ts";
 import { launchDef } from "./core/launch.ts";
 import { ensureRun, touchRun } from "./core/session_run.ts";
-import { conversationBlock, digest } from "./core/pm.ts";
+import { conversationBlock, digest } from "./core/board_view.ts";
 
 const HDIR = dirname(fileURLToPath(import.meta.url));
 export async function runLead(ctx: CallCtx & { store: MStore }, o: { task_id: string; repo: string; request: string; maxDepth: number; runner: "real" | "fake"; writerMode?: "shared" | "worktree"; models?: Record<string, string>; agents?: string[]; forceSel?: { id: string; resume: boolean; fork_from?: string } }) {

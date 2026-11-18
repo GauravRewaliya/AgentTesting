@@ -1,5 +1,6 @@
 // Experiment runner for the f1 multi-agent harness. It shells out to <orchestrator>/testrun/run.ts (so the CLI and this page do exactly the same thing)
 // and reads the registry that run writes: ui/.ui-data/store.json (agents, calls, notes) and exp.json (case -> task, where each turn began).
+import { reconcileDead } from "@core/orchestrator.ts";
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -64,7 +65,7 @@ export function startRun(b: { suite: string; cases?: string[]; fake?: boolean; r
   if (listRuns().some((r) => r.status === "running")) throw new Error("a run is already going; stop it first (two runs would write the same store)");
   const id = "r" + Date.now().toString(36), args = ["testrun/run.ts", b.suite, ...cases, ...(b.fake ? ["--fake"] : []), ...(b.rerun ? ["--rerun"] : []), ...(b.again ? ["--again"] : [])];
   const fd = openSync(logFile(id), "a");
-  const p = spawn("sh", ["-c", 'bun "$@"; echo $? > "$RUN_EXIT_FILE"', "sh", ...args], { cwd: F1, detached: true, stdio: ["ignore", fd, fd], env: { ...process.env, HARNESS_RUN_RECORDED: "1", RUN_EXIT_FILE: join(RUNS, id + ".exit") } });   // the UI writes the record itself
+  const p = spawn("sh", ["-c", 'bun "$@"; echo $? > "$RUN_EXIT_FILE"', "sh", ...args], { cwd: F1, detached: true, stdio: ["ignore", fd, fd], env: { ...process.env, HARNESS_RUN_RECORDED: "1", HARNESS_USER_HOME: "1", RUN_EXIT_FILE: join(RUNS, id + ".exit") } });   // the UI writes the record itself
   p.unref();
   const run: RunInfo = { id, suite: b.suite, cases, fake: !!b.fake, rerun: !!b.rerun, startedAt: Date.now(), pid: p.pid ?? 0, status: "running" };
   writeFileSync(metaFile(id), JSON.stringify(run));
@@ -133,7 +134,7 @@ const queues = new Map<string, Q>();
 const q = (t: string) => queues.get(t) ?? (queues.set(t, { busy: false, error: "", queue: [] }), queues.get(t)!);
 
 export function availableAgents(): AvailableAgent[] {
-  // exactly the master's own team (main_flow_agents/lead/agent.json). Internal agents such as the project manager (pm) are not something the master calls.
+  // exactly the master's own team (main_flow_agents/lead/agent.json). Only the master's own team is offered.
   const dir = AGENTS_DIR, team: string[] = (() => { try { return JSON.parse(readFileSync(join(dir, "lead", "agent.json"), "utf8")).agents ?? []; } catch { return []; } })();
   return team.filter((n) => existsSync(join(dir, n, "agent.json"))).map((n) => {
     const j = JSON.parse(readFileSync(join(dir, n, "agent.json"), "utf8")) as { description?: string; writes?: boolean };
@@ -435,4 +436,19 @@ export function talkToAgent(b: TalkIn): { ok: boolean; mode?: "note" | "call"; r
     talking.set(key, { running: false, error });
   });
   return { ok: true, mode: "call" };
+}
+
+/** Sweep: runs that were killed (a 5-minute cap, a crash, a closed terminal) leave their agents `running` in the store. Every store with such an agent is reconciled (the agent is marked interrupted when no process of it exists any more).
+ *  Called by the hub on its own slow tick, so the dashboard never shows a dead run as running. Returns what was freed. */
+export function sweepStale(): string[] {
+  const freed: string[] = [];
+  try {
+    for (const d of readdirSync(STATE_DIR)) {
+      const f = join(STATE_DIR, d, "store", "store.json"); if (!existsSync(f)) continue;
+      let raw = ""; try { raw = readFileSync(f, "utf8"); } catch { continue; }
+      if (!/"status":\s*"(running|stalled)"/.test(raw)) continue;   // cheap text test first: most stores have nothing running
+      freed.push(...reconcileDead(new MStore(f)));
+    }
+  } catch (e) { console.warn("sweepStale:", (e as Error).message); }
+  return freed;
 }

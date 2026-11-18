@@ -27,6 +27,7 @@ import { locksFromEnv } from "./core/lockapi.ts";
 import { customDef } from "./core/custom.ts";
 import { FixtureGate } from "./core/fixture_gate.ts";
 import { AGENTS_DIR } from "@core/config.ts";
+import { homeLaunch } from "@core/userhome.ts";
 import { wsGrep, wsLs, wsRead } from "./core/workspace_read.ts";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { imagesOn, memoryProjects, planBlurb, videoOffReason, writeMemory } from "./core/loops_ai.ts";
@@ -107,13 +108,14 @@ async function runCall(call_id: string) {
   const runner: Runner = new FixtureGate(inner, () => store);   // agents with "fixtures": true are answered by recorded results (check_and_correction); every other agent runs as before
   if (!defs.has(req.role)) defs.set(req.role, customDef(req.role, req.title ?? req.role, !!req.writes?.length));   // a custom agent: rebuilt here from the call record
   const def = launchDef(req.model ? { ...defs.get(req.role)!, model: req.model } : defs.get(req.role)!, defs, res.level, policy.agentMaxDepth, join(tmpdir(), "lf-launch"), TOOLS);
+  { const h = homeLaunch(req.role); if (h.allow.length) { def.allow = [...def.allow, ...h.allow]; } }   // user integrations ticked for THIS agent (Settings): nothing ticked, nothing added
   const epoch0 = agent.epoch ?? 0;
   const guard = setInterval(() => { store.reload(); if (store.aborted() || (store.agent(call.task_id, call.callee_agent_id!)?.epoch ?? 0) !== epoch0) runner.killAll?.(); }, 1000);   // the watchdog flag, or a stop (replan / cancel), ends this callee at once
   const r = await runCallee({ store, runner, defs: new Map(defs).set(req.role, def), sessionCap: SESSION_CAP, transcriptExists: real ? (_c, id) => transcriptExistsAnywhere(id) : undefined }, policy, res, req, def,
     { locks: locks.kind === "redis" ? locks : undefined, cwd, writerMode: E.HARNESS_WRITER_MODE === "worktree" ? "worktree" : "shared",
       env: { HARNESS_STORE: file, HARNESS_MAX_DEPTH: String(policy.agentMaxDepth), HARNESS_RUNNER: E.HARNESS_RUNNER ?? "fake", HARNESS_MODELS: E.HARNESS_MODELS ?? "{}",
         HARNESS_WRITER_MODE: E.HARNESS_WRITER_MODE ?? "shared", HARNESS_MAX_INSTANCES: E.HARNESS_MAX_INSTANCES ?? "4", HARNESS_FAKE_DELAY_MS: E.HARNESS_FAKE_DELAY_MS ?? "0", HARNESS_LOCKS_URL: E.HARNESS_LOCKS_URL ?? "", HARNESS_LOCKS_PREFIX: E.HARNESS_LOCKS_PREFIX ?? "lf", HARNESS_LOCK_TTL_MS: E.HARNESS_LOCK_TTL_MS ?? "120000", HARNESS_STRICT: E.HARNESS_STRICT ?? "0", HARNESS_CANARY: E.HARNESS_CANARY ?? "0" },
-      extraArgs: () => (real ? hookArgs(HDIR) : []) });
+      extraArgs: () => (real ? [...hookArgs(HDIR), ...homeLaunch(req.role).args] : []) });
   clearInterval(guard);
   for (const pc of r.promoted) spawnRun(pc);   // the queue driver: a finished writer starts the next waiting one
   return { res, r };
@@ -233,6 +235,7 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
     else { spawnRun(res.call_id); started.push({ title: t.title, ok: true, agent_id: res.agent.agent_id, status: "running" }); }
   }
   const ids = started.filter((x) => x.ok).map((x) => String(x.agent_id));
+  if (ids.length > 1) store.tx(() => { for (const id of ids) say(store, task, "harness", id, `TEAM (started together): ${ids.filter((x) => x !== id).map((x) => { const t = started.find((y) => y.agent_id === x); return x + (t?.title ? ` (${t.title})` : ""); }).join(", ")}. Each owns its own files; reach one with team say --to <agent_id>.`); });   // every starter learns who its neighbours are (a builder that began before the others were granted would not see them)
   out({ ok: started.every((x) => x.ok), started, next: ids.length ? `All started together. Now wait --any --agents ${ids.join(",")}: it returns as soon as ONE finishes, with a browser check of its pages; fix that builder at once if needed, then wait --any again with the ones still running (a timeout is NOT a failure: still_running shows each agent last_tool_s_ago; keep waiting while it is under 120 s, a big builder can write for 6+ minutes; answer the person only when an agent shows no tool use for 5 minutes).` : "Nothing started: fix the reasons above." });
 } else if (cmd === "_run") {
   await runCall(flag("call")!);
@@ -430,10 +433,10 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
   out({ ok: true, stopped: rows.map((r) => r.agent_id) });
 } else if (cmd === "ls") { out(wsLs(join(cwd, "run_test"), flag("path")));
 } else if (cmd === "read_file") { out(wsRead(join(cwd, "run_test"), flag("path") ?? "", Number(flag("offset") ?? 1), Number(flag("limit") ?? 200)));
-} else if (cmd === "chapter") {   // the lead's on-demand rules (agents/lead/chapters/<name>.md): the core CLAUDE.md stays short, a flow's details are read once, when that flow starts
-  const dir = join(AGENTS_DIR, "lead", "chapters"), n = (flag("name") ?? "").toLowerCase().replace(/[^a-z_]/g, ""), f = join(dir, n + ".md");
-  const names = existsSync(dir) ? readdirSync(dir).filter((x) => x.endsWith(".md")).map((x) => x.slice(0, -3)) : [];
-  if (n && existsSync(f)) { store.reload(); store.ev("chapter.read", task, me, { name: n }); store.save(); out({ ok: true, chapter: n, text: readFileSync(f, "utf8") }); }
+} else if (cmd === "chapter") {   // on-demand details: agents/<role>/chapters/<name>.md of the CALLER first (qa-reviewer: tab, planner: plan_format), then the lead's; the core CLAUDE.md of every agent stays short
+  const mine = store.agent(task, me)?.name ?? "lead", dirs = [...new Set([join(AGENTS_DIR, mine, "chapters"), join(AGENTS_DIR, "lead", "chapters")])], n = (flag("name") ?? "").toLowerCase().replace(/[^a-z_]/g, ""), f = dirs.map((d) => join(d, n + ".md")).find((x) => n && existsSync(x)) ?? "";
+  const names = [...new Set(dirs.flatMap((d) => existsSync(d) ? readdirSync(d).filter((x) => x.endsWith(".md")).map((x) => x.slice(0, -3)) : []))];
+  if (f) { store.reload(); store.ev("chapter.read", task, me, { name: n }); store.save(); out({ ok: true, chapter: n, text: readFileSync(f, "utf8") }); }
   else out({ ok: false, reason: n ? `no chapter '${n}'` : "--name is required", chapters: names });
 } else if (cmd === "grep") { out(wsGrep(join(cwd, "run_test"), flag("pattern") ?? "", flag("path")));
 } else if (cmd === "ref_capture") {   // REAL reference of a website (raw html + css tokens + screenshots, no model call) for a "ditto" clone, or a screenshot of a local preview to compare: --url <https://..> --name <short-name>

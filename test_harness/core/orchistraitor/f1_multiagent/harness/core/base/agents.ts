@@ -35,7 +35,7 @@ export function checkAgents(defs: Map<string, AgentDef>, maxDepth = 4): string[]
     if (existsSync(join(d.dir, "prompt.md"))) bad.push(`${d.name}: prompt.md must not exist (the prompt is .claude/CLAUDE.md)`);
     const sub = join(d.dir, ".claude", "agents");
     if (existsSync(sub) && readdirSync(sub).some((f) => f !== ".gitkeep")) bad.push(`${d.name}: .claude/agents must stay empty (declarations are added at run time)`);
-    if (d.writes === false && !d.scratch && d.tools.some((t) => ["Write", "Edit", "MultiEdit", "NotebookEdit"].includes(t))) bad.push(`${d.name}: writes:false but has a write tool`);   // a SCRATCH agent writes only in its throwaway copy (callee.ts discards it and flags any change to the real project)
+    if (d.writes === false && !d.scratch && d.allow.some((a) => ["Write", "Edit", "MultiEdit", "NotebookEdit"].includes(a))) bad.push(`${d.name}: writes:false but has an unscoped write tool (a path-scoped one such as Write(run_test/research/*) is fine)`);   // a SCRATCH agent writes only in its throwaway copy (callee.ts discards it and flags any change to the real project)
     if (d.scratch && d.writes) bad.push(`${d.name}: scratch and writes together: a scratch agent never changes the real project`);
     for (const a of d.agents) if (!defs.has(a)) bad.push(`${d.name}: agents[] names "${a}" which has no folder`);
     if (d.agents.length === 0 && d.max_children > 0) bad.push(`${d.name}: max_children>0 but agents[] is empty`);

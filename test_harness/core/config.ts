@@ -13,7 +13,7 @@ export const CONFIG = {
   stateVersion: "v3",
 } as const;
 
-/** The real team (one folder per agent: agent.json + .claude/CLAUDE.md + settings.json): lead, builder, planner, researcher, lookup, ux-designer, qa-reviewer, pm. The lead calls the first seven; pm is the person's contact (chat/replan). */
+/** The real team (one folder per agent: agent.json + .claude/CLAUDE.md + settings.json): lead, builder, planner, researcher, lookup, ux-designer, qa-reviewer. The lead calls the other six. */
 export const AGENTS_DIR = join(import.meta.dir, "agents", "main_flow_agents");
 /** Test stand-ins ("fixtures": true, answered from recorded results, declared per case): writer, reviewer, expo-go, package-researcher, web-setup. Never part of the real team. */
 export const TEST_AGENTS_DIR = join(import.meta.dir, "agents", "test_agents");

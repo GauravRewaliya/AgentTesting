@@ -30,7 +30,7 @@ import { hookArgs } from "../harness/core/hooks_settings.ts";
 import { declarations, launchDef, launchTools, nativeAgentsJson, nativeEnv } from "../harness/core/launch.ts";
 import { acquire, covers, guardEdit, guardResource, overlaps, reap, release, resourcesFor } from "../harness/core/locks.ts";
 import { replan, validatePlan, type PlanRow, type PlanTask } from "../harness/core/plan.ts";
-import { chatLog, chatPM, conversationBlock, digest, renderBoard } from "../harness/core/pm.ts";
+import { chatLog, conversationBlock, digest, renderBoard } from "../harness/core/board_view.ts";
 import { ensureRun, findRun, redactUrl, resumeRun } from "../harness/core/session_run.ts";
 import { StoreLocks, locksFromEnv, type LockApi } from "../harness/core/lockapi.ts";
 import { RedisLocks } from "../harness/core/locks_redis.ts";
@@ -77,7 +77,7 @@ async function offline() {
   { const bad = checkAgents(defs);
     t("M1", "agents:check passes; lead declares its sub-agents in agent.json (the 6 real ones: researcher, lookup, planner, builder, ux-designer, qa-reviewer; test stand-ins live in test_harness/core/agents/test_agents) (and may call custom ones); .claude/agents is empty everywhere", bad.length === 0 && defs.get("lead")!.agents.length === 6 && defs.get("lead")!.agents.includes("lookup") && defs.get("lead")!.custom === true, bad.join("; "));
     const d = declarations(defs.get("lead")!, defs);
-    t("M1b", "declarations are built at run time from the callees' agent.json and tell the lead their REAL tools: researcher has web access, builder can write but has NO web access", /researcher \(read-only; has web access; tools: [^)]*WebFetch/.test(d) && /builder \(can write; must declare --writes; NO web access; tools:/.test(d), d); }
+    t("M1b", "declarations are built at run time from the callees' agent.json and tell the lead their REAL tools: researcher has web access (and may write only its report), builder can write and has web access too", /researcher \(read-only; has web access; tools: [^)]*WebFetch/.test(d) && /builder \(can write; must declare --writes; has web access; tools:/.test(d), d); }
   { const w = world({ agentMaxDepth: 1 });
     const r = call(w);
     t("M2a", "multi-agent OFF (default depth 1): the lead cannot call anyone; the reason says so", !r.ok && r.code === "depth_exceeded" && r.reason.includes("multi-agent is off"), r.ok ? "" : r.reason);
@@ -291,10 +291,10 @@ async function offline() {
     const rows = stopAgent(w.store, "t", "researcher#1"); const out = await p;
     t("M7e", "agent_stop: the instance goes idle at once, its late result is discarded (stopped), its older session is kept, the call row says stopped",
       rows.length === 1 && !out.ok && out.error === "stopped" && st(r1.agent) === "idle" && r1.agent.session_id === "OLD" && w.store.calls[0]!.reason === "stopped", `${out.error} ${r1.agent.status}`);
-    const w2 = world(); const b = granted(call(w2, { role: "builder", writes: ["a"] })); b.agent.status = "running";
-    const rv = granted(agentCall(w2.store, w2.d, w2.policy, { ...base, caller_agent_id: "builder#1", role: "researcher" })); rv.agent.status = "running";
-    stopAgent(w2.store, "t", "builder#1");
-    t("M7f", "stop cascades down the call tree (builder -> its researcher)", st(b.agent) === "idle" && st(rv.agent) === "idle", "");
+    const w2 = world(); const b = granted(call(w2, { role: "planner", writes: ["a"] })); b.agent.status = "running";   // (a builder no longer has children: the planner is the parent here)
+    const rv = granted(agentCall(w2.store, w2.d, w2.policy, { ...base, caller_agent_id: "planner#1", role: "researcher" })); rv.agent.status = "running";
+    stopAgent(w2.store, "t", "planner#1");
+    t("M7f", "stop cascades down the call tree (planner -> its researcher)", st(b.agent) === "idle" && st(rv.agent) === "idle", "");
     const w3 = world(); const r = granted(call(w3)); r.agent.status = "running"; r.agent.last_event_at = Date.now() - 60_000;
     t("M7g", "a running agent with no events for the stall time is marked stalled (the lead is told on its next resume)", markStalled(w3.store, Date.now(), 30_000).length === 1 && st(r.agent) === "stalled", ""); }
 
@@ -576,8 +576,8 @@ async function redisSuite() {
 }
 
 // ---------------------------------------------------------------------------- the Project Manager
-async function pmSuite() {
-  setSuite("project manager: replanning a live run, pause/resume, refusals, cancelling, chatting while the team works");
+async function planControlSuite() {
+  setSuite("plan control: replanning a live run, pause/resume, refusals, cancelling");
   const pol = defaultPolicy({ agentMaxDepth: 4, maxInstancesPerRole: 8 });
   const mkWorld = () => { const w = world(); for (const n of ["researcher", "researcher", "builder"]) w.store.addAgent("t", defs.get(n)!, { level: 2, caller: "lead#1" }); return w; };
   const mkPlan = (): PlanRow => ({ task_id: "t", plan_id: "plan1", owner: "lead#1", waves: [], status: "running", created: 0, version: 1, tasks: [
@@ -641,21 +641,14 @@ async function pmSuite() {
     const r3agent = pl.tasks.find((x) => x.id === "r3")!.agent_id!;
     t("PM11", "cancel while running: r3 is stopped and its late answer discarded (no report), b3 never starts, nothing waits for them, and the plan still ends 'done'", rp.ok && rp.cancelled.sort().join() === "b3,r3" && st.status === "done" && pl.tasks.find((x) => x.id === "r3")!.status === "cancelled" && pl.tasks.find((x) => x.id === "b3")!.status === "cancelled" && f.reports.filter((r) => r.agent_id === r3agent).length === 0 && !f.agentsOf("t").some((a) => a.name === "builder" && a.last_call_id && f.calls.find((c) => c.id === a.last_call_id && c.req && (c.req as any).writes?.[0] === "b3.html")), `${JSON.stringify(rp).slice(0, 160)}`); }
 
-  // ---- chat with the PM while the team works
+  // ---- the user's board (PM12 / PM14, chat with the pm agent, were REMOVED 2026-11-18 with the pm agent)
   { const rdir = mkdtempSyncSafe(), rf = join(rdir, "s.json"), st = new MStore(rf); const lead = st.addAgent("t", defs.get("lead")!, { level: 1 }); lead.status = "running";
     const a = st.addAgent("t", defs.get("researcher")!, { level: 2, caller: "lead#1" }); a.status = "running"; a.title = "beta pricing"; a.activity = "WebFetch https://beta.example";
     st.plans.push({ task_id: "t", plan_id: "plan1", owner: "lead#1", waves: [["r2"]], status: "running", created: Date.now(), version: 1, tasks: [{ id: "r2", role: "researcher", objective: "study beta", output: "x", boundaries: "y", status: "running", agent_id: "researcher#1" }] }); st.save();
-    const rn = new ScriptRunner(async () => { await sleep(300); return "researcher#1 is on the beta pricing page; nothing is stuck."; }), ctx = { store: st, runner: rn, defs, sessionCap: 8 };
-    const c1 = chatPM(ctx, { task_id: "t", repo: rdir, text: "how is it going?", runner: "fake" }); await sleep(80);
-    const c2 = await chatPM(ctx, { task_id: "t", repo: rdir, text: "also make the pages blue", runner: "fake" }), r1 = await c1;
-    const c3 = await chatPM(ctx, { task_id: "t", repo: rdir, text: "thanks", runner: "fake" });
-    const p1 = rn.calls[0]!.prompt, p3 = rn.calls[1]!.prompt, log = chatLog(st, "t").map((n) => (n.from === "user" ? "U" : "P")).join("");
-    t("PM12", "chat: the PM gets the live team status (tree, plan with the running task, the agent's title and activity) with the user's words; a message sent while it is busy is QUEUED (not lost, no second run) and read with the next one; the conversation is on record in order",
-      !!c2.queued && !r1.queued && rn.calls.length === 2 && /TEAM STATUS NOW/.test(p1) && /beta pricing/.test(p1) && /PLAN plan1 v1 status=running/.test(p1) && /r2\s+\[researcher\] running/.test(p1) && p1.includes("how is it going?") && p3.includes("also make the pages blue") && p3.includes("thanks") && log === "UUPUP" && !c3.queued && rn.calls[1]!.session.resume, `log=${log} calls=${rn.calls.length} queued=${c2.queued}`);
+    say(st, "t", "user", "lead#1", "how is it going?"); say(st, "t", "lead#1", "user", "researcher#1 is on the beta pricing page.");
     const board = renderBoard(st, "t"), cli = spawnSync("bun", ["--smol", join(HARNESS_DIR, "main.ts"), "board", "--store", rf, "--task", "t"], { encoding: "utf8" }).stdout;
-    t("PM13", "the user's board shows, in one screen: the team tree, each agent's title/description/session, the plan, the conversation with the PM, and the latest events; the same from the command line", ["== TEAM", "== AGENTS (title, description, session)", "== PLAN ==", "== CHAT WITH THE PROJECT MANAGER ==", "== LATEST ==", "beta pricing", "you: how is it going?", "pm :"].every((x) => board.includes(x)) && cli.includes("== CHAT WITH THE PROJECT MANAGER ==") && cli.includes("beta pricing"), board.slice(0, 300));
-    const chatCli = spawnSync("bun", ["--smol", join(HARNESS_DIR, "main.ts"), "chat", "--store", rf, "--task", "t", "--say", "status please", "--repo", rdir, "--runner", "fake"], { encoding: "utf8" }).stdout.trim();
-    t("PM14", "and from the command line the user can chat with the PM (`main.ts chat --say ...`); the exchange lands in the same conversation record", chatCli.includes("fake project manager") && chatLog(new MStore(rf), "t").some((n) => n.text === "status please"), chatCli); rm(rdir); }
+    t("PM13", "the user's board shows, in one screen: the team tree, each agent's title/description/session, the plan, the conversation with the main agent, and the latest events; the same from the command line", ["== TEAM", "== AGENTS (title, description, session)", "== PLAN ==", "== CHAT WITH THE MAIN AGENT ==", "== LATEST ==", "beta pricing", "you: how is it going?", "lead:"].every((x) => board.includes(x)) && cli.includes("== CHAT WITH THE MAIN AGENT ==") && cli.includes("beta pricing"), board.slice(0, 300));
+    rm(rdir); }
   rm(dir);
 }
 
@@ -771,15 +764,15 @@ async function parentSuite() {
   const { readdirSync: ls, readFileSync: rf } = await import("node:fs");
   // ---- the call / tools matrix (what the audit printed), asserted
   { const rows = [...defs.values()], callers = rows.filter((d) => launchTools(d, 1, 4).delegate).map((d) => d.name).sort();
-    t("NP1", "who can call whom: only the lead, the planner (ux-designer, builder), the builder and the lookup coordinator (lookup-page workers) can call sub-agents; every other agent is a leaf; the call tool is REMOVED at level 4 and for everyone when multi-agent is off (max depth 1); every agent has at least one tool; every declared sub-agent exists",
-      callers.join() === "builder,lead,lookup,planner" && rows.every((d) => !launchTools(d, 4, 4).delegate && !launchTools(d, 1, 1).delegate && d.tools.length >= 1) && rows.every((d) => d.agents.every((n) => defs.has(n))) && rows.filter((d) => d.agents.length === 0).every((d) => !launchTools(d, 1, 4).delegate), `callers=${callers}`);
+    t("NP1", "who can call whom: only the lead, the planner (researcher, lookup, ux-designer) and the lookup coordinator (lookup-page workers) can call sub-agents (the builder calls nobody: it checks the web itself or asks the lead); every other agent is a leaf; the call tool is REMOVED at level 4 and for everyone when multi-agent is off (max depth 1); every agent has at least one tool; every declared sub-agent exists",
+      callers.join() === "lead,lookup,planner" && rows.every((d) => !launchTools(d, 4, 4).delegate && !launchTools(d, 1, 1).delegate && d.tools.length >= 1) && rows.every((d) => d.agents.every((n) => defs.has(n))) && rows.filter((d) => d.agents.length === 0).every((d) => !launchTools(d, 1, 4).delegate), `callers=${callers}`);
     const dec = declarations(defs.get("builder")!, defs);
     t("NP2", "and a caller is TOLD what it may call and what each one can do: the builder's launch text lists the researcher (web access) and the reviewer with their real tools", /researcher \(read-only; has web access/.test(dec) && /reviewer \(read-only; NO web access/.test(dec), dec.slice(0, 160)); }
   // ---- the prompts
   { const bad: string[] = [];
     for (const root of ["."]) for (const a of ls(AGENTS_DIR)) {
       const txt = rf(join(AGENTS_DIR, a, ".claude", "CLAUDE.md"), "utf8");
-      if (a === "lead") { if (!/NEVER write `NEEDS_PARENT:`/.test(txt) || !/STOP/.test(txt)) bad.push(root + "/lead must ask the person in plain words and never write NEEDS_PARENT:"); } else if (a === "pm") { if (!/plan_answer/.test(txt)) bad.push(root + "/pm lacks plan_answer"); } else if (!/NEEDS_PARENT/.test(txt) || !/STOP/.test(txt) || !/same conversation/.test(txt)) bad.push(root + "/" + a);
+      if (a === "lead") { if (!/NEVER write `NEEDS_PARENT:`/.test(txt) || !/STOP/.test(txt)) bad.push(root + "/lead must ask the person in plain words and never write NEEDS_PARENT:"); } else if (!/NEEDS_PARENT/.test(txt) || !/STOP/.test(txt) || !/same conversation/.test(txt)) bad.push(root + "/" + a);
     }
     t("NP3", "the lead asks the PERSON in plain words (never the NEEDS_PARENT: marker); every other agent prompt says what to do when stuck (STOP, reply NEEDS_PARENT: with what is needed and what was done, the parent continues you in the same conversation); callers also say how to answer a child; the PM knows plan_answer", bad.length === 0, bad.join(", ")); }
   // ---- the question reaches the parent
@@ -1001,9 +994,9 @@ async function slotsSuite() {
 
 // ---------------------------------------------------------------------------- the master (lead) and the PM are conversations: found in real UI sessions
 async function mastersSuite() {
-  setSuite("masters: the lead and the PM keep their conversation (high resume cap; after a reset they get the record), role names and agent names both work");
-  const lead = defs.get("lead")!, pmd = defs.get("pm")!, res = defs.get("researcher")!;
-  t("MS1", "the lead and the project manager are conversations, not tasks: their resume cap is far above a worker's (a real session rolled the lead on its 5th message with a cap of 3 and the lead told the person it had lost track)", (lead.session_cap ?? 0) >= 40 && (pmd.session_cap ?? 0) >= 40 && res.session_cap === undefined, `lead=${lead.session_cap} pm=${pmd.session_cap} researcher=${res.session_cap}`);
+  setSuite("masters: the lead keeps its conversation (high resume cap; after a reset they get the record), role names and agent names both work");
+  const lead = defs.get("lead")!, res = defs.get("researcher")!;
+  t("MS1", "the lead is a conversation, not a task: its resume cap is far above a worker's (a real session rolled the lead on its 5th message with a cap of 3 and the lead told the person it had lost track)", (lead.session_cap ?? 0) >= 40 && res.session_cap === undefined, `lead=${lead.session_cap} researcher=${res.session_cap}`);
   { const w = world(), rn = new ScriptRunner(() => "ok"), ctx = { store: w.store, runner: rn, defs, sessionCap: 3 };   // the caller's cap is 3, like the UI
     const leadRow = w.store.agent("t", "lead#1")!, wrow = w.store.addAgent("t", res, { level: 2, caller: "lead#1" });
     for (let i = 0; i < 6; i++) { await callAgent(ctx, w.store.agent("t", "lead#1")!, tmpdir(), () => "turn " + i, undefined, { intent: i ? "resume" : "new" }); await callAgent(ctx, w.store.agent("t", wrow.agent_id)!, tmpdir(), () => "work " + i, undefined, { intent: i ? "resume" : "new" }); }
@@ -1091,9 +1084,9 @@ async function offlineParallel() {
     for (let k = 0; k < 3; k++) { const rr = granted(agentCall(w2.store, w2.d, w2.policy, q(k === 0 ? {} : { session_arg: "researcher#1" }))); await runCallee(ctxB, w2.policy, rr, q(k === 0 ? {} : { session_arg: "researcher#1" }), res, { cwd: tmpdir(), writerMode: "shared" }); }
     t("M17", "when the resume cap forces a NEW session, the agent is handed its own earlier answers from the ledger (a visible rolled event, and no silent loss of what it found)", w2.store.evs("session.rolled").length === 1 && rn2.calls[2]!.prompt.includes("YOUR EARLIER ANSWERS") && /answer 0 about site 3/.test(rn2.calls[2]!.prompt) && !rn2.calls[1]!.prompt.includes("YOUR EARLIER ANSWERS"), rn2.calls[2]!.prompt.slice(-300)); }
   const nest = new MStore(file); const resR = nest.agent("t", ids[0]!)!; resR.status = "idle";
-  const bRow = nest.addAgent("t", defs.get("builder")!, { level: 2, caller: "lead#1" }); bRow.status = "running"; nest.save();
+  const bRow = nest.addAgent("t", defs.get("planner")!, { level: 2, caller: "lead#1" }); bRow.status = "running"; nest.save();   // the planner (a builder no longer has children)
   const nres = agentCall(nest, defs, defaultPolicy({ agentMaxDepth: 4 }), { task_id: "t", caller_agent_id: bRow.agent_id, role: "researcher", session_arg: ids[0], mode: "ask", objective: "more on site 3", output: "5 bullets", boundaries: "ask only" });
-  t("M13", "nested: a builder (level 2) continues the researcher that already studied the topic (level 3 call); the researcher keeps its own level and owner, and the call is recorded with the builder as caller",
+  t("M13", "nested: a planner (level 2) continues the researcher that already studied the topic (level 3 call); the researcher keeps its own level and owner, and the call is recorded with the planner as caller",
     nres.ok && nres.kind === "resume" && nres.agent.level === 2 && nres.agent.caller_agent_id === "lead#1" && nest.calls.at(-1)!.caller_agent_id === bRow.agent_id && nest.calls.at(-1)!.level === 3, JSON.stringify(nest.calls.at(-1)));
 
   const repo = mkRepo({ "a.txt": "A\n" }), f2 = join(dir, "store2.json"), s2s = new MStore(f2);
@@ -1171,7 +1164,7 @@ async function real() {
 }
 class Store2 extends MStore {}
 
-const SUITES = process.argv.includes("--suite") ? new Set(process.argv[process.argv.indexOf("--suite") + 1]!.split(",")) : null;   // e.g. --suite pm,locks : run only what you changed
+const SUITES = process.argv.includes("--suite") ? new Set(process.argv[process.argv.indexOf("--suite") + 1]!.split(",")) : null;   // e.g. --suite plan,locks : run only what you changed
 
 async function contextSuite() {
   setSuite("context: short prompts in layers, shared context, kit reference, free status, queue visibility, judge tolerance");
@@ -1394,7 +1387,7 @@ if (want("safety")) await offlineSafety();
 if (want("plans")) await offlineLocksAndPlans();
 if (want("records")) await offlineRecords();
 if (want("redis")) await redisSuite();
-if (want("pm")) await pmSuite();
+if (want("plan")) await planControlSuite();
 if (want("regress")) await regressSuite();
 if (want("sessions")) await sessionsSuite();
 if (want("runs")) await runsSuite();

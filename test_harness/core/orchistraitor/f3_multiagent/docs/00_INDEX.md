@@ -20,3 +20,5 @@
 - **Fixture / mocked agent**: a sub-agent answered from a recorded result, no model call.
 - **CallReq / CallRes**: the shared request/response of `core/delegate.ts`.
 - **A1 / A2 / A3**: team CLI (f1) / mod interception (`harness_own_custom`) / native `--agents`.
+
+**Status 2026-11-18:** A1 and A2 (`a2_native_hook`) are built behind the port; A3 is not. Switch with `--approach=` / `APPROACH=` / `config.ts`.

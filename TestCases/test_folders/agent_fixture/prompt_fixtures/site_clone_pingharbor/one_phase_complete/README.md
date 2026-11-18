@@ -8,17 +8,7 @@ status: phase 1 of 1 · planned
 
 > **This plan is ready to build.** Stack: Vue 3 from a CDN, no build step, the harness site kit (`proto_init` kind `site`). The earlier run described under *Evidence* is a reference result only.
 
-## Build recipe (read this first)
-1. **Read in this order:** this README, `PHASES.md`, `build_inputs/README.md`, `00_contract.md`, `01_design_system.md`, then the brief of the page you own (`02`-`04`) and its layout (`10`-`14`).
-2. **Where it is built:** `run_test/pingharbor/` (brand PingHarbor).
-3. **Do not capture the reference site.** Everything measured from it is already in `build_inputs/` (layouts, `20_`/`21_` captures, design system). Reference *pictures* are not included: use the text layouts. Paths like `_ref/...` inside the briefs point to the old store; the same text is in `build_inputs/`.
-4. **Start from the kit:** run the harness `proto_init` tool with kind `site` (accent `#10b981`, font DM Sans, dark background `#0e1318`, nav = home, blog, article, features, download). Never edit `index.html`, `css/site.css`, `js/site.js`; brand tokens only in `css/theme.css`.
-5. **Three builders in parallel**, one per screens file: `part-1` Home + Blog, `part-2` Features + Article, `part-3` Download. Each edits ONLY its own `js/screens/part-N.js` and `css/pages-part-N.css`.
-6. **Verify** with `site_audit` and the preview; the targets are in *Quality bar*.
-7. **Do not invent** pages, sections or files the plan does not name. If something is missing, say so instead of guessing.
-8. **This plan IS the planning.** Do not write a new plan, a separate wireframe or placeholder pages. Each builder delivers its pages FINISHED in one pass: original copy AND styling (in its own `css/pages-part-N.css`), with the light/dark theme and scroll reveal working.
-9. **Builders self-check before reporting:** `node --check` on their file, the kit's `proto_check`, and every `href` / `$go` target is either a route in `PROTO.md` or one of the six blog slugs. They report any difference from their brief.
-10. **The lead verifies before it claims.** Run `site_audit` and the preview, read EVERY builder report, and state only what the audit and the reports show (for example 'every link works' only if the audit found no dead link). List every deviation from the briefs. If a check could not be run, say so.
+> **Builders:** the build recipe and file owners are in the grey DEV block at the end of this file (switch the viewer to Builder). Everyone else can stop reading at *Share and change*.
 
 ## What is it
 The user asked: *'do make ditto clone like https://upwatchr.io/blog for testing and education (rename the brand, write your own text). I want its sections, good animation and the light/dark theme, and the pages properly linked with working navigation.'* The result is a 5-page website (Home, Blog with article pages, Article, Features, Download) built with no build step (Vue 3 from a CDN): a sticky header, a dark footer, a theme that follows the system with a toggle, and content that animates in as you scroll. Brand **PingHarbor** (a small native Windows app that checks your sites on a timer); all text is original and the reference's names and logos are never reused.
@@ -132,4 +122,18 @@ research: none (the evidence is a capture of the reference site https://upwatchr
 
 ## Builder inputs
 See [build_inputs](build_inputs/README.md): contract, design system, 3 briefs, 5 layouts, 2 reference captures, copied verbatim.
+<!-- /dev -->
+
+<!-- dev -->
+## Build recipe
+1. **Read in this order:** this README, `PHASES.md`, `build_inputs/README.md`, `00_contract.md`, `01_design_system.md`, then the brief of the page you own (`02`-`04`) and its layout (`10`-`14`).
+2. **Where it is built:** `run_test/pingharbor/` (brand PingHarbor).
+3. **Do not capture the reference site.** Everything measured from it is already in `build_inputs/` (layouts, `20_`/`21_` captures, design system). Reference *pictures* are not included: use the text layouts. Paths like `_ref/...` inside the briefs point to the old store; the same text is in `build_inputs/`.
+4. **Start from the kit:** run the harness `proto_init` tool with kind `site` (accent `#10b981`, font DM Sans, dark background `#0e1318`, nav = home, blog, article, features, download). Never edit `index.html`, `css/site.css`, `js/site.js`; brand tokens only in `css/theme.css`.
+5. **Three builders in parallel**, one per screens file: `part-1` Home + Blog, `part-2` Features + Article, `part-3` Download. Each edits ONLY its own `js/screens/part-N.js` and `css/pages-part-N.css`.
+6. **Verify** with `site_audit` and the preview; the targets are in *Quality bar*.
+7. **Do not invent** pages, sections or files the plan does not name. If something is missing, say so instead of guessing.
+8. **This plan IS the planning.** Do not write a new plan, a separate wireframe or placeholder pages. Each builder delivers its pages FINISHED in one pass: original copy AND styling (in its own `css/pages-part-N.css`), with the light/dark theme and scroll reveal working.
+9. **Builders self-check before reporting:** `node --check` on their file, the kit's `proto_check`, and every `href` / `$go` target is either a route in `PROTO.md` or one of the six blog slugs. They report any difference from their brief.
+10. **The lead verifies before it claims.** Run `site_audit` and the preview, read EVERY builder report, and state only what the audit and the reports show (for example 'every link works' only if the audit found no dead link). List every deviation from the briefs. If a check could not be run, say so.
 <!-- /dev -->
