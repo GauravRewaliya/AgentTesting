@@ -4,6 +4,7 @@ export default {
   id: "h4",
   title: "In Hermes Agent, what is the difference between MEMORY.md and the SQLi",
   description: "Recorded answer: In Hermes Agent, what is the difference between MEMORY.md and the SQLite session history?",
+  match: {"agent":"researcher"},   // the answering agent: the harness serves this result only for a researcher call (strict agent match)
   expected_input: {
     text: "In Hermes Agent, what is the difference between MEMORY.md and the SQLite session history?",
     guardrails_test: "hand-over restates the question standing alone, naming the product/tool (no bare pronoun)",

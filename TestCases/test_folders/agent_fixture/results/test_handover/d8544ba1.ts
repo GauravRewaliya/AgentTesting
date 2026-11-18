@@ -4,6 +4,7 @@ export default {
   id: "h6",
   title: "What does running each OpenHands agent session in a Docker container i",
   description: "Recorded answer: What does running each OpenHands agent session in a Docker container isolate?",
+  match: {"agent":"researcher"},   // the answering agent: the harness serves this result only for a researcher call (strict agent match)
   expected_input: {
     text: "What does running each OpenHands agent session in a Docker container isolate?",
     guardrails_test: "hand-over restates the question standing alone, naming the product/tool (no bare pronoun)",

@@ -4,6 +4,7 @@ export default {
   id: "h8",
   title: "Which harness fits an overnight batch of many parallel subagents",
   description: "Recorded answer: Which harness fits an overnight batch of many parallel subagents?",
+  match: {"agent":"researcher"},   // the answering agent: the harness serves this result only for a researcher call (strict agent match)
   expected_input: {
     text: "Which harness fits an overnight batch of many parallel subagents?",
     guardrails_test: "hand-over restates the question standing alone, naming the product/tool (no bare pronoun)",

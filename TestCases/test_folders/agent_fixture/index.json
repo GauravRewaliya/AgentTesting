@@ -461,6 +461,7 @@
   "suite": "test_handover",
   "file": "results/test_handover/346b81a3.ts",
   "title": "How does OpenClaw's Gateway route an incoming message to an agent sess",
+  "agent": "researcher",
   "text": "How does OpenClaw's Gateway route an incoming message to an agent session and run the agent loop?"
  },
  {
@@ -468,6 +469,7 @@
   "suite": "test_handover",
   "file": "results/test_handover/490b2834.ts",
   "title": "When does OpenClaw spawn a sub-agent with sessions_spawn and what stay",
+  "agent": "researcher",
   "text": "When does OpenClaw spawn a sub-agent with sessions_spawn and what stays out of the parent's context?"
  },
  {
@@ -475,6 +477,7 @@
   "suite": "test_handover",
   "file": "results/test_handover/6f207f8b.ts",
   "title": "How does Hermes Agent's delegate_task limit child agents' toolsets, co",
+  "agent": "researcher",
   "text": "How does Hermes Agent's delegate_task limit child agents' toolsets, concurrency and budget?"
  },
  {
@@ -482,6 +485,7 @@
   "suite": "test_handover",
   "file": "results/test_handover/77230e94.ts",
   "title": "OpenCode has a plan agent and a build agent: when should I use each",
+  "agent": "researcher",
   "text": "OpenCode has a plan agent and a build agent: when should I use each?"
  },
  {
@@ -489,6 +493,7 @@
   "suite": "test_handover",
   "file": "results/test_handover/b9a858d0.ts",
   "title": "Which harness fits an overnight batch of many parallel subagents",
+  "agent": "researcher",
   "text": "Which harness fits an overnight batch of many parallel subagents?"
  },
  {
@@ -496,6 +501,7 @@
   "suite": "test_handover",
   "file": "results/test_handover/ce1b1e8c.ts",
   "title": "In Hermes Agent, what is the difference between MEMORY.md and the SQLi",
+  "agent": "researcher",
   "text": "In Hermes Agent, what is the difference between MEMORY.md and the SQLite session history?"
  },
  {
@@ -503,6 +509,7 @@
   "suite": "test_handover",
   "file": "results/test_handover/d8544ba1.ts",
   "title": "What does running each OpenHands agent session in a Docker container i",
+  "agent": "researcher",
   "text": "What does running each OpenHands agent session in a Docker container isolate?"
  },
  {
@@ -510,6 +517,7 @@
   "suite": "test_handover",
   "file": "results/test_handover/f43b6183.ts",
   "title": "Which open-source harness uses an architect/editor split between two m",
+  "agent": "researcher",
   "text": "Which open-source harness uses an architect/editor split between two models and how does it work?"
  },
  {

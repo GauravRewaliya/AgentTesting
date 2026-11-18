@@ -4,6 +4,7 @@ export default {
   id: "h2",
   title: "When does OpenClaw spawn a sub-agent with sessions_spawn and what stay",
   description: "Recorded answer: When does OpenClaw spawn a sub-agent with sessions_spawn and what stays out of the parent's context?",
+  match: {"agent":"researcher"},   // the answering agent: the harness serves this result only for a researcher call (strict agent match)
   expected_input: {
     text: "When does OpenClaw spawn a sub-agent with sessions_spawn and what stays out of the parent's context?",
     guardrails_test: "hand-over restates the question standing alone, naming the product/tool (no bare pronoun)",

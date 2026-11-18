@@ -9,13 +9,19 @@ export const tags: TestTag[] = ["multi_ag", "coding", "split_task"];   // each c
 export const cases: Case[] = [
   {
     id: "wf_1_readonly_review", tags: ["single_prompt"], title: "[old 01/02] a read-only constraint must reach the sub-agent", ...common,
-    turns: [{ user: "Review the auth module and list its weaknesses. Do not change any code.",
-      expected: { context: "The lead calls the reviewer once (a read-only job, not the builder or planner). The hand-over keeps the constraint: do not change any code / read only. The lead passes the list of weaknesses on and writes or edits nothing itself. No files appear in run_test.", expected_agents_res: ["wf-review-auth"] } }],
+    // the lead can now LOOK at run_test/ (ls/read_file/grep): "the auth module" has to exist (else it correctly answers "there is none"), and a 3-file module it may review itself ("scale to the request"), so the request NAMES the reviewer: this case tests that the read-only constraint reaches that sub-agent, not whether the lead delegates
+    seed: {
+      "auth/hash.ts": "export const ITERATIONS = 100_000;   // PBKDF2 iterations\n",
+      "auth/cookies.ts": "export const secureCookies = false;   // hard-coded\n",
+      "auth/signin.ts": "import { ITERATIONS } from \"./hash\";\nexport function signIn(user: string, password: string) { /* no rate limit; the hash is not upgraded on sign-in */ return ITERATIONS > 0; }\n",
+    },
+    turns: [{ user: "Ask the reviewer agent to review the auth module and list its weaknesses. Do not change any code.",
+      expected: { context: "The lead calls the reviewer once (a read-only job, not the builder or planner). The hand-over keeps the constraint: do not change any code / read only. The lead passes the list of weaknesses on and writes or edits nothing itself. The seeded auth files stay unchanged and no new file appears in run_test.", expected_agents_res: ["wf-review-auth"] } }],
   },
   {
     id: "wf_2_followup_prior_answer", tags: ["single_prompt"], title: "[old 09] a follow-up that refers to the previous answer ('the first two you listed')", after: "wf_1_readonly_review", ...common,
     turns: [{ user: "Good. Now fix the first two weaknesses you listed.",
-      expected: { context: "The lead must NOT assume the next agent remembers the list. It spawns the builder (a fix job) and the hand-over itself names the first two weaknesses (PBKDF2 iterations, secure-cookie flag) taken from the earlier answer, not just 'the first two'. It does not call the reviewer again. auth/hash.ts and auth/cookies.ts appear.", expected_agents_res: ["wf-fix-auth"] } }],
+      expected: { context: "The lead must NOT assume the next agent remembers the list. It spawns the builder (a fix job) and the hand-over itself names the first two weaknesses (PBKDF2 iterations, secure-cookie flag) taken from the earlier answer, not just 'the first two'. It does not call the reviewer again. auth/hash.ts and auth/cookies.ts are changed (iterations raised, cookies follow NODE_ENV).", expected_agents_res: ["wf-fix-auth"] } }],
   },
   {
     id: "wf_3_plan_approval_gate", tags: ["multi_prompt"], title: "[old 11] plan first, wait for approval, then build with the plan handed over", needs: ["sandbox.files"], ...common,
@@ -28,6 +34,8 @@ export const cases: Case[] = [
   },
   {
     id: "wf_4_review_fix_loop", tags: ["single_prompt"], title: "[old 10] implement, review (fresh agent), fix what the review found", needs: ["multiagent.sequential", "session.followup"], ...common,
+    // "the signup form" must exist: the lead can look at run_test/ and otherwise (correctly) answers that there is none
+    seed: { "signup/form.ts": "export function submitSignup(email: string, password: string) {\n  // no validation yet\n  return { email, password };\n}\n" },
     turns: [{ user: "Add input validation to the signup form (email format, password length 12+), have it reviewed by the reviewer, and fix whatever the review finds.",
       expected: { context: "Order: builder (new session, builder#1) -> reviewer (a DIFFERENT, fresh session that does not share the builder's memory; the hand-over names the file signup/validate.ts) -> the review findings (email without a dot in the domain, no maximum password length) are handed to the builder again: either a follow-up to builder#1 or a new builder whose hand-over carries both findings. The lead does not fix anything itself.", expected_agents_res: ["wf-build-signup", "wf-review-signup", "session:builder#1"] } }],
   },

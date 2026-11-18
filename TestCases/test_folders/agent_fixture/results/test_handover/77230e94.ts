@@ -4,6 +4,7 @@ export default {
   id: "h5",
   title: "OpenCode has a plan agent and a build agent: when should I use each",
   description: "Recorded answer: OpenCode has a plan agent and a build agent: when should I use each?",
+  match: {"agent":"researcher"},   // the answering agent: the harness serves this result only for a researcher call (strict agent match)
   expected_input: {
     text: "OpenCode has a plan agent and a build agent: when should I use each?",
     guardrails_test: "hand-over restates the question standing alone, naming the product/tool (no bare pronoun)",

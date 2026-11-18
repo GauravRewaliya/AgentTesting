@@ -4,6 +4,7 @@ export default {
   id: "h1",
   title: "How does OpenClaw's Gateway route an incoming message to an agent sess",
   description: "Recorded answer: How does OpenClaw's Gateway route an incoming message to an agent session and run the agent loop?",
+  match: {"agent":"researcher"},   // the answering agent: the harness serves this result only for a researcher call (strict agent match)
   expected_input: {
     text: "How does OpenClaw's Gateway route an incoming message to an agent session and run the agent loop?",
     guardrails_test: "hand-over restates the question standing alone, naming the product/tool (no bare pronoun)",
