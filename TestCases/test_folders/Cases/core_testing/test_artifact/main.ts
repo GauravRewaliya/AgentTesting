@@ -2,7 +2,7 @@ import type { TestTag } from "../../../../tags.ts";
 import type { Case } from "@core/types.ts";
 
 // ARTIFACT cases: the user asks the agent for a Claude artifact LINK. REAL, nothing mocked: run them with
-//   bun test_harness/core/orchistraitor/f1_multiagent/testrun/artifact_run.ts [case ids]     (haiku lead, ~$0.02 per case, artifacts are private)
+//   bun test_harness/core/orchistraitor/<orchestrator>/testrun/artifact_run.ts [case ids]     (haiku lead, ~$0.02 per case, artifacts are private)
 // Headless `claude -p` only gets the real Artifact tools when CLAUDE_CODE_ENTRYPOINT=cli-interactive is set (the runner does that). The f1 harness itself
 // refuses these solo cases (router:false), so `run.ts test_artifact` shows "not supported": use artifact_run.ts. It FAILS (exit 1) unless a real Artifact
 // publish succeeded and the reply carries that exact link (an invented link also fails).

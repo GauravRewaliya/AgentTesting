@@ -3,7 +3,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { FIXTURES, HELPER_AGENTS, ROOT, suiteDirs } from "@core/paths.ts";
+import { FIXTURES, ROOT, suiteDirs } from "@core/paths.ts";
+import { listAgents } from "@core/agents/index.ts";
 import { normalizeBranches } from "../../../branch.ts";
 import { f1, f1WsDir } from "./experiment.ts";
 export { ROOT };
@@ -25,7 +26,7 @@ export async function loadSuites() {
   return out;
 }
 
-// Everything the pages read about a run is what the f1 runner (testrun/run.ts: CLI, Experiment page and Flow page all use it) wrote: f1_exp/<case>.json + .state/<v>/<home>/store. See server/experiment.ts (refreshF1).
+// Everything the pages read about a run is what the f1 runner (testrun/run.ts: CLI, Experiment page and Flow page all use it) wrote: exp/<case>.json + .state/<v>/<home>/store. See server/experiment.ts (refreshF1).
 // The snapshot is refreshed by buildModel() at the start of every request that needs it.
 export const readLast = (id: string): (Last & { title: string; verdict?: "pass" | "fail" | "skipped" }) | undefined => f1().last.get(id);
 export const readCkpt = (id: string): Ckpt | undefined => f1().ckpt.get(id);
@@ -34,15 +35,7 @@ export const caseEvents = (id: string) => f1().events.get(id) ?? [];
 /** the files the agents left after this case: .state/<v>/<home>/workspace */
 export const wsDir = (id: string) => f1WsDir(id);
 
-export const agentDefs = async () => {
-  const dir = HELPER_AGENTS;
-  const out: { name: string; description: string; role: string; forbidden: boolean }[] = [];
-  for (const f of readdirSync(dir).filter((x) => x.endsWith(".ts"))) {
-    const m = (await import(pathToFileURL(join(dir, f)).href)).default;
-    out.push({ name: m.name, description: m.description, role: m.role, forbidden: !!m.forbidden });
-  }
-  return out;
-};
+export const agentDefs = async () => listAgents().map((a) => ({ name: a.name, description: a.description, role: a.role, forbidden: !!a.forbidden }));
 export const fixtureIndex = () => json<{ id: string; suite: string; file: string; title: string; agent?: string; keywords?: string[]; text: string; copies?: string[] }[]>(join(FIXTURES, "index.json")) ?? [];
 export const guardRules = () => {
   const dir = join(FIXTURES, "store");

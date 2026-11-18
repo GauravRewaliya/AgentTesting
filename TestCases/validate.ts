@@ -7,10 +7,10 @@ import { isTag } from "./tags.ts";
 import { branchWarnings, normalizeBranches } from "./branch.ts";
 import type { Case } from "./types.ts";
 import { FIXTURES, diskSuites, suiteDirs } from "../test_harness/core/paths.ts";
+import { agentExists } from "../test_harness/core/agents/index.ts";
 import { check as capCheck } from "../test_harness/core/orchistraitor/harness_own_custom/capabilities.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
-const AGENT_DEFS = join(ROOT, "test_harness/core/helper/agents");
 const PROMPTS = [join(ROOT, "test_harness/core/orchistraitor/harness_own_custom/core/prompts"), join(FIXTURES, "store/legacy/prompts")];
 const SESSION = /^session:[^#]+#\d+$/;
 export interface Problem { suite: string; case: string; what: string }
@@ -28,7 +28,7 @@ export async function loadAll(): Promise<{ suite: string; cases: Case[]; tags: u
 
 export function validate(all: { suite: string; cases: Case[]; tags: unknown }[], recorded: Set<string> | Map<string, string>): Problem[] {
   const routes = new Map(suiteDirs().map((r) => [r.name, r])), allIds = new Set(all.flatMap((x) => x.cases.map((c) => c.id))), bad: Problem[] = [], seen = new Map<string, string>();
-  const agentOk = (a: string) => existsSync(join(AGENT_DEFS, a + ".ts"));
+  const agentOk = agentExists;   // test_harness/core/agents/index.ts: main_flow_agents + test_agents
   for (const { suite, cases, tags } of all) {
     const add = (c: string, what: string) => bad.push({ suite, case: c, what });
     if (tags !== undefined && (!Array.isArray(tags) || !tags.every((t) => typeof t === "string" && isTag(t)))) add("(suite)", `suite tags must come from tags.ts: ${JSON.stringify(tags)}`);
@@ -42,7 +42,7 @@ export function validate(all: { suite: string; cases: Case[]; tags: unknown }[],
       if (!c.turns?.length) a("no turns");
       if (c.after && !allIds.has(c.after)) a(`after "${c.after}" is not a case`);
       if (c.after && c.after === id) a("after points at itself");
-      for (const g of [...c.agents, ...(c.distractors ?? [])]) if (!agentOk(g)) a(`agent "${g}" has no definition in core/helper/agents/${g}.ts`);
+      for (const g of [...c.agents, ...(c.distractors ?? [])]) if (!agentOk(g)) a(`agent "${g}" has no folder in test_harness/core/agents/(main_flow_agents|test_agents)/${g}`);
       if (new Set(c.agents).size !== c.agents.length) a("agents has duplicates");
       for (const d of c.distractors ?? []) if (c.agents.includes(d)) a(`"${d}" is both an agent and a distractor`);
       if (c.guard && !existsSync(join(FIXTURES, "store", c.guard))) a(`guard file missing: agent_fixture/store/${c.guard}`);

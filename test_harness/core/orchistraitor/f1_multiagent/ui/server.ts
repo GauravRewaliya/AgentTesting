@@ -28,7 +28,7 @@ if (!existsSync(join(REPO, ".git"))) {   // a throwaway project for the agents, 
   g("init", "-q"); g("add", "-A"); g("commit", "-qm", "init");
 }
 
-const defs = loadAgents(join(ROOT, "harness", "agents"));
+const defs = loadAgents();
 const store = new MStore(STORE);                       // the instance that runs the lead
 // A session = one task id (its master, its sub-agents, its chat). The console shows one at a time; the others keep running in the background.
 const newTaskId = () => "s" + Date.now().toString(36);

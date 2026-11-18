@@ -8,7 +8,7 @@ A multi-agent test harness with **one shared core** and **swappable approaches**
 
 Status: **approach 1 (`a1_team_cli`) started.** `harness/`, `testrun/`, `self_test/` are a copy of f1 (same layout, so every relative path still works); `approaches/` is new. a2 and a3 are not built. Nothing decided beyond that (see `docs/10_OPEN_DECISIONS.md`). `f1_multiagent/` and `harness_own_custom/` are untouched.
 
-Current engine / approach / run-data version: one file, `../engine.ts` (`stateVersion` is `v3`, so run data is in `test_harness/.state/v3/`). Env `STATE_VERSION`, `APPROACH` or `--approach=` override for one run.
+Current engine / approach / run-data version: one file, `test_harness/core/config.ts` (`stateVersion` is `v3`, so run data is in `test_harness/.state/v3/`). Env `STATE_VERSION`, `APPROACH` or `--approach=` override for one run.
 
 Check: `bun self_test/multi.ts` (free, offline) gives 230/234, the same 4 failures as f1 (L4, NP2, PK10, MS4), which fail in f1 too and are not caused by the copy.
 

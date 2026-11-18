@@ -13,7 +13,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), ".."), results: { id:
 const t = (id: string, what: string, ok: boolean, detail?: string) => { results.push({ id, ok, what, detail }); console.log(`${ok ? "PASS" : "FAIL"}  ${id} ${what}${!ok && detail ? "\n        " + detail : ""}`); };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const dir = mkdtempSync(join(tmpdir(), "uichk-"));
-const defs = loadAgents(join(ROOT, "harness", "agents"));
+const defs = loadAgents();
 let port = 5300 + Math.floor(Math.random() * 400);
 
 async function server(name: string, env: Record<string, string> = {}) {

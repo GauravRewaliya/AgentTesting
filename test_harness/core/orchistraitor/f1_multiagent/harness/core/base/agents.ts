@@ -3,11 +3,11 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentDef } from "./types.ts";
 
-export function loadAgents(agentsDir: string): Map<string, AgentDef> {
+import { AGENTS_DIR, TEST_AGENTS_DIR } from "@core/config.ts";
+export function loadAgents(roots: string[] = [AGENTS_DIR, TEST_AGENTS_DIR]): Map<string, AgentDef> {
   const m = new Map<string, AgentDef>();
-  // real team: agents/ ; test stand-ins (recorded fixtures, declared per case): TestCases/test_folders/agent_fixture/agents
-  const mockDir = join(agentsDir, "../../../../../../TestCases/test_folders/agent_fixture/agents");
-  const dirs = [...readdirSync(agentsDir).sort().map((n) => [n, join(agentsDir, n)]), ...(existsSync(mockDir) ? readdirSync(mockDir).sort().map((n) => [n, join(mockDir, n)]) : [])];
+  // real team: AGENTS_DIR; test stand-ins (recorded fixtures, declared per case): TEST_AGENTS_DIR (both in test_harness/core, see config.ts)
+  const dirs = roots.filter((r) => existsSync(r)).flatMap((r) => readdirSync(r).sort().map((n) => [n, join(r, n)] as const));
   for (const [name, dir] of dirs) {
     const jf = join(dir, "agent.json");
     if (!existsSync(jf)) continue;

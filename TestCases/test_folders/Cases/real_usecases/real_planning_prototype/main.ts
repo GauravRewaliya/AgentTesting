@@ -141,6 +141,6 @@ export const cases: Case[] = [
     ignores listed features, or never shows the person a prototype.
 
  7. Not routine: these cases are REAL (real sub-agents, credits). Run one by id only, with HARNESS_SANDBOX=docker:
-        cd test_harness/core/orchistraitor/f1_multiagent && HARNESS_SANDBOX=docker bun testrun/run.ts real_planning_prototype real_instagram_prototype --real
+        cd test_harness/core/orchistraitor/<orchestrator> && HARNESS_SANDBOX=docker bun testrun/run.ts real_planning_prototype real_instagram_prototype --real
     (`--list` / `--fake` are free.)
 */

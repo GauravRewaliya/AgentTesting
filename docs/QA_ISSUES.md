@@ -2,7 +2,7 @@
 
 > NOTE 2026-11-18: `qa_check`, `qa_give_up`, `qa_record`, `core/qa_loop.ts` and the `preview*` commands named below were REMOVED on 2026-11-17 (commit f551fce, docs/RUN_FINDINGS.md H20): QA is now ONE agent, `qa-reviewer`. Sections that name them describe the history of the findings, not the current tools.
 
-Written 2026-11-12 from the real work on `--video` and the QA stage (`stage-qa`, `infra/qa/*`, `helper/video.ts`).
+Written 2026-11-12 from the real work on `--video` and the QA stage (`stage-qa`, `infra/qa/*`, `infra/qa/video.ts`).
 Everything in the "Issue log" was observed in a real run (timings are measured). Loopferry facts come from `~/projects/loopferry`
 (`src/services/coding/stages/prompt.ts`, `qa.ts`, `engine/providers/claude-coding.ts`, `engine/e2b-template.ts`, `handbook/ENGINE.md`, `TESTING_REPORT.md`).
 Package manager for everything here is **pnpm** (see `CLAUDE.md`).
@@ -19,7 +19,7 @@ Package manager for everything here is **pnpm** (see `CLAUDE.md`).
 
 | # | what we saw | why | fix | status |
 |---|---|---|---|---|
-| 1 | "where is the video?": only JSON session records existed | we had recorded sessions, not video; loopferry's `qa.webm` was never ported | QA stage: agent `stage-qa`, Docker recorder (`record.mjs`), flag `--video`, helper `helper/video.ts` | fixed |
+| 1 | "where is the video?": only JSON session records existed | we had recorded sessions, not video; loopferry's `qa.webm` was never ported | QA stage: agent `stage-qa`, Docker recorder (`record.mjs`), flag `--video`, helper `infra/qa/video.ts` | fixed |
 | 2 | first recording showed an empty slug text | the recorder clicked the first button ("Clear") before it read the page text | read texts and take the screenshot first, then click | fixed |
 | 3 | `--video` on the solarin demo: "none", and the session folder looked empty, like a failure | nothing was written when there was nothing to record; the message also said "native app", which was wrong (the app has `react-native-web`) | helper writes `store/qa/NO_VIDEO.txt` with the real reason; the reason now says Expo with web support, not exported | fixed |
 | 4 | export failed after 11 s | the docker volume for the cache was created owned by root, the container runs as your user | `chown` the volume once before use | fixed |
@@ -81,7 +81,7 @@ Their own report shows the cost of this freedom (`TESTING_REPORT.md` 5.20): for 
 ## 7. Files
 
 `record.mjs` (in-container recorder, route / viewport / wait-for-render) · `run_qa.ts` (host side, `QA_SANDBOX=docker|off|e2b`) · `Dockerfile` (image `agent-testing-qa:1`, pnpm + playwright-core + chromium headless shell, about 900 MB) ·
-`web_export.ts` + `export.sh` (Expo export in a throwaway container) · `web_only.mjs` (web-only copy rules) · `stub_assets.mjs` (missing fonts/images) · `../../core/orchistraitor/helper/video.ts` (the `--video` flag) ·
+`web_export.ts` + `export.sh` (Expo export in a throwaway container) · `web_only.mjs` (web-only copy rules) · `stub_assets.mjs` (missing fonts/images) · `../../core/infra/qa/video.ts` (the `--video` flag) ·
 per-run notes under `<session>/store/web/<app>/`: `timing.txt`, `added_deps.txt`, `stubbed_assets.txt`, `export.log`; videos under `<session>/store/qa/`.
 
 ## 16. Broken apps cost video time (solarin: 166 s for a page that never rendered)

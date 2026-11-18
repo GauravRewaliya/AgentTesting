@@ -7,7 +7,7 @@
 //   --say="next"  continues the case's EXISTING run (same task, same lead conversation, nothing is reset) with that message. Use with --stop-pause: `... <suite> <case> --real --stop-pause --say=next`.
 //   --no-planning  the lead may NOT call the planner (the planner is removed from its agents and the request says so): no plan files, no planning round, the work goes straight to the builders. Use it for a quick run without the planning flow.
 //   --record  write the session record (store/record/*.json) for every case; by default only a case that opts in through `qa` gets one
-//   --video  after each case THAT OPTS IN (Case.qa enabled; all others: nothing), record a QA video of the web page it built (helper/video.ts, Docker; native Expo apps cannot be recorded: it says so). Off by default.
+//   --video  after each case THAT OPTS IN (Case.qa enabled; all others: nothing), record a QA video of the web page it built (`test_harness/infra/qa/video.ts`, Docker; native Expo apps cannot be recorded: it says so). Off by default.
 // Runs a TestCases/test_folders suite on the f1 multi-agent harness (real claude by default, haiku: cents per turn; --fake = scripted agents, no model calls).
 // State goes to test_harness/.state/<version>/<task>/{store,workspace} (one folder per master session, see LAYOUT below). Nothing here reads or writes f1's own ui/.ui-data any more.
 import { branchRun, cloneIfPending } from "./branch.ts";
@@ -20,18 +20,19 @@ import { RealRunner, ScriptRunner, loadAgents, transcriptExistsAnywhere } from "
 import { MStore, say } from "../harness/core/board.ts";
 import { SESSION_CAP } from "../harness/core/session_run.ts";
 import { costOf } from "../harness/core/agent_call.ts";
-import { currentApproach } from "../approaches/index.ts";   // the lead runs through the chosen approach (ENGINE.approach in orchistraitor/engine.ts, or --approach=<name>)
+import { currentApproach } from "../approaches/index.ts";   // the lead runs through the chosen approach (CONFIG.approach in core/config.ts, or --approach=<name>)
 import { warnMissingFixtures } from "@core/fixture_policy.ts";
 import { FIXTURES, STATE_BASE, STATE_VERSION } from "@core/paths.ts";
-import { videoAfterRun } from "../../helper/video.ts";
+import { videoAfterRun } from "../../../../infra/qa/video.ts";
+import { videoOffReason } from "../harness/core/loops_ai.ts";
 import { recordSession } from "../../../../infra/record_session.ts";
 import { runArtifactCases } from "./artifact_run.ts";
 import { agentsFor, declareGateLimit, judgeTurn, replyProblem, reconcileDead, loadSuites, readExp, statusOf, taskFor, unsupported, writeExp } from "./cases.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), ".."), E = process.env, STATE_DIR = join(STATE_BASE, STATE_VERSION);
 const argv = process.argv.slice(2), flags = new Set(argv.filter((a) => a.startsWith("--"))), [suite, ...want] = argv.filter((a) => !a.startsWith("--"));   // --video-route=/x is read from argv directly
-const approachArg = argv.find((a) => a.startsWith("--approach="))?.split("=")[1];   // default: ENGINE.approach
-const STORE = E.UI_STORE ? resolve(E.UI_STORE) : "", REPO = E.UI_REPO ? resolve(E.UI_REPO) : "", EXP_DIR = join(STATE_DIR, "f1_exp");   // which case ran in which task (git-ignored)
+const approachArg = argv.find((a) => a.startsWith("--approach="))?.split("=")[1];   // default: CONFIG.approach
+const STORE = E.UI_STORE ? resolve(E.UI_STORE) : "", REPO = E.UI_REPO ? resolve(E.UI_REPO) : "", EXP_DIR = join(STATE_DIR, "exp");   // which case ran in which task (git-ignored)
 const fake = flags.has("--fake"), noPlanning = flags.has("--no-planning"), stopPause = flags.has("--stop-pause") || flags.has("--stop_pause"), sayArg = argv.find((a) => a.startsWith("--say="))?.slice(6), resumeArg = argv.find((a) => a === "--resume" || a.startsWith("--resume=")), sessionArg = resumeArg?.startsWith("--resume=") ? resumeArg.slice(9) : undefined, videoOnly = flags.has("--video-only");   // --say="next" (see header)
 // LAYOUT: one folder per MASTER SESSION (= the case's task id) under test_harness/.state/<version>/:
 //   <task>/store/       the store (store.json + .board), session records, QA videos (qa/): NOT part of the git workspace
@@ -61,17 +62,6 @@ if (flags.has("--list")) { for (const c of mine) console.log(`${c.id}${c.after ?
 // A run needs explicit case ids; the WHOLE suite only with --all (so a typo or a forgotten id never spends credits on every case).
 if (!want.length && !flags.has("--all")) { console.log(`## ${suite}: name the case id(s) to run, or pass --all to run the whole suite (--list shows the ids).`); process.exit(1); }
 mkdirSync(STATE_DIR, { recursive: true });
-// EVERY run leaves a run record (the runs list of the UI: ui/.ui-data/web_runs/<id>.json + .log), whoever started it. A run started by the UI already has its record (env HARNESS_RUN_RECORDED), a manual one makes its own and copies its output into the log.
-if (!E.HARNESS_RUN_RECORDED && !fake && !flags.has("--auto")) {
-  const dir = join(ROOT, "ui", ".ui-data", "web_runs"), id = "r" + Date.now().toString(36), meta = join(dir, id + ".json"), logf = join(dir, id + ".log");
-  mkdirSync(dir, { recursive: true });
-  const rec = { id, suite, cases: wantIds, fake: false, rerun: flags.has("--rerun"), startedAt: Date.now(), pid: process.pid, status: "running" as string, by: "cli", endedAt: undefined as number | undefined, exitCode: undefined as number | null | undefined };
-  const save = () => { try { writeFileSync(meta, JSON.stringify(rec)); } catch { /* best effort */ } };
-  save();
-  const log = console.log.bind(console); console.log = (...a: unknown[]) => { log(...a); try { appendFileSync(logf, a.map(String).join(" ") + "\n"); } catch { /* best effort */ } };
-  process.on("exit", (code) => { rec.status = code === 0 ? "done" : "failed"; rec.exitCode = code; rec.endedAt = Date.now(); save(); });
-  process.on("SIGINT", () => process.exit(130)); process.on("SIGTERM", () => process.exit(143));
-}
 /** A case that says "Starting point: fixture <name> ... set up in run_test/<dir> for you" must really find it there: copy store/expo_go/bases/<name> into run_test/<dir> before the lead starts
  *  (the lead can `ls` the workspace now, so a promise that only the sub-agent's run would keep makes it refuse: seen on eg_solarin_01). */
 function seedStart(user: string, repo: string): string | null {
@@ -86,7 +76,7 @@ function ensureRepo(repo: string) {   // the agents' workspace is a small git pr
   g("init", "-q"); g("add", "-A"); g("commit", "-qm", "init");
 }
 if (!perTask) ensureRepo(REPO);
-const defs = loadAgents(join(ROOT, "harness", "agents")), gstore = new MStore(perTask ? undefined : STORE), store = gstore;   // per-task mode: no shared store file at all
+const defs = loadAgents(), gstore = new MStore(perTask ? undefined : STORE), store = gstore;   // per-task mode: no shared store file at all
 if (!fake && !perTask) { const freed = reconcileDead(store); if (freed.length) console.log(`(freed ${freed.length} agent(s) left running by a run that is gone: ${freed.join(", ")})`); }
 const ctx = { store, defs, sessionCap: SESSION_CAP,
   runner: fake ? new ScriptRunner(async () => "(fake lead) done") : new RealRunner(600_000), transcriptExists: fake ? undefined : (_c: string, id: string) => transcriptExistsAnywhere(id) };
@@ -168,7 +158,7 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   let videoFailed = false, videoDone = false;
   const doVideo = async () => {
     if (videoDone || !((flags.has("--video") || noLead) && takes)) return; videoDone = true;
-    try { const route = argv.find((a) => a.startsWith("--video-route="))?.split("=")[1], v = await videoAfterRun({ workspace: REPO, storeDir: dirname(storeOf(homeKey)), route, qa: qaEnd });
+    try { const route = argv.find((a) => a.startsWith("--video-route="))?.split("=")[1], v = await videoAfterRun({ workspace: REPO, storeDir: dirname(storeOf(homeKey)), route, qa: qaEnd, offReason: videoOffReason });
       if (!v.videos.length) videoFailed = true;
       console.log(v.videos.length ? `   video            : ${v.videos.join(", ")}` : `   video            : none (${v.skipped ?? v.notes.join("; ")})`); } catch (e) { videoFailed = true; console.log(`   video            : failed (${String(e).slice(0, 100)})`); }
   };

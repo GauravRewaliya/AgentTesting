@@ -6,12 +6,13 @@
 // A file in custom/ MUST carry `CUSTOM: overrides <general path>` in its first 3 lines (`// CUSTOM: ...` in .ts, `<!-- CUSTOM: ... -->` in .md) so a reader can find the general one (overrides() reads it).
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { AGENTS_DIR } from "@core/config.ts";
 
 const F3 = join(import.meta.dir, "..");
 
 export function resolve(rel: string, approach: string, base = join(F3, "harness")): { path: string; layer: "custom" | "custom_all" | "approach" | "shared" } {
   for (const [layer, root] of [["custom", join(F3, "approaches", "custom", approach)], ["custom_all", join(F3, "approaches", "custom", "_all")], ["approach", join(F3, "approaches", approach)], ["shared", base]] as const) {
-    const p = join(root, rel);
+    const p = root === base && rel.startsWith("agents/") ? join(AGENTS_DIR, rel.slice(7)) : join(root, rel);   // the real team lives in test_harness/core/agents/main_flow_agents, not in an orchestrator
     if (existsSync(p)) return { path: p, layer };
   }
   throw new Error(`resolve: "${rel}" not found for approach ${approach}`);

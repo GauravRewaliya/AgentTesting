@@ -41,7 +41,7 @@ if (!existsSync(join(REPO, ".git"))) {
   g("init", "-q"); g("add", "-A"); g("commit", "-qm", "init");
 }
 mkdirSync(join(REPO, "run_test"), { recursive: true });   // the agents build in run_test/ (preview, qa_check and the harness look there): a new session must have it, as run.ts makes it
-const defs = loadAgents(join(ROOT, "harness", "agents")), store = new MStore(STORE);
+const defs = loadAgents(), store = new MStore(STORE);
 const ctx = { store, defs, sessionCap: SESSION_CAP,
   runner: fake ? new ScriptRunner(async (c) => { await new Promise((r) => setTimeout(r, 1500)); return `(fake lead) I heard: ${c.prompt.split("REQUEST FROM THE PERSON:\n")[1]?.split("\n\n")[0]?.slice(0, 300) ?? "?"}`; }) : new RealRunner(600_000),
   transcriptExists: fake ? undefined : (_c: string, id: string) => transcriptExistsAnywhere(id) };

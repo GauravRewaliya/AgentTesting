@@ -2,9 +2,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { STATE_BASE, STATE_VERSION } from "@core/paths.ts";
-import { bgLog, getBg, listBg, restartBg, stopBg } from "@core/orchistraitor/f1_multiagent/harness/core/bg.ts";
-import { publicHost } from "@core/orchistraitor/f1_multiagent/harness/core/preview.ts";
-import { listTaskProcs, stopTaskProc } from "@core/orchistraitor/f1_multiagent/harness/core/procs.ts";
+import { bgLog, getBg, listBg, restartBg, stopBg, publicHost, listTaskProcs, stopTaskProc } from "@core/orchestrator.ts";
 
 const safe = (t: string) => t.replace(/[^\w.-]/g, "");
 export const taskWorkspace = (task: string) => join(STATE_BASE, STATE_VERSION, safe(task), "workspace");

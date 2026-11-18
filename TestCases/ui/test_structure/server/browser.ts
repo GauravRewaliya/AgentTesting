@@ -3,8 +3,7 @@
 import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import * as bc from "@core/orchistraitor/f1_multiagent/harness/core/browser_conn.ts";
-import { browse } from "@core/orchistraitor/f1_multiagent/harness/core/browse.ts";
+import { browserConn as bc, browse } from "@core/orchestrator.ts";
 
 const png = (f: string) => { try { return "data:image/png;base64," + readFileSync(f).toString("base64"); } catch { return null; } };
 export async function overview() {

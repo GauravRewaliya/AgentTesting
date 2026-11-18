@@ -1,4 +1,4 @@
-# agent_fixture/agents: test stand-ins, NOT part of the real team
+# test_agents: test stand-ins, NOT part of the real team
 
 These agents are never run for real (`"fixtures": true`): the FixtureGate answers for them from recorded results
 (`TestCases/test_folders/agent_fixture`). A test case declares one in its `agents` list; the real lead never sees them.

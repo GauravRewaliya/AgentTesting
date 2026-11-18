@@ -1,6 +1,7 @@
 // Test 2: f_1_withmulti_ag = the harness WITH multi-agent (on demand): many instances per role, agent.call, locks, worktrees + patches, board.
 //   bun self_test/multi.ts            offline suite (scripted agents, real harness code, real git)
 //   bun self_test/multi.ts --real     also the real suite (real claude -p: a lead that delegates, a lock-guarded writer, a fork; ~12 haiku calls)
+import { AGENTS_DIR } from "@core/config.ts";
 import { customDef } from "../harness/core/custom.ts";
 import { spawnSync } from "node:child_process";
 import { execFileSync } from "node:child_process";
@@ -13,9 +14,9 @@ import { agentCall, costOf, defaultPolicy, markStalled, stopAgent, type CallReq,
 import { callAgent, checkAgents, RealRunner, ScriptRunner, projectDirFor, transcriptExistsAnywhere, transcriptExistsIn, transcriptFor, type AgentDef, type RunCall } from "../harness/core/base.ts";
 import { MStore, boardStatus, inbox, noteContext, say, sessionStats } from "../harness/core/board.ts";
 import { runCallee, sharedContext } from "../harness/core/callee.ts";
-import { appendRow, checkedOf, leftOf, memoryBlock, needsChangesOf, planChecks, projectStamp, readRows, renderQa, verdictOf, writeMemory } from "../harness/core/loops_ai.ts";
+import { videoOffReason, appendRow, checkedOf, leftOf, memoryBlock, needsChangesOf, planChecks, projectStamp, readRows, renderQa, verdictOf, writeMemory } from "../harness/core/loops_ai.ts";
 import { setupFailLines } from "../../../../infra/qa/web_dev_qa.ts";
-import { videoAfterRun } from "../../helper/video.ts";
+import { videoAfterRun } from "../../../../infra/qa/video.ts";
 import { sandboxable } from "../harness/core/base/docker_runner.ts";
 import { usesTeamTools } from "../harness/core/base/agents.ts";
 import { vueFlags } from "../../../../../TestCases/test_folders/agent_fixture/store/web_setup/scaffold.ts";
@@ -74,7 +75,7 @@ const code = (r: CallRes) => (r.ok ? "granted" : r.code);
 async function offline() {
   setSuite("offline: agent.call authority");
   { const bad = checkAgents(defs);
-    t("M1", "agents:check passes; lead declares its sub-agents in agent.json (the 6 real ones: researcher, lookup, planner, builder, ux-designer, qa-reviewer; test stand-ins live in TestCases/test_folders/agent_fixture/agents) (and may call custom ones); .claude/agents is empty everywhere", bad.length === 0 && defs.get("lead")!.agents.length === 6 && defs.get("lead")!.agents.includes("lookup") && defs.get("lead")!.custom === true, bad.join("; "));
+    t("M1", "agents:check passes; lead declares its sub-agents in agent.json (the 6 real ones: researcher, lookup, planner, builder, ux-designer, qa-reviewer; test stand-ins live in test_harness/core/agents/test_agents) (and may call custom ones); .claude/agents is empty everywhere", bad.length === 0 && defs.get("lead")!.agents.length === 6 && defs.get("lead")!.agents.includes("lookup") && defs.get("lead")!.custom === true, bad.join("; "));
     const d = declarations(defs.get("lead")!, defs);
     t("M1b", "declarations are built at run time from the callees' agent.json and tell the lead their REAL tools: researcher has web access, builder can write but has NO web access", /researcher \(read-only; has web access; tools: [^)]*WebFetch/.test(d) && /builder \(can write; must declare --writes; NO web access; tools:/.test(d), d); }
   { const w = world({ agentMaxDepth: 1 });
@@ -668,7 +669,7 @@ async function regressSuite() {
   const w = world(); w.store.tx(() => { const a = w.store.addAgent("t", defs.get("builder")!, { level: 2, caller: "lead#1" }); w.store.ev("session.rolled", "t", a.agent_id, { reason: "full" }); });
   const s = sessionStats(w.store, "t", "builder#1");
   t("RG3", "sessionStats counts a rolled session (1 roll = 2 sessions) so the lead's 'how many sessions' answer is true", s.rolls === 1 && s.sessions === 2);
-  const lead = src("harness/agents/lead/.claude/CLAUDE.md");
+  const lead = readFileSync(join(AGENTS_DIR, "lead", ".claude", "CLAUDE.md"), "utf8");
   t("RG4", "the lead's rules say: 'ask <agent>' means continue that agent, count sessions from agents_list, use exact role names", /MUST continue that agent/.test(lead) && /agents_list/.test(lead) && /exact name/.test(lead));
 }
 async function sessionsSuite() {
@@ -776,8 +777,8 @@ async function parentSuite() {
     t("NP2", "and a caller is TOLD what it may call and what each one can do: the builder's launch text lists the researcher (web access) and the reviewer with their real tools", /researcher \(read-only; has web access/.test(dec) && /reviewer \(read-only; NO web access/.test(dec), dec.slice(0, 160)); }
   // ---- the prompts
   { const bad: string[] = [];
-    for (const root of ["."]) for (const a of ls(join(import.meta.dirname, "..", root, "harness", "agents"))) {
-      const txt = rf(join(import.meta.dirname, "..", root, "harness", "agents", a, ".claude", "CLAUDE.md"), "utf8");
+    for (const root of ["."]) for (const a of ls(AGENTS_DIR)) {
+      const txt = rf(join(AGENTS_DIR, a, ".claude", "CLAUDE.md"), "utf8");
       if (a === "lead") { if (!/NEVER write `NEEDS_PARENT:`/.test(txt) || !/STOP/.test(txt)) bad.push(root + "/lead must ask the person in plain words and never write NEEDS_PARENT:"); } else if (a === "pm") { if (!/plan_answer/.test(txt)) bad.push(root + "/pm lacks plan_answer"); } else if (!/NEEDS_PARENT/.test(txt) || !/STOP/.test(txt) || !/same conversation/.test(txt)) bad.push(root + "/" + a);
     }
     t("NP3", "the lead asks the PERSON in plain words (never the NEEDS_PARENT: marker); every other agent prompt says what to do when stuck (STOP, reply NEEDS_PARENT: with what is needed and what was done, the parent continues you in the same conversation); callers also say how to answer a child; the PM knows plan_answer", bad.length === 0, bad.join(", ")); }
@@ -963,11 +964,11 @@ async function protoKitSuite() {
     mkdirSync(join(gd, "run_test", "_ref", "x"), { recursive: true }); writeFileSync(join(gd, "run_test", "_ref", "x", "STORE.md"), "x");   // a reference was captured: now a clone is built by the pipeline
     const gr = spawnSync("bun", ["--smol", join(import.meta.dirname, "..", "harness", "tools.ts"), "delegate", "--role", "builder", "--session", "new", "--writes", "run_test/demo/js/screens/main.js", "--objective", "build it", "--output", "x", "--boundaries", "y"], { encoding: "utf8", env: { ...process.env, HARNESS_STORE: join(gd, "s.json"), HARNESS_TASK: "t", HARNESS_AGENT: "lead#1", HARNESS_CWD: gd, HARNESS_MAX_DEPTH: "4" } });
     let go: { ok?: boolean; reason?: string } = {}; try { go = JSON.parse(gr.stdout.trim().split("\n").pop() ?? "{}"); } catch { /* shown */ }
-    const lp2 = readFileSync(join(import.meta.dirname, "..", "harness", "agents", "lead", ".claude", "CLAUDE.md"), "utf8"), head = lp2.slice(0, 3500), descs = ["lookup", "lookup", "researcher", "builder", "ux-designer"].map((n) => defs.get(n)?.description ?? "");
+    const lp2 = readFileSync(join(AGENTS_DIR, "lead", ".claude", "CLAUDE.md"), "utf8"), head = lp2.slice(0, 3500), descs = ["lookup", "lookup", "researcher", "builder", "ux-designer"].map((n) => defs.get(n)?.description ?? "");
     t("PK26", "a lone builder for a CLONE project (a reference store exists) is refused with the exact command to run (site_build); the lead's prompt STARTS with a routing table (recipe SITE / APP / BUILD / FACTS and the agents with when-to-use) and the agent descriptions say when to use and when NOT to", go.ok === false && /site_build/.test(go.reason ?? "") && /PIPELINE/.test(go.reason ?? "") && head.includes("ROUTING") && head.includes("RECIPE CLONE") && head.includes("RECIPE APP") && head.includes("never skip a step") && /USE WHEN/.test(descs[0]!) && /NOT for/.test(descs[2]!) && /NOT for/.test(descs[4]!) && /site_build/.test(descs[3]!), `${go.reason?.slice(0, 80)} | head ${head.length}`);
     rmSync(gd, { recursive: true, force: true });
   }
-  const lk = defs.get("lookup"), ld = defs.get("lead"), lp = readFileSync(join(import.meta.dirname, "..", "harness", "agents", "lookup", ".claude", "CLAUDE.md"), "utf8"), leadP = readFileSync(join(import.meta.dirname, "..", "harness", "agents", "lead", ".claude", "CLAUDE.md"), "utf8"), bp = readFileSync(join(import.meta.dirname, "..", "harness", "agents", "builder", ".claude", "CLAUDE.md"), "utf8");
+  const lk = defs.get("lookup"), ld = defs.get("lead"), lp = readFileSync(join(AGENTS_DIR, "lookup", ".claude", "CLAUDE.md"), "utf8"), leadP = readFileSync(join(AGENTS_DIR, "lead", ".claude", "CLAUDE.md"), "utf8"), bp = readFileSync(join(AGENTS_DIR, "builder", ".claude", "CLAUDE.md"), "utf8");
   t("PK19", "ONE lookup agent (no separate worker role): a writer that lists itself so it may split a big job across copies of itself (at most 3), the lead may call it, the lookup-page role is gone, the researcher stays text based, builders are told the brief is their complete context", !!lk && lk.writes === true && lk.agents.join() === "lookup" && lk.max_children === 3 && !defs.has("lookup-page") && !!ld && ld.agents.includes("lookup") && !ld.agents.includes("lookup-page") && lp.includes("fork_all --role lookup") && lp.includes("wait --any") && lp.includes("DO IT YOURSELF") && lp.includes("BRIEF_<file>.md") && leadP.includes("site_build") && bp.includes("do NOT run `ref_capture`") && !(defs.get("researcher")?.tools ?? []).includes("Bash"), `${lk?.agents} ${lk?.max_children}`);
   // splitting without deadlock: the coordinator declares only ITS OWN two files, every worker its own disjoint files, so all start at once; a coordinator that declared the whole folder would lock its workers out (queue)
   { const ls = new MStore(), N2 = Date.now(), A = (ag: string, id: string, paths: string[]) => acquire(ls, { task_id: "t", agent_id: ag, call_id: id, paths, ttlMs: 60_000, now: N2 }), R = "run_test/_ref/x/";
@@ -1034,7 +1035,7 @@ async function mastersSuite() {
       [noTitle, withTitle, again, badName, refused].map((x) => (x.ok ? "ok" : x.reason.slice(0, 60))).join(" | "));
     t("CU2", "a distractor agent (agent.json forbidden) is refused with code forbidden and an event is logged; a custom agent given --writes becomes a writer with write tools",
       !poet.ok && /forbidden/.test(poet.reason) && decoyW.store.events.some((e) => e.kind === "guard.forbidden") && customDef("scribe", "writes notes", true).writes === true && customDef("scribe", "writes notes", true).tools.includes("Write") && !customDef("scribe", "x", false).tools.includes("Write"), poet.ok ? "poet was accepted" : poet.reason); }
-  { const txt = readFileSync(join(import.meta.dirname, "..", "harness", "agents", "lead", ".claude", "CLAUDE.md"), "utf8");
+  { const txt = readFileSync(join(AGENTS_DIR, "lead", ".claude", "CLAUDE.md"), "utf8");
     t("MS5", "the lead's prompt carries the rules the real sessions called for: count what the person lists (one agent per item, cover each plausible reading), 'ask <agent>' means continue THAT agent, role value is the exact name, keep internals out of the answer", /COUNT what the person lists/.test(txt) && /MUST continue that agent/.test(txt) && /exact name/.test(txt) && /keep internal detail/.test(txt), ""); }
 }
 
@@ -1176,9 +1177,9 @@ async function contextSuite() {
   setSuite("context: short prompts in layers, shared context, kit reference, free status, queue visibility, judge tolerance");
   const H = join(import.meta.dirname, "..", "harness");
   // 1. prompt layers and size caps (Anthropic: concise main file; details on demand)
-  const leadMd = readFileSync(join(H, "agents", "lead", ".claude", "CLAUDE.md"), "utf8"), builderMd = readFileSync(join(H, "agents", "builder", ".claude", "CLAUDE.md"), "utf8");
+  const leadMd = readFileSync(join(AGENTS_DIR, "lead", ".claude", "CLAUDE.md"), "utf8"), builderMd = readFileSync(join(AGENTS_DIR, "builder", ".claude", "CLAUDE.md"), "utf8");
   t("CX1", "the lead's CLAUDE.md is a short core (under 200 lines and 9 KB), the builder's under 6 KB; every chapter it names exists", leadMd.split("\n").length < 200 && leadMd.length < 9000 && builderMd.length < 6000
-    && [...leadMd.matchAll(/`(clone|prototype|qa|preview_bg|parallel|planning|new_project|artifact)`/g)].every((m) => existsSync(join(H, "agents", "lead", "chapters", m[1] + ".md"))), `${leadMd.length} / ${builderMd.length} bytes`);
+    && [...leadMd.matchAll(/`(clone|prototype|qa|preview_bg|parallel|planning|new_project|artifact)`/g)].every((m) => existsSync(join(AGENTS_DIR, "lead", "chapters", m[1] + ".md"))), `${leadMd.length} / ${builderMd.length} bytes`);
   t("CX2", "agent.json prompts[] / team_tools[] are honoured: a builder's launch prompt documents only the team tools it lists (proto_check, browse with --video, bg_start; no preview, no site_build, no QA command), and agents:check is clean", (() => {
     const b = launchDef(defs.get("builder")!, defs, 2, 3, mkdtempSyncSafe(), "team"), txt = readFileSync(b.prompt_file, "utf8");
     return txt.includes("team proto_check") && txt.includes("team browse") && txt.includes("team bg_start") && txt.includes("--video") && !txt.includes("team preview") && !txt.includes("team site_build") && !txt.includes("team qa_") && checkAgents(defs).length === 0;
@@ -1328,7 +1329,7 @@ async function contextSuite() {
   // ---- no prompt, doc line or command list may name a command that no longer exists (the master's list once still offered qa_give_up)
   { const removed = ["qa_check", "qa_record", "qa_give_up", "report_issue_to_admin", "preview_list", "preview_stop", "preview_restart", "team preview", "preview --dir"], files: string[] = [];
     const walkMd = (d: string) => { for (const e of readdirSync(d, { withFileTypes: true })) { const f = join(d, e.name); if (e.isDirectory()) { if (e.name !== "skills" && e.name !== "node_modules") walkMd(f); } else if (/\.(md|json)$/.test(e.name)) files.push(f); } };
-    walkMd(join(H, "agents")); files.push(join(H, "lead.ts"), join(H, "core", "launch.ts"), join(H, "core", "proto_check.ts"), join(H, "core", "monitor.ts"));
+    walkMd(AGENTS_DIR); files.push(join(H, "lead.ts"), join(H, "core", "launch.ts"), join(H, "core", "proto_check.ts"), join(H, "core", "monitor.ts"));
     const bad = files.flatMap((f) => removed.filter((w) => readFileSync(f, "utf8").includes(w) && !(w === "qa_check" && /config\.json|qa_check: false|"qa_check"|qa_check false|`qa_check`/.test(readFileSync(f, "utf8")))).map((w) => `${f.split("/harness/")[1]} names ${w}`));
     t("CX35", "no agent prompt, chapter, tool doc or hint names a command that no longer exists (qa_give_up, preview ..., report_issue_to_admin, the QA commands); the only 'qa_check' left is the config switch name", bad.length === 0 && !existsSync(join(H, "bin", "preview")), JSON.stringify(bad.slice(0, 6))); }
   // memory reaches every agent on every call, informs and never invites QA
@@ -1368,9 +1369,9 @@ async function contextSuite() {
     const brw = (...a: string[]) => { const r = spawnSync(process.execPath, ["--smol", join(H, "tools.ts"), "browse", "--url", "http://127.0.0.1:1", ...a], { env: { ...process.env, HARNESS_STORE: stf, HARNESS_TASK: "t", HARNESS_AGENT: "planner#1", HARNESS_CWD: wd }, encoding: "utf8", timeout: 60_000 }); try { return JSON.parse(r.stdout.trim().split("\n").pop()!); } catch { return { raw: r.stdout + r.stderr }; } };
     const sd = join(wd, "store"); mkdirSync(sd, { recursive: true });
     writeFileSync(join(wp, ".loopsAI", "config.json"), JSON.stringify({ qa_check: false }));
-    const offTool = brw("--video"), offShot = brw(), offRun = await videoAfterRun({ workspace: wd, storeDir: sd, qa: { enabled: true, kind: "static", app: "site" } as never });
+    const offTool = brw("--video"), offShot = brw(), offRun = await videoAfterRun({ workspace: wd, storeDir: sd, offReason: videoOffReason, qa: { enabled: true, kind: "static", app: "site" } as never });
     writeFileSync(join(wp, ".loopsAI", "config.json"), JSON.stringify({ qa_check: true }));
-    const onTool = brw("--video"), onRun = await videoAfterRun({ workspace: wd, storeDir: sd, qa: { enabled: true, kind: "static", app: "nope" } as never });   // an app that is not there: the switch must NOT be what stops it
+    const onTool = brw("--video"), onRun = await videoAfterRun({ workspace: wd, storeDir: sd, offReason: videoOffReason, qa: { enabled: true, kind: "static", app: "nope" } as never });   // an app that is not there: the switch must NOT be what stops it
     rmSync(join(wp, ".loopsAI", "config.json")); const noCfg = brw("--video");
     t("CX32", "the no-video switch (.loopsAI/config.json qa_check:false) works with NOTHING else in .loopsAI: browse --video is refused for any agent, a plain screenshot is not, and the test runner's --video is skipped with a NO_VIDEO.txt; with qa_check true or no config the switch is not what stops them",
       offTool.ok === false && /video is OFF/.test(String(offTool.reason)) && !/video is OFF/.test(String(offShot.reason ?? "")) && offRun.ok === false && /video is OFF/.test(String(offRun.skipped)) && existsSync(join(sd, "qa", "NO_VIDEO.txt"))

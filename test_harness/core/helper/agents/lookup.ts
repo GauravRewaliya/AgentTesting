@@ -1,2 +1,0 @@
-import type { AgentDef } from "../../core/types.ts";
-export default { name: "lookup", description: "UI/UX reference analyst (coordinator): studies a real website's reference store (pictures, outline, assets) and splits the layouts and builder briefs across lookup-page workers that run in parallel; the text-based researcher stays separate. Use for a clone or a 'look like this site' request.", role: "lookup" } satisfies AgentDef;

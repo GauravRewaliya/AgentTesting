@@ -17,7 +17,7 @@ export interface Approach {
   readonly capabilities: Capabilities;
   /** Run the lead for one request. a1: harness/lead.ts runLead (the lead delegates with the `team` shell commands). */
   runLead(ctx: CallCtx & { store: MStore }, o: LeadRun): Promise<{ reply: string } & Record<string, unknown>>;
-  /** Where this approach's own prompt files live (relative to f3_multiagent/); resolve() looks for overrides of them in approaches/custom/. */
+  /** Where this approach's own prompt files live (absolute); resolve() looks for overrides of them in approaches/custom/. */
   readonly promptDir: string;
   // TODO: decode(raw lead call) -> CallReq and encode(CallRes) -> lead reply. In a1 they are inside harness/tools.ts (`delegate` command -> grant()); extract them into core/delegate.ts (docs/04).
 }

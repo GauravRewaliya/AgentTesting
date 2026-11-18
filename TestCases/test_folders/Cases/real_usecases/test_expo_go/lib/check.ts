@@ -6,11 +6,12 @@ import { join, resolve } from "node:path";
 import { isTag } from "../../../../../tags.ts";
 import { phases, source, sources, STORE } from "./data.ts";
 import type { Problem, SuiteSpec } from "./types.ts";
+import { AGENTS_DIR, TEST_AGENTS_DIR } from "../../../../../../test_harness/core/config.ts";
 const resultId = (caseId: string) => `role-expo-go-${caseId}`;   // the recorded result that answers a case
 
 const ROOT = resolve(import.meta.dir, "../../../../../..");
 const STORE_DIR = join(ROOT, STORE);
-const AGENTS = join(ROOT, "test_harness/core/orchistraitor/f1_multiagent/harness/agents"), MOCKS = join(ROOT, "TestCases/test_folders/agent_fixture/agents");   // real team + test stand-ins
+const AGENTS = AGENTS_DIR, MOCKS = TEST_AGENTS_DIR;   // real team + test stand-ins
 const RESULTS = join(ROOT, "TestCases/test_folders/agent_fixture/results/test_expo_go");
 const SHA40 = /^[0-9a-f]{40}$/;
 
@@ -62,7 +63,7 @@ export function check(spec: SuiteSpec): Problem[] {
     if (c.after && !(seen.get(c.after) !== undefined && seen.get(c.after)! < i)) add(w, `after "${c.after}" is missing or comes later`);
     if (!c.title.startsWith("[ref ")) add(w, 'title must start with "[ref <source>]"');
     for (const t of c.tags ?? []) if (!isTag(t)) add(w, `unknown tag ${t}`);
-    for (const a of c.agents) if (!existsSync(join(AGENTS, a, "agent.json")) && !existsSync(join(MOCKS, a, "agent.json"))) add(w, `agent "${a}" has no folder in harness/agents or agent_fixture/agents`);
+    for (const a of c.agents) if (!existsSync(join(AGENTS, a, "agent.json")) && !existsSync(join(MOCKS, a, "agent.json"))) add(w, `agent "${a}" has no folder in test_harness/core/agents/main_flow_agents or test_harness/core/agents/test_agents`);
     c.turns.forEach((t, j) => {
       if (!t.user.trim() || !t.expected.context.trim()) add(w, `turn ${j + 1}: empty user/expected.context`);
       const want = resultId(c.id), got = JSON.stringify(t.expected.expected_agents_res);
@@ -107,7 +108,7 @@ export function check(spec: SuiteSpec): Problem[] {
   const skills = existsSync(sk) ? readdirSync(sk).filter((d) => existsSync(join(sk, d, "SKILL.md"))) : [];
   if (skills.length < 12) add("agents/builder/.claude/skills", `expected the 12 expo-* skills, found ${skills.length}`);
   for (const need of ["expo-router", "expo-animation", "expo-native-ui", "expo-design-system"]) if (!skills.includes(need)) add("agents/builder/.claude/skills", `skill missing: ${need}`);
-  if (!existsSync(join(MOCKS, "expo-go/agent.json"))) add("agent_fixture/agents/expo-go", "agent.json missing");
+  if (!existsSync(join(MOCKS, "expo-go/agent.json"))) add("test_harness/core/agents/test_agents/expo-go", "agent.json missing");
   try { source("folio-popup-book"); } catch (e) { add("sources.json", String(e)); }
   return bad;
 }

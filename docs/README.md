@@ -7,8 +7,7 @@ their sessions correctly? Sub-agent *work* is mocked (fixture lookup + file copy
 | Path | What |
 |---|---|
 | `run_test/` | scratch workspace, empty at rest (wiped around each case; `--keep` leaves it) |
-| `helper/agents/*.ts` | sub-agent definitions (`forbidden: true` = distractor, calling it fails the case) |
-| `helper/skills/` | skills passed per case (empty for now) |
+| `test_harness/core/agents/` | the agents: `main_flow_agents/` (real team) and `test_agents/` (test stand-ins), listed by `index.ts` (name, role, description from each agent.json) |
 | `TestCases/test_folders/agent_fixture/` | everything a mocked sub-agent needs: `results/<id>.ts` (each is ONLY `run(req)`), `store/` (files the scripts copy), `index.json` (generated: `bun core/build_index.ts`) |
 | `core/` | Bun/TS runner: `run.ts` CLI, `claude.ts` spawn+parse, `interpose.ts` hook + mock, `report.ts` run report, `types.ts` |
 | `test_case/<suite>/main.ts` | `export const cases: Case[]` |

@@ -13,7 +13,7 @@ import { STATE_BASE, STATE_VERSION } from "@core/paths.ts";
 import { declareGateLimit, loadSuites, readExp, reconcileDead, writeExp } from "./cases.ts";
 import { readdirSync } from "node:fs";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), ".."), DATA = join(ROOT, "ui", ".ui-data"), E = process.env;
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), ".."), DATA = join(STATE_BASE, STATE_VERSION, "chat_data"), E = process.env;
 const arg = (k: string) => { const i = process.argv.indexOf("--" + k); return i >= 0 ? process.argv[i + 1] : undefined; };
 // --agents "-" means no sub-agents at all; leaving --agents out keeps the lead's default team.
 const task = arg("task"), file = arg("text-file"), agents = (arg("agents") ?? "").split(",").filter((x) => x && x !== "-"), setAgents = arg("agents") !== undefined, fake = process.argv.includes("--fake"), caseId = arg("case"), turn = Number(arg("turn") ?? 0);
@@ -21,7 +21,7 @@ if (!task || !file) { console.error("usage: bun testrun/chat.ts --task <id> --te
 // ONE RUNNER for the UI and for testrun/run.ts: every master session (a test case's or one made on the Experiment page: that is only a tag) lives in .state/<version>/<home>/{store,workspace}
 // (<home> = the task, or <task>/branches/<b>), runs with writerMode "shared", the SAME agent team and gate limits the case declares, and the same [Test setup] note as run.ts.
 // Only UI_STORE / UI_REPO (env, one-off scripts) force the old shared ui/.ui-data store.
-const STATE_DIR = join(STATE_BASE, STATE_VERSION), EXP_DIR = join(STATE_DIR, "f1_exp"), perTask = !E.UI_STORE && !E.UI_REPO;
+const STATE_DIR = join(STATE_BASE, STATE_VERSION), EXP_DIR = join(STATE_DIR, "exp"), perTask = !E.UI_STORE && !E.UI_REPO;
 type Ent = { case: string; task: string; home?: string; suite?: string; agents: string[]; at?: number; marks: number[]; started: number[]; done: number };
 const entries = (t: string): Ent[] => { const o: Ent[] = []; try { for (const f of readdirSync(EXP_DIR)) if (f.endsWith(".json")) { const j = readExp(join(EXP_DIR, f)) as unknown as Ent; if (j?.task === t) o.push(j); } } catch { /* no exp files */ } return o.sort((x, y) => (y.at ?? 0) - (x.at ?? 0)); };
 const hasStore = (h: string) => existsSync(join(STATE_DIR, h, "store", "store.json"));
@@ -41,7 +41,7 @@ if (!existsSync(join(REPO, ".git"))) {
   g("init", "-q"); g("add", "-A"); g("commit", "-qm", "init");
 }
 mkdirSync(join(REPO, "run_test"), { recursive: true });   // the agents build in run_test/ (preview, qa_check and the harness look there): a new session must have it, as run.ts makes it
-const defs = loadAgents(join(ROOT, "harness", "agents")), store = new MStore(STORE);
+const defs = loadAgents(), store = new MStore(STORE);
 const ctx = { store, defs, sessionCap: SESSION_CAP,
   runner: fake ? new ScriptRunner(async (c) => { await new Promise((r) => setTimeout(r, 1500)); return `(fake lead) I heard: ${c.prompt.split("REQUEST FROM THE PERSON:\n")[1]?.split("\n\n")[0]?.slice(0, 300) ?? "?"}`; }) : new RealRunner(600_000),
   transcriptExists: fake ? undefined : (_c: string, id: string) => transcriptExistsAnywhere(id) };
@@ -55,7 +55,7 @@ if (slashName(text) && !caseId) {   // /status, /peek, /cost ...: answered by th
 }
 const sentAt = Date.now();
 const expFile = (id: string) => join(EXP_DIR, id + ".json");
-if (caseId) { let ent = known.find((e) => e.case === caseId); if (!ent) ent = { case: caseId, task, home: home ?? task, suite: arg("suite") ?? "", agents, marks: [], started: [], done: 0, at: sentAt };   // same file run.ts writes (f1_exp/<case>.json)
+if (caseId) { let ent = known.find((e) => e.case === caseId); if (!ent) ent = { case: caseId, task, home: home ?? task, suite: arg("suite") ?? "", agents, marks: [], started: [], done: 0, at: sentAt };   // same file run.ts writes (exp/<case>.json)
    ent.marks[turn] = store.calls.filter((x) => x.task_id === task).length; ent.started[turn] = sentAt; ent.at = sentAt; mkdirSync(EXP_DIR, { recursive: true }); writeFileSync(expFile(caseId), JSON.stringify(ent)); }
 if (!process.argv.includes("--no-say")) store.tx(() => { const n = say(store, task, "user", "lead", text, process.argv.includes("--auto") ? ["auto_run"] : [], Infinity); n.t = sentAt; store.save(); });
 if (boundCase) declareGateLimit(store, task, boundCase);   // the same call limit / allow_real_subAg as run.ts

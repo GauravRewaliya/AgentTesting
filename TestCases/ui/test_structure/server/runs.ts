@@ -1,5 +1,5 @@
-// Runs of the f1 runner: `bun testrun/run.ts <suite> <case...>` in f1_multiagent: real lead (haiku), sub-agents answered from agent_fixture. The CLI, the Experiment page and the Flow page ALL start and read the SAME runs
-// (server/experiment.ts: run list + logs; f1_exp/<case>.json + .state/<v>/<home>/store: results). The Flow page only adds the chain: starting a case runs its missing `after` ancestors first.
+// Runs of the f1 runner: `bun testrun/run.ts <suite> <case...>` in <orchestrator>: real lead (haiku), sub-agents answered from agent_fixture. The CLI, the Experiment page and the Flow page ALL start and read the SAME runs
+// (server/experiment.ts: run list + logs; exp/<case>.json + .state/<v>/<home>/store: results). The Flow page only adds the chain: starting a case runs its missing `after` ancestors first.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { HARNESS } from "@core/paths.ts";
@@ -30,7 +30,7 @@ export async function startRun(b: { case: string }): Promise<StateRun> {
 export const stopRun = (id: string): StateRun => asRun(exp.stopRun(id));
 export const runLog = (id: string) => { const x = exp.runLog(id); return { run: asRun(x.run), log: x.log }; };
 
-// ---- what the page shows: the result of a case (f1_exp), and the runs that included it or one of its ancestors
+// ---- what the page shows: the result of a case (exp), and the runs that included it or one of its ancestors
 const okOf = (id: string): "ok" | "fail" | "skipped" | "not_run" => { const l = readLast(id); return !l ? "not_run" : l.verdict ? (l.verdict === "pass" ? "ok" : l.verdict === "skipped" ? "skipped" : "fail") : l.turns.length && l.turns.every((t) => t.match && !t.guard && !t.notfound) ? "ok" : "fail"; };
 const withSub = (r: StateRun): SessionRun => ({ ...r, sub: r.cases.map((c) => ({ caseId: c, state: okOf(c) })) });
 export const sessionRuns = (): SessionRun[] => listRuns().map(withSub);

@@ -41,7 +41,7 @@ export interface TryResult { accepted: boolean; rejections: string[]; reply?: st
 export interface WorkspaceSnap { hasScratch: boolean; original: string[]; current: string[]; removed: string[]; added: string[]; edited: string[] }
 export interface Usage { expectedBy: { caseId: string; suite: string; turn: number }[]; servedIn: { caseId: string; times: number }[]; sharedStore: { store: string; with: string[] }[]; agentCases: string[]; orphan: boolean }
 
-/* ───────── a "Run": the f1 runner (test_harness/.../f1_multiagent/testrun/run.ts), the same command as the CLI and the Experiment page; results: .state/<version>/f1_exp + <session>/store ───────── */
+/* ───────── a "Run": the f1 runner (<orchestrator>/testrun/run.ts), the same command as the CLI and the Experiment page; results: .state/<version>/exp + <session>/store ───────── */
 export type StateRunStatus = "running" | "done" | "failed" | "stopped";
 export interface StateRun {
   id: string; suite: string;
@@ -50,7 +50,7 @@ export interface StateRun {
 }
 export interface StateRunLog { run: StateRun; log: string }
 
-/** The current result of a case (f1_exp/<case>.json judged against its store). */
+/** The current result of a case (exp/<case>.json judged against its store). */
 export interface RunSummary { at: string; status: string; ok: boolean; cost: number; turns: number; notes: string[] }
 /** A run that was started from the UI (a "session run"): the trigger, plus its sub tasks = the cases it ran (the missing `after` ancestors first, the case you asked for last). */
 export interface SessionRun extends StateRun { sub: { caseId: string; state: "ok" | "fail" | "skipped" | "not_run" }[] }

@@ -4,7 +4,7 @@
 //   The user gives ONE task (e.g. "build the app WITH Tailwind/NativeWind ... then check the reply, if anything is absent have it added").
 //
 //   1. LEAD -> expo-go     The lead hands the whole task over (folder, PLAN.md, the full list of what is wanted).
-//   2. GATE checks it      FixtureGate (f1_multiagent/harness/core/fixture_gate.ts) checks the hand-over message (guard rules:
+//   2. GATE checks it      FixtureGate (<orchestrator>/harness/core/fixture_gate.ts) checks the hand-over message (guard rules:
 //                          names run_test + PLAN.md, long enough) and looks for a recorded result by keywords.
 //                          - hand-over wrong/thin      -> "NOT ACCEPTED", the lead must send it again (nothing runs, this uses one of max_agent_calls)
 //                          - hand-over good + matches  -> the recorded result's run() is EXECUTED (the copy/patch script writes the files into run_test/)
@@ -19,7 +19,7 @@
 //   7. LEAD ANSWERS USER   Tells the truth: the first attempt did not follow the plan (what was absent), it was redone, now it has X.
 //
 //   PASS = exactly these two recorded results were served, in this order (the judge counts each served result once, see
-//          f1_multiagent/testrun/cases.ts judgeTurn). FAIL = lead said done after fixture 1 / never re-called / called a 3rd time /
+//          <orchestrator>/testrun/cases.ts judgeTurn). FAIL = lead said done after fixture 1 / never re-called / called a 3rd time /
 //          wrong hand-over (corrected) too often.
 //
 //   ┌─ KNOWN WRONG PASS (L21-L23 above is too weak, kept on purpose so we remember) ──────────────────────────────────────────────┐
@@ -31,7 +31,7 @@
 //   │ still TODO: assert the final reply (see TestCases/test_folders/TODO.md T-01).                                                         │
 //   └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 //
-//   Reading the status: `bun testrun/run.ts test_expo_go <id>` from f1_multiagent/ -> per-turn call list + expected list + lead reply.
+//   Reading the status: `bun testrun/run.ts test_expo_go <id>` from <orchestrator>/ -> per-turn call list + expected list + lead reply.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════
 //
 // REWORK cases: the sub-agent does PART of the job, the lead checks its reply against the request, and has it fixed.

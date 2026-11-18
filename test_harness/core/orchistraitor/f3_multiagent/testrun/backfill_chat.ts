@@ -9,8 +9,8 @@ import { readdirSync } from "node:fs";
 
 const dry = process.argv.includes("--dry"), all = new Map((await loadSuites()).map((c) => [c.id, c]));
 let n = 0;
-for (const f of readdirSync(join(STATE_ROOT, "f1_exp")).filter((x) => x.endsWith(".json"))) {
-  const e = JSON.parse(readFileSync(join(STATE_ROOT, "f1_exp", f), "utf8"));
+for (const f of readdirSync(join(STATE_ROOT, "exp")).filter((x) => x.endsWith(".json"))) {
+  const e = JSON.parse(readFileSync(join(STATE_ROOT, "exp", f), "utf8"));
   const ent = e as unknown as { case: string; task: string; home?: string; done: number }, c = all.get(ent.case), file = join(STATE_ROOT, ent.home ?? ent.task, "store", "store.json");
   if (!c || !existsSync(file)) continue;
   const st = new MStore(file);

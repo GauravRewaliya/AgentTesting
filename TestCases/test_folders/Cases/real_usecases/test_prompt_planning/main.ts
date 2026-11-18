@@ -1,7 +1,7 @@
 import type { TestTag } from "../../../../tags.ts";
 import type { Case, QaSpec } from "@core/types.ts";
 import { seedPromptFixture, type Shape } from "./lib/seed_prompt.ts";
-import { lintPlan } from "../../../../../test_harness/core/orchistraitor/f1_multiagent/harness/core/plan_lint.ts";
+import { lintPlan } from "../../../../../test_harness/core/orchestrator.ts";
 import { join } from "node:path";
 
 // prompt_planning: "can the team BUILD this from the plan alone?"

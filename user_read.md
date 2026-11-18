@@ -41,7 +41,7 @@ The sub-agents are fixtures (milliseconds); a case costs 20 to 70 s because the 
 
 ## 1c. Extra flag `--video`
 
-`bun testrun/run.ts <suite> <case> --video` records a QA video at the end of the case, from outside the harness (helper `test_harness/core/orchistraitor/helper/video.ts`, listed under "Extra flags" in the f1 README).
+`bun testrun/run.ts <suite> <case> --video` records a QA video at the end of the case, from outside the harness (helper `test_harness/infra/qa/video.ts`, listed under "Extra flags" in the f1 README).
 It records a WEB page (`run_test/<dir>/index.html`) as is. For an **Expo app with web support** it first runs the export in a throwaway container (`test_harness/infra/qa/web_export.ts`: copy of the app, `pnpm install`, `expo export --platform web`; network on for that step only; the workspace is mounted read-only and untouched; npm cache in the docker volume `agent-testing-npm-cache`), then records `dist/index.html` with the no-network recorder. `--video-route=/3d-rotate` picks the screen. A failed export or an Expo app without `react-native-web` records nothing and writes `store/qa/NO_VIDEO.txt`.
 
 **Speed (measured, solarin app):** cold export 173 s (first time, downloads packages once), warm export 136 s (install 60 s, bundle 75 s), recording 5 s. The pnpm store, the corepack binary and the app copy share ONE docker volume (`agent-testing-pnpm-store`) so pnpm hard-links; the copy is deleted after each run. Timings of each stage are in `<session>/store/web/<app>/timing.txt`; everything the export changed in the COPY (stubs, added packages) is in `added_deps.txt`, stubbed assets in `stubbed_assets.txt`.

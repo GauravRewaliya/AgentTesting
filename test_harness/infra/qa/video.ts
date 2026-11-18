@@ -1,5 +1,5 @@
 // EXTRA FLAG helper `--video`: record a QA video AFTER a case, from OUTSIDE the harness (some harnesses do this internally; ours do not, so the runner passes the flag).
-// Harness-independent: it only needs the workspace folder and a store folder. Used by f1_multiagent/testrun/run.ts; any other runner can call it the same way.
+// Harness-independent: it only needs the workspace folder and a store folder. Used by every orchestrator's testrun/run.ts (`test_harness/infra/qa/video.ts`); any other runner can call it the same way.
 //   const r = await videoAfterRun({ workspace, storeDir });      // storeDir/qa/<app>-<ts>/qa.webm|png|json
 // What can be recorded: a WEB page (an `index.html` in run_test/<dir>/ or run_test/<dir>/dist/), and an EXPO app that has web support (react-native-web in package.json): it is exported first, in a throwaway container
 // (infra/qa/web_export.ts: pnpm install + `expo export --platform web` inside Docker, nothing on the host; a few minutes, a few hundred MB in the npm cache volume). Skip that with QA_EXPO_EXPORT=0.
@@ -7,11 +7,10 @@
 // Backend: QA_SANDBOX=docker (default) | off | e2b(not implemented), see test_harness/infra/qa/run_qa.ts. Needs the image once: bun test_harness/infra/qa/run_qa.ts --build
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { recordQa } from "../../../infra/qa/run_qa.ts";
-import { exportExpoWeb } from "../../../infra/qa/web_export.ts";
-import { recordExpoDev } from "../../../infra/qa/web_dev_qa.ts";
-import { videoOffReason } from "../f1_multiagent/harness/core/loops_ai.ts";
-import type { QaSpec } from "../../../../TestCases/types.ts";
+import { recordQa } from "./run_qa.ts";
+import { exportExpoWeb } from "./web_export.ts";
+import { recordExpoDev } from "./web_dev_qa.ts";
+import type { QaSpec } from "../../../TestCases/types.ts";
 
 export interface VideoResult { ok: boolean; videos: string[]; skipped?: string; notes: string[] }
 /** Folders under <workspace>/run_test that hold a web page (index.html, or dist/index.html of a web export), at most `max`. */
@@ -35,8 +34,8 @@ const noVideo = (storeDir: string, why: string, workspace: string): VideoResult 
   return { ok: false, videos: [], skipped: why, notes: [] };
 };
 /** `qa`: what the CASE declared (`Case.qa(req)` in TestCases/types.ts). A spec says how to record or why not; `null` = the case declares nothing: skipped (QA_AUTO=1 detects a web page instead); `undefined` = old behaviour (detect). */
-export async function videoAfterRun(o: { workspace: string; storeDir: string; route?: string; qa?: QaSpec | null }): Promise<VideoResult> {
-  const off = videoOffReason(join(o.workspace, "run_test")); if (off) return noVideo(o.storeDir, off, o.workspace);   // the person said no video (.loopsAI/config.json)
+export async function videoAfterRun(o: { workspace: string; storeDir: string; route?: string; qa?: QaSpec | null; /** returns why a video is NOT wanted (the project's own switch, e.g. .loopsAI/config.json qa_video); the orchestrator passes it in, so infra never imports an orchestrator */ offReason?: (runTest: string) => string | undefined }): Promise<VideoResult> {
+  const off = o.offReason?.(join(o.workspace, "run_test")); if (off) return noVideo(o.storeDir, off, o.workspace);   // the person said no video (.loopsAI/config.json)
   if (o.qa === null && process.env.QA_AUTO !== "1") return noVideo(o.storeDir, "this case does not declare `qa` (TestCases/types.ts Case.qa): not marked as QA-testable, so no video", o.workspace);
   if (o.qa && !o.qa.enabled) return noVideo(o.storeDir, `case says no video: ${o.qa.why}`, o.workspace);
   if (o.qa && o.qa.enabled) {   // the case says HOW: record exactly that

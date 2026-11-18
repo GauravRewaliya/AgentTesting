@@ -24,7 +24,7 @@ export const HARNESS_DIR = dirname(fileURLToPath(import.meta.url));
 export const taskIds = (st: MStore) => [...new Set([...st.agents.map((a) => a.task_id), ...st.events.map((e) => e.task_id), ...st.plans.map((p) => p.task_id), ...st.requests.map((r) => r.task_id)].filter((x): x is string => !!x))];
 /** A wrong task id must say so (an empty board looks like a healthy empty task). */
 const needTask = (st: MStore, task: string) => { const ids = taskIds(st); if (!ids.includes(task)) { console.error(`no data for task "${task}". This store holds: ${ids.join(", ") || "(nothing)"}`); process.exit(2); } };
-export const loadDefs = () => loadAgents(join(HARNESS_DIR, "agents"));
+export const loadDefs = () => loadAgents();
 export const loadPipeline = (name = "default"): Pipeline => JSON.parse(readFileSync(join(HARNESS_DIR, "pipelines", name + ".json"), "utf8"));
 if (import.meta.main) {
   const [cmd, name] = process.argv.slice(2), defs = loadDefs();

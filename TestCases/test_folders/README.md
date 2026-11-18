@@ -34,7 +34,7 @@ The lead is a pass-through ("call the <agent> with exactly this task, show its a
 | tag vocabulary (`single_ag`/`multi_ag`, `single_prompt`/`multi_prompt`, `artifacts`/`coding`/`split_task`) | `TestCases/tags.ts` |
 | mocked sub-agent: `ResultModule`, `Req`, `IndexRow`, `Rule`, `Fixture` | `TestCases/test_folders/agent_fixture/types.ts` |
 | expo_go suite shapes (sources, phases, steps, verdicts) | `test_expo_go/lib/types.ts` |
-| agent definitions (`AgentDef`) | `test_harness/core/types.ts` + `test_harness/core/helper/agents/<name>.ts` |
+| agent definitions (`AgentDef`) | `test_harness/core/types.ts` + `test_harness/core/agents/index.ts` (reads each agent.json) |
 | capability names for `needs` | `harness_own_custom/capabilities.ts` |
 
 `test_harness/core/types.ts` only re-exports `Case`/`Turn`/`Expected` and the fixture types, so old `@core/types.ts` imports still work.

@@ -26,6 +26,7 @@ import { modelProblem } from "./core/models.ts";
 import { locksFromEnv } from "./core/lockapi.ts";
 import { customDef } from "./core/custom.ts";
 import { FixtureGate } from "./core/fixture_gate.ts";
+import { AGENTS_DIR } from "@core/config.ts";
 import { wsGrep, wsLs, wsRead } from "./core/workspace_read.ts";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { imagesOn, memoryProjects, planBlurb, videoOffReason, writeMemory } from "./core/loops_ai.ts";
@@ -42,7 +43,7 @@ const projPath = (x: string, mustHave = "index.html") => { const c = [resolve(pr
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 if (!file || !task) { out({ ok: false, reason: "tool environment missing (HARNESS_STORE/TASK)" }); process.exit(0); }
 
-const store = new MStore(file), defs = loadAgents(join(HDIR, "agents"));
+const store = new MStore(file), defs = loadAgents();
 /** An issue for the admins: append-only log next to the store (session id included) + an `admin.issue` event. Used by report_bug and by the harness backstop. */
 const logIssue = (o: { agent?: string; kind: string; text: string; reporter: string; session_id?: string | null; severity?: string }) => {
   store.reload(); const a = o.agent ? store.agent(task, o.agent) : undefined, ts = a ? store.events.filter((e) => e.task_id === task && e.agent_id === a.agent_id && e.kind === "tool.used").map((e) => e.t) : [];
@@ -430,7 +431,7 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
 } else if (cmd === "ls") { out(wsLs(join(cwd, "run_test"), flag("path")));
 } else if (cmd === "read_file") { out(wsRead(join(cwd, "run_test"), flag("path") ?? "", Number(flag("offset") ?? 1), Number(flag("limit") ?? 200)));
 } else if (cmd === "chapter") {   // the lead's on-demand rules (agents/lead/chapters/<name>.md): the core CLAUDE.md stays short, a flow's details are read once, when that flow starts
-  const dir = join(HDIR, "agents", "lead", "chapters"), n = (flag("name") ?? "").toLowerCase().replace(/[^a-z_]/g, ""), f = join(dir, n + ".md");
+  const dir = join(AGENTS_DIR, "lead", "chapters"), n = (flag("name") ?? "").toLowerCase().replace(/[^a-z_]/g, ""), f = join(dir, n + ".md");
   const names = existsSync(dir) ? readdirSync(dir).filter((x) => x.endsWith(".md")).map((x) => x.slice(0, -3)) : [];
   if (n && existsSync(f)) { store.reload(); store.ev("chapter.read", task, me, { name: n }); store.save(); out({ ok: true, chapter: n, text: readFileSync(f, "utf8") }); }
   else out({ ok: false, reason: n ? `no chapter '${n}'` : "--name is required", chapters: names });

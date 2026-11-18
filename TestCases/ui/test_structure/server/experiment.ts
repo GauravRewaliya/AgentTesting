@@ -1,28 +1,25 @@
-// Experiment runner for the f1 multi-agent harness. It shells out to f1_multiagent/testrun/run.ts (so the CLI and this page do exactly the same thing)
+// Experiment runner for the f1 multi-agent harness. It shells out to <orchestrator>/testrun/run.ts (so the CLI and this page do exactly the same thing)
 // and reads the registry that run writes: ui/.ui-data/store.json (agents, calls, notes) and exp.json (case -> task, where each turn began).
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { bgOf, taskProcs } from "./preview.ts";
-import { STATE_VERSION } from "@core/paths.ts";
-import { MStore, say } from "@core/orchistraitor/f1_multiagent/harness/core/board.ts";
-import { claudeDirs } from "@core/orchistraitor/f1_multiagent/harness/core/base.ts";
-import { activeMs, lastCall } from "@core/orchistraitor/f1_multiagent/harness/core/peek.ts";
-import { costOf, stopAgent } from "@core/orchistraitor/f1_multiagent/harness/core/agent_call.ts";
-import { locksFromEnv } from "@core/orchistraitor/f1_multiagent/harness/core/lockapi.ts";
+import { STATE_VERSION, STATE_ROOT } from "@core/paths.ts";
+import { AGENTS_DIR, TEST_AGENTS_DIR } from "@core/config.ts";
+import { MStore, say, claudeDirs, activeMs, lastCall, costOf, stopAgent, locksFromEnv, judgeTurn, loadSuites, readExp, statusOf, unsupported, writeExp, ORCH_DIR, type ExpEntry, type SuiteCase } from "@core/orchestrator.ts";
 import { ROOT, type GroupRoute } from "../../../test_folders/Cases/index.ts";
-import { judgeTurn, loadSuites, readExp, statusOf, unsupported, writeExp, type ExpEntry, type SuiteCase } from "@core/orchistraitor/f1_multiagent/testrun/cases.ts";
 import type { TalkIn, Transcript, TranscriptStep, AgentDetail, AvailableAgent, ChatOut, SendIn, CaseResultOut, CaseState, ExpGroup, ExpSuite, ExperimentOverview, LiveAgent, LiveSession, RunInfo, RunLog } from "../shared/experiment.ts";
 
-const F1 = resolve(import.meta.dir, "../../../../test_harness/core/orchistraitor/f1_multiagent");
-const DATA = join(F1, "ui", ".ui-data"), STORE = resolve(process.env.UI_STORE ?? join(DATA, "store.json")), REPO = resolve(process.env.UI_REPO ?? join(DATA, "repo"));
+const F1 = ORCH_DIR;   // the current orchestrator (test_harness/core/config.ts)
+const DATA = join(STATE_ROOT, "ui"),   // the console's own data (runs list, exp.json): with the run data, not inside an orchestrator
+  STORE = resolve(process.env.UI_STORE ?? join(DATA, "store.json")), REPO = resolve(process.env.UI_REPO ?? join(DATA, "repo"));
 const EXP = join(DATA, "exp.json"), RUNS = join(DATA, "web_runs");
 const SESS = join(DATA, "web_sessions");
 mkdirSync(RUNS, { recursive: true }); mkdirSync(SESS, { recursive: true });
 
 // f1's testrun now keeps ONE store per master session (.state/<version>/<task>/store/store.json, workspace in .state/<version>/<task>/workspace) and one exp file per case
-// (.state/<version>/f1_exp/<case>.json). The old shared ui/.ui-data store is still read (UI_STORE / older runs); everything is MERGED here so no run is invisible.
-const STATE_DIR = join(F1, "..", "..", "..", ".state", STATE_VERSION), EXP_DIR = join(STATE_DIR, "f1_exp");
+// (.state/<version>/exp/<case>.json). The old shared ui/.ui-data store is still read (UI_STORE / older runs); everything is MERGED here so no run is invisible.
+const STATE_DIR = join(F1, "..", "..", "..", ".state", STATE_VERSION), EXP_DIR = join(STATE_DIR, "exp");
 const taskHomes = (): string[] => {   // every session folder: <task>/ and its branches <task>/branches/<branch>/ (a branch has its own store and workspace)
   const has = (d: string) => existsSync(join(d, "store", "store.json")), out: string[] = [];
   try { for (const d of readdirSync(STATE_DIR, { withFileTypes: true })) if (d.isDirectory()) { const h = join(STATE_DIR, d.name); if (has(h)) out.push(h);
@@ -94,7 +91,7 @@ function stateOf(c: SuiteCase, e: ExpEntry | undefined, st: MStore, running: Set
   if (e.done < c.turns.length) return "partial";
   return statusOf(judgeAll(st, c, e)) as CaseState;   // the SAME rule as run.ts and the Flow page (match, no guard, no gate, no reply problem)
 }
-const known = () => { try { return new Set([join(F1, "harness", "agents"), join(F1, "..", "..", "..", "..", "TestCases", "test_folders", "agent_fixture", "agents")].flatMap((x) => { try { return readdirSync(x, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name); } catch { return []; } })); } catch { return new Set<string>(); } };
+const known = () => { try { return new Set([AGENTS_DIR, TEST_AGENTS_DIR].flatMap((x) => { try { return readdirSync(x, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name); } catch { return []; } })); } catch { return new Set<string>(); } };
 function judgeAll(st: MStore, c: SuiteCase, e: ExpEntry) {
   const repo = repoFor(e.task, (e as { home?: string }).home), files = existsSync(repo) ? readdirSync(repo).filter((f) => f !== ".git") : [], k = known();
   const home = (e as { home?: string }).home, own = home && existsSync(join(STATE_DIR, home, "store", "store.json")) ? new MStore(join(STATE_DIR, home, "store", "store.json")) : st;   // judged on the case's OWN session store (the merged view also holds legacy rows and a branch's copy of the parent's rows)
@@ -136,8 +133,8 @@ const queues = new Map<string, Q>();
 const q = (t: string) => queues.get(t) ?? (queues.set(t, { busy: false, error: "", queue: [] }), queues.get(t)!);
 
 export function availableAgents(): AvailableAgent[] {
-  // exactly the master's own team (harness/agents/lead/agent.json). Internal agents such as the project manager (pm) are not something the master calls.
-  const dir = join(F1, "harness", "agents"), team: string[] = (() => { try { return JSON.parse(readFileSync(join(dir, "lead", "agent.json"), "utf8")).agents ?? []; } catch { return []; } })();
+  // exactly the master's own team (main_flow_agents/lead/agent.json). Internal agents such as the project manager (pm) are not something the master calls.
+  const dir = AGENTS_DIR, team: string[] = (() => { try { return JSON.parse(readFileSync(join(dir, "lead", "agent.json"), "utf8")).agents ?? []; } catch { return []; } })();
   return team.filter((n) => existsSync(join(dir, n, "agent.json"))).map((n) => {
     const j = JSON.parse(readFileSync(join(dir, n, "agent.json"), "utf8")) as { description?: string; writes?: boolean };
     return { name: n, description: j.description ?? "", writes: !!j.writes, byDefault: true };
@@ -310,8 +307,8 @@ export function agentDetail(task: string, id: string): AgentDetail | { error: st
   return { id, name: a.name, status: a.status, activity: a.activity ?? "", session: a.session_id ?? undefined, tools, briefs, answer: clip(rep?.reply ?? rep?.summary ?? a.final_response, 6000), scripts: bgOf(task).scripts, processes: proc };
 }
 
-// ---- ONE runner, ONE record: the Flow page reads exactly what testrun/run.ts wrote (f1_exp/<case>.json + .state/<v>/<home>/store). Nothing is copied.
-// A case = its f1_exp entry; its session = <home>/store + <home>/workspace; a chain (`after`) shares ONE home, so each case owns the window from its own first turn to the first turn of the next case in that home.
+// ---- ONE runner, ONE record: the Flow page reads exactly what testrun/run.ts wrote (exp/<case>.json + .state/<v>/<home>/store). Nothing is copied.
+// A case = its exp entry; its session = <home>/store + <home>/workspace; a chain (`after`) shares ONE home, so each case owns the window from its own first turn to the first turn of the next case in that home.
 const homeOf = (e: ExpEntry) => (e as { home?: string }).home ?? e.task;
 export const f1Home = (id: string): string | undefined => { const e = expAll()[id]; return e ? homeOf(e) : undefined; };
 export const f1WsDir = (id: string) => { const h = f1Home(id); return h ? join(STATE_DIR, h, "workspace") : join(STATE_DIR, "-no-session-", id); };

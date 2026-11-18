@@ -4,8 +4,7 @@
 import { existsSync, mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MStore } from "../../../../../test_harness/core/orchistraitor/f1_multiagent/harness/core/board.ts";
-import { FixtureGate } from "../../../../../test_harness/core/orchistraitor/f1_multiagent/harness/core/fixture_gate.ts";
+import { MStore, FixtureGate } from "../../../../../test_harness/core/orchestrator.ts";
 
 let bad = 0; const ok = (name: string, cond: boolean, extra = "") => { console.log(`${cond ? "PASS" : "FAIL"}  ${name}${extra ? "  " + extra : ""}`); if (!cond) bad++; };
 const d = mkdtempSync(join(tmpdir(), "adv-")), st = new MStore(join(d, "s.json")), gate = new FixtureGate({ run: async () => { throw new Error("a real call must not happen here"); } } as never, () => st, 12);

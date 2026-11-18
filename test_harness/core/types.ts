@@ -2,7 +2,7 @@
 
 /* ───────────────────────── Sub-agents ───────────────────────── */
 
-/** helper/agents/<name>.ts default export. Passed to the lead as an agent type it may call. */
+/** An agent as the lead sees it (read from agent.json by core/agents/index.ts). Passed to the lead as an agent type it may call. */
 export type AgentDef = {
   /** The `subagent_type` the lead must use. */
   name: string;

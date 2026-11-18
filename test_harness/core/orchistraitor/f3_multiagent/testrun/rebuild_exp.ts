@@ -1,4 +1,4 @@
-// Rebuilds the per-case exp files (.state/<v>/f1_exp/<case>.json) that the UI Experiment page and `run.ts` (the `after` check) read, from the session folders that are on disk.
+// Rebuilds the per-case exp files (.state/<v>/exp/<case>.json) that the UI Experiment page and `run.ts` (the `after` check) read, from the session folders that are on disk.
 // Why it exists: the exp file is the INDEX of a run; a folder without one is invisible in the UI. Never deletes; only writes a file that is missing.
 //   bun testrun/rebuild_exp.ts            (all missing)     bun testrun/rebuild_exp.ts --dry
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
@@ -7,7 +7,7 @@ import { STATE_ROOT as STATE_DIR } from "@core/paths.ts";
 import { MStore } from "../harness/core/board.ts";
 import { agentsFor, loadSuites } from "./cases.ts";
 
-const EXP_DIR = join(STATE_DIR, "f1_exp"), dry = process.argv.includes("--dry");
+const EXP_DIR = join(STATE_DIR, "exp"), dry = process.argv.includes("--dry");
 const all = await loadSuites(), byId = new Map(all.map((c) => [c.id, c]));
 const homes: { key: string; task: string }[] = [];   // a session folder: <task>/ or <task>/branches/<branch>/
 for (const d of readdirSync(STATE_DIR, { withFileTypes: true })) if (d.isDirectory() && existsSync(join(STATE_DIR, d.name, "store", "store.json"))) {

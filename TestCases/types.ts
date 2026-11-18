@@ -108,7 +108,7 @@ export type Case = {
   expect_video?: "ok" | "fail";
   /** Fork instead of continue: the case runs in its own branch folder (workspace copy + a clone of the lead session made on the fly). Use it when 2+ cases share one parent; see TestCases/branch.ts. */
   branch_from?: string;
-  /** helper/agents/<name>.ts passed to the lead (only these exist for it). */
+  /** agents (core/agents/main_flow_agents or test_agents) passed to the lead (only these exist for it). */
   /**
    * Harness capabilities this case relies on, as dotted paths into the tree in core/harness_own_custom/test/capabilities.ts
    * (e.g. "session.followup"). A `no` capability SKIPS the case with a warning; `partial` runs it with a warning.
@@ -130,7 +130,7 @@ export type Case = {
   after_node_run?: (ctx: NodeRunCtx) => void | Promise<void>;
   /** true = a call to a mocked sub-agent that finds NO recorded fixture may go to the REAL sub-agent (a real `claude` call, with its --session-id). Without it, no fixture = the gate raises "FIXTURE NOT FOUND" and the case FAILS. Also marks cases that run without any recorded result (lead alone, real sub-agents, "must NOT call a sub-agent"). Flow: harness/core/fixture_gate.ts. */
   allow_real_subAg?: true;
-  /** QA video (`--video` in testrun/run.ts, helper `orchistraitor/helper/video.ts`). A function of the request so it can look at what was built: `qa: (req) => ({ enabled: true, kind: "static", app: "qa-demo" })` says HOW to start and record; `({ enabled: false, why })` says why not. Absent = not declared: `--video` skips the case and says so. */
+  /** QA video (`--video` in testrun/run.ts, helper `infra/qa/video.ts`). A function of the request so it can look at what was built: `qa: (req) => ({ enabled: true, kind: "static", app: "qa-demo" })` says HOW to start and record; `({ enabled: false, why })` says why not. Absent = not declared: `--video` skips the case and says so. */
   qa?: (req: QaReq) => QaSpec;
   /** Files created in the workspace before the case starts (path under run_test -> content), for a case that says "there is an index.html in run_test/x". Not used for a case that continues another (`after`). */
   seed?: Record<string, string>;

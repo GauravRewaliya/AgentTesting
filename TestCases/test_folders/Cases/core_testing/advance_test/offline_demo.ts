@@ -7,8 +7,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { recordSession } from "../../../../../test_harness/infra/record_session.ts";
 import { qaImageReady } from "../../../../../test_harness/infra/qa/run_qa.ts";
-import { MStore } from "../../../../../test_harness/core/orchistraitor/f1_multiagent/harness/core/board.ts";
-import { FixtureGate } from "../../../../../test_harness/core/orchistraitor/f1_multiagent/harness/core/fixture_gate.ts";
+import { MStore, FixtureGate } from "../../../../../test_harness/core/orchestrator.ts";
 
 if (!qaImageReady()) { console.log("image agent-testing-qa:1 is missing: bun test_harness/infra/qa/run_qa.ts --build"); process.exit(1); }
 const task = "t_adv_4_qa_video_offline", home = resolve(import.meta.dir, "../../../../../test_harness/.state/v1", task);

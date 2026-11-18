@@ -7,7 +7,7 @@
 //   --say="next"  continues the case's EXISTING run (same task, same lead conversation, nothing is reset) with that message. Use with --stop-pause: `... <suite> <case> --real --stop-pause --say=next`.
 //   --no-planning  the lead may NOT call the planner (the planner is removed from its agents and the request says so): no plan files, no planning round, the work goes straight to the builders. Use it for a quick run without the planning flow.
 //   --record  write the session record (store/record/*.json) for every case; by default only a case that opts in through `qa` gets one
-//   --video  after each case THAT OPTS IN (Case.qa enabled; all others: nothing), record a QA video of the web page it built (helper/video.ts, Docker; native Expo apps cannot be recorded: it says so). Off by default.
+//   --video  after each case THAT OPTS IN (Case.qa enabled; all others: nothing), record a QA video of the web page it built (`test_harness/infra/qa/video.ts`, Docker; native Expo apps cannot be recorded: it says so). Off by default.
 // Runs a TestCases/test_folders suite on the f1 multi-agent harness (real claude by default, haiku: cents per turn; --fake = scripted agents, no model calls).
 // State goes to test_harness/.state/<version>/<task>/{store,workspace} (one folder per master session, see LAYOUT below). Nothing here reads or writes f1's own ui/.ui-data any more.
 import { branchRun, cloneIfPending } from "./branch.ts";
@@ -23,7 +23,8 @@ import { costOf } from "../harness/core/agent_call.ts";
 import { runLead } from "../harness/lead.ts";
 import { warnMissingFixtures } from "@core/fixture_policy.ts";
 import { FIXTURES, STATE_BASE, STATE_VERSION } from "@core/paths.ts";
-import { videoAfterRun } from "../../helper/video.ts";
+import { videoAfterRun } from "../../../../infra/qa/video.ts";
+import { videoOffReason } from "../harness/core/loops_ai.ts";
 import { recordSession } from "../../../../infra/record_session.ts";
 import { runArtifactCases } from "./artifact_run.ts";
 import { agentsFor, declareGateLimit, judgeTurn, replyProblem, reconcileDead, loadSuites, readExp, statusOf, taskFor, unsupported, writeExp } from "./cases.ts";
@@ -85,7 +86,7 @@ function ensureRepo(repo: string) {   // the agents' workspace is a small git pr
   g("init", "-q"); g("add", "-A"); g("commit", "-qm", "init");
 }
 if (!perTask) ensureRepo(REPO);
-const defs = loadAgents(join(ROOT, "harness", "agents")), gstore = new MStore(perTask ? undefined : STORE), store = gstore;   // per-task mode: no shared store file at all
+const defs = loadAgents(), gstore = new MStore(perTask ? undefined : STORE), store = gstore;   // per-task mode: no shared store file at all
 if (!fake && !perTask) { const freed = reconcileDead(store); if (freed.length) console.log(`(freed ${freed.length} agent(s) left running by a run that is gone: ${freed.join(", ")})`); }
 const ctx = { store, defs, sessionCap: SESSION_CAP,
   runner: fake ? new ScriptRunner(async () => "(fake lead) done") : new RealRunner(600_000), transcriptExists: fake ? undefined : (_c: string, id: string) => transcriptExistsAnywhere(id) };
@@ -167,7 +168,7 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   let videoFailed = false, videoDone = false;
   const doVideo = async () => {
     if (videoDone || !((flags.has("--video") || noLead) && takes)) return; videoDone = true;
-    try { const route = argv.find((a) => a.startsWith("--video-route="))?.split("=")[1], v = await videoAfterRun({ workspace: REPO, storeDir: dirname(storeOf(homeKey)), route, qa: qaEnd });
+    try { const route = argv.find((a) => a.startsWith("--video-route="))?.split("=")[1], v = await videoAfterRun({ workspace: REPO, storeDir: dirname(storeOf(homeKey)), route, qa: qaEnd, offReason: videoOffReason });
       if (!v.videos.length) videoFailed = true;
       console.log(v.videos.length ? `   video            : ${v.videos.join(", ")}` : `   video            : none (${v.skipped ?? v.notes.join("; ")})`); } catch (e) { videoFailed = true; console.log(`   video            : failed (${String(e).slice(0, 100)})`); }
   };

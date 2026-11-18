@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import type { AgentDef } from "./types.ts";
-import { HELPER_AGENTS } from "./paths.ts";
+import { agentInfo } from "./agents/index.ts";
 
 const ROOT = join(import.meta.dir, "..");
 export type LeadCall = { denied?: boolean; tool: string; agent?: string; to?: string; prompt?: string; resultId?: string; useId: string };
@@ -11,7 +11,9 @@ const LEAD_PROMPT = (await Bun.file(join(HARNESS, "system_prompt.md")).text()).t
 const AGENT_PROMPT = await Bun.file(join(HARNESS, "agent_prompt.md")).text();
 
 export async function loadAgent(name: string): Promise<AgentDef> {
-  return (await import(join(HELPER_AGENTS, name + ".ts"))).default;
+  const a = agentInfo(name);
+  if (!a) throw new Error(`unknown agent "${name}" (test_harness/core/agents/index.ts)`);
+  return { name: a.name, description: a.description, role: a.role, ...(a.forbidden ? { forbidden: true } : {}) };
 }
 
 export function agentsJson(defs: AgentDef[]) {
