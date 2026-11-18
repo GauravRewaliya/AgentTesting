@@ -1,19 +1,33 @@
-// Strict runtime check of EVERY suite against the declarations in ./types.ts, ./tags.ts and agent_fixture/types.ts.
-// `bun TestCases/validate.ts`, and run by `bun test_harness/core/fixture_policy.ts`. Exit 1 on any problem.
+// Strict runtime check of EVERY suite against the declarations in TestCases/types.ts, TestCases/tags.ts and agent_fixture/types.ts.
+// `bun test_harness/scripts/validate_cases.ts` (exit 1 on any problem).
+// USED BY: you; scripts/check_fixtures.ts (runs it as part of the fixture check).
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { isTag } from "./tags.ts";
-import { branchWarnings, normalizeBranches } from "./branch.ts";
-import type { Case } from "./types.ts";
-import { FIXTURES, diskSuites, suiteDirs } from "../test_harness/core/paths.ts";
-import { agentExists } from "../test_harness/core/agents/index.ts";
-import { check as capCheck } from "../test_harness/core/orchistraitor/harness_own_custom/capabilities.ts";
+import { isTag } from "../../TestCases/tags.ts";
+import { branchWarnings, normalizeBranches } from "../../TestCases/branch.ts";
+import type { Case } from "../../TestCases/types.ts";
+import { existsSync as exists, readdirSync } from "node:fs";
+import { FIXTURES, SUITES, suiteDirs } from "../core/paths.ts";
+import { agentExists } from "../core/agents/index.ts";
+import { check as capCheck } from "../core/orchistraitor/harness_own_custom/capabilities.ts";
 
-const ROOT = resolve(import.meta.dir, "..");
+const ROOT = resolve(import.meta.dir, "../..");   // agent_testing
 const PROMPTS = [join(ROOT, "test_harness/core/orchistraitor/harness_own_custom/core/prompts"), join(FIXTURES, "store/legacy/prompts")];
 const SESSION = /^session:[^#]+#\d+$/;
 export interface Problem { suite: string; case: string; what: string }
+
+/** What is ON DISK (folders with main.ts, directly in Cases/ or one group level down). Only for the drift check against the routes (paths.ts suiteDirs). */
+const diskSuites = (): { name: string; dir: string; group: string }[] => {
+  const out: { name: string; dir: string; group: string }[] = [], subdirs = (d: string) => readdirSync(d, { withFileTypes: true }).filter((x) => x.isDirectory()).sort((a, b) => a.name.localeCompare(b.name));
+  if (!exists(SUITES)) return out;
+  for (const d of subdirs(SUITES)) {
+    const dir = join(SUITES, d.name);
+    if (exists(join(dir, "main.ts"))) out.push({ name: d.name, dir, group: "cases" });
+    else for (const s of subdirs(dir)) if (exists(join(dir, s.name, "main.ts"))) out.push({ name: s.name, dir: join(dir, s.name), group: d.name });   // lib/ and other helper folders have no main.ts: skipped
+  }
+  return out;
+};
 
 /** Every suite folder (a folder with main.ts) with its cases and suite-level tags. */
 export async function loadAll(): Promise<{ suite: string; cases: Case[]; tags: unknown }[]> {
@@ -84,7 +98,7 @@ export function hierarchyProblems(): Problem[] {
 }
 
 if (import.meta.main) {
-  const { recordedSuites } = await import("../test_harness/core/fixture_policy.ts");
+  const { recordedSuites } = await import("../core/fixtures.ts");
   const all = await loadAll(), bad = validate(all, recordedSuites());
   for (const w of branchWarnings(all.flatMap((s) => s.cases.map((c) => ({ ...c, suite: s.suite }))))) console.log("WARNING " + w);
   for (const p of bad) console.log(`${p.suite} / ${p.case}: ${p.what}`);

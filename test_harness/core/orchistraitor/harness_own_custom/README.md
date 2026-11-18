@@ -30,7 +30,7 @@ result.run(req)   cp from TestCases/test_folders/agent_fixture/store, req.write(
 Rules the harness keeps (R1-R4, checked offline by `bun test core/harness_own_custom`):
 R1 spawn always makes a new session · R2 send continues that session only · R3 sessions never see each other · R4 every step is an event.
 
-Cases do not assert. Each says `expected: { context, expected_agents_res }` in plain text; `core/report.ts` prints
+Cases do not assert. Each says `expected: { context, expected_agents_res }` in plain text; `test_harness/core/orchistraitor/harness_own_custom/runner/report.ts` prints
 EXPECTED next to ACTUAL and a person (or Claude) judges.
 
 ## What it supports (tree; source of truth is `capabilities.ts`, print it with `bun core/harness_own_custom/capabilities.ts`)
@@ -113,7 +113,7 @@ what it can falsely fail or mislead
 ├─ NOTFOUND makes a small lead try to do the work itself (it may call another agent type or answer alone)
 coupling and plumbing
 ├─ the mod returns the Agent tool's full output shape; a Claude Code update can reject it (the error is explicit)
-├─ `--real` mode is a different path (thin real sub-agent via core/interpose.ts): do not mix its numbers with mod mode
+├─ `--real` mode is a different path (thin real sub-agent via test_harness/core/orchistraitor/harness_own_custom/runner/interpose.ts): do not mix its numbers with mod mode
 ├─ state: .state/<version> sessions are shared by all suites; stale ones can leak ids (delete the session folder to rerun fresh)
 ├─ parallel Agent calls run as separate bun processes reading the same log: ids stay unique, but ordering is not tested
 └─ nothing is committed or isolated per run: run_test is wiped, .state is not

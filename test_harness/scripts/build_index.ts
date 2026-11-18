@@ -1,11 +1,13 @@
-// bun core/build_index.ts  -> TestCases/test_folders/agent_fixture/index.json : find a recorded result (and what it copies) without opening it.
-// Results are nested by suite (results/<suite>/<file>.ts); each row says which suite owns it. `bun core/fixture_policy.ts` fails when this file is stale.
+// bun test_harness/scripts/build_index.ts  -> TestCases/test_folders/agent_fixture/index.json : find a recorded result (and what it copies) without opening it.
+// Results are nested by suite (results/<suite>/<file>.ts); each row says which suite owns it. `bun test_harness/scripts/check_fixtures.ts` fails when this file is stale.
+// USED BY: you (after recording or moving a result); scripts/check_fixtures.ts (imports buildRows / indexText to check index.json is not stale).
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import type { IndexRow, ResultModule } from "./types.ts";
-import { FIXTURES, resultFiles } from "./paths.ts";
+import type { IndexRow, ResultModule } from "../core/types.ts";
+import { FIXTURES } from "../core/paths.ts";
+import { resultFiles } from "../core/fixtures.ts";
 
-/** The rows as they must be written now (also used by fixture_policy to detect a stale index.json). */
+/** The rows as they must be written now (also used by check_fixtures to detect a stale index.json). */
 export async function buildRows(): Promise<IndexRow[]> {
   const rows: IndexRow[] = [];
   for (const { suite, path } of resultFiles()) {

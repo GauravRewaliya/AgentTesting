@@ -62,7 +62,7 @@ Not covered: an Expo app (needs node_modules and Metro; too heavy for a throwawa
 ## 2. How to check (free first, paid last)
 
 ```
-bun test_harness/core/fixture_policy.ts                        # fixtures + case shapes (free)
+bun test_harness/scripts/check_fixtures.ts                        # fixtures + case shapes (free)
 bun TestCases/test_folders/Cases/core_testing/advance_test/verify.ts              # the whole stage chain through the real gate, no model (free)
 bun TestCases/test_folders/Cases/real_usecases/test_expo_go/lib/check.ts           # expo_go suite shape (free)
 cd test_harness/core/orchistraitor/f1_multiagent

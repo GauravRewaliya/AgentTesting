@@ -79,7 +79,7 @@ export const TREE: Node = {
       name: "guard", children: [
         n("forbidden", "ok"),
         n("unknown_type", "ok"),
-        n("roles", "ok", "hand-over rules (store/*_rules.json): ported to the PreToolUse hook in core/interpose.ts; a broken rule = GUARD-RETRY"),
+        n("roles", "ok", "hand-over rules (store/*_rules.json): ported to the PreToolUse hook in test_harness/core/orchistraitor/harness_own_custom/runner/interpose.ts; a broken rule = GUARD-RETRY"),
       ]
     },
     n("subagent_cost", "no", "zero by design"),

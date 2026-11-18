@@ -1,6 +1,6 @@
 // API for the dashboard. Run: bun server/index.ts  (port 5189; Vite proxies /api here). Reads the real files; no database.
 import { agentDefs, loadSuites } from "./data.ts";
-import { branchWarnings } from "../../../branch.ts";
+import { branchWarnings } from "../../../TestCases/branch.ts";
 import { buildCards, caseOut } from "./chains.ts";
 import { buildModel } from "./model.ts";
 import { casesForResponse, health, guardCases, listAgents, listResponses, tryCall } from "./subagents.ts";
@@ -13,7 +13,8 @@ import * as br from "./browser.ts";
 import { caseEvents } from "./data.ts";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { STATE_VERSION, currentWorkspace, workspaceDir } from "@core/paths.ts";
+import { STATE_VERSION, currentWorkspace, workspacePath } from "@core/paths.ts";
+const workspaceDir = (): string => workspacePath(currentWorkspace());   // the workspace the pointer names right now
 
 const send = (v: unknown, status = 200) => Response.json(v, { status });
 

@@ -8,7 +8,9 @@
 import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
-import { FIXTURES, ROOT, RUN_TEST, resultFiles } from "@core/paths.ts";
+import { FIXTURES, HARNESS, ROOT } from "@core/paths.ts";
+import { resultFiles } from "@core/fixtures.ts";
+const RUN_TEST = join(HARNESS, "run_test");   // the default workspace of this harness (env TEST_WS overrides)
 import type { Fixture, Req, ResultModule } from "@core/types.ts";
 import type { Decision, Event, IHarness, Interceptor, Msg, Session } from "./interface.ts";
 export type { Decision, Event, IHarness, Interceptor, Msg, Session } from "./interface.ts";

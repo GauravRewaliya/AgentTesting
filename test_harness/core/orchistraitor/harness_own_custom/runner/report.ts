@@ -3,7 +3,7 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Run } from "./claude.ts";
-import type { Expected } from "./types.ts";
+import type { Expected } from "@core/types.ts";
 
 const walk = (d: string, base = d): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(join(d, e.name), base) : [join(d, e.name).slice(base.length + 1)]);
 

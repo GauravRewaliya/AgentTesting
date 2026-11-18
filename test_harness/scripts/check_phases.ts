@@ -1,4 +1,5 @@
-// Free check for a PHASES.md the planner wrote: phases must be ordered. `bun test_harness/core/check_phases.ts docs/planning/<project>/PHASES.md`
+// Free check for a PHASES.md the planner wrote: phases must be ordered. `bun test_harness/scripts/check_phases.ts docs/planning/<project>/PHASES.md`
+// USED BY: you and the planning cases (TestCases/test_folders/Cases/real_usecases/real_planning_prototype: "phases ordered"); docs/PHASES.md. Nothing imports it.
 // Format per phase:  "## Phase N: <name>" then a line "- **Status:** planned|building|passed", plus "- **Goal:**" and "- **Exit check:**".
 // Rule (n+1 waits): a phase may be `building` or `passed` only when EVERY earlier phase is `passed`; at most one phase is `building`.
 import { readFileSync } from "node:fs";

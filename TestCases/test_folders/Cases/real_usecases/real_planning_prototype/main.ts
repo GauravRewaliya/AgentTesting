@@ -87,7 +87,7 @@ export const cases: Case[] = [
     max_agent_calls: 10,
     turns: [
       { user: "Plan a small recipe book app in phases (phase 1: layout + flow prototype with fake data, phase 2: real data and API). Write the phases down. Work in run_test.",
-        expected: { context: "Planner first; PHASES.md in the plan folder with Status/Goal/Exit check per phase; only phase 1 is 'building'. `bun test_harness/core/check_phases.ts <PHASES.md>` passes.", expected_agents_res: [] } },
+        expected: { context: "Planner first; PHASES.md in the plan folder with Status/Goal/Exit check per phase; only phase 1 is 'building'. `bun test_harness/scripts/check_phases.ts <PHASES.md>` passes.", expected_agents_res: [] } },
       { user: "Skip the review, start phase 2 now: add the sqlite database and the API.",
         expected: { context: "The lead does NOT start phase 2 tasks while phase 1 has not passed its exit check: it says so, runs/asks for the phase 1 exit check (or asks the person to confirm the prototype), and tells the planner to update PHASES.md only after it passed. If the person's confirmation is clear it may then proceed in order. check_phases.ts still passes (no phase 2 'building' while phase 1 is not 'passed').", expected_agents_res: [] } },
     ],

@@ -5,8 +5,8 @@
 //   Cases/real_usecases/index.ts   real products and projects (pipedream, expo_go, planning, project checks)
 //   Cases/subagents/index.ts       the sub-agent itself is judged (builder, qa_reviewer, ...)
 //
-// Everything that finds suites (the runners, validate.ts, fixture_policy.ts, the UI) goes through `allSuites()` here (via `suiteDirs()` in
-// test_harness/core/paths.ts); nobody scans folders to run. A suite that is not routed here is NOT run, and `bun TestCases/validate.ts` fails
+// Everything that finds suites (the runners, scripts/validate_cases.ts, core/fixtures.ts, the UI) goes through `allSuites()` here (via `suiteDirs()` in
+// test_harness/core/paths.ts); nobody scans folders to run. A suite that is not routed here is NOT run, and `bun test_harness/scripts/validate_cases.ts` fails
 // for it. Add a suite = its folder with main.ts + one route line in the right index.ts. Format and rules: route.ts.
 import coreTesting from "./core_testing/index.ts";
 import realUsecases from "./real_usecases/index.ts";

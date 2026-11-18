@@ -1,6 +1,6 @@
 // THE agent index: which agents exist and what they are, read from the agent.json files (no second copy of name/description/role anywhere).
 //   main_flow_agents/  the real team          test_agents/  test stand-ins ("fixtures": true)      (both folders: see config.ts)
-// Used by TestCases/validate.ts (does every case agent exist?), the console (available agents) and core/claude.ts (the agent types handed to a lead).
+// Used by test_harness/scripts/validate_cases.ts (does every case agent exist?), the console (available agents) and test_harness/core/orchistraitor/harness_own_custom/runner/claude.ts (the agent types handed to a lead).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { AGENTS_DIR, TEST_AGENTS_DIR } from "../config.ts";

@@ -15,16 +15,16 @@
         "./src/*"
       ],
       "@root/*": [
-        "../../../*"
-      ],
-      "@test_cases/*": [
         "../../*"
       ],
+      "@test_cases/*": [
+        "../../TestCases/*"
+      ],
       "@test_harness/*": [
-        "../../../test_harness/*"
+        "../*"
       ],
       "@core/*": [
-        "../../../test_harness/core/*"
+        "../core/*"
       ]
     }
   },

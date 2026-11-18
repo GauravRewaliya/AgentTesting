@@ -1,7 +1,7 @@
 // THE declaration of a test case: what a suite's `main.ts` exports (`cases: Case[]`, `tags?: TestTag[]`). Nothing else may describe a case's shape.
 // Where each thing of a case lives:  name = `title` (+ `id`) | description = `turns[i].expected.context` (plain words for the judge) | tags = `tags` (vocabulary: ./tags.ts)
 //                                    agents = `agents`, `distractors`, `turns[i].allowed` | mocks = `expected_agents_res` -> TestCases/test_folders/agent_fixture/results
-// Runtime strictness (unique ids, valid chain, known agents/tags/guard file, fixture-or-allow_real_subAg): TestCases/validate.ts, run by `bun test_harness/core/fixture_policy.ts`.
+// Runtime strictness (unique ids, valid chain, known agents/tags/guard file, fixture-or-allow_real_subAg): test_harness/scripts/validate_cases.ts, run by `bun test_harness/scripts/check_fixtures.ts`.
 import type { TestTag } from "./tags.ts";
 
 /** Id of a recorded result (agent_fixture/results/<file>.ts, its `id`). */

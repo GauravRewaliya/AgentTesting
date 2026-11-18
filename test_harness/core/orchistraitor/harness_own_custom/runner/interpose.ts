@@ -1,18 +1,18 @@
-// Two modes (used by core/claude.ts and core/run.ts):
-//   bun core/interpose.ts hook          PreToolUse hook (stdin = hook JSON): trace the call, apply the guard, deny what must not run
-//   bun core/interpose.ts mock <agent>  the thin sub-agent pipes its task here (stdin): recorded-result lookup, the recorded run(req) writes the files, the reply is printed
+// Two modes (used by test_harness/core/orchistraitor/harness_own_custom/runner/claude.ts and test_harness/core/orchistraitor/harness_own_custom/runner/run.ts):
+//   bun runner/interpose.ts hook          PreToolUse hook (stdin = hook JSON): trace the call, apply the guard, deny what must not run
+//   bun runner/interpose.ts mock <agent>  the thin sub-agent pipes its task here (stdin): recorded-result lookup, the recorded run(req) writes the files, the reply is printed
 // Guard input = <session>/run/guard.json (GUARD_FILE, written by runClaude before each turn): { forbidden[], allowed[], turn_allowed[]|null, rules{role: Rule}, done[] }.
 //   forbidden / not allowed this turn  -> hard stop            (GUARD: ...)
 //   unknown agent type, or a rule broken (thin hand-over, missing fact, role order) -> the lead may retry, not counted (GUARD-RETRY: ...)
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { FIXTURES } from "./paths.ts";
-import { checkHandover, type Rule } from "./orchistraitor/harness_own_custom/core/guard.ts";
+import { FIXTURES } from "@core/paths.ts";
+import { checkHandover, type Rule } from "../core/guard.ts";
 
-const ROOT = join(import.meta.dir, "..");
+const ROOT = join(import.meta.dir, "..", "..", "..", "..");   // test_harness
 const WS = process.env.TEST_WS ?? join(ROOT, "run_test");
-// the runner sets all three (core/claude.ts): they live in the case's own run/ folder inside .state
-const need = (k: string) => { const v = process.env[k]; if (!v) throw new Error(k + " is not set (run through core/run.ts)"); return v; };
+// the runner sets all three (test_harness/core/orchistraitor/harness_own_custom/runner/claude.ts): they live in the case's own run/ folder inside .state
+const need = (k: string) => { const v = process.env[k]; if (!v) throw new Error(k + " is not set (run through test_harness/core/orchistraitor/harness_own_custom/runner/run.ts)"); return v; };
 const TRACE = need("TRACE_FILE");
 const GUARD = need("GUARD_FILE");
 const FORBIDDEN = (process.env.FORBIDDEN_AGENTS ?? "").split(",").filter(Boolean);
@@ -42,7 +42,7 @@ if (mode === "hook") {
 }
 
 if (mode === "mock") {
-  const { Harness, loadResults } = await import("./orchistraitor/harness_own_custom/main.ts");
+  const { Harness, loadResults } = await import("../main.ts");
   const agent = process.argv[3]!;
   const h = new Harness({ fixtures: [], results: await loadResults(join(FIXTURES, "results")), root: ROOT, ws: WS, log: need("HARNESS_LOG") });
   const r = h.spawn(agent, stdin);

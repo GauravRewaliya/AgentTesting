@@ -6,9 +6,9 @@
 - Planner: can call `ux-designer` and `builder`; "product planning" section in its prompt (`harness/agents/planner/`).
 - Docs: `docs/planning/README.md` and `docs/PHASES.md` reworded as guidance, not locks.
 - Test suite `real_planning_prototype`: 6 real cases (no fixtures), expectation comment, `--fake` PASS.
-- `test_harness/core/check_plan_links.ts`: free link check for plan folders.
-- `test_harness/core/check_phases.ts`: n+1 waits for n; lead prompt (phases, WHY in every hand-over, fewer turns).
-- Free check `fixture_policy.ts`: 0 missing.
+- `test_harness/scripts/check_plan_links.ts`: free link check for plan folders.
+- `test_harness/scripts/check_phases.ts`: n+1 waits for n; lead prompt (phases, WHY in every hand-over, fewer turns).
+- Free check `scripts/check_fixtures.ts`: 0 missing.
 
 ## Open
 - A first real run of the two `real_` cases (cost: credits, sandbox).

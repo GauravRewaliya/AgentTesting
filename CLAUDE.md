@@ -6,17 +6,17 @@ Test cases for multi-agent harnesses. Shared cases live in `TestCases/test_folde
 Only the LEAD agent is a real model call. Sub-agents are MOCKED by recorded fixtures, so tests judge the orchestrator (does it call the right sub-agent with a good hand-over?), not the sub-agent's work.
 
 ## Fixtures are compulsory
-- One place for all recorded results: `TestCases/test_folders/agent_fixture` (see its README), NESTED by suite: `results/<suite folder name>/<file>.ts` (e.g. `results/test_expo_go/`). `index.json` is generated (`bun test_harness/core/build_index.ts`) and `fixture_policy.ts` fails if it is stale or a result sits under the wrong suite. Nothing else may hold results.
+- One place for all recorded results: `TestCases/test_folders/agent_fixture` (see its README), NESTED by suite: `results/<suite folder name>/<file>.ts` (e.g. `results/test_expo_go/`). `index.json` is generated (`bun test_harness/scripts/build_index.ts`) and `scripts/check_fixtures.ts` fails if it is stale or a result sits under the wrong suite. Nothing else may hold results.
 - Every case must be ONE of: (a) expect a recorded result id in `expected_agents_res`, (b) only `session:<agent>#n` follow-ups (answered from the earlier fixture session), or (c) declare `allow_real_subAg: true` (lead works alone, real sub-agents, or "must NOT call a sub-agent"). Anything else is a failure.
-- Check (free, no model calls): `bun test_harness/core/fixture_policy.ts` (fixtures + `TestCases/validate.ts` shape check). Exits 1 on any undeclared or malformed case. Run it before and after editing cases.
+- Check (free, no model calls): `bun test_harness/scripts/check_fixtures.ts` (fixtures + `test_harness/scripts/validate_cases.ts` shape check). Exits 1 on any undeclared or malformed case. Run it before and after editing cases.
 - Declarations: case = `TestCases/types.ts`, tags = `TestCases/tags.ts`, fixture interface = `agent_fixture/types.ts` (core/types.ts only re-exports). `allow_real_subAg?: true` (in a shared base object: `true as const`). Details: `TestCases/test_folders/README.md`.
 - Currently `allow_real_subAg: true`: `test_solowork`, `test_artifact`, `test_expo_direct_build`, `test_project_check`, `test_prompt_planning` (set on each suite's shared base object) and every `Cases/subagents/*` suite (`subCase()` in `subagents/lib/make.ts`; each runs the REAL sub-agent, so run them by case id on purpose, never in a routine run).
-- Suite NAME = its folder name (the CLI argument and the `results/<name>/` folder), unique across all groups. A suite exists only when it is ROUTED (one line in its group's `index.ts`); `suiteDirs()` in `test_harness/core/paths.ts` reads the routes, `validate.ts` fails when routes and folders differ.
+- Suite NAME = its folder name (the CLI argument and the `results/<name>/` folder), unique across all groups. A suite exists only when it is ROUTED (one line in its group's `index.ts`); `suiteDirs()` in `test_harness/core/paths.ts` reads the routes, `validate_cases.ts` fails when routes and folders differ.
 - A case that needs an existing project: put its .zip in `agent_fixture/store/projects/` and unpack it in `before_node_run` with `seedProject()` (`Cases/real_usecases/test_project_check/lib/zip_seed.ts`); say where the zip came from in the suite's header comment.
 
 ## Test cases are never deleted
 Never remove a test case, its recorded fixtures or its free self-test to make a refactor, a rename or a cleanup pass. A case that cannot run today STAYS (fix it, adapt it to the new names, or mark it in `TestCases/test_folders/TODO.md` with the reason). The one exception: the removal is a decision that is WRITTEN DOWN with its reason in the repo (for example `docs/RUN_FINDINGS.md`) and in the commit message, because the thing the case tested was removed on purpose.
-Before calling a missing case a loss: `git log -S"<case id>"`, grep the docs (RUN_FINDINGS, PROGRESS, TODO) and the whole tree for a move or rename, and compare the case count before and after any rename with `bun test_harness/core/fixture_policy.ts`. Recorded fixtures of a removed case are kept (orphans), never deleted.
+Before calling a missing case a loss: `git log -S"<case id>"`, grep the docs (RUN_FINDINGS, PROGRESS, TODO) and the whole tree for a move or rename, and compare the case count before and after any rename with `bun test_harness/scripts/check_fixtures.ts`. Recorded fixtures of a removed case are kept (orphans), never deleted.
 Example: the four QA repair-loop cases (adv_5, adv_6, adv_6a, adv_6b) were removed on purpose together with `qa_check` (RUN_FINDINGS H20), but the commit message of f551fce did not say so, so it looked like a loss (TODO T-24).
 
 ## How a mocked call is served
@@ -31,7 +31,7 @@ Calls are capped by `max_agent_calls` (default 2); the call after the cap fails 
 Not solo: lead (router on) delegates to ONE sub-agent `expo-go`, so it is a delegation/hand-over test, not a split-across-agents test. `router: false` / `lead: "solo"` marks solo cases; f1 refuses those. Every case is a plain object in `test_expo_go/{demos,examples}/*.ts` or `rework.ts` (no generators). Most results apply real commit patches (`phases.json`, `patches/`); `eg_tw_02`, `eg_tw_03` and the rework results are HAND-WRITTEN (the rework `_fix` ones reuse a real patch), so they are the weakest. Rework cases (`rework.ts`): bad fixture first, lead must notice, then the `_fix` fixture.
 
 ## Cheap-run workflow
-1. `fixture_policy.ts` first.
+1. `bun test_harness/scripts/check_fixtures.ts` first.
 2. `bun testrun/run.ts <suite> [case ids] --list` / `--fake` (no model calls; `--fake` cases show FAIL because the fake lead calls nothing, that is expected) from `f1_multiagent/`.
 3. Real run = haiku lead only, by case id (chains use cached `after` checkpoints; `--rerun` re-spends credits).
 4. Never use `--real` (real sub-agents) in routine runs; only for `allow_real_subAg` cases.
@@ -46,7 +46,7 @@ Why: pnpm keeps ONE copy of each package in a shared store and links it, so repe
 In throwaway containers pnpm comes from corepack (`corepack pnpm ...`, no global install) and its store is the docker volume `agent-testing-pnpm-store`. Expo/Metro needs `node-linker=hoisted` (written into the app copy's `.npmrc` by the web export).
 
 ## Live data in the UI: push over the WebSocket, never re-fetch on a timer
-Anything that changes while a page is open (sessions, chat, transcripts, bg scripts, agent status) reaches the browser over the ONE WebSocket (`TestCases/ui/test_structure/server/hub.ts` -> `src/store/live.ts`). The page tells the hub what it looks at (`live.watch({ task, detail, transcript })`) and the hub pushes a topic only when its JSON changed.
+Anything that changes while a page is open (sessions, chat, transcripts, bg scripts, agent status) reaches the browser over the ONE WebSocket (`test_harness/ui/server/hub.ts` -> `src/store/live.ts`). The page tells the hub what it looks at (`live.watch({ task, detail, transcript })`) and the hub pushes a topic only when its JSON changed.
 - Never write `setInterval` / "refetch every N seconds" / polling `fetch` for data that changes. Not for a "running" agent, not as a fallback, not on a deprecated page.
 - Need a new live thing? Add a topic to `hub.ts` (+ a field in `Sub`, a ref and a `sink` entry in `live.ts`), not a new HTTP poll. The server may re-read files on its own tick (files cannot notify us), once for all browsers, with a cache keyed on mtime+size.
 - Plain HTTP is for one-off actions (POST send/stop/delete) and a single load, never a loop.

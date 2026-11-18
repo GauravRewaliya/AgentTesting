@@ -1,4 +1,4 @@
-// THE ONE DOOR to the current orchestrator for everything outside test_harness/core/orchistraitor: test cases, the console (TestCases/ui), helpers.
+// THE ONE DOOR to the current orchestrator for everything outside test_harness/core/orchistraitor: test cases, the console (test_harness/ui), helpers.
 // They import THIS file (`@core/orchestrator.ts`), never a path like orchistraitor/<folder>/..., so switching orchestrators touches only engine.ts and this file.
 // When CONFIG.orchestrator (config.ts) changes, replace the folder name in the lines below (one search-and-replace in this file).
 import { join } from "node:path";

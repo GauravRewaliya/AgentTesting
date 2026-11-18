@@ -26,6 +26,6 @@ For a big product with several teams the plan can grow a folder of depth files (
 - **`decisions.md`** as mini-ADRs: `D-NN title | Status | Context (1 line) | Decision | Consequences`; a decision that outlives the task is never edited, only superseded.
 - **`AGENTS.md`** per package: stack, rules, how to check (a builder reads the guide of the folder it changes). **`learnings.md`**: one line for a gotcha an agent had to work out.
 - **Split a file into a folder** when it passes about 150 lines or two teams need different parts (`02_ux/` with a `README.md` index plus one file per part); merge back when a part stays tiny. One owner per file, one topic per file.
-- **Links** are relative md links; moving or renaming a file fixes every link to it in the same step. Free check: `bun test_harness/core/check_plan_links.ts <plan folder>`.
+- **Links** are relative md links; moving or renaming a file fixes every link to it in the same step. Free check: `bun test_harness/scripts/check_plan_links.ts <plan folder>`.
 - Types and interfaces first (data model and API contract), so builders in parallel never disagree; every work package lists the files it owns, and two packages never own the same file.
 - The plan lives in files, not in chat: a new agent gets only the path.

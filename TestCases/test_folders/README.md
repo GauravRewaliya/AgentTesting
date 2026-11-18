@@ -20,8 +20,8 @@ test_folders/
 ```ts
 { name: "builder", ids: ["sb_"], main: "./builder/main.ts", about: "literal small edit, findings only, pnpm only, ..." }
 ```
-- Everything that finds suites (the runners, `validate.ts`, `fixture_policy.ts`, the UI) goes through the routes: `allSuites()` in `Cases/index.ts`, via `suiteDirs()` in `test_harness/core/paths.ts`. A suite that is not routed is NOT run.
-- Add a suite = its folder with `main.ts` + ONE route line in the right `index.ts`. `bun TestCases/validate.ts` (also run by `fixture_policy.ts`) fails when a folder is not routed, is routed in the wrong group, its `main` is missing, or a case id does not start with one of the suite's `ids`.
+- Everything that finds suites (the runners, `validate_cases.ts`, `core/fixtures.ts`, the UI) goes through the routes: `allSuites()` in `Cases/index.ts`, via `suiteDirs()` in `test_harness/core/paths.ts`. A suite that is not routed is NOT run.
+- Add a suite = its folder with `main.ts` + ONE route line in the right `index.ts`. `bun test_harness/scripts/validate_cases.ts` (also run by `scripts/check_fixtures.ts`) fails when a folder is not routed, is routed in the wrong group, its `main` is missing, or a case id does not start with one of the suite's `ids`.
 - The suite NAME is the folder name (`bun testrun/run.ts <name>`, `agent_fixture/results/<name>/`), unique across all groups (a clash throws). The UI shows `group › suite` (the tree comes with the overview: `ExperimentOverview.tree`).
 
 ### Sub-agent suites (`Cases/subagents/<agent>/`)
@@ -42,8 +42,8 @@ In a case: **name** = `title` (+ `id`), **description** = `turns[i].expected.con
 
 ### Strictness (compile time + run time)
 - Compile time: `tags?: TestTag[]` (only the vocabulary), `allow_real_subAg?: true` (never `false`; in a shared base object write `true as const`), `expected_agents_res: (RecordedId | \`session:${string}#${number}\`)[]`, `Rule`/`ResultModule` shared by guard, gate and results.
-- Run time, `bun TestCases/validate.ts` (also run by `fixture_policy.ts`, exit 1 on any problem): unique ids, non-empty title/turns/user/context, valid tags (suite and case), `after` exists, every agent has `core/helper/agents/<name>.ts`, no agent that is also a distractor, `allowed` inside the case's agents, guard file and lead prompt exist, `max_agent_calls` integer >= 1, `needs` exists in `capabilities.ts`, follow-up refs are `session:<agent>#<n>`, and fixture-or-`allow_real_subAg` (a `allow_real_subAg` case whose results are all recorded is also flagged).
-- Not checked: that a `RecordedId` exists is checked by `fixture_policy.ts`, not by the type (ids are plain strings).
+- Run time, `bun test_harness/scripts/validate_cases.ts` (also run by `scripts/check_fixtures.ts`, exit 1 on any problem): unique ids, non-empty title/turns/user/context, valid tags (suite and case), `after` exists, every agent has `core/helper/agents/<name>.ts`, no agent that is also a distractor, `allowed` inside the case's agents, guard file and lead prompt exist, `max_agent_calls` integer >= 1, `needs` exists in `capabilities.ts`, follow-up refs are `session:<agent>#<n>`, and fixture-or-`allow_real_subAg` (a `allow_real_subAg` case whose results are all recorded is also flagged).
+- Not checked: that a `RecordedId` exists is checked by `scripts/check_fixtures.ts`, not by the type (ids are plain strings).
 
 | suite | cases | what it tests | fixtures |
 |---|---|---|---|
@@ -71,7 +71,7 @@ Expected { context: string,                                      // plain words 
 ```
 - `after: "<case id>"` continues the parent: its lead session, sub-agent sessions and `run_test` workspace. Only ONE case may continue a parent.
 - `branch_from: "<case id>"` forks the parent: runs in `<parent session>/branches/branch_<hex>/` (workspace + store copy without record/); the main session's `store/index_session.json` lists `{branch, alias, original_claude_id, status}` (pending -> cloned when it runs: the lead's Claude session is forked on the fly). Code: `TestCases/branch.ts`, `f1_multiagent/testrun/branch.ts`.
-- 2+ cases under one parent that still say `after` are corrected AUTOMATICALLY to branches (nothing crashes) and a `WARNING found a branch but not the branch syntax ... write branch_from` is printed by `bun run dev` (ui), `validate.ts`, `check.ts` and `testrun/run.ts`.
+- 2+ cases under one parent that still say `after` are corrected AUTOMATICALLY to branches (nothing crashes) and a `WARNING found a branch but not the branch syntax ... write branch_from` is printed by `bun run dev` (ui), `validate_cases.ts`, `check.ts` and `testrun/run.ts`.
 - `agents` = sub-agents the lead may call; `distractors` = useless ones it must NOT call; `allowed` limits per turn.
 - `guard: "<x>_rules.json"` = hand-over rules in `agent_fixture/store/` (e.g. must name `run_test` and `PLAN.md`, min length).
 - `router: false` / `lead: "solo"` = the lead works alone. f1 refuses these cases.
@@ -96,13 +96,13 @@ agent_fixture/
     <name>_rules.json     Rule per role: requires_done[], contains_all[], min_chars, forbidden
     expo_go/              sources.json, phases.json (generated), patches/<name>/NN_<sha>.patch (the real diff, never shown to the agent),
                           bases/<name>/ (start state), apply.ts (shared work of every expo-go result), fetch.sh, make_patches.py
-  index.json            GENERATED, one row per result incl. its `suite` and nested `file`: `bun test_harness/core/build_index.ts`.
-                        MAINTAINED: fixture_policy.ts fails when it is stale, or when a result is filed under the wrong suite
+  index.json            GENERATED, one row per result incl. its `suite` and nested `file`: `bun test_harness/scripts/build_index.ts`.
+                        MAINTAINED: scripts/check_fixtures.ts fails when it is stale, or when a result is filed under the wrong suite
 ```
 ### Fixture rule (compulsory)
 Every case is exactly one of: **(a)** expects a recorded result id, **(b)** only `session:` follow-ups, **(c)** `allow_real_subAg: true`. Check, free, no model:
 ```
-bun test_harness/core/fixture_policy.ts      # exit 1 on any undeclared case
+bun test_harness/scripts/check_fixtures.ts      # exit 1 on any undeclared case
 ```
 
 ## test_expo_go specifics
@@ -115,5 +115,5 @@ Not solo, so it is `multi_ag` (the suite tag; `tags.ts`: lead handing work to su
 ## Add a case
 1. Add it to the suite's `main.ts` (tags only from `tags.ts`). Chain with `after`.
 2. Record its result in `agent_fixture/results/<this suite's folder name>/<file>.ts` (or set `allow_real_subAg: true` with a reason in a comment).
-3. `bun test_harness/core/build_index.ts`, then `bun test_harness/core/fixture_policy.ts` (runs `validate.ts` too; must exit 0).
+3. `bun test_harness/scripts/build_index.ts`, then `bun test_harness/scripts/check_fixtures.ts` (runs `validate_cases.ts` too; must exit 0).
 4. Free check: `bun testrun/run.ts <suite> <id> --fake` from `f1_multiagent/` (FAIL is expected, the fake lead calls nothing); real run = haiku lead only.

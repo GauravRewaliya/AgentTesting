@@ -21,7 +21,7 @@ import { MStore, say } from "../harness/core/board.ts";
 import { SESSION_CAP } from "../harness/core/session_run.ts";
 import { costOf } from "../harness/core/agent_call.ts";
 import { currentApproach } from "../approaches/index.ts";   // the lead runs through the chosen approach (CONFIG.approach in core/config.ts, or --approach=<name>)
-import { warnMissingFixtures } from "@core/fixture_policy.ts";
+import { warnMissingFixtures } from "@core/fixtures.ts";
 import { FIXTURES, STATE_BASE, STATE_VERSION } from "@core/paths.ts";
 import { videoAfterRun } from "../../../../infra/qa/video.ts";
 import { videoOffReason } from "../harness/core/loops_ai.ts";

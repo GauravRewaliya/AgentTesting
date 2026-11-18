@@ -1,5 +1,6 @@
 // Free check for a plan folder: every relative markdown link `[x](path)` must point to an existing file.
-// Use after a planner (or agent) moved/renamed plan files:  bun test_harness/core/check_plan_links.ts docs/planning/<project> [more dirs]
+// Use after a planner (or agent) moved/renamed plan files:  bun test_harness/scripts/check_plan_links.ts docs/planning/<project> [more dirs]
+// USED BY: you (docs/planning/README.md); nothing imports it.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 

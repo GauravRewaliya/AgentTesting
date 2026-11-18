@@ -1,6 +1,7 @@
 #!/bin/sh
 # Run any test command under a hard ceiling, so a test run cannot take the machine down.
-#   ./limited.sh bun test/multi.ts --real
+#   test_harness/scripts/limited.sh bun test/multi.ts --real
+# USED BY: you, for any long or risky test run (the f1/f3 self_test/ui_checks.ts and ui_page.ts headers show it). Nothing calls it.
 # 4 GB of memory (no swap), 300% CPU (of 4 cores), 300 tasks, low priority; everything it started (even detached helpers) is stopped when it ends,
 # and the peak memory of the whole run is printed. Override: LF_MEM=2G LF_CPU=200% HARNESS_MAX_PROCS=2
 MEM=${LF_MEM:-4G}; CPU=${LF_CPU:-300%}; UNIT=lf-run-$$; PEAKF=/tmp/$UNIT.peak

@@ -24,4 +24,4 @@ Template (one block per phase):
 
 In code (not only a guide): give every plan task `phase: N` in `plan_submit`; the scheduler then starts phase N+1 only after `phase_pass --phase N --evidence "..."` (see `POINTS.md`, `harness/core/phases.ts`).
 
-Free check: `bun test_harness/core/check_phases.ts docs/planning/<project>/PHASES.md` (n+1 waits for n, one phase building at a time).
+Free check: `bun test_harness/scripts/check_phases.ts docs/planning/<project>/PHASES.md` (n+1 waits for n, one phase building at a time).

@@ -1,4 +1,4 @@
-// .state/<version>/ = ONE place for the results of every runner (the version is set by hand in core/paths.ts; a new version starts fresh). Layout (see TestCases/ui/test_structure/STRUCTURE.md):
+// .state/<version>/ = ONE place for the results of every runner (the version is set by hand in core/paths.ts; a new version starts fresh). Layout (see test_harness/ui/STRUCTURE.md):
 //   current_pointer.json                                              {"current_workspace":"01"}
 //   index.json                                                        IndexFile      the only index; rewritten atomically
 //   data/<workspace>/workspace.json                                   WorkspaceRec
@@ -11,10 +11,10 @@
 //   data/<workspace>/sessions/<parent>/run/                           raw logs of the fixture runner (trace.jsonl, harness.jsonl, guard.json)
 //   data/<workspace>/sessions/<parent>/children/<child>/…             a CHILD session (a case that continues the parent), same files
 // Rule: no session without its workspace, no child without its parent (same workspace). index.json lists PARENTS only; children are nested in them.
-// core/run.ts (fixture runner) writes here directly through core/state/record.ts + store.ts; the Experiment runner keeps its own engine DB (f1 ui/.ui-data) and the UI server copies each session in.
+// test_harness/core/orchistraitor/harness_own_custom/runner/run.ts (fixture runner) writes here directly through core/state/record.ts + store.ts; the Experiment runner keeps its own engine DB (f1 ui/.ui-data) and the UI server copies each session in.
 
 export const STATE_VERSION = "02" as const;
-/** which runner produced the session: `core/run.ts` (sub-agents from agent_fixture) or the f1 multi-agent harness (Experiment page) */
+/** which runner produced the session: `test_harness/core/orchistraitor/harness_own_custom/runner/run.ts` (sub-agents from agent_fixture) or the f1 multi-agent harness (Experiment page) */
 export type Runner = "fixture" | "experiment";
 export type SessionState = "running" | "done" | "stalled" | "failed" | "idle";
 

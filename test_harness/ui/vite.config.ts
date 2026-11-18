@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: {
-      "@root": at("../../.."), "@test_cases": at("../.."), "@test_harness": at("../../../test_harness"), "@core": at("../../../test_harness/core"),
+      "@root": at("../.."), "@test_cases": at("../../TestCases"), "@test_harness": at(".."), "@core": at("../core"),
       "@": at("./src"),
     },
   },

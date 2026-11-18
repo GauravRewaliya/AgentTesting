@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 
 import { FIXTURES, ROOT, suiteDirs } from "@core/paths.ts";
 import { listAgents } from "@core/agents/index.ts";
-import { normalizeBranches } from "../../../branch.ts";
+import { normalizeBranches } from "../../../TestCases/branch.ts";
 import { f1, f1WsDir } from "./experiment.ts";
 export { ROOT };
 const json = <T>(p: string): T | undefined => (existsSync(p) ? (JSON.parse(readFileSync(p, "utf8")) as T) : undefined);

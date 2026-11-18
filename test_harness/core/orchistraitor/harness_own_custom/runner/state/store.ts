@@ -2,7 +2,7 @@
 // Rules it enforces: a session has a workspace; a child has a parent that already exists IN THE SAME workspace.
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { STATE_ROOT, currentWorkspace, workspacePath } from "../paths.ts";
+import { STATE_ROOT, currentWorkspace, workspacePath } from "@core/paths.ts";
 import { STATE_VERSION, type ChildSummary, type EventRec, type IndexFile, type SessionRec, type SessionSummary, type SubSession, type WorkspaceRec } from "./types.ts";
 
 export const STATE = STATE_ROOT;   // .state/<version>/ : the version is set by hand in paths.ts

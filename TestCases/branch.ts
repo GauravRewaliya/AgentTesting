@@ -17,7 +17,7 @@ export function normalizeBranches<T extends Node>(all: T[]): T[] {
     return { ...c, branch_from: c.after, branch_auto: true };   // second (third ...) `after` child of one parent: it cannot share the parent's session
   });
 }
-/** Messages for `bun run dev`, check.ts and validate.ts. Give it the NORMALISED cases of ALL suites. */
+/** Messages for `bun run dev`, check.ts and validate_cases.ts. Give it the NORMALISED cases of ALL suites. */
 export function branchWarnings(all: Node[]): string[] {
   const out: string[] = [];
   const byParent = new Map<string, Node[]>();

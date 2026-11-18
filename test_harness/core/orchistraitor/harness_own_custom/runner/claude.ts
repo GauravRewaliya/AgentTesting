@@ -1,12 +1,13 @@
 import { join } from "node:path";
-import type { AgentDef } from "./types.ts";
-import { agentInfo } from "./agents/index.ts";
+import type { AgentDef } from "@core/types.ts";
+import { agentInfo } from "@core/agents/index.ts";
 
-const ROOT = join(import.meta.dir, "..");
+const ROOT = join(import.meta.dir, "..", "..", "..", "..");   // test_harness
+const INTERPOSE = join(import.meta.dir, "interpose.ts");
 export type LeadCall = { denied?: boolean; tool: string; agent?: string; to?: string; prompt?: string; resultId?: string; useId: string };
 export type Run = { sessionId: string; reply: string; leadCalls: LeadCall[]; cost: number; subTexts: string[]; served: string[]; forbiddenHit?: string; mockMiss: boolean; raw: any[]; turns: number };
 
-const HARNESS = join(ROOT, "core/orchistraitor/harness_own_custom/core");  // the harness owns the system prompts (system_prompt.md = the lead, agent_prompt.md = the thin sub-agent)
+const HARNESS = join(import.meta.dir, "..", "core");  // the harness owns the system prompts (system_prompt.md = the lead, agent_prompt.md = the thin sub-agent)
 const LEAD_PROMPT = (await Bun.file(join(HARNESS, "system_prompt.md")).text()).trim();
 const AGENT_PROMPT = await Bun.file(join(HARNESS, "agent_prompt.md")).text();
 
@@ -20,20 +21,20 @@ export function agentsJson(defs: AgentDef[]) {
   const o: Record<string, unknown> = {};
   for (const d of defs) o[d.name] = {
     description: d.description, tools: ["Bash"], model: "haiku",
-    prompt: AGENT_PROMPT.replaceAll("{{name}}", d.name).replaceAll("{{root}}", ROOT).trim(),
+    prompt: AGENT_PROMPT.replaceAll("{{name}}", d.name).replaceAll("{{interpose}}", INTERPOSE).trim(),
   };
   return o;
 }
 
 export async function runClaude(o: { prompt: string; resume?: string; defs: AgentDef[]; tools: string[]; ws: string; dir: string; forbidden: string[]; allowed?: string[]; mod?: boolean; lead?: string; router?: boolean; rules?: object; turnAllowed?: string[]; doneBefore?: string[] }): Promise<Run> {
-  const settings = { hooks: { PreToolUse: [{ matcher: "Agent|SendMessage|Task", hooks: [{ type: "command", command: `bun ${ROOT}/core/interpose.ts hook` }] }] },
+  const settings = { hooks: { PreToolUse: [{ matcher: "Agent|SendMessage|Task", hooks: [{ type: "command", command: `bun ${INTERPOSE} hook` }] }] },
     permissions: { allow: [`Bash(bun *interpose.ts*)`] } };
   const args = ["-p", o.prompt, "--output-format", "stream-json", "--verbose", "--model", "haiku",
     "--setting-sources", "", "--strict-mcp-config", "--settings", JSON.stringify(settings),
     "--permission-mode", "acceptEdits", "--allowedTools", "Bash(bun *interpose.ts*)", "Agent", "SendMessage",
     "--tools", [...new Set([...o.tools, "Bash"])].join(","),
     "--agents", JSON.stringify(agentsJson(o.defs)), "--append-system-prompt", (o.router === false ? "" : LEAD_PROMPT) + (o.lead ? "\n\n" + o.lead : "") + (o.defs.length ? `\nAvailable agent types (use only these as subagent_type): ${o.defs.map((d) => d.name).join(", ")}.` : "")];
-  // the guard reads this in the PreToolUse hook (core/interpose.ts): who exists, who may be called THIS turn, the hand-over rules, who is already done
+  // the guard reads this in the PreToolUse hook (test_harness/core/orchistraitor/harness_own_custom/runner/interpose.ts): who exists, who may be called THIS turn, the hand-over rules, who is already done
   await Bun.write(join(o.dir, "guard.json"), JSON.stringify({ forbidden: o.forbidden, allowed: o.defs.map((d) => d.name), turn_allowed: o.turnAllowed ?? null, rules: o.rules ?? {}, done: o.doneBefore ?? [] }));
   if (o.mod) {   // NOT available any more: the .claude/mods/interrupt plugin is not in the repo; run.ts always passes mod:false (hook + thin sub-agent)
     // mod mode: the interrupt mod answers Agent/SendMessage from harness_own_custom; no real sub-agent starts

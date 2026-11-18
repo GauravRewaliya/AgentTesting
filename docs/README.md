@@ -8,7 +8,7 @@ their sessions correctly? Sub-agent *work* is mocked (fixture lookup + file copy
 |---|---|
 | `run_test/` | scratch workspace, empty at rest (wiped around each case; `--keep` leaves it) |
 | `test_harness/core/agents/` | the agents: `main_flow_agents/` (real team) and `test_agents/` (test stand-ins), listed by `index.ts` (name, role, description from each agent.json) |
-| `TestCases/test_folders/agent_fixture/` | everything a mocked sub-agent needs: `results/<id>.ts` (each is ONLY `run(req)`), `store/` (files the scripts copy), `index.json` (generated: `bun core/build_index.ts`) |
+| `TestCases/test_folders/agent_fixture/` | everything a mocked sub-agent needs: `results/<id>.ts` (each is ONLY `run(req)`), `store/` (files the scripts copy), `index.json` (generated: `bun test_harness/scripts/build_index.ts`) |
 | `core/` | Bun/TS runner: `run.ts` CLI, `claude.ts` spawn+parse, `interpose.ts` hook + mock, `report.ts` run report, `types.ts` |
 | `test_case/<suite>/main.ts` | `export const cases: Case[]` |
 | `test_harness/.state/<version>/` | ALL run data: one session folder per case (agent tree, events, workspace copy, raw logs), `last/`, `cache/`, `runs/`, pointer + index |
@@ -40,9 +40,9 @@ A case that already has a result is **not run again** (`CACHED`). `--rerun` runs
 
 ## Run
 ```
-bun core/run.ts test_basic --list
-bun core/run.ts test_basic basic_1_write_hi          # one case
-bun core/run.ts test_basic                           # all, in order (chained)
+bun test_harness/core/orchistraitor/harness_own_custom/runner/run.ts test_basic --list
+bun test_harness/core/orchistraitor/harness_own_custom/runner/run.ts test_basic basic_1_write_hi          # one case
+bun test_harness/core/orchistraitor/harness_own_custom/runner/run.ts test_basic                           # all, in order (chained)
 flags: --keep (keep run_test)  --raw (save the stream-json in <session>/run/raw.json)
 ```
 A case with `after: "<id>"` restores that case's lead session (`--resume`), sub-agent ids and workspace, so
@@ -50,11 +50,11 @@ chains (1 -> 2 -> 3) and branches (1 -> 2B) never re-run earlier steps.
 
 ## How we interfere
 - `PreToolUse` hook on `Agent|SendMessage` logs every call to `<session>/run/trace.jsonl` and **denies + stops** a forbidden agent.
-- A sub-agent is a thin real Claude agent: it pipes its task to `core/interpose.ts mock <name>`, which finds a fixture
+- A sub-agent is a thin real Claude agent: it pipes its task to `test_harness/core/orchistraitor/harness_own_custom/runner/interpose.ts mock <name>`, which finds a fixture
   by `keywords` (all must appear in the task) and writes its `files`. No match -> `NOTFOUND`, the case fails: that is
   the point where we add a fixture.
 - Nothing is asserted by code. Each case has `expected: { context, expected_agents_res }` (plain text + the ids planned to respond: a recorded
-  result id for a spawn, `session:<agent>#<n>` for a follow-up). `core/report.ts` prints EXPECTED next to ACTUAL (calls, new vs same session label,
+  result id for a spawn, `session:<agent>#<n>` for a follow-up). `test_harness/core/orchistraitor/harness_own_custom/runner/report.ts` prints EXPECTED next to ACTUAL (calls, new vs same session label,
   hand-over text, served result ids, files, sub-agent words, lead reply) and a human / Claude judges it. Session labels (`writer#1`) are saved in the checkpoint.
 
 ## Suites

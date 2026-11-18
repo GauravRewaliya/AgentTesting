@@ -7,7 +7,7 @@ import { bgOf, taskProcs } from "./preview.ts";
 import { STATE_VERSION, STATE_ROOT } from "@core/paths.ts";
 import { AGENTS_DIR, TEST_AGENTS_DIR } from "@core/config.ts";
 import { MStore, say, claudeDirs, activeMs, lastCall, costOf, stopAgent, locksFromEnv, judgeTurn, loadSuites, readExp, statusOf, unsupported, writeExp, ORCH_DIR, type ExpEntry, type SuiteCase } from "@core/orchestrator.ts";
-import { ROOT, type GroupRoute } from "../../../test_folders/Cases/index.ts";
+import { ROOT, type GroupRoute } from "../../../TestCases/test_folders/Cases/index.ts";
 import type { TalkIn, Transcript, TranscriptStep, AgentDetail, AvailableAgent, ChatOut, SendIn, CaseResultOut, CaseState, ExpGroup, ExpSuite, ExperimentOverview, LiveAgent, LiveSession, RunInfo, RunLog } from "../shared/experiment.ts";
 
 const F1 = ORCH_DIR;   // the current orchestrator (test_harness/core/config.ts)

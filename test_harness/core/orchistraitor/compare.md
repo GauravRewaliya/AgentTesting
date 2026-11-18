@@ -267,7 +267,7 @@ Decision for you: is the goal (a) test only f1's lead, or (b) also compare again
 
 # Corrections (found after deeper research; see f3_multiagent/docs/06)
 
-- // ERROR: sections 2, 8.2 and 9 present the `interrupt` mod as the current mechanism of harness_own_custom. The mod source is NOT in this repo or its git history (copies only under `/home/gr/projects/loopferry/.idea/Test_agent_3/`). `test_harness/core/claude.ts:36` says it is not available any more and `run.ts` forces `mod:false`; today a PreToolUse hook on `Agent|SendMessage|Task` (`core/interpose.ts`) plus thin real haiku sub-agents runs instead.
+- // ERROR: sections 2, 8.2 and 9 present the `interrupt` mod as the current mechanism of harness_own_custom. The mod source is NOT in this repo or its git history (copies only under `/home/gr/projects/loopferry/.idea/Test_agent_3/`). `test_harness/core/claude.ts:36` says it is not available any more and `run.ts` forces `mod:false`; today a PreToolUse hook on `Agent|SendMessage|Task` (`test_harness/core/orchistraitor/harness_own_custom/runner/interpose.ts`) plus thin real haiku sub-agents runs instead.
 - // ERROR: section 10 says Backend N "may be used". It is defined (`launch.ts:63-75`) and unit-tested only; nothing launches `claude` with `--agents`.
 - // ERROR: `lead: "solo"` does not exist in the repo; the solo switch is `router: false` (`testrun/cases.ts:17,35`).
 - The written reason f1 uses its own CLI is in the Loopferry plan (`/home/gr/projects/loopferry/handbook/PLANS/20261105_ARCHITECTURE_PLAN.md:500-502, 606-616, 1364-1365`), not in f1's docs.

@@ -5,7 +5,7 @@ import { buildModel } from "./model.ts";
 import { casesForResponse, guardCases } from "./subagents.ts";
 import { layout } from "../src/components/flow/layout.ts";
 import { agentDefs } from "./data.ts";
-import { branchWarnings } from "../../../branch.ts";
+import { branchWarnings } from "../../../TestCases/branch.ts";
 
 const m = await buildModel(), cards = buildCards(m);
 let fails = 0; const warns: string[] = [];

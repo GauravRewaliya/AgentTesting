@@ -1,6 +1,6 @@
 # 04 Tests
 
-Rules from `../../CLAUDE.md`: fixture-first, spend few credits, free checks before and after (`bun test_harness/core/fixture_policy.ts`).
+Rules from `../../CLAUDE.md`: fixture-first, spend few credits, free checks before and after (`bun test_harness/scripts/check_fixtures.ts`).
 
 ## Exists
 Suite `TestCases/test_folders/Cases/real_usecases/real_planning_prototype/main.ts` (REAL sub-agents, `allow_real_subAg: true`, `max_agent_calls: 8`; not for routine runs):
@@ -22,4 +22,4 @@ Run one case by id only, in the sandbox:
 - `real_phase_order`: phase 2 is not started before phase 1 passed (`check_phases.ts`).
 - `real_type_error_caught`: seeded strict TS project; builder must run tsc/LSP before done.
 
-Free helpers: `bun test_harness/core/check_phases.ts <PHASES.md>` (n+1 waits for n) and `bun test_harness/core/check_plan_links.ts docs/planning/<project>` (every relative md link must exist).
+Free helpers: `bun test_harness/scripts/check_phases.ts <PHASES.md>` (n+1 waits for n) and `bun test_harness/scripts/check_plan_links.ts docs/planning/<project>` (every relative md link must exist).

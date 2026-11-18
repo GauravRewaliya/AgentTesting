@@ -68,6 +68,6 @@ Run each with `bun self_test/<file>.ts` (the headers say which flags).
 The `*.log`, `*_results*.json` and `*_report.md` files in `self_test/` are the **output of earlier runs** (kept as evidence, not inputs).
 
 ## Fixtures (recorded sub-agent work)
-They live in ONE place: `TestCases/test_folders/agent_fixture` (see its README). A case that expects a recorded result which does not exist prints a warning that recommends recording it there; a case sets `allow_real_subAg: true` to run without one on purpose (no warning). `bun test_harness/core/fixture_policy.ts` scans every suite and exits 1 if any case is missing a fixture and has not opted out.
+They live in ONE place: `TestCases/test_folders/agent_fixture` (see its README). A case that expects a recorded result which does not exist prints a warning that recommends recording it there; a case sets `allow_real_subAg: true` to run without one on purpose (no warning). `bun test_harness/scripts/check_fixtures.ts` scans every suite and exits 1 if any case is missing a fixture and has not opted out.
 
 An agent with `"fixtures": true` in its `agent.json` (today: `expo-go`) is a pure forwarder in test mode: its only tools are `tools.ts fixture lookup` (finds the recorded result for its hand-over) and `tools.ts fixture run <id>` (applies the recorded work in `./run_test/` and prints the answer).

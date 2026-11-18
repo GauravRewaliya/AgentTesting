@@ -1,5 +1,5 @@
-// bun core/run.ts <suite> [case_id ...] [--keep] [--list] [--raw] [--rerun]    (cases: TestCases/test_folders/<suite>/main.ts; results: test_harness/.state/<version>/, shown by the dashboard Flow + Test pages)
-// The lead is a real `claude -p` (haiku). Every sub-agent call goes through the PreToolUse hook (guard) to a thin stand-in that pipes the hand-over to core/interpose.ts mock,
+// bun test_harness/core/orchistraitor/harness_own_custom/runner/run.ts <suite> [case_id ...] [--keep] [--list] [--raw] [--rerun]    (cases: TestCases/test_folders/<suite>/main.ts; results: test_harness/.state/<version>/, shown by the dashboard Flow + Test pages)
+// The lead is a real `claude -p` (haiku). Every sub-agent call goes through the PreToolUse hook (guard) to a thin stand-in that pipes the hand-over to test_harness/core/orchistraitor/harness_own_custom/runner/interpose.ts mock,
 // which answers from TestCases/test_folders/agent_fixture/results (recorded run(req): files + reply). So the sub-agent itself costs ~nothing. (--real is accepted and means the same.)
 // .state is a permanent cache: a case that already ran is NOT run again (CACHED). --rerun runs it again and first ARCHIVES the old
 // result to .state/<version>/data/<ws>/cache/<id>.<n>/ (never deleted). One case = one session folder (core/state/record.ts).
@@ -7,16 +7,17 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { report } from "./report.ts";
-import { check as checkCaps } from "./orchistraitor/harness_own_custom/capabilities.ts";
-import { skip_test } from "./orchistraitor/harness_own_custom/skip_test.ts";
-import { FIXTURES, WORKSPACE, suiteDir } from "./paths.ts";
+import { check as checkCaps } from "../capabilities.ts";
+import { skip_test } from "../skip_test.ts";
+import { FIXTURES, WORKSPACE, suiteDirs } from "@core/paths.ts";
+const suiteDir = (name: string): string | undefined => suiteDirs().find((s) => s.name === name)?.dir;   // the folder of one suite
 import { archiveCase, openWorkspace, readLastCase, writeLastCase, writeSession } from "./state/store.ts";
 import { buildSession, hasRun, openRun, parentOf, previous, taskOf, type LastFile } from "./state/record.ts";
-import { warnMissingFixtures } from "./fixture_policy.ts";
+import { warnMissingFixtures } from "@core/fixtures.ts";
 import { loadAgent, runClaude } from "./claude.ts";
-import type { Case, CliFlags } from "./types.ts";
+import type { Case, CliFlags } from "@core/types.ts";
 
-const ROOT = join(import.meta.dir, "..");
+const ROOT = join(import.meta.dir, "..", "..", "..", "..");   // test_harness
 const RUN_TEST = join(ROOT, "run_test");   // results go to .state/<version>/data/<WORKSPACE>, see paths.ts
 // A case with `external: true` runs in a workspace OUTSIDE .idea/ (Claude Code refuses Write/Edit there as "sensitive file").
 const EXT = join(homedir(), ".cache/test_agent_3/run_ws");
@@ -25,13 +26,13 @@ const argv = process.argv.slice(2);
 const raw = new Set(argv.filter((a) => a.startsWith("--")));
 const F: CliFlags = { list: raw.has("--list"), keep: raw.has("--keep"), raw: raw.has("--raw"), real: raw.has("--real"), rerun: raw.has("--rerun") };
 const [suite, ...want] = argv.filter((a) => !a.startsWith("--"));
-if (!suite) { console.log("usage: bun core/run.ts <suite> [case_id...] [--list] [--keep] [--raw] [--real] [--rerun]"); process.exit(1); }
+if (!suite) { console.log("usage: bun test_harness/core/orchistraitor/harness_own_custom/runner/run.ts <suite> [case_id...] [--list] [--keep] [--raw] [--real] [--rerun]"); process.exit(1); }
 const cases: Case[] = (await import(join(suiteDir(suite) ?? (console.log(`no suite "${suite}"`), process.exit(1)), "main.ts"))).cases;
-const leadText = (name?: string) => { for (const f of [join(ROOT, "core/orchistraitor/harness_own_custom/core/prompts", name + ".md"), join(FIXTURES, "store/legacy/prompts", name + ".md")]) if (name && existsSync(f)) return readFileSync(f, "utf8").trim(); return undefined; };
+const leadText = (name?: string) => { for (const f of [join(import.meta.dir, "..", "core", "prompts", name + ".md"), join(FIXTURES, "store/legacy/prompts", name + ".md")]) if (name && existsSync(f)) return readFileSync(f, "utf8").trim(); return undefined; };
 if (F.list) { for (const c of cases) console.log(`${c.id}${c.after ? "  (after " + c.after + ")" : ""}  ${hasRun(WORKSPACE, c.id) ? "[saved]" : ""}  ${c.title}`); process.exit(0); }
 
 // the workspace this run writes into (.state/<version>/data/<WORKSPACE>): register it once (manifest + index + pointer) so anybody opening the folder knows which harness made it
-openWorkspace(WORKSPACE, "core/run.ts fixture-mock runner");
+openWorkspace(WORKSPACE, "test_harness/core/orchistraitor/harness_own_custom/runner/run.ts fixture-mock runner");
 const wipe = () => { rmSync(WS, { recursive: true, force: true }); mkdirSync(WS, { recursive: true }); };
 const todo = want.length ? cases.filter((c) => want.includes(c.id)) : cases;
 let bad = 0, total = 0;
@@ -66,7 +67,7 @@ for (const c of todo) {
     const traceSeen = existsSync(TR) ? readFileSync(TR, "utf8").split("\n").filter(Boolean).length : 0;
     const run = await runClaude({ router: c.router, lead, rules, turnAllowed: t.allowed, doneBefore: Object.keys(ids).map((l) => l.split("#")[0]!), prompt: t.user, resume: session, defs, tools: c.tools ?? ["Agent", "SendMessage", "Read"], ws: WS, dir: RUN, forbidden: defs.filter((d) => d.forbidden).map((d) => d.name), mod: false });
     session = run.sessionId || session;
-    // what the stand-in sub-agents did THIS turn, from the trace written by core/interpose.ts: which recorded result answered, and what it said
+    // what the stand-in sub-agents did THIS turn, from the trace written by test_harness/core/orchistraitor/harness_own_custom/runner/interpose.ts: which recorded result answered, and what it said
     for (const l of readFileSync(TR, "utf8").split("\n").filter(Boolean).slice(traceSeen)) { const e = JSON.parse(l); if (e.kind === "mock") { run.served.push(e.fixture ?? "(no recorded result)"); run.subTexts.push(`[${e.agent}] ${e.reply ?? ""}`); } }
     console.log(`-- turn ${n}  lead_session=${run.sessionId.slice(0, 8)}  cost=$${run.cost.toFixed(4)}  turns=${run.turns}`);
     const sum = report(t.expected, run, WS, ids); for (const l of sum.lines) console.log(l); turnSums.push({ ...sum, lines: undefined as never, reply: run.reply.replace(/\s+/g, " ").slice(0, 300) });

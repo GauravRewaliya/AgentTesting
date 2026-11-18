@@ -20,7 +20,7 @@ export type { Case, Turn, Expected, RecordedId, SessionRef } from "../../TestCas
 /* ───────────────────────── CLI flags ───────────────────────── */
 
 /**
- * `bun core/run.ts <suite> [case_id ...] [flags]`
+ * `bun test_harness/core/orchistraitor/harness_own_custom/runner/run.ts <suite> [case_id ...] [flags]`
  * `<suite>` = folder in test_case/. No case ids = run all in order (chained cases reuse checkpoints saved earlier in the run).
  */
 export type CliFlags = {
@@ -30,16 +30,16 @@ export type CliFlags = {
   keep?: boolean;
   /** `--raw`: save the full stream-json of each case to <session>/run/raw.json in .state for debugging. */
   raw?: boolean;
-  /** `--real`: do not mount the mod; use thin REAL Claude sub-agents (real sessions, mocked work via core/interpose.ts). */
+  /** `--real`: do not mount the mod; use thin REAL Claude sub-agents (real sessions, mocked work via test_harness/core/orchistraitor/harness_own_custom/runner/interpose.ts). */
   real?: boolean;
   /** `--rerun`: run a case that already has a cached result; the old result is first archived to .state/<version>/data/<ws>/cache/<id>.<n>/ (never deleted). Without it a cached case is skipped (CACHED). */
   rerun?: boolean;
 };
 
-/* ───────────────────────── Flags passed to `claude -p` (core/claude.ts) ───────────────────────── */
+/* ───────────────────────── Flags passed to `claude -p` (test_harness/core/orchistraitor/harness_own_custom/runner/claude.ts) ───────────────────────── */
 
 /**
- * What runClaude passes, and why. This is documentation of the spawn; see core/claude.ts.
+ * What runClaude passes, and why. This is documentation of the spawn; see test_harness/core/orchistraitor/harness_own_custom/runner/claude.ts.
  *   -p <prompt> --output-format stream-json --verbose   headless, machine-readable events
  *   --model haiku                                       cheap lead
  *   --setting-sources ""                                ignore user/project settings and CLAUDE.md (low tokens, no leakage)
@@ -67,7 +67,7 @@ export type SpawnOptions = {
   mod?: boolean;
 };
 
-/** Inline `--agents` entry for a real-mode sub-agent (a thin wrapper around core/interpose.ts mock). */
+/** Inline `--agents` entry for a real-mode sub-agent (a thin wrapper around test_harness/core/orchistraitor/harness_own_custom/runner/interpose.ts mock). */
 export type AgentJson = { description: string; tools: string[]; model: string; prompt: string };
 
 /* ───────────────────────── Mod / harness ───────────────────────── */
@@ -86,7 +86,7 @@ export type HarnessEnv = {
   TEST_WS?: string;
   /** Session/event log (<session>/run/harness.jsonl); sessions are rebuilt from it, so they survive between one-shot calls. */
   HARNESS_LOG?: string;
-  /** Real mode: comma-separated forbidden agents for core/interpose.ts hook. */
+  /** Real mode: comma-separated forbidden agents for test_harness/core/orchistraitor/harness_own_custom/runner/interpose.ts hook. */
   FORBIDDEN_AGENTS?: string;
 };
 

@@ -1,4 +1,4 @@
-// The fixture runner (core/run.ts) records a case here: ONE case -> ONE session folder in .state (store.ts does the file work).
+// The fixture runner (test_harness/core/orchistraitor/harness_own_custom/runner/run.ts) records a case here: ONE case -> ONE session folder in .state (store.ts does the file work).
 //   sessions/fx_<case>/run/        raw logs of THIS case while it runs: trace.jsonl, harness.jsonl, guard.json   (a child starts from a copy of its parent's harness.jsonl so follow-ups to the parent's sub-agents still resolve)
 //   sessions/fx_<case>/…           session.json, events.jsonl, workspace/ (written by store.writeSession at the end)
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";

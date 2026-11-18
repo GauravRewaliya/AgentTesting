@@ -5,8 +5,8 @@ Read this first so you do not have to rediscover the project. Keep it short and 
 ## Free checks (no model calls)
 | what | command |
 |---|---|
-| fixtures + case shape | `bun test_harness/core/fixture_policy.ts` (run before and after editing cases) |
-| rebuild fixture index | `bun test_harness/core/build_index.ts` |
+| fixtures + case shape | `bun test_harness/scripts/check_fixtures.ts` (run before and after editing cases) |
+| rebuild fixture index | `bun test_harness/scripts/build_index.ts` |
 | list / fake run | `cd test_harness/core/orchistraitor/f1_multiagent && bun testrun/run.ts <suite> [ids] --list` / `--fake` (fake shows FAIL, expected) |
 | self tests | `bun self_test/multi.ts` (free, no model), others in `self_test/` (the old `qa_loop.ts` was removed with the `qa_check` loop, RUN_FINDINGS H20) |
 
@@ -49,7 +49,7 @@ Run output: `.state/v1/<task>/{store,workspace}`; QA state in `store/qa_state.js
 - `after_node_run: (ctx) => ...` (same ctx, `ctx.phase === "after"`) runs right after the node and ONLY when it passed (a failed case never runs it); default prints. It runs before the video / session record. (`no_qa_check` and `expect_qa` were removed with the `qa_check` loop, RUN_FINDINGS H20.)
 
 ## Live preview of a prototype (Docker)
-- Code: `harness/core/preview.ts` (one module), used by the master (`tools.ts preview --dir <folder in run_test/> | preview_list | preview_stop --id <id>`) and by the UI (`TestCases/ui/test_structure`: no separate page; the Experiment Run header of a session has a **bg running N** badge, hover = list of previews and bash/processes with stop/restart; API `/api/experiment/bg/<task>`, `/api/preview/{stop,restart}`, `/api/proc/stop`).
+- Code: `harness/core/preview.ts` (one module), used by the master (`tools.ts preview --dir <folder in run_test/> | preview_list | preview_stop --id <id>`) and by the UI (`test_harness/ui`: no separate page; the Experiment Run header of a session has a **bg running N** badge, hover = list of previews and bash/processes with stop/restart; API `/api/experiment/bg/<task>`, `/api/preview/{stop,restart}`, `/api/proc/stop`).
 - It starts the folder's dev server (`package.json` dev/start, else static `index.html`) in a throwaway container from `agent-testing-claude:1` (2 GB, 1 CPU, caps dropped, tmpfs /tmp, pnpm), port published on `127.0.0.1:5300-5399`. `.nvmrc` is honoured. Docker network address is shown too (`net:`).
 - Ask the master: "give me a preview of <folder>" -> it runs `preview` and answers with the link. In the UI: hover **bg running** in the session header.
 - Stop: `docker rm -f preview-<id>` or the Stop button. Containers are labelled `at.preview=1`.

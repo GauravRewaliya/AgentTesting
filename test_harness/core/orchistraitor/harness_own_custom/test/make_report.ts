@@ -1,11 +1,12 @@
 // bun core/harness_own_custom/test/make_report.ts -> core/harness_own_custom/test/test_report.md : what passed, update time on top.
 // ONLY harness_own_custom: its rules (bun test), the suites that ran against it, its skip_test list, its capability tree and limits.
 // Loopferry's own harness has its own report in core/loop_ferry_harness/test/test_report.md.
-// Sources: .state/<version>/data/<ws>/last/<case>.json (every run of core/run.ts), judgements.json (our verdicts after reading a report).
+// Sources: .state/<version>/data/<ws>/last/<case>.json (every run of test_harness/core/orchistraitor/harness_own_custom/runner/run.ts), judgements.json (our verdicts after reading a report).
 // A case with no judgement gets a MECHANICAL verdict only: "PASS (auto)" = responders equal expected_agents_res, no guard stop, no NOTFOUND.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { WORKSPACE_DIR } from "@core/paths.ts";
+import { WORKSPACE, workspacePath } from "@core/paths.ts";
+const WORKSPACE_DIR = workspacePath(WORKSPACE);
 import { skip_test } from "./skip_test.ts";
 import { render, TREE } from "./capabilities.ts";
 
@@ -60,6 +61,6 @@ L.push(`## Not run by design (skip_test)`, ``, `| Scenario | Needs | Why |`, `|-
   `├─ the mod returns the Agent tool's full output shape; a Claude Code update can reject it (the error is explicit)`,
   `└─ .state is a permanent cache: a CACHED case is not re-run (--rerun archives the old result to .state/<version>/data/<ws>/cache/<id>.<n>)`,
   "```", ``,
-  `## How to refresh`, ``, "```", `bun core/run.ts <suite>                           # run a suite (cached cases are skipped; --rerun archives and runs again)`, `# read the report, record verdicts in core/harness_own_custom/test/judgements.json`, `bun core/harness_own_custom/test/make_report.ts   # rewrite this file`, "```", ``);
+  `## How to refresh`, ``, "```", `bun test_harness/core/orchistraitor/harness_own_custom/runner/run.ts <suite>                           # run a suite (cached cases are skipped; --rerun archives and runs again)`, `# read the report, record verdicts in core/harness_own_custom/test/judgements.json`, `bun core/harness_own_custom/test/make_report.ts   # rewrite this file`, "```", ``);
 writeFileSync(join(HERE, "test_report.md"), L.join("\n"));
 console.log(`harness_own_custom/test/test_report.md written: ${recs.length} cases, ${count((r) => verdict(r).startsWith("PASS"))} pass`);

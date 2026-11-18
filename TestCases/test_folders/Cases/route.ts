@@ -6,7 +6,7 @@
 //   Cases/subagents/index.ts       group: its suites
 //
 // Each suite route says WHAT the suite is for (`about`), WHICH case ids belong to it (`ids`, prefixes) and WHERE its cases are (`main`).
-// Reading the index files is enough to know what is tested where. `validate.ts` keeps them equal to the folders on disk.
+// Reading the index files is enough to know what is tested where. `validate_cases.ts` keeps them equal to the folders on disk.
 import { join } from "node:path";
 
 export interface SuiteRoute {

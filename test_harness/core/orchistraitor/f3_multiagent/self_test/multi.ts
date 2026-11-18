@@ -665,7 +665,7 @@ async function regressSuite() {
   const { SESSION_CAP } = await import("../harness/core/session_run.ts");
   const src = (p: string) => readFileSync(join(import.meta.dirname, "..", p), "utf8");
   t("RG1", "every agent's role equals its folder name (the lead types the role into delegate --role; 'build' vs 'builder' was denied unknown_role)", [...defs.values()].every((d) => d.role === d.name));
-  t("RG2", "one session cap for the lead, callees and defaults, at least 8; no hardcoded sessionCap number in the UI, tools or main", SESSION_CAP >= 8 && !/sessionCap:\s*\d/.test(readFileSync(join(import.meta.dirname, "..", "..", "..", "..", "..", "TestCases", "ui", "test_structure", "server", "experiment.ts"), "utf8") + src("harness/tools.ts") + src("harness/main.ts")));
+  t("RG2", "one session cap for the lead, callees and defaults, at least 8; no hardcoded sessionCap number in the UI, tools or main", SESSION_CAP >= 8 && !/sessionCap:\s*\d/.test(readFileSync(join(import.meta.dirname, "..", "..", "..", "..", "ui", "server", "experiment.ts"), "utf8") + src("harness/tools.ts") + src("harness/main.ts")));
   const w = world(); w.store.tx(() => { const a = w.store.addAgent("t", defs.get("builder")!, { level: 2, caller: "lead#1" }); w.store.ev("session.rolled", "t", a.agent_id, { reason: "full" }); });
   const s = sessionStats(w.store, "t", "builder#1");
   t("RG3", "sessionStats counts a rolled session (1 roll = 2 sessions) so the lead's 'how many sessions' answer is true", s.rolls === 1 && s.sessions === 2);
