@@ -10,6 +10,7 @@
 //   --video  after each case THAT OPTS IN (Case.qa enabled; all others: nothing), record a QA video of the web page it built (`test_harness/infra/qa/video.ts`, Docker; native Expo apps cannot be recorded: it says so). Off by default.
 // Runs a TestCases/test_folders suite on the f1 multi-agent harness (real claude by default, haiku: cents per turn; --fake = scripted agents, no model calls).
 // State goes to test_harness/.state/<version>/<task>/{store,workspace} (one folder per master session, see LAYOUT below). Nothing here reads or writes f1's own ui/.ui-data any more.
+import { auditSession, renderAudit, type AuditOpts } from "../../../session_audit.ts";
 import { branchRun, cloneIfPending } from "./branch.ts";
 import { branchWarnings, runBeforeNode } from "../../../../../TestCases/branch.ts";
 import { execFileSync } from "node:child_process";
@@ -175,7 +176,9 @@ for (const c of mine.filter((x) => !want.length || want.includes(x.id))) {
   }
   if (noLead) await doVideo();   // the verdict of a no_lead node IS the video: it must exist (expect_video "ok") or be refused by the QA step (expect_video "fail": a known-negative)
   const wantFail = (c as { expect_video?: string }).expect_video === "fail";
-  const finalStatus = noLead ? (takes && videoFailed === wantFail ? "pass" : "fail") : statusOf(judged);
+  let finalStatus = noLead ? (takes && videoFailed === wantFail ? "pass" : "fail") : statusOf(judged);
+  const auditSpec = (c as { audit?: AuditOpts }).audit;   // Case.audit: what the REAL run cost is judged too (time, calls, media, split, cost); a broken budget fails the case with the reasons
+  if (auditSpec && !noLead && !flags.has("--fake")) { const res = auditSession(dirname(storeOf(homeKey)), auditSpec); for (const l of renderAudit(c.id, res).split("\n")) console.log(`   audit            : ${l}`); (ent as { audit?: unknown }).audit = { grade: res.grade, reasons: res.reasons, metrics: res.metrics }; if (!res.ok && finalStatus === "pass") finalStatus = "fail"; }
   if (!videoOnly) { (ent as { status?: string }).status = finalStatus; saveExp(ent); }
   if (finalStatus !== "pass") { failed++; notPassed.add(c.id); }
   else await runBeforeNode(c, { phase: "after", node: shared ? "branch" : branchInfo ? "branch" : c.after ? "main" : "root", parent: c.after, branch: branchInfo?.branch, workspace: REPO });   // after_node_run: ONLY on a pass (default = prints)

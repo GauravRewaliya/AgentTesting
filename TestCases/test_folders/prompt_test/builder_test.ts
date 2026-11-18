@@ -67,4 +67,11 @@ export const cases: PromptCase[] = [
     stuff: [{ title: "team right now", text: "researcher#1 (idle, started by the lead) studied the payments API earlier; its findings are in run_test/research/payments-api.md" }],
     user_message: "OBJECTIVE: write run_test/app/webhook.js that verifies the payment provider's webhook signature. Which header carries the signature?\nBOUNDARIES: you own run_test/app/webhook.js.",
     expect: { any_of: [{ calls: [{ any: [{ tool: "Read", match: "run_test/research" }, { tool: "WebSearch" }, { tool: "WebFetch" }, { tool: "Bash", match: "(cat|sed|head|rg|grep).*run_test/research" }] }] }, { text_has: ["NEEDS_PARENT:"] }], not_calls: [{ tool: "Write", match: "webhook\\.js" }, { tool: "Bash", match: "delegate" }, { tool: "Agent" }, { tool: "SendMessage" }], judge: "reads the researcher's report file (it was named to it), or checks the docs itself, or asks the lead; does not write the signature code from a guess" } }),
+
+  // ---- found in a real session (sm_speed1, 2026-11-18): the lead gave the DEMO VIDEO to a builder, which wrote its own recorder script and package.json; recording and browser runs are QA's
+  b({ id: "bu_demo_video_is_not_mine", about: "its task also asks for a demo video / screenshots: it writes its file and leaves the recording to QA (no ffmpeg, no recorder script, no browser run); it says so",
+    why: "the builder has no video tool; its own recorder script costs minutes and a package.json nobody asked for, and QA records the video anyway",
+    stuff: [{ title: "run_test/sakura/ (what you read)", text: "(empty folder)" }],
+    user_message: "OBJECTIVE: write run_test/sakura/js/sakura.js (falling petals) and also record a demo video of the page and take screenshots of it.\nBOUNDARIES: you own run_test/sakura/js/sakura.js.",
+    expect: { any_of: [{ calls: [{ tool: "Write", match: "sakura/js/sakura\\.js" }] }, { text_has: ["(QA|NEEDS_PARENT)"] }], not_calls: [{ tool: "Bash", match: "(ffmpeg|playwright|puppeteer|record|webm|mp4|tab (open|do)|--video|chromium|screenshot|npm|pnpm (add|install))" }, { tool: "Write", match: "(record|demo)[\\w_-]*\\.(mjs|js|py|sh)|package\\.json" }], judge: "writes sakura.js only; the video and the screenshots are left to QA (said in the report or NEEDS_PARENT); no recorder script, no package.json" } }),
 ];

@@ -3,7 +3,7 @@
 // Used by `ref_capture` (study a reference site), `ref_compare` (does the clone match?) and `browse` (any steps). One Chrome per call, closed at the end: nothing is left running.
 import { CHROME_PREFIX, SOFT_GL } from "./chrome_flags.ts";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { attachedEndpoint, chromeBin, type Tab } from "./browser_conn.ts";
@@ -105,8 +105,9 @@ function encodeVideo(frames: { t: number; file: string }[], outDir: string): { v
   // ONE video per folder: this script's frames become a segment that is APPENDED to session.webm (no frames exist while the agent thinks between scripts, so that time is simply not in the video: an automatic pause).
   // Encoded in the background (nice, 2 threads); `flock` keeps appends in order; the frames folder is removed at the end.
   const sh = `nice -n 10 ffmpeg -y -loglevel error -f concat -safe 0 -i ${q(lf)} -threads 2 -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2,fps=25" -c:v libvpx -deadline realtime -cpu-used 8 -crf 33 -b:v 2500k -pix_fmt yuv420p -f webm ${q(seg)} && flock ${q(join(outDir, ".enc.lock"))} sh -c ${q(`if [ -f ${q(out)} ]; then printf "file '%s'\\nfile '%s'\\n" ${q(out)} ${q(seg)} > ${q(join(vdir, "cat.txt"))} && ffmpeg -y -loglevel error -f concat -safe 0 -i ${q(join(vdir, "cat.txt"))} -c copy -f webm ${q(out + ".part")} && mv ${q(out + ".part")} ${q(out)}; else mv ${q(seg)} ${q(out)}; fi`)}; rm -rf ${q(vdir)}`;
-  spawn("sh", ["-c", sh], { stdio: "ignore", detached: true }).unref();
-  return { video: out, len: frames.reduce((n, _f, i) => n + dur(i), 0), note: "the video is being added to session.webm in the background (about 10 s)" };
+  const marker = join(outDir, `.pending-${Date.now().toString(36)}-${process.pid}`); writeFileSync(marker, "");   // `tab close` waits until no marker is left (the encode runs niced in the background: 10 s on a quiet machine, over a minute on a busy one)
+  spawn("sh", ["-c", `${sh}; rm -f ${q(marker)}`], { stdio: "ignore", detached: true }).unref();
+  return { video: out, len: frames.reduce((n, _f, i) => n + dur(i), 0), note: "the video is being added to session.webm in the background; `tab close` waits until it is final and tells you. Do not record it again." };
 }
 /** One row of the QA report: what was done, what it looked like, and where it is in the video. */
 export interface StepRow { n: number; name: string; action: string; ok: boolean; note?: string; shot?: string; wall: number; video_s?: number; /** the video file this row belongs to (a folder can hold several scripts) */ video?: string }
@@ -186,7 +187,11 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
     };
     const banner = (txt: string) => ev(`(() => { let b = document.getElementById('__qa_step'); if (!b) { b = document.createElement('div'); b.id = '__qa_step'; b.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483647;background:rgba(0,0,0,.78);color:#fff;font:600 13px system-ui;padding:5px 10px;border-radius:6px;pointer-events:none'; document.documentElement.appendChild(b); } b.textContent = ${JSON.stringify(txt)}; })()`).catch(() => 0);
     if (numbered && !prior.length) await row("page loaded", "open " + o.url, true);
+    const PICTURE_LIMIT = 2;   // with pictures OFF a session keeps TWO explicit pictures in all (across its scripts); the video shows the rest
     for (const st of o.steps ?? []) {
+      if (st.shot && !(typeof st.shot === "string" && /^\d{2}_/.test(st.shot))) st.shot = `${String(prior.length + rows.length).padStart(2, "0")}_${slug(st.name ?? (typeof st.shot === "string" ? st.shot.replace(/\.\w+$/, "") : "picture"))}.png`;   // pictures are named by the tool (number + step name), never by the agent (a.png, b.png ...)
+      if (st.shot && typeof st.shot === "string") { const stem = st.shot.replace(/^\d{2}_/, ""); try { for (const f of readdirSync(o.outDir)) if (f !== st.shot && /^\d{2}_/.test(f) && f.replace(/^\d{2}_/, "") === stem) rmSync(join(o.outDir, f), { force: true }); } catch { /* no folder yet */ } }   // a re-take of the same picture (same step name) REPLACES the first, so a picture taken too early can be redone for free
+      let dropped = false; if (st.shot && o.images === false) { if (readdirSync(o.outDir).filter((f) => /^\d{2}_.+\.(png|jpe?g)$/.test(f)).length >= PICTURE_LIMIT) { st.shot = undefined as never; dropped = true; } }   // counted from the files really in the session folder (with pictures off a row records no picture)   // a further picture is not taken: the step still runs, its row says why
       if (numbered && st.name && !stopped) await banner(`${prior.length + rows.length}  ${st.name}`);
       if (stopped) { if (st.snapshot) results.push({ snapshot: await ev(SNAP_JS).catch(() => null) }); else notRun++; continue; }   // a step failed: nothing after it runs (the snapshot at the end still does)
       const clicks0 = results.length; let stepErr: string | undefined;
@@ -220,7 +225,7 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
       if (!stepOk && !o.keepGoing) { stopped = true; failed = { n: prior.length + rows.length, name: st.name ?? (st.click ? `click ${st.click}` : st.fill ? "fill form" : st.type ? `type into ${st.type}` : st.key ? `key ${st.key}` : "step"), reason: stepErr ?? (clickRes as { why?: string } | undefined)?.why ? `target ${(clickRes as { why?: string }).why} even after waiting` : "not found on the page" }; }
       if (numbered && (st.name || st.click || stepErr || st.shot)) {
         const ok = stepOk;
-        await row(st.name ?? (st.click ? `click ${st.click}` : st.shot ? `picture ${st.shot}` : "step"), st.click ? `click ${st.click}` : st.fill ? "fill form" : st.type ? `type into ${st.type}` : st.key ? `key ${st.key}` : st.eval ? "eval" : "look", ok, st.shot, ok ? undefined : stepErr ?? ((clickRes as { why?: string } | undefined)?.why ? `target ${(clickRes as { why?: string }).why} even after waiting` : "not found on the page"));
+        await row(st.name ?? (st.click ? `click ${st.click}` : st.shot ? `picture ${st.shot}` : "step"), st.click ? `click ${st.click}` : st.fill ? "fill form" : st.type ? `type into ${st.type}` : st.key ? `key ${st.key}` : st.eval ? "eval" : "look", ok, st.shot, ok ? (dropped ? `no picture: the limit of ${PICTURE_LIMIT} pictures per session (pictures off) is reached, the video shows it` : undefined) : stepErr ?? ((clickRes as { why?: string } | undefined)?.why ? `target ${(clickRes as { why?: string }).why} even after waiting` : "not found on the page"));
       }
     }
     if (o.sectionShots && !outline) outline = await ev(OUTLINE_JS) as Outline;
@@ -241,3 +246,14 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
   finally { if (o.freeze && cdp) await cdp.send("Page.setWebLifecycleState", { state: "frozen" }).catch(() => 0); cdp?.close(); proc?.kill("SIGKILL"); if (vdirOf) rmSync(vdirOf, { recursive: true, force: true }); if (dir) rmSync(dir, { recursive: true, force: true }); if (ownTab && ep) { await fetch(ep + "/json/close/" + ownTab).catch(() => 0); for (let i = 0; i < 12; i++) { const gone = await fetch(ep + "/json/list").then((r) => r.json() as Promise<Tab[]>).then((l) => !l.some((t) => t.id === ownTab)).catch(() => true); if (gone) break; await sleep(150); } } }   // the person's browser is left exactly as it was: wait until our tab is really gone
 }
 export { existsSync };
+
+/** Wait until every background video encode under `root` is finished (no `.pending-*` marker left), at most `capMs`; then name the videos (path, MB). */
+export async function waitVideos(root: string, capMs = 120_000): Promise<{ waited_s: number; pending: boolean; videos: { file: string; mb: number }[] }> {
+  const { readdirSync, statSync } = await import("node:fs"), t0 = Date.now();
+  const walk = (d: string, depth = 0, acc: { pending: string[]; videos: { file: string; mb: number; m: number }[] } = { pending: [], videos: [] }) => {
+    try { for (const e of readdirSync(d, { withFileTypes: true })) { const p = join(d, e.name); if (e.isDirectory()) { if (depth < 3) walk(p, depth + 1, acc); } else if (e.name.startsWith(".pending-")) acc.pending.push(p); else if (e.name === "session.webm") { const st = statSync(p); acc.videos.push({ file: p, mb: Math.round(st.size / 1048576 * 10) / 10, m: st.mtimeMs }); } } } catch { /* gone */ }
+    return acc;
+  };
+  let acc = walk(root); while (acc.pending.length && Date.now() - t0 < capMs) { await new Promise((r) => setTimeout(r, 500)); acc = walk(root); }
+  return { waited_s: Math.round((Date.now() - t0) / 100) / 10, pending: acc.pending.length > 0, videos: acc.videos.filter((v) => Date.now() - v.m < 3_600_000).map(({ file, mb }) => ({ file, mb })) };
+}

@@ -18,6 +18,7 @@ After the delegate, WAIT FOR THE ANSWER in the same turn: `team wait --agents qa
 ## What comes back
 First line `PASS`, `FAIL` or `PARTIAL`, then `CHECKED:` (each item with the full path of its screenshot or video from store/qa), `NOT CHECKED:` (what is left or skipped: the next QA call starts there, so a second ask costs only the rest), what is wrong most serious first, and `NEEDS_CHANGES:` when something real must change. The harness keeps all of it in the project's `.loopsAI/QA.md` (the to-do context QA reads next time).
 - `NEEDS_CHANGES:` -> hand exactly that to a builder (`--writes` the files), then ask QA again.
+- On PASS the work is done: `POLISH:` ideas are optional, give the person at most one line about them and start no fix loop. `QUALITY:` is QA's grade of the look; report it in a few words.
 - Never report a broken app as done, and never tell the person "it works" without QA's PASS or evidence you named yourself.
 - If QA reports the same problem after two fixes, change the approach (a different builder, an exact instruction) or tell the person what blocks it. Do not loop.
 

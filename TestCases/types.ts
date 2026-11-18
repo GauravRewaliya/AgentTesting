@@ -134,6 +134,8 @@ export type Case = {
   qa?: (req: QaReq) => QaSpec;
   /** Files created in the workspace before the case starts (path under run_test -> content), for a case that says "there is an index.html in run_test/x". Not used for a case that continues another (`after`). */
   seed?: Record<string, string>;
+  /** Cost of the REAL run, judged after the case (test_harness/core/session_audit.ts): time per agent, tool calls, duplicate video, extra pictures, ffmpeg / sleep, builders split or not, cost. A broken budget FAILS the case with the reasons (printed and saved in the exp file). Not applied to --fake. */
+  audit?: import("../test_harness/core/session_audit.ts").AuditOpts;
   /** Role-order guard rules: a JSON file in TestCases/test_folders/agent_fixture/store (e.g. "expo_rules.json"): requires_done, contains_all, min_chars per role. */
   guard?: string;
   /** Lead protocol appended to the system prompt: a file in core/harness_own_custom/core/prompts (without .md), e.g. "lead_team". */

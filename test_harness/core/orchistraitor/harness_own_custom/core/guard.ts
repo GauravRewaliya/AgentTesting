@@ -14,6 +14,9 @@ export function checkHandover(i: GuardInput): string[] {
   if (i.allowed && !i.allowed.includes(i.agent)) why.push(`'${i.agent}' not allowed in this turn (allowed: ${i.allowed.join(", ") || "none"})`);
   for (const d of r.requires_done ?? []) if (!i.done.includes(d)) why.push(`needs '${d}' done first`);
   for (const k of r.contains_all ?? []) if (!low.includes(k.toLowerCase())) why.push(`hand-over lacks '${k}'`);
+  // contains_none: the hand-over must not INSTRUCT the forbidden thing. A negated clause ("no video, screenshots, server", "never record", "without ffmpeg") is a limit, not an instruction: it is removed first.
+  const instruction = low.replace(/\b(no|not|never|without|nor|don't|do not|must not)\b[^.;\n]*/g, " ");
+  for (const k of r.contains_none ?? []) if (instruction.includes(k.toLowerCase())) why.push(`hand-over tells '${i.agent}' to do '${k}' (not its job)`);
   if (i.prompt.length < (r.min_chars ?? 0)) why.push(`hand-over too thin (${i.prompt.length} < ${r.min_chars} chars)`);
   return why;
 }

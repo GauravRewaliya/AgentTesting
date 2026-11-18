@@ -1,8 +1,9 @@
 // File locks (plan section 22): declared up front, all-or-none, FIFO queue, leases. A hook denies an edit that is not covered. Never sleeps.
 import type { Store } from "./base.ts";
 import type { LockRow } from "./base.ts";
+import { wsRel } from "./rel_writes.ts";
 
-const lit = (g: string) => g.replace(/^\.\//, "").split("*")[0]!;
+const lit = (g: string) => wsRel(g).split("*")[0]!;
 /** Conservative overlap: the literal prefixes nest. `src/*.ts` and `src/*.js` count as overlapping (a false queue, never a missed conflict). */
 /** A name starting with "@" is a RESOURCE, not a path (@git, @migrations, @tests): it conflicts only with the same name. */
 export const isResource = (s: string) => s.startsWith("@");
@@ -13,8 +14,11 @@ const FAMILIES: [string, RegExp][] = [
   ["@git", /\bgit\s+(commit|add|merge|rebase|checkout|switch|reset|restore|stash|cherry-pick|apply|push|pull|fetch|tag|rm|mv|worktree|clean)\b/],
   ["@migrations", /\b(db:migrate|db:generate|migrate|drizzle-kit|prisma\s+migrate|knex\s+migrate|alembic|typeorm\s+migration|sequelize\s+db:migrate|flyway)\b/],
   ["@tests", /\b(vitest|jest|mocha|pytest|playwright|cypress|bun\s+run\s+test|npm\s+(run\s+)?test|pnpm\s+(run\s+)?test|yarn\s+test|go\s+test|cargo\s+test)\b/]];
-export function resourcesFor(command: string): string[] { return FAMILIES.filter(([, re]) => re.test(command)).map(([n]) => n); }
-export function covers(glob: string, path: string): boolean {
+/** A segment that only READS (ls, cat, grep, find, which ...) mentions names, it does not run them: `ls ~/.cache/ms-playwright` or `cat vitest.config.ts` is not a test run (a real false stop of a QA agent). */
+const READ_ONLY = /^\s*(?:cd\s+\S+\s*;?\s*)?(ls|ll|cat|head|tail|find|grep|rg|stat|which|whereis|wc|du|file|type|command\s+-v|echo|printf|test|\[|sed\s+-n|awk|diff|tree|realpath|basename|dirname)\b/;
+export function resourcesFor(command: string): string[] { const active = command.split(/&&|;|\|\||\||\n/).filter((seg) => !READ_ONLY.test(seg)).join(" ; "); return FAMILIES.filter(([, re]) => re.test(active)).map(([n]) => n); }
+export function covers(glob0: string, path0: string): boolean {
+  const glob = wsRel(glob0), path = wsRel(path0);   // two spellings of one file are one file (absolute vs workspace-relative)
   const re = new RegExp("^" + glob.replace(/^\.\//, "").replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*\*/g, "\u0000").replace(/\*/g, "[^/]*").replace(/\u0000/g, ".*") + "$");
   return re.test(path.replace(/^\.\//, "")) || (!glob.includes("*") && path.startsWith(glob.replace(/\/$/, "") + "/"));
 }

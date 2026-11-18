@@ -7,6 +7,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { relWrites } from "./core/rel_writes.ts";
 import { fileURLToPath } from "node:url";
 import { agentCall, defaultPolicy, stopAgent, type CallReq, type CallRes } from "./core/agent_call.ts";
 import { DockerRunner } from "./core/base/docker_runner.ts";
@@ -82,11 +83,14 @@ const realCwd = E.HARNESS_REAL_CWD ?? cwd;
 /** Video is the one heavy thing a project can switch off: .loopsAI/config.json { "qa_check": false }. Screenshots and everything else stay available. */
 /** Where evidence goes (pictures, videos, reports): <session>/store/qa/<name>/. The workspace holds the person's project only; nothing agents record is written into it. */
 const mediaRoot = join(dirname(file), "qa");
+/** the pictures of a session folder, full paths, in the order taken: every `tab do` reply lists them, so an agent never hunts for a path (found: 3 extra calls to find them) */
+const pictureFiles = (dir: string): string[] => { try { return readdirSync(dir).filter((f) => /^\d{2}_.+\.(png|jpe?g)$/.test(f)).sort().map((f) => join(dir, f)); } catch { return []; } };
 const mediaOut = (rel: string) => { const r = rel.replace(/^(run_test|store|qa)[\\/]/, "").replace(/^\/+/, ""); return r && !r.split(/[\\/]/).includes("..") ? join(mediaRoot, r) : undefined; };
 const videoOff = (): string | undefined => { const why = videoOffReason(join(realCwd, "run_test")); return why ? why + "; screenshots still work" : undefined; };
 
 /** A writer called without --writes would be refused by the lock hook on its first Write and cost a second call: default to the run_test/<project> folder the objective names. */
-function withWrites(req: CallReq): CallReq {
+function withWrites(req0: CallReq): CallReq {
+  const req = req0.writes?.length ? { ...req0, writes: relWrites(req0.writes, [cwd, realCwd]) } : req0;
   if (req.writes?.length || !defs.get(req.role)?.writes) return req;
   const sa = req.session_arg ?? "", prev = sa && sa !== "new" && !sa.startsWith("fork:") ? [...store.calls].reverse().find((c) => c.task_id === task && c.callee_agent_id === sa && c.req?.writes?.length) : undefined;   // a RESUMED writer keeps what it was allowed to write (the lead forgot --writes and paid a second call)
   if (prev) return { ...req, writes: prev.req!.writes as string[] };
@@ -177,7 +181,8 @@ async function execPlan(plan_id: string) {
   finishWith(cur().tasks.every((t) => t.status === "done" || t.status === "cancelled") ? "done" : "failed");
 }
 /** agent.call + the locks, in order: validate and record, then take the locks (the agent never does), then claim the agent so it can start. */
-async function grant(req: CallReq, claim: boolean): Promise<CallRes> {
+async function grant(req0: CallReq, claim: boolean): Promise<CallRes> {
+  const req: CallReq = req0.writes?.length ? { ...req0, writes: relWrites(req0.writes, [cwd, realCwd]) } : req0;   // EVERY grant (delegate, fork_all, plan tasks) holds its locks under workspace-relative paths, the form the write guard compares
   const claimNow = (r: Extract<CallRes, { ok: true }>) => { const ag = store.agent(task, r.agent.agent_id)!; ag.status = "running"; ag.activity = "starting"; ag.last_event_at = Date.now(); };
   let res!: CallRes;
   store.tx(() => { res = agentCall(store, defs, policy, req); if (res.ok && !res.queued && !res.needLocks && claim) claimNow(res); });
@@ -299,6 +304,7 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
 } else if (cmd === "plan_submit") {
   let tasks: PlanTask[];
   try { tasks = JSON.parse(flag("tasks") ?? "[]"); } catch (e) { out({ ok: false, errors: ["--tasks is not valid JSON: " + String(e).slice(0, 80)] }); process.exit(0); }
+  tasks = tasks.map((x) => (x.writes?.length ? { ...x, writes: relWrites(x.writes, [cwd, realCwd]) } : x));   // the overlap check compares like with like
   let o: unknown;
   store.tx(() => {
     const owner = store.agent(task, me);
@@ -464,17 +470,21 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
   if (!nm || !existsSync(rd)) out({ ok: false, reason: "no such reference store: run_test/_ref/<name>" });
   else { const { buildStore } = await import("./core/ref_store.ts"); out({ ...buildStore(rd, nm), note: "STORE.md and MAP.md rebuilt" }); }
 } else if (cmd === "browse") {   // a REAL browser (Chrome DevTools Protocol): --url <http(s)://..> | --file run_test/<p>/index.html [--route "/blog"] [--scheme light|dark] [--mobile] [--shots <prefix>] [--out <folder in run_test, default _shots>] [--steps '[{"name":"open menu","click":"Menu"},{"scroll":900},{"click":"Features"},{"shot":"a.png"},{"eval":"document.title"},{"outline":true}]']
-  const { browse } = await import("./core/browse.ts"), { mkdirSync } = await import("node:fs"), f = flag("file"), outRel = flag("out") ?? "browse", outDir = mediaOut(outRel) ?? "", wantVideo = rest.includes("--video"), vOff = wantVideo ? videoOff() : undefined;   // evidence goes to the REAL workspace (a QA agent works in a copy that is deleted)
+  const { browse } = await import("./core/browse.ts"), { mkdirSync } = await import("node:fs"), f = flag("file"), isQa = /^qa-reviewer#/.test(me),
+    // a QA agent works in ONE session folder (one report, one video, at most two pictures): `browse` is no way around that (it used to add a full-page picture and up to 12 section pictures in a folder of its own)
+    outRel = isQa ? me.replace(/[^\w-]+/g, "-") : (flag("out") ?? "browse"), outDir = mediaOut(outRel) ?? "", wantVideo = rest.includes("--video"), vOff = wantVideo ? videoOff() : undefined;   // evidence goes to the REAL workspace (a QA agent works in a copy that is deleted)
   const ff = f ? projPath(f.replace(/\/?index\.html$/, "") || ".") : "", url = flag("url") ?? (f ? "file://" + join(ff, "index.html") + "#" + (flag("route") ?? "/") : "");
   if (!outDir) out({ ok: false, reason: "--out must be a plain folder name (for example --out eiffel-flows): evidence is stored in the session's store/qa folder" });
   else if ((!url && !flag("tab")) || (f && !inWs(ff))) out({ ok: false, reason: "give --url https://.. or --file run_test/<project>/index.html (inside the workspace)" });
   else { mkdirSync(outDir, { recursive: true }); let steps: unknown[] = []; try { steps = JSON.parse(flag("steps") ?? "[]"); } catch { /* none */ }
-    const pre = flag("shots"), r = vOff ? { ok: false, reason: vOff, shots: [], results: [], console: [] } as Awaited<ReturnType<typeof browse>> : await browse({ video: wantVideo, url, tab: flag("tab"), clean: rest.includes("--no-clean") ? false : rest.includes("--clean") ? true : undefined, outDir, scheme: flag("scheme") === "dark" ? "dark" : "light", mobile: rest.includes("--mobile"), steps: steps as never, sectionShots: pre ? 12 : 0, tag: pre ?? "page" });
+    const pre = flag("shots"), r = vOff ? { ok: false, reason: vOff, shots: [], results: [], console: [] } as Awaited<ReturnType<typeof browse>> : await browse({ video: wantVideo, url, tab: flag("tab"), clean: rest.includes("--no-clean") ? false : rest.includes("--clean") ? true : undefined, outDir, scheme: flag("scheme") === "dark" ? "dark" : "light", mobile: rest.includes("--mobile"), steps: steps as never, sectionShots: pre && !isQa ? 12 : 0, images: isQa ? imagesOn(join(realCwd, "run_test")) : undefined, tag: pre ?? "page" });
     out({ ok: r.ok, reason: r.reason, browser: r.via === "connected" ? "connected Chrome (visible)" : "private headless Chrome (invisible)", cleaned: r.cleaned?.length ? r.cleaned : undefined, pictures_in: `run_test/${outRel}/ (open them with Read)`, report: r.report ? join(outDir, "index.html") : undefined, steps: r.steps?.map((x) => `${x.n} ${x.ok ? "OK" : "FAIL"} ${x.name}${x.video_s !== undefined ? " @" + x.video_s + "s" : ""} -> ${join(outDir, x.shot ?? "")}`), video: r.video ? join(outDir, r.video.split("/").pop()!) : undefined, video_note: r.video_note, pictures: r.shots.map((x) => join(outDir, x.split("/").pop()!)), results: r.results, console_errors: r.console, outline: r.outline ? { theme: r.outline.theme, sections: r.outline.sections.map((x) => `#${x.i + 1} ${x.heading || x.tag} | ${x.cards ? x.cards + " cards" : "-"} | btn ${x.buttons.length} | img ${x.images}${x.animated ? " | animated" : ""}`), nav: r.outline.nav, fonts: r.outline.fonts } : undefined }); }
 } else if (cmd === "tab") {   // ONE tab per agent, kept open between commands: tab open --url <u> | tab do --steps '[...]' [--video] [--keep-going] [--out <folder>] | tab status | tab close
-  const sub = rest[0], tb = await import("./core/tab.ts"), { mkdirSync } = await import("node:fs"), outRel = flag("out") ?? "tab";
+  const sub = rest[0], tb = await import("./core/tab.ts"), { mkdirSync } = await import("node:fs");
+  // ONE evidence folder (one report, one video) per agent, chosen by the tool: a second `--out` name used to start a second report and a second video (sakura, sakura2). `--out` is accepted and ignored.
+  const outRel = me.replace(/[^\w-]+/g, "-"), outAsked = flag("out"), outNote = outAsked && outAsked.replace(/^(run_test|store|qa)[\\/]/, "") !== outRel ? `one report and one video per session: your --out ${outAsked} was not used, everything is in ${outRel}` : undefined;
   if (sub === "open") out(await tb.tabOpen({ task, agent: me, url: flag("url"), mobile: rest.includes("--mobile") }));
-  else if (sub === "close") out(await tb.tabClose({ task, agent: me }));
+  else if (sub === "close") { const r = await tb.tabClose({ task, agent: me }), { waitVideos } = await import("./core/browse.ts"), v = await waitVideos(mediaRoot); out({ ...r, ...(v.videos.length ? { videos: v.videos, video_final: !v.pending, video_wait_s: v.waited_s } : {}), ...(v.pending ? { note: "a video is still encoding after 2 minutes: it will appear by itself; do not record it again" } : {}) }); }
   else if (sub === "status") out(await tb.tabStatus({ task, agent: me }));
   else if (sub === "result") {   // the outcome of a background script: tab result [--job <id>] (the newest when none is named)
     const { readdirSync, readFileSync, existsSync } = await import("node:fs"), root = mediaRoot, jobs: { f: string; t: number }[] = [];
@@ -498,7 +508,7 @@ if (JOB_TOOLS.has(cmd ?? "") && rest.includes("--async") && !E.HARNESS_JOB) {   
         writeFileSync(bgJob, JSON.stringify({ status: "running", at: new Date().toISOString() })); }
       try { const r = await tb.tabDo({ task, agent: me, steps: steps as never, outDir, video: rest.includes("--video") && !vOff, tag: flag("name") ?? outRel.split("/").pop() ?? "tab", keepGoing: rest.includes("--keep-going"), images: imagesOn(join(realCwd, "run_test")) });
         const snap = r ? [...r.results].reverse().find((x) => (x as { snapshot?: unknown }).snapshot) as { snapshot?: unknown } | undefined : undefined, keep = r ? r.results.filter((x) => { const y = x as Record<string, unknown>; return y.eval !== undefined || y.why !== undefined || y.error !== undefined || y.found === false; }) : [];
-        put(!r ? { ok: false, status: "done", reason: "no tab is open for you: run `tab open --url <address>` first" } : { ok: r.ok, status: "done", reason: r.reason, failed: r.failed, not_run: r.not_run, report: r.report ? join(outDir, "index.html") : undefined, video: r.video ? join(outDir, "session.webm") : undefined, video_note: vOff ?? undefined, steps: r.steps?.map((x) => `${x.n} ${x.ok ? "OK" : "FAIL"} ${x.name}${x.video_s !== undefined ? " @" + x.video_s + "s" : ""}${x.note ? " (" + x.note + ")" : ""}${x.shot ? " -> " + join(outDir, x.shot) : ""}`), page: snap?.snapshot, results: keep.length ? keep : undefined, console_errors: r.console.length ? r.console : "none" });
+        put(!r ? { ok: false, status: "done", reason: "no tab is open for you: run `tab open --url <address>` first" } : { ok: r.ok, status: "done", reason: r.reason, failed: r.failed, not_run: r.not_run, folder_note: outNote, pictures: pictureFiles(outDir), report: r.report ? join(outDir, "index.html") : undefined, video: r.video ? join(outDir, "session.webm") : undefined, video_note: vOff ?? undefined, steps: r.steps?.map((x) => `${x.n} ${x.ok ? "OK" : "FAIL"} ${x.name}${x.video_s !== undefined ? " @" + x.video_s + "s" : ""}${x.note ? " (" + x.note + ")" : ""}${x.shot ? " -> " + join(outDir, x.shot) : ""}`), page: snap?.snapshot, results: keep.length ? keep : undefined, console_errors: r.console.length ? r.console : "none" });
       } finally { if (bgJob) rmSync(lock, { force: true }); } }
   } else out({ ok: false, reason: "tab open --url <u> | tab do --steps '[...]' [--background] | tab result | tab status | tab close" });
 } else if (cmd === "ref_compare") {   // does the clone match the reference captured by ref_capture? --ref <name> --dir run_test/<project> [--route "/"]

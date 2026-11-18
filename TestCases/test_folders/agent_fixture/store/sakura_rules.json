@@ -1,0 +1,14 @@
+{
+ "builder": {
+  "requires_done": [],
+  "contains_all": ["sakura", "run_test"],
+  "contains_none": ["ffmpeg", "playwright", "puppeteer", "recordvideo", "record_demo", "webm", "mp4", "demo video", "screenshot", "record a", "record the", "package.json", "dev server", "browser run"],
+  "min_chars": 150
+ },
+ "qa-reviewer": {
+  "requires_done": ["builder"],
+  "contains_all": ["sakura", "video"],
+  "contains_none": ["ffmpeg", "playwright", "puppeteer", "recordvideo", "pnpm dlx", "convert", "demo.mp4", "demo.webm"],
+  "min_chars": 150
+ }
+}

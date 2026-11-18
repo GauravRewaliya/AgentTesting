@@ -60,6 +60,8 @@ export type Rule = {
   requires_done?: string[];
   /** Words the hand-over must ALL contain (case-insensitive), e.g. "run_test", "PLAN.md". */
   contains_all?: string[];
+  /** Words the hand-over must NOT contain (case-insensitive). A negated clause is ignored ("no video, screenshots, server" is fine: it forbids them), so only an INSTRUCTION to do it is caught. E.g. a builder is never told to record a video or run a browser. */
+  contains_none?: string[];
   /** Minimum hand-over length. */
   min_chars?: number;
   /** true = distractor: calling it fails the case. */

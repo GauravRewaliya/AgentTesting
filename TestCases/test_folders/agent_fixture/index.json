@@ -948,5 +948,28 @@
    "nativewind"
   ],
   "text": "The tailwind app is missing Tailwind: it still uses StyleSheet. Add NativeWind (packages, global.css, metro + postcss config, tw wrappers) and restyle with className only."
+ },
+ {
+  "id": "role-sakura-builder",
+  "suite": "test_treejs_sakura",
+  "file": "results/test_treejs_sakura/role-sakura-builder.ts",
+  "title": "builder: the sakura page, the recorded GOOD build B (from the real session rs_sakura_page_mwm8na741)",
+  "agent": "builder",
+  "keywords": [
+   "sakura"
+  ],
+  "text": "Build run_test/sakura: a three.js sakura scene, voxel look, rotating camera, falling petals, buttons for rotate / day-sunset / petals on-off, files index.html css/style.css js/*.js (one builder, no video, no screenshots, no server)"
+ },
+ {
+  "id": "role-sakura-qa-pass",
+  "suite": "test_treejs_sakura",
+  "file": "results/test_treejs_sakura/role-sakura-qa-pass.ts",
+  "title": "qa-reviewer: PASS on the good sakura build, with one video and two shots, quality judged",
+  "agent": "qa-reviewer",
+  "keywords": [
+   "sakura",
+   "video"
+  ],
+  "text": "Verify run_test/sakura (three.js sakura, #btn-rotate, #btn-time, #btn-petals) and record ONE demo video of rotate, day, sunset, petals off and on"
  }
 ]

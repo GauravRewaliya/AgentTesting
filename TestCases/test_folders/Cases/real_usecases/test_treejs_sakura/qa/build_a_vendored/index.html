@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sakura Blocks</title>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }
+</script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <h1>Sakura Blocks</h1>
+  <p class="sub">Drag to look · Scroll to zoom</p>
+  <div class="btns">
+    <button id="btn-rot" type="button" aria-pressed="true">Auto-Rotate: ON</button>
+    <button id="btn-time" type="button">Time: Day</button>
+    <button id="btn-wind" type="button">Gust of Wind</button>
+  </div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

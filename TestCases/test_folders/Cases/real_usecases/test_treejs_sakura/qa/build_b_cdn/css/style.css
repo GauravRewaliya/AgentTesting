@@ -1,0 +1,13 @@
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#111;font-family:"Courier New",ui-monospace,Menlo,monospace}
+#app{position:fixed;inset:0}
+#app canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;top:12px;left:12px;padding:12px 14px;background:rgba(15,10,20,.72);border:3px solid #f4b6c8;box-shadow:4px 4px 0 rgba(0,0,0,.5);color:#ffe4ec;max-width:calc(100vw - 24px);image-rendering:pixelated}
+#hud h1{margin:0 0 4px;font-size:18px;letter-spacing:3px;color:#ffb7d0;text-shadow:2px 2px 0 #5a1f38}
+.sub{margin:0 0 10px;font-size:12px;color:#d9c3cc}
+.buttons{display:flex;flex-wrap:wrap;gap:8px}
+button{font:inherit;font-size:13px;min-height:40px;padding:6px 12px;color:#ffe4ec;background:#3b2a3f;border:2px solid #f4b6c8;cursor:pointer;box-shadow:2px 2px 0 #000;text-transform:uppercase}
+button:hover{background:#573a5c}
+button:active{transform:translate(2px,2px);box-shadow:none}
+button.on{background:#a8416b;border-color:#ffd1e0}
+button:focus-visible{outline:2px solid #fff;outline-offset:2px}

@@ -1,3 +1,4 @@
+import { wsRel } from "./rel_writes.ts";
 // Lock backend on Redis (the planned core store for locks). The same rules as locks.ts, but every decision is ONE Lua script, so it is atomic
 // across any number of processes and machines:
 //   - all paths or none (never a partial hold), FIFO queue, a later request cannot jump an earlier overlapping waiter
@@ -80,7 +81,7 @@ export class RedisLocks {
   }
   async guard(task_id: string, agent_id: string, target: string, ttlMs = 120_000): Promise<{ allow: true } | { allow: false; reason: string; holder?: string }> {
     const hs = await this.holders(task_id), isRes = target.startsWith("@");
-    const covers = (g: string, p: string) => !g.startsWith("@") && (g.includes("*") ? new RegExp("^" + g.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*\*/g, "\u0000").replace(/\*/g, "[^/]*").replace(/\u0000/g, ".*") + "$").test(p) : p === g || p.startsWith(g.replace(/\/$/, "") + "/"));
+    const covers = (g0: string, p0: string) => { const g = wsRel(g0), p = wsRel(p0); return !g.startsWith("@") && (g.includes("*") ? new RegExp("^" + g.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*\*/g, "\u0000").replace(/\*/g, "[^/]*").replace(/\u0000/g, ".*") + "$").test(p) : p === g || p.startsWith(g.replace(/\/$/, "") + "/")); };
     const matches = (h: Held) => (isRes ? h.path === target : covers(h.path, target));
     if (hs.some((h) => h.agent_id === agent_id && matches(h))) { await this.renew(task_id, agent_id, ttlMs); return { allow: true }; }
     const other = hs.find((h) => h.agent_id !== agent_id && matches(h));

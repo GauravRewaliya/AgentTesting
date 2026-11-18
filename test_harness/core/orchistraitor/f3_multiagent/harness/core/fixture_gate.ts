@@ -115,7 +115,9 @@ export class FixtureGate implements Runner {
     if (session?.state === "real") return real();   // a follow-up of a session that was a real call: it is real, no fixture involved
     const followUp = !!session && session.served.length > 0;
     // 2. PROMPT + FIXTURE
-    const rules = allRules(mockEv?.guard), why = checkHandover({ rules, agent: role, prompt: c.prompt, done: [] });
+    // role order (`requires_done`): the roles ALREADY served in this task. It was `done: []` before, so a rule such as "qa-reviewer needs builder done first" could never pass in this gate.
+    const doneRoles = [...new Set(st.evs("fixture.call", task).map((e) => e.data as unknown as GateCall).filter((d) => d.verdict === "served" || d.verdict === "real").map((d) => d.role))];
+    const rules = allRules(mockEv?.guard), why = checkHandover({ rules, agent: role, prompt: c.prompt, done: doneRoles });
     let rec = pickRecorded(mockEv?.ids ? this.results.filter((r) => mockEv.ids!.includes(r.id)) : this.results, role, c.prompt, servedInTask(st, task), true);
     // BY THE CASE, NOT BY WORDING: the case declares which recorded results it expects (mockEv.ids). When no keyword of the hand-over matches but the case expects exactly ONE not-yet-served result of this role
     // (and its `after` is served), that result is the answer: a good hand-over that does not repeat an incidental phrase of the case (eg_tw_01 needed 'phase 1 of 1') must not fail. Hand-over QUALITY stays the job
