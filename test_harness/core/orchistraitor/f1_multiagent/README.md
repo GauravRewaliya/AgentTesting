@@ -2,7 +2,7 @@
 
 ## Two engines live here (read this first)
 - **Current: the lead engine.** `harness/tools.ts` (the `team <cmd>` commands), `harness/lead.ts`, `core/board`, `core/agent_call`, `core/callee`; agents in `harness/agents/` (lead, builder, lookup, planner ...); run by `testrun/run.ts`. Prompts: `agents/<name>/agent.json` (`prompts`, `team_tools`) and `.claude/CLAUDE.md`; the lead's flows are `agents/lead/chapters/`.
-- **Legacy: the stage loop** (planner > builder > reviewer rounds): `core/base/{loop,stages,checks,briefs}.ts`, `pipelines/default.json`, `harness/main.ts`, the `stage-*` agents. Only `TestCases/test_folders/advance_test` uses it. Do not extend it; move it to `legacy/` when that suite is retired.
+- **Legacy: the stage loop** (planner > builder > reviewer rounds): `core/base/{loop,stages,checks,briefs}.ts`, `pipelines/default.json`, `harness/main.ts`, the `stage-*` agents. Only `TestCases/test_folders/Cases/core_testing/advance_test` uses it. Do not extend it; move it to `legacy/` when that suite is retired.
 
 ## Whose is what
 
@@ -19,13 +19,13 @@ The f1 multi-agent harness: a lead agent that delegates to sub-agents, with a re
 
 * `harness/`  the harness itself (`lead.ts`, `tools.ts`, `core/`, `hooks/`, `agents/<name>/` = `agent.json` + `.claude/CLAUDE.md` + `settings.json` [+ `.claude/skills/`]).
 * `ui/`       its console (`.ui-data/` = local state, git-ignored).
-* `testrun/`  runs the **shared** cases (`TestCases/test_folders/<suite>/main.ts`) on this harness.
+* `testrun/`  runs the **shared** cases (`TestCases/test_folders/Cases/<suite>/main.ts`) on this harness.
 * `self_test/` this harness's **own** tests and experiments.
 
 ## Tests: two kinds, and only one of them is global
 | | where | scope | run |
 |---|---|---|---|
-| shared cases | `TestCases/test_folders/<suite>/` | global: any harness can run them | `bun testrun/run.ts <suite> [case ...] [--list] [--fake] [--rerun]` |
+| shared cases | `TestCases/test_folders/Cases/<suite>/` | global: any harness can run them | `bun testrun/run.ts <suite> [case ...] [--list] [--fake] [--rerun]` |
 | harness tests | `self_test/` | **local to f1**: not global, they test f1's own machinery | see below |
 
 ### Extra flags (passed from OUTSIDE the harness)

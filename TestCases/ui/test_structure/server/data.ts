@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { CASES, FIXTURES, HELPER_AGENTS, ROOT } from "@core/paths.ts";
+import { FIXTURES, HELPER_AGENTS, ROOT, suiteDirs } from "@core/paths.ts";
 import { normalizeBranches } from "../../../branch.ts";
 import { f1, f1WsDir } from "./experiment.ts";
 export { ROOT };
@@ -14,12 +14,11 @@ type Last = { at: string; status: string; warnings?: string[]; turns: { actual: 
 type Ckpt = { sessionId: string; ids: Record<string, string> };
 
 export async function loadSuites() {
-  const out: { suite: string; tags: string[]; cases: RawCase[] }[] = [];
-  for (const d of readdirSync(CASES, { withFileTypes: true }).filter((x) => x.isDirectory())) {
-    const f = join(CASES, d.name, "main.ts");
-    if (!existsSync(f)) continue;
+  const out: { suite: string; group: string; about: string; tags: string[]; cases: RawCase[] }[] = [];
+  for (const s of suiteDirs()) {   // Cases/<suite> and Cases/subagents/<agent>
+    const f = s.main;
     const m = await import(pathToFileURL(f).href + `?m=${statSync(f).mtimeMs}`); // re-imported only when the file changes
-    out.push({ suite: d.name, tags: m.tags ?? [], cases: m.cases as RawCase[] });
+    out.push({ suite: s.name, group: s.group, about: s.about, tags: m.tags ?? [], cases: m.cases as RawCase[] });
   }
   const flat = normalizeBranches(out.flatMap((s) => s.cases.map((c) => ({ ...c, suite: s.suite }))));   // across ALL suites: a parent's children may live in different suites
   for (const s of out) s.cases = flat.filter((c) => c.suite === s.suite).map(({ suite: _s, ...c }) => c) as RawCase[];

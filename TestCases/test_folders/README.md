@@ -3,14 +3,30 @@
 Shared test cases, one folder per **suite**. Any harness can run them (f1: `test_harness/core/orchistraitor/f1_multiagent/testrun/run.ts`; the older runner: `test_harness/core/run.ts`).
 What is tested is the **lead agent** (does it call the right sub-agent with a good hand-over?). Sub-agents are **mocked by recorded fixtures** (`agent_fixture/`), so a run costs only the lead's tokens.
 
-## Layout
+## Layout: the index.ts files are the route table
 ```
 test_folders/
-  <suite>/main.ts      export const cases: Case[]   (+ optional `export const tags`)   <- a suite = a folder WITH main.ts
-  <suite>/cases.json   optional raw data for main.ts (pipedream, handover)
-  agent_fixture/       the mocked sub-agents (NO main.ts, so it is not a suite). See below.
-  testcase.md          scratch list of reference links, not read by any code
+  Cases/
+    index.ts                     ROOT route table: only `mount` of the three group indexes (like routers mounted on a router); no suite sits directly in Cases/
+    route.ts                     the shape of a route: SuiteRoute { name, about, ids, main }, GroupRoute { id, title, about, suites, mount? }
+    core_testing/index.ts        test_basic, test_basic_2, test_handover, test_workflows, test_solowork, test_artifact, advance_test   the harness core (ProgressAndFound.md pitfalls) + plain lead-level cases
+    real_usecases/index.ts       + test_pipedream, test_expo_*, test_project_check, test_web_setup, real_planning_prototype, test_prompt_planning
+    subagents/index.ts           + builder, qa_reviewer, planner, researcher, ux_designer   the SUB-AGENT is judged; lib/make.ts = `subCase()` (no main.ts: not a suite)
+    <group>/<suite>/main.ts      export const cases: Case[]   (+ optional `export const tags`);  <suite>/cases.json = optional raw data (pipedream, handover)
+  agent_fixture/                 the mocked sub-agents (NO main.ts, so it is not a suite). See below.
+  README.md, TODO.md, testcase.md  this file; open work; scratch list of reference links (not read by any code)
 ```
+**Read the index files and you know what is tested where.** A route line says what a suite is for (`about`), which case ids belong to it (`ids`, prefixes) and where its cases are (`main`):
+```ts
+{ name: "builder", ids: ["sb_"], main: "./builder/main.ts", about: "literal small edit, findings only, pnpm only, ..." }
+```
+- Everything that finds suites (the runners, `validate.ts`, `fixture_policy.ts`, the UI) goes through the routes: `allSuites()` in `Cases/index.ts`, via `suiteDirs()` in `test_harness/core/paths.ts`. A suite that is not routed is NOT run.
+- Add a suite = its folder with `main.ts` + ONE route line in the right `index.ts`. `bun TestCases/validate.ts` (also run by `fixture_policy.ts`) fails when a folder is not routed, is routed in the wrong group, its `main` is missing, or a case id does not start with one of the suite's `ids`.
+- The suite NAME is the folder name (`bun testrun/run.ts <name>`, `agent_fixture/results/<name>/`), unique across all groups (a clash throws). The UI shows `group › suite` (the tree comes with the overview: `ExperimentOverview.tree`).
+
+### Sub-agent suites (`Cases/subagents/<agent>/`)
+The lead is a pass-through ("call the <agent> with exactly this task, show its answer unchanged"); what a person or judge reads is the sub-agent's own work: the files it left in `run_test`, its report shape (`REPORT:`, `VERIFIED:`, PASS/FAIL), its boundaries (only its files, pnpm only) and its blocker line (`NEEDS_PARENT:`). Every case runs the REAL sub-agent (credits), so each is `allow_real_subAg: true`, one short turn, `expected_roles: [<agent>]`, capped by `max_cost_usd`. Run by case id on purpose (`--list` and `--fake` are free; `--fake` shows FAIL because the fake lead calls nothing). Not covered yet: `lookup` (needs a captured `_ref` store with pictures) and `pm` (needs a live team status); the BIG planner path is judged by `test_prompt_planning` / `real_planning_prototype`.
+
 ## Where everything is declared (one place each)
 | What | Declared in |
 |---|---|
@@ -31,13 +47,14 @@ In a case: **name** = `title` (+ `id`), **description** = `turns[i].expected.con
 
 | suite | cases | what it tests | fixtures |
 |---|---|---|---|
+| **Cases/subagents/** builder / qa_reviewer / planner / researcher / ux_designer | 5 / 3 / 3 / 2 / 2 | the SUB-AGENT itself: stays in scope, report shape, blocker handling, repair loop (builder), quick-check QA with a verdict (qa_reviewer), short plans and triage (planner), read-only evidence (researcher), spec-only (ux_designer) | `allow_real_subAg` (real sub-agent, capped) |
 | test_basic / test_basic_2 | 3 / 4 | writer + reviewer, same-session follow-ups | recorded + `session:` |
 | test_pipedream | 12 | researcher on Pipedream components | recorded (`pd-*`) |
 | test_handover | 9 | quality of the hand-over | recorded |
 | test_workflows | 5 | multi-step workflows | recorded |
 | test_expo_sub_agent / test_expo_proj_planning | 3 / 1 | expo roles (planner, builder, ...) | recorded |
 | test_expo_go | 32 | `expo-go` sub-agent redoing real projects phase by phase (+ 1 rework case: bad answer then fix) | recorded (real patches; `eg_lintab_02_rework` = negative + `_fix` positive) |
-| advance_test | 5 | staged job: plan, build, fresh reviewer, fix; context loss between stages; follow-up to the reviewer (recorded session); browser QA with a recorded video (Docker); a NEGATIVE broken app the lead must catch with `qa_check` | recorded (`adv-*`, stage-* agents) |
+| advance_test | 4 | staged job: plan, build, fresh reviewer, fix; context loss between stages; follow-up to the reviewer (recorded session); browser QA with a recorded video (Docker). The old qa_check repair-loop cases (adv_5, adv_6*) were removed on purpose with `qa_check` (RUN_FINDINGS H20): TODO T-24 | recorded (`adv-*`, stage-* agents) |
 | test_prompt_planning | 2 | "can the team BUILD this from the plan alone?" 2 turns (`hi`, then `can you build the plan?`); the frozen plan (`agent_fixture/prompt_fixtures/<plan>/<shape>`, shape `one_phase_complete` now; `multi_phase` fixture exists, no case yet) is copied into run_test/plan BEFORE turn 1 (`seedPromptFixture()`); a person judges the result; run by case id with `--stop-pause` | `allow_real_subAg` |
 | test_project_check | 9 | "is this project working?": a recorded project zip (`agent_fixture/store/projects/`) is unpacked into run_test, the lead hands the check (pnpm install, type-check, build) to ONE real qa-reviewer; no video yet (`qa` disabled) | `allow_real_subAg` + zip fixtures |
 | test_expo_direct_build | 2 | lead must NOT call a sub-agent | `allow_real_subAg` |

@@ -27,7 +27,7 @@ export interface CaseOut {
   turns: TurnOut[];
 }
 /** `chain` = cases linked by `after`; `standalone` = a suite's cases with no links. parentCard/branchedAt: where a branch splits. */
-export interface CardOut { id: string; title: string; suite: string; kind: "chain" | "standalone"; cases: CaseOut[]; parentCard?: string; branchedAt?: string }
+export interface CardOut { id: string; title: string; suite: string; /** group folder the suite is routed in (Cases/index.ts tree) */ group?: string; kind: "chain" | "standalone"; cases: CaseOut[]; parentCard?: string; branchedAt?: string }
 
 export interface LogEvent { t: number; kind: string; id?: string; agent?: string; text?: string; fixture?: string | null; own?: boolean }
 export interface CaseDetail extends CaseOut { /** the session folder under .state/<v>/ (store + workspace) */ home: string | null; leadSessionId: string | null; last: { at: string; warnings?: string[] } | null; events: LogEvent[] }

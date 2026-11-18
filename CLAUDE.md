@@ -1,6 +1,6 @@
 # agent_testing
 
-Test cases for multi-agent harnesses. Shared cases live in `TestCases/test_folders/<suite>/main.ts`; harnesses in `test_harness/` run them (f1: `test_harness/core/orchistraitor/f1_multiagent`).
+Test cases for multi-agent harnesses. Shared cases live in `TestCases/test_folders/Cases/`, ROUTED by index files (`Cases/index.ts` mounts `core_testing/`, `real_usecases/` and `subagents/` index.ts; each route line says what a suite is for and which case ids it owns; read them first). Groups: `core_testing` (harness pitfalls + the plain lead cases solowork / artifact), `real_usecases` (pipedream, expo_go, planning, project checks), `subagents` (the SUB-AGENT is under test); harnesses in `test_harness/` run them (f1: `test_harness/core/orchistraitor/f1_multiagent`).
 
 ## Goal: spend as few real AI credits as possible
 Only the LEAD agent is a real model call. Sub-agents are MOCKED by recorded fixtures, so tests judge the orchestrator (does it call the right sub-agent with a good hand-over?), not the sub-agent's work.
@@ -10,8 +10,14 @@ Only the LEAD agent is a real model call. Sub-agents are MOCKED by recorded fixt
 - Every case must be ONE of: (a) expect a recorded result id in `expected_agents_res`, (b) only `session:<agent>#n` follow-ups (answered from the earlier fixture session), or (c) declare `allow_real_subAg: true` (lead works alone, real sub-agents, or "must NOT call a sub-agent"). Anything else is a failure.
 - Check (free, no model calls): `bun test_harness/core/fixture_policy.ts` (fixtures + `TestCases/validate.ts` shape check). Exits 1 on any undeclared or malformed case. Run it before and after editing cases.
 - Declarations: case = `TestCases/types.ts`, tags = `TestCases/tags.ts`, fixture interface = `agent_fixture/types.ts` (core/types.ts only re-exports). `allow_real_subAg?: true` (in a shared base object: `true as const`). Details: `TestCases/test_folders/README.md`.
-- Currently `allow_real_subAg: true`: `test_solowork`, `test_artifact`, `test_expo_direct_build`, `test_project_check`, `test_prompt_planning` (set on each suite's shared base object).
-- A case that needs an existing project: put its .zip in `agent_fixture/store/projects/` and unpack it in `before_node_run` with `seedProject()` (`test_project_check/lib/zip_seed.ts`); say where the zip came from in the suite's header comment.
+- Currently `allow_real_subAg: true`: `test_solowork`, `test_artifact`, `test_expo_direct_build`, `test_project_check`, `test_prompt_planning` (set on each suite's shared base object) and every `Cases/subagents/*` suite (`subCase()` in `subagents/lib/make.ts`; each runs the REAL sub-agent, so run them by case id on purpose, never in a routine run).
+- Suite NAME = its folder name (the CLI argument and the `results/<name>/` folder), unique across all groups. A suite exists only when it is ROUTED (one line in its group's `index.ts`); `suiteDirs()` in `test_harness/core/paths.ts` reads the routes, `validate.ts` fails when routes and folders differ.
+- A case that needs an existing project: put its .zip in `agent_fixture/store/projects/` and unpack it in `before_node_run` with `seedProject()` (`Cases/real_usecases/test_project_check/lib/zip_seed.ts`); say where the zip came from in the suite's header comment.
+
+## Test cases are never deleted
+Never remove a test case, its recorded fixtures or its free self-test to make a refactor, a rename or a cleanup pass. A case that cannot run today STAYS (fix it, adapt it to the new names, or mark it in `TestCases/test_folders/TODO.md` with the reason). The one exception: the removal is a decision that is WRITTEN DOWN with its reason in the repo (for example `docs/RUN_FINDINGS.md`) and in the commit message, because the thing the case tested was removed on purpose.
+Before calling a missing case a loss: `git log -S"<case id>"`, grep the docs (RUN_FINDINGS, PROGRESS, TODO) and the whole tree for a move or rename, and compare the case count before and after any rename with `bun test_harness/core/fixture_policy.ts`. Recorded fixtures of a removed case are kept (orphans), never deleted.
+Example: the four QA repair-loop cases (adv_5, adv_6, adv_6a, adv_6b) were removed on purpose together with `qa_check` (RUN_FINDINGS H20), but the commit message of f551fce did not say so, so it looked like a loss (TODO T-24).
 
 ## How a mocked call is served
 `FixtureGate` (`f1_multiagent/harness/core/fixture_gate.ts`, for agents with `"fixtures": true` in `agent.json`):

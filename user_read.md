@@ -14,7 +14,7 @@ Open work lives in `TestCases/test_folders/TODO.md`, done work and bugs in `test
 | gate | session table (`fixture_sessions`, keyed by agent id), observer (what really changed in `run_test/`), stateless real calls, `allow_real_subAg`, `match.after` across agents, free verify budget, strict agent match | `harness/core/fixture_gate.ts`, `fixture_sessions.ts` |
 | isolation | a case that does not continue another now starts with an EMPTY `run_test/` (leftovers from the case before misled the lead once it could `ls`) | `testrun/run.ts` |
 | S3 | local S3 emulator (the same Adobe S3Mock loopferry uses) and a "record session" upload after every case | `test_harness/infra/` |
-| advance_test | staged job (plan, build, fresh reviewer, fix) + a context-loss case taken from loopferry's own incident report | `TestCases/test_folders/advance_test/` |
+| advance_test | staged job (plan, build, fresh reviewer, fix) + a context-loss case taken from loopferry's own incident report | `TestCases/test_folders/Cases/core_testing/advance_test/` |
 | harness | a mocked agent is no longer reported as "session rolled / lost" (it has no claude transcript by design) | `harness/core/base/call.ts` |
 
 ## 1a. Where a run keeps its files (layout)
@@ -26,7 +26,7 @@ One folder per MASTER SESSION (the case's task id) under `test_harness/.state/v1
   workspace/   the git workspace the agents work in (run_test/ lives here)
 ```
 Set in `f1_multiagent/testrun/run.ts` (LAYOUT comment). A chained case (`after`) continues the parent's task, so it uses the same folder. `UI_STORE` / `UI_REPO` (env) still force one shared store and repo (the old console, one-off scripts).
-See it for real (free, no model): `bun TestCases/test_folders/advance_test/offline_demo.ts` runs the QA case (adv_4) through the gate into `.state/v1/t_adv_4_qa_video_offline/` and records the video there.
+See it for real (free, no model): `bun TestCases/test_folders/Cases/core_testing/advance_test/offline_demo.ts` runs the QA case (adv_4) through the gate into `.state/v1/t_adv_4_qa_video_offline/` and records the video there.
 Old data (earlier layouts, the old runner's cache, loose videos) was moved, not deleted, to `old_data_bkp/state_before_cleanup_2026-11-12/` (git-ignored; see its README.txt).
 Session records are now written locally always (plain JSON, no docker); the S3 upload stays opt-in (`AT_RECORD=1`).
 
@@ -56,15 +56,15 @@ It records a WEB page (`run_test/<dir>/index.html`) as is. For an **Expo app wit
 Docker backend (`test_harness/infra/qa/`): image `agent-testing-qa:1` (build once: `bun test_harness/infra/qa/run_qa.ts --build`, about 900 MB, node slim + playwright-core + chromium headless shell; **everything is installed inside the image, nothing on the host**).
 A run is a throwaway container: `--network none`, read-only root fs, all capabilities dropped, no-new-privileges, 1 cpu, 1 GB, 256 pids, non-root user. The app folder is mounted **read-only**; the only writable path is the session's `store/qa/<id>/` (or `test_harness/.state/v1/<session>/store/qa/<id>/` when run by hand; both git-ignored) where `qa.webm`, `qa.png` and `qa.json` land.
 It serves the folder, opens `index.html`, types into the first input, clicks the first button, and records 1280x720. About 7 seconds. Try it on any folder: `bun test_harness/infra/qa/run_qa.ts <folder>`.
-In the flow it is the sub-agent `stage-qa` (fixture `adv-qa-video`, case `adv_4_qa_video`): the lead asks it to QA the built page and gets `VIDEO: <path>` back. Free check: `bun TestCases/test_folders/advance_test/verify.ts` records a real video through the gate.
+In the flow it is the sub-agent `stage-qa` (fixture `adv-qa-video`, case `adv_4_qa_video`): the lead asks it to QA the built page and gets `VIDEO: <path>` back. Free check: `bun TestCases/test_folders/Cases/core_testing/advance_test/verify.ts` records a real video through the gate.
 Not covered: an Expo app (needs node_modules and Metro; too heavy for a throwaway container). The QA stage handles static/web pages only.
 
 ## 2. How to check (free first, paid last)
 
 ```
 bun test_harness/core/fixture_policy.ts                        # fixtures + case shapes (free)
-bun TestCases/test_folders/advance_test/verify.ts              # the whole stage chain through the real gate, no model (free)
-bun TestCases/test_folders/test_expo_go/lib/check.ts           # expo_go suite shape (free)
+bun TestCases/test_folders/Cases/core_testing/advance_test/verify.ts              # the whole stage chain through the real gate, no model (free)
+bun TestCases/test_folders/Cases/real_usecases/test_expo_go/lib/check.ts           # expo_go suite shape (free)
 cd test_harness/core/orchistraitor/f1_multiagent
 bun self_test/multi.ts                                         # harness regression, scripted agents (free, ~90 s): 169/169
 bun testrun/run.ts advance_test --list                         # free

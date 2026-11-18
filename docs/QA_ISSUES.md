@@ -1,5 +1,7 @@
 # QA video: issues we hit, why, how we fixed them, and how loopferry avoids them
 
+> NOTE 2026-11-18: `qa_check`, `qa_give_up`, `qa_record`, `core/qa_loop.ts` and the `preview*` commands named below were REMOVED on 2026-11-17 (commit f551fce, docs/RUN_FINDINGS.md H20): QA is now ONE agent, `qa-reviewer`. Sections that name them describe the history of the findings, not the current tools.
+
 Written 2026-11-12 from the real work on `--video` and the QA stage (`stage-qa`, `infra/qa/*`, `helper/video.ts`).
 Everything in the "Issue log" was observed in a real run (timings are measured). Loopferry facts come from `~/projects/loopferry`
 (`src/services/coding/stages/prompt.ts`, `qa.ts`, `engine/providers/claude-coding.ts`, `engine/e2b-template.ts`, `handbook/ENGINE.md`, `TESTING_REPORT.md`).
@@ -9,7 +11,7 @@ Package manager for everything here is **pnpm** (see `CLAUDE.md`).
 
 | what | status |
 |---|---|
-| QA video of a plain web page (`index.html`) in a throwaway Docker container (no network, read-only app folder) | **works**, about 5 to 7 s. Case `adv_4_qa_video`, `bun TestCases/test_folders/advance_test/offline_demo.ts` |
+| QA video of a plain web page (`index.html`) in a throwaway Docker container (no network, read-only app folder) | **works**, about 5 to 7 s. Case `adv_4_qa_video`, `bun TestCases/test_folders/Cases/core_testing/advance_test/offline_demo.ts` |
 | Web export of an Expo app in a container (`web_export.ts` + `export.sh` + `web_only.mjs`) | **works**: cold 173 s once, warm 27 to 39 s |
 | A video of an Expo app that actually shows the app | **NOT working yet** for the solarin demo: the page stays blank (issue 12) |
 

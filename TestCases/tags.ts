@@ -1,4 +1,4 @@
-// The ONE tag vocabulary for every test case. A suite (`export const tags` in test_folders/<suite>/main.ts) and a case (`tags` on it) may use only these.
+// The ONE tag vocabulary for every test case. A suite (`export const tags` in test_folders/Cases/<suite>/main.ts) and a case (`tags` on it) may use only these.
 // A case carries one tag of each of the three groups; the suite lists what is the same for all its cases, a case adds what differs.
 
 /** Who does the work: the lead alone, or the lead handing work to sub-agents. */

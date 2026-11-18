@@ -1,4 +1,4 @@
-// Runs the shared test cases (TestCases/test_folders/<suite>/main.ts) on THIS harness (the f1 lead + sub-agents).
+// Runs the shared test cases (TestCases/test_folders/Cases/<suite>/main.ts) on THIS harness (the f1 lead + sub-agents).
 // A case = one task id. `after` continues the parent's task (the same lead session, the same sub-agents); a second child of one parent gets a task of its own (it cannot share the parent's session).
 // Nothing is asserted from the model's words: a turn is judged by WHO the lead called (role, new or follow-up) against `expected_agents_res`, plus the guard (no distractor).
 // `expected.context` is shown beside the result for a human to read, as in the other harness.
@@ -7,24 +7,21 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import type { MStore } from "../harness/core/board.ts";
-import { FIXTURES } from "@core/paths.ts";
+import { FIXTURES, suiteDirs } from "@core/paths.ts";
 import { normalizeBranches } from "../../../../../TestCases/branch.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const AGENT_TESTING = resolve(HERE, "../../../../..");
-export const CASES_DIR = join(AGENT_TESTING, "TestCases", "test_folders");
 const FIXTURE_INDEX = join(FIXTURES, "index.json");   // the ONE fixture place (paths.ts)
 
 export interface RawCase { needs?: string[]; max_agent_calls?: number; allow_real_subAg?: boolean; id: string; title: string; after?: string; branch_from?: string; branch_auto?: boolean; agents: string[]; distractors?: string[]; router?: boolean; tags?: string[]; turns: { user: string; expected: { context: string; expected_agents_res: string[] } }[] }
-export interface SuiteCase extends RawCase { suite: string; suiteTags: string[] }
+export interface SuiteCase extends RawCase { suite: string; /** group folder the suite is routed in (Cases/index.ts tree; "cases" = the root) */ group: string; /** what the suite is for (its route line) */ about: string; suiteTags: string[] }
 
 export async function loadSuites(): Promise<SuiteCase[]> {
   const out: SuiteCase[] = [];
-  for (const d of readdirSync(CASES_DIR, { withFileTypes: true }).filter((x) => x.isDirectory())) {
-    const f = join(CASES_DIR, d.name, "main.ts");
-    if (!existsSync(f)) continue;
-    const m = await import(pathToFileURL(f).href);
-    for (const c of m.cases as RawCase[]) out.push({ ...c, suite: d.name, suiteTags: m.tags ?? [] });
+  for (const s of suiteDirs()) {   // Cases/<suite> and Cases/subagents/<agent> (core/paths.ts)
+    const m = await import(pathToFileURL(s.main).href);
+    for (const c of m.cases as RawCase[]) out.push({ ...c, suite: s.name, group: s.group, about: s.about, suiteTags: m.tags ?? [] });
   }
   return normalizeBranches(out);   // across all suites (see TestCases/branch.ts): extra `after` siblings become branches automatically
 }

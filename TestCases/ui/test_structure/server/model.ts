@@ -14,8 +14,8 @@ export type Model = Awaited<ReturnType<typeof buildModel>>;
 export async function buildModel() {
   await refreshF1();   // the f1 records (one runner for CLI, Experiment and Flow)
   const suites = await loadSuites();
-  const cases = new Map<string, { raw: RawCase; suite: string; tags: string[] }>();
-  for (const s of suites) for (const c of s.cases) cases.set(c.id, { raw: c, suite: s.suite, tags: s.tags });
+  const cases = new Map<string, { raw: RawCase; suite: string; group: string; tags: string[] }>();
+  for (const s of suites) for (const c of s.cases) cases.set(c.id, { raw: c, suite: s.suite, group: s.group, tags: s.tags });
 
   const ckpt = new Map([...cases.keys()].map((id) => [id, readCkpt(id)]));
   const last = new Map([...cases.keys()].map((id) => [id, readLast(id)]));

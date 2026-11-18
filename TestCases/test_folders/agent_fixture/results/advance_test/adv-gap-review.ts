@@ -1,5 +1,5 @@
 import type { ResultModule } from "@core/types.ts";
-// Recorded qa-reviewer answer of the advance_test suite (test_folders/advance_test/main.ts). The work is in store/advance/stages.ts. Never delete.
+// Recorded qa-reviewer answer of the advance_test suite (test_folders/Cases/core_testing/advance_test/main.ts). The work is in store/advance/stages.ts. Never delete.
 import { review } from "../../store/advance/stages.ts";
 export default {
   id: "adv-gap-review",

@@ -15,6 +15,7 @@ const pass = () => props.data.cases.filter((c) => c.status === "pass").length;
       <div class="title nodrag" @click="toggleCard(data)">
         <span>{{ isOpen(data) ? "▾" : "▸" }}</span>
         <strong>{{ data.title }}</strong>
+        <code v-if="data.group" class="grp" :title="`group: ${data.group}`">{{ data.group }}</code>
         <span class="muted mono">{{ pass() }}/{{ data.cases.length }} pass</span>
       </div>
       <div v-if="data.branchedAt" class="branch mono nodrag">⑂ branches from <b>{{ data.branchedAt }}</b>'s session</div>
@@ -26,5 +27,6 @@ const pass = () => props.data.cases.filter((c) => c.status === "pass").length;
 <style scoped>
 .card { width:400px; background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
 .title { display:flex; gap:8px; align-items:center; padding:8px 10px; cursor:pointer; background:color-mix(in srgb, var(--accent) 8%, var(--card)); } .title .muted { margin-left:auto; }
+.grp { border:1px solid var(--line); border-radius:4px; padding:0 4px; font-size:11px; color:var(--muted); }
 .branch { padding:2px 10px; font-size:11px; color:var(--warn); background:color-mix(in srgb, var(--warn) 10%, transparent); }
 </style>

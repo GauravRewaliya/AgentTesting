@@ -1,16 +1,15 @@
 // Strict runtime check of EVERY suite against the declarations in ./types.ts, ./tags.ts and agent_fixture/types.ts.
 // `bun TestCases/validate.ts`, and run by `bun test_harness/core/fixture_policy.ts`. Exit 1 on any problem.
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { isTag } from "./tags.ts";
 import { branchWarnings, normalizeBranches } from "./branch.ts";
 import type { Case } from "./types.ts";
+import { FIXTURES, diskSuites, suiteDirs } from "../test_harness/core/paths.ts";
 import { check as capCheck } from "../test_harness/core/orchistraitor/harness_own_custom/capabilities.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
-export const SUITES = join(ROOT, "TestCases/test_folders");
-const FIXTURES = join(SUITES, "agent_fixture");
 const AGENT_DEFS = join(ROOT, "test_harness/core/helper/agents");
 const PROMPTS = [join(ROOT, "test_harness/core/orchistraitor/harness_own_custom/core/prompts"), join(FIXTURES, "store/legacy/prompts")];
 const SESSION = /^session:[^#]+#\d+$/;
@@ -19,9 +18,8 @@ export interface Problem { suite: string; case: string; what: string }
 /** Every suite folder (a folder with main.ts) with its cases and suite-level tags. */
 export async function loadAll(): Promise<{ suite: string; cases: Case[]; tags: unknown }[]> {
   const out = [];
-  for (const d of readdirSync(SUITES, { withFileTypes: true }).filter((x) => x.isDirectory())) {
-    const f = join(SUITES, d.name, "main.ts"); if (!existsSync(f)) continue;
-    const m = await import(pathToFileURL(f).href); out.push({ suite: d.name, cases: m.cases as Case[], tags: m.tags });
+  for (const s of suiteDirs()) {   // Cases/<suite> and Cases/subagents/<agent> (paths.ts)
+    const m = await import(pathToFileURL(s.main).href); out.push({ suite: s.name, cases: m.cases as Case[], tags: m.tags });
   }
   const flat = normalizeBranches(out.flatMap((s) => s.cases.map((c) => ({ ...c, suite: s.suite }))));
   for (const s of out) s.cases = flat.filter((c) => c.suite === s.suite) as Case[];
@@ -29,7 +27,7 @@ export async function loadAll(): Promise<{ suite: string; cases: Case[]; tags: u
 }
 
 export function validate(all: { suite: string; cases: Case[]; tags: unknown }[], recorded: Set<string> | Map<string, string>): Problem[] {
-  const allIds = new Set(all.flatMap((x) => x.cases.map((c) => c.id))), bad: Problem[] = [], seen = new Map<string, string>();
+  const routes = new Map(suiteDirs().map((r) => [r.name, r])), allIds = new Set(all.flatMap((x) => x.cases.map((c) => c.id))), bad: Problem[] = [], seen = new Map<string, string>();
   const agentOk = (a: string) => existsSync(join(AGENT_DEFS, a + ".ts"));
   for (const { suite, cases, tags } of all) {
     const add = (c: string, what: string) => bad.push({ suite, case: c, what });
@@ -38,6 +36,7 @@ export function validate(all: { suite: string; cases: Case[]; tags: unknown }[],
       const id = String(c.id), a = (w: string) => add(id, w);
       if (!/^[a-z0-9][a-z0-9_]*$/i.test(id)) a(`id "${id}" must be letters, digits, underscore`);
       if (seen.has(id)) a(`duplicate id (also in ${seen.get(id)})`); else seen.set(id, suite);
+      const route = routes.get(suite); if (route && !route.ids.some((p) => id.startsWith(p))) a(`id does not start with one of this suite's routed prefixes (${route.ids.join(", ")}); fix the id or the ids of the route)`);
       if (!c.title?.trim()) a("title (the case name) is empty");
       for (const t of c.tags ?? []) if (!isTag(t)) a(`unknown tag "${t}" (see tags.ts)`);
       if (!c.turns?.length) a("no turns");
@@ -63,6 +62,24 @@ export function validate(all: { suite: string; cases: Case[]; tags: unknown }[],
       }
     }
   }
+  bad.push(...hierarchyProblems());
+  return bad;
+}
+
+/** The route tables (Cases/index.ts and the group index.ts files) must equal the folders on disk: every suite folder routed once, under the folder's own group, main.ts there, a line of `about`, id prefixes. */
+export function hierarchyProblems(): Problem[] {
+  const bad: Problem[] = [], add = (suite: string, what: string) => bad.push({ suite, case: "(index.ts)", what });
+  const routed = suiteDirs(), disk = new Map(diskSuites().map((s) => [s.name, s]));
+  for (const r of routed) {
+    const d = disk.get(r.name);
+    if (!existsSync(r.main)) add(r.name, `routed to ${r.main} but that file does not exist`);
+    else if (!d) add(r.name, `routed to ${r.main}, which is not in a suite folder (a folder with main.ts directly in Cases/ or in a group folder)`);
+    else if (d.dir !== r.dir) add(r.name, `routed to ${r.dir} but the suite folder is ${d.dir}`);
+    else if (d.group !== r.group) add(r.name, `routed in group "${r.group}" but its folder is in "${d.group}" (list it in that group's index.ts)`);
+    if (!r.about.trim()) add(r.name, "empty `about` (say what the suite is for)");
+    if (!r.ids.length || r.ids.some((p) => !p.trim())) add(r.name, "`ids` needs at least one case id prefix");
+  }
+  for (const [name, d] of disk) if (!routed.some((r) => r.name === name)) add(name, `suite folder in "${d.group}" is not routed: add a line to ${d.group === "cases" ? "Cases/index.ts" : `Cases/${d.group}/index.ts`}`);
   return bad;
 }
 

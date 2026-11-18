@@ -7,7 +7,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
-import { CASES, FIXTURES, ROOT, resultFiles } from "./paths.ts";
+import { FIXTURES, ROOT, resultFiles, suiteDirs } from "./paths.ts";
 
 /** What the policy needs from a case (the shared Case type and the f1 RawCase both fit). */
 export interface FixtureCase { id: string; allow_real_subAg?: boolean; turns: { expected: { expected_agents_res: string[] } }[] }
@@ -36,8 +36,8 @@ export function warnMissingFixtures(c: FixtureCase, log: FixtureLog = (m) => con
 
 if (import.meta.main) {
   const have = recordedIds(); let bad = 0, flagged = 0, ok = 0, none = 0, broken = 0;
-  for (const d of readdirSync(CASES, { withFileTypes: true }).filter((x) => x.isDirectory())) {
-    const f = join(CASES, d.name, "main.ts"); if (!existsSync(f)) continue;
+  for (const d of suiteDirs()) {   // { name, main } of every suite (Cases/ and Cases/subagents/)
+    const f = d.main;
     let cases: FixtureCase[];
     try { cases = (await import(pathToFileURL(f).href)).cases as FixtureCase[]; }
     catch (e) { broken++; console.log(`${d.name.padEnd(26)} FAILED TO LOAD: ${String((e as Error).message).split("\n").slice(0, 2).join(" | ")}`); continue; }   // one broken suite must not hide the others

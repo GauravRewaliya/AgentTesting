@@ -124,7 +124,7 @@ research: none (the evidence is a capture of the reference site https://upwatchr
 
 <!-- dev -->
 ## How the first run went (facts from the session)
-- Case `real_site_clone` in `TestCases/test_folders/real_planning_prototype/main.ts`, session `t_real_site_clone`, real sub-agents, cost $1.39.
+- Case `real_site_clone` in `TestCases/test_folders/Cases/real_usecases/real_planning_prototype/main.ts`, session `t_real_site_clone`, real sub-agents, cost $1.39.
 - Agents: lead (4 turns), `lookup-page` x4 (one call each, 629-849 char hand-over), `builder` x3 (1431-1443 char hand-over, then 1-2 resume calls to fix).
 - A builder's hand-over is: TASK, OBJECTIVE (its file, 'build exactly what briefs/BRIEF_part-N.md says'), the user's request, RESULTS from the tasks it depends on (the matching lookup-page's summary), OUTPUT FORMAT, BOUNDARIES (the only files it may write).
 - The kit (`index.html`, `css/site.css`, `js/site.js`) was done by `proto_init`; builders wrote `js/screens/part-1..3.js` and `css/pages-part-1..3.css` (about 43 KB in all).

@@ -34,7 +34,7 @@ A tiny wireframe without `proto.json` is a SINGLE `index.html` (artifact style: 
 | `harness/tools.ts` | `proto_init` command, route problems in `previewGate`, `withWrites` default for `delegate` and `fork_all` |
 | `harness/core/launch.ts`, `harness/agents/lead/.claude/{CLAUDE.md,settings.json}`, `harness/agents/builder/.claude/CLAUDE.md` | lead PROTOTYPE FAST PATH, builder KIT / SINGLE-FILE modes, `proto_init` allowed for the lead |
 | `self_test/multi.ts` (suite `protokit`, PK1-PK6; NP1 and M4h updated) | offline checks, 175/175 |
-| `TestCases/test_folders/real_planning_prototype/main.ts` `real_proto_fast_path` | real case: proto_init first, parallel builders, no planner/research/build |
+| `TestCases/test_folders/Cases/real_usecases/real_planning_prototype/main.ts` `real_proto_fast_path` | real case: proto_init first, parallel builders, no planner/research/build |
 
 ## Measured (real run, haiku lead + haiku builders, Docker sandbox, case `real_proto_fast_path`)
 | | PAST (smwex2xnw) | NOW |

@@ -8,7 +8,7 @@ Read this first so you do not have to rediscover the project. Keep it short and 
 | fixtures + case shape | `bun test_harness/core/fixture_policy.ts` (run before and after editing cases) |
 | rebuild fixture index | `bun test_harness/core/build_index.ts` |
 | list / fake run | `cd test_harness/core/orchistraitor/f1_multiagent && bun testrun/run.ts <suite> [ids] --list` / `--fake` (fake shows FAIL, expected) |
-| self tests | `bun self_test/qa_loop.ts` (7 checks of the QA repair loop), others in `self_test/` |
+| self tests | `bun self_test/multi.ts` (free, no model), others in `self_test/` (the old `qa_loop.ts` was removed with the `qa_check` loop, RUN_FINDINGS H20) |
 
 ## Real runs (haiku lead only costs credits)
 | what | command |
@@ -24,7 +24,7 @@ Read this first so you do not have to rediscover the project. Keep it short and 
 Run output: `.state/v1/<task>/{store,workspace}`; QA state in `store/qa_state.json`; the workspace is a git repo (`git log` shows QA checkpoints).
 
 ## Layout
-- Cases: `TestCases/test_folders/<suite>/main.ts`; types `TestCases/types.ts`, tags `TestCases/tags.ts`.
+- Cases: `TestCases/test_folders/Cases/<suite>/main.ts`; types `TestCases/types.ts`, tags `TestCases/tags.ts`.
 - Fixtures: `TestCases/test_folders/agent_fixture/results/<suite>/` (+ `store/`, generated `index.json`).
 - Harness: `test_harness/core/orchistraitor/f1_multiagent/` (`harness/lead.ts`, `harness/tools.ts`, `harness/core/fixture_gate.ts`, `harness/core/qa_loop.ts`, agents in `harness/agents/<name>/`).
 - Docs: `docs/` (QA_ISSUES, SANDBOX, planning/, PHASES.md), `PROGRESS.md` (bug catalog + run log).
@@ -43,10 +43,10 @@ Run output: `.state/v1/<task>/{store,workspace}`; QA state in `store/qa_state.js
 - Never put results anywhere else (CLAUDE.md).
 
 ## Branch + before_node_run (how to test "bug remains" vs "bug fixed")
-- `branch_from: "<parent>"` forks the parent's workspace + lead session; the branch has its own store and its own QA loop.
-- `before_node_run: (ctx) => ...` on the case runs just before the lead starts (default prints). Put a fix or a broken file in with `ctx.patch / ctx.write`. Example: `adv_6b_bug_fixed_quick_video` in `advance_test/main.ts`.
-- Run a branch: `bun testrun/run.ts advance_test adv_6a_bug_remains_master_detects --rerun`; with a video (case needs `qa` enabled): add `--video`.
-- `after_node_run: (ctx) => ...` (same ctx, `ctx.phase === "after"`) runs right after the node and ONLY when it passed (a failed case never runs it); default prints. It runs before the video / session record. `no_qa_check: true` on a case switches `qa_check` off (delegation-only cases).
+- `branch_from: "<parent>"` forks the parent's workspace + lead session; the branch has its own store and its own QA agent.
+- `before_node_run: (ctx) => ...` on the case runs just before the lead starts (default prints). Put a fix or a broken file in with `ctx.patch / ctx.write`. Example: see `before_node_run` in `Cases/real_usecases/test_project_check` (`seedProject`) or `Cases/real_usecases/test_expo_go/demos/solarin.ts` (the old example `adv_6b_bug_fixed_quick_video` was removed with the qa_check loop, RUN_FINDINGS H20).
+- Run a branch: `bun testrun/run.ts test_expo_direct_build expo_d1_small_question --rerun` (a branch of `expo_s2_build`); with a video (case needs `qa` enabled): add `--video`.
+- `after_node_run: (ctx) => ...` (same ctx, `ctx.phase === "after"`) runs right after the node and ONLY when it passed (a failed case never runs it); default prints. It runs before the video / session record. (`no_qa_check` and `expect_qa` were removed with the `qa_check` loop, RUN_FINDINGS H20.)
 
 ## Live preview of a prototype (Docker)
 - Code: `harness/core/preview.ts` (one module), used by the master (`tools.ts preview --dir <folder in run_test/> | preview_list | preview_stop --id <id>`) and by the UI (`TestCases/ui/test_structure`: no separate page; the Experiment Run header of a session has a **bg running N** badge, hover = list of previews and bash/processes with stop/restart; API `/api/experiment/bg/<task>`, `/api/preview/{stop,restart}`, `/api/proc/stop`).

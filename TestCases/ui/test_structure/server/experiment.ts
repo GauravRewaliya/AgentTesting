@@ -9,8 +9,9 @@ import { claudeDirs } from "@core/orchistraitor/f1_multiagent/harness/core/base.
 import { activeMs, lastCall } from "@core/orchistraitor/f1_multiagent/harness/core/peek.ts";
 import { costOf, stopAgent } from "@core/orchistraitor/f1_multiagent/harness/core/agent_call.ts";
 import { locksFromEnv } from "@core/orchistraitor/f1_multiagent/harness/core/lockapi.ts";
+import { ROOT, type GroupRoute } from "../../../test_folders/Cases/index.ts";
 import { judgeTurn, loadSuites, readExp, statusOf, unsupported, writeExp, type ExpEntry, type SuiteCase } from "@core/orchistraitor/f1_multiagent/testrun/cases.ts";
-import type { TalkIn, Transcript, TranscriptStep, AgentDetail, AvailableAgent, ChatOut, SendIn, CaseResultOut, CaseState, ExpSuite, ExperimentOverview, LiveAgent, LiveSession, RunInfo, RunLog } from "../shared/experiment.ts";
+import type { TalkIn, Transcript, TranscriptStep, AgentDetail, AvailableAgent, ChatOut, SendIn, CaseResultOut, CaseState, ExpGroup, ExpSuite, ExperimentOverview, LiveAgent, LiveSession, RunInfo, RunLog } from "../shared/experiment.ts";
 
 const F1 = resolve(import.meta.dir, "../../../../test_harness/core/orchistraitor/f1_multiagent");
 const DATA = join(F1, "ui", ".ui-data"), STORE = resolve(process.env.UI_STORE ?? join(DATA, "store.json")), REPO = resolve(process.env.UI_REPO ?? join(DATA, "repo"));
@@ -102,16 +103,18 @@ function judgeAll(st: MStore, c: SuiteCase, e: ExpEntry) {
   return Array.from({ length: Math.min(e.done, c.turns.length) }, (_, i) => judgeTurn(own, e.task, c, i, e.marks[i] ?? 0, endOf(i), files, k));
 }
 
+/** The route tree of Cases/index.ts as plain data for the pages (group -> suites -> mounted groups). */
+const toGroup = (g: GroupRoute): ExpGroup => ({ id: g.id, title: g.title, about: g.about, suites: g.suites.map((s) => ({ name: s.name, about: s.about, ids: s.ids })), groups: (g.mount ?? []).map(toGroup) });
 export async function overview(): Promise<ExperimentOverview> {
   const all = await loadSuites(), exp = expAll(), st = store(), runs = listRuns();
   const running = new Set(st.agents.filter((a) => a.name === "lead" && a.status === "running").map((a) => a.task_id));
   if (runs.some((r) => r.status === "running")) for (const e of Object.values(exp)) if (e.at > Date.now() - 600_000) running.add(e.task);   // a turn between two lead calls still counts as running
   const suites = new Map<string, ExpSuite>();
   for (const c of all) {
-    const e = exp[c.id], s = suites.get(c.suite) ?? (suites.set(c.suite, { suite: c.suite, cases: [] }), suites.get(c.suite)!);
+    const e = exp[c.id], s = suites.get(c.suite) ?? (suites.set(c.suite, { suite: c.suite, group: c.group, about: c.about, cases: [] }), suites.get(c.suite)!);
     s.cases.push({ id: c.id, title: c.title, after: c.after, agents: c.agents, distractors: c.distractors ?? [], turns: c.turns.length, prompts: c.turns.map((t) => t.user), unsupported: unsupported(c), state: stateOf(c, e, st, running), task: e?.task, done: e?.done ?? 0, at: e?.at });
   }
-  return { config: { f1: F1, store: STORE, repo: REPO, storeExists: existsSync(STORE) }, suites: [...suites.values()], runs };
+  return { config: { f1: F1, store: STORE, repo: REPO, storeExists: existsSync(STORE) }, suites: [...suites.values()], runs, tree: toGroup(ROOT) };
 }
 
 export async function caseResult(id: string): Promise<CaseResultOut | null> {

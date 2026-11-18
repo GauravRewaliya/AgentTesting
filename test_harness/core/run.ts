@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { report } from "./report.ts";
 import { check as checkCaps } from "./orchistraitor/harness_own_custom/capabilities.ts";
 import { skip_test } from "./orchistraitor/harness_own_custom/skip_test.ts";
-import { CASES, FIXTURES, WORKSPACE } from "./paths.ts";
+import { FIXTURES, WORKSPACE, suiteDir } from "./paths.ts";
 import { archiveCase, openWorkspace, readLastCase, writeLastCase, writeSession } from "./state/store.ts";
 import { buildSession, hasRun, openRun, parentOf, previous, taskOf, type LastFile } from "./state/record.ts";
 import { warnMissingFixtures } from "./fixture_policy.ts";
@@ -26,7 +26,7 @@ const raw = new Set(argv.filter((a) => a.startsWith("--")));
 const F: CliFlags = { list: raw.has("--list"), keep: raw.has("--keep"), raw: raw.has("--raw"), real: raw.has("--real"), rerun: raw.has("--rerun") };
 const [suite, ...want] = argv.filter((a) => !a.startsWith("--"));
 if (!suite) { console.log("usage: bun core/run.ts <suite> [case_id...] [--list] [--keep] [--raw] [--real] [--rerun]"); process.exit(1); }
-const cases: Case[] = (await import(join(CASES, suite, "main.ts"))).cases;
+const cases: Case[] = (await import(join(suiteDir(suite) ?? (console.log(`no suite "${suite}"`), process.exit(1)), "main.ts"))).cases;
 const leadText = (name?: string) => { for (const f of [join(ROOT, "core/orchistraitor/harness_own_custom/core/prompts", name + ".md"), join(FIXTURES, "store/legacy/prompts", name + ".md")]) if (name && existsSync(f)) return readFileSync(f, "utf8").trim(); return undefined; };
 if (F.list) { for (const c of cases) console.log(`${c.id}${c.after ? "  (after " + c.after + ")" : ""}  ${hasRun(WORKSPACE, c.id) ? "[saved]" : ""}  ${c.title}`); process.exit(0); }
 

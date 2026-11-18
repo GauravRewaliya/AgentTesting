@@ -1,5 +1,5 @@
 import type { ResultModule } from "@core/types.ts";
-// Recorded web-setup answer (test_folders/test_web_setup/main.ts). NOT a copied project: the fixture RUNS the real generator command in a Docker container (store/web_setup/scaffold.ts) and answers NEEDS_PARENT when the name or the options are missing. Never delete.
+// Recorded web-setup answer (test_folders/Cases/real_usecases/test_web_setup/main.ts). NOT a copied project: the fixture RUNS the real generator command in a Docker container (store/web_setup/scaffold.ts) and answers NEEDS_PARENT when the name or the options are missing. Never delete.
 import { scaffold } from "../../store/web_setup/scaffold.ts";
 export default {
   id: "web-vue-setup",

@@ -6,8 +6,8 @@ import { cpSync, existsSync, mkdirSync, readFileSync, appendFileSync, writeFileS
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import type { Req } from "@core/types.ts";
-import { phases, source } from "../../../test_expo_go/lib/data.ts";   // parsed + validated against lib/types.ts
-import type { ExpoGoVerdict } from "../../../test_expo_go/lib/types.ts";
+import { phases, source } from "../../../Cases/real_usecases/test_expo_go/lib/data.ts";   // parsed + validated against lib/types.ts
+import type { ExpoGoVerdict } from "../../../Cases/real_usecases/test_expo_go/lib/types.ts";
 import { buildSlim } from "./slim_demo.ts";
 
 export type PhaseRun = { name: string; n: number; dir: string; skills: string[]; expo_go: ExpoGoVerdict; blockers?: string[] };

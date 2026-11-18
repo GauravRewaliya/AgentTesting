@@ -27,7 +27,7 @@ export function buildCards(m: Model): CardOut[] {
       if (k.length === 1) cur = k[0]; else { split = k; cur = undefined; }
     }
     const id = `card:${startId}`;
-    cards.push({ id, title: `${m.cases.get(startId)!.suite} · ${startId}`, suite: m.cases.get(startId)!.suite, kind: "chain", cases, parentCard, branchedAt });
+    cards.push({ id, title: `${m.cases.get(startId)!.suite} · ${startId}`, suite: m.cases.get(startId)!.suite, group: m.cases.get(startId)!.group, kind: "chain", cases, parentCard, branchedAt });
     for (const k of split) walk(k, id, cases[cases.length - 1]!.caseId);
   };
   const solo = new Map<string, CaseOut[]>();
@@ -36,6 +36,6 @@ export function buildCards(m: Model): CardOut[] {
     if (m.children.has(id)) walk(id);
     else solo.set(c.suite, [...(solo.get(c.suite) ?? []), caseOut(m, id)]);
   }
-  for (const [suite, cases] of solo) cards.push({ id: `card:solo:${suite}`, title: `${suite} · standalone`, suite, kind: "standalone", cases });
+  for (const [suite, cases] of solo) cards.push({ id: `card:solo:${suite}`, title: `${suite} · standalone`, suite, group: [...m.cases.values()].find((c) => c.suite === suite)?.group, kind: "standalone", cases });
   return cards;
 }

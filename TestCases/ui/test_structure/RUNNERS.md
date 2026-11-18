@@ -1,6 +1,6 @@
 # The two runners: what each one is, where it writes, how to test
 
-Both read the SAME cases (`TestCases/test_folders/<suite>/main.ts`) and the same recorded sub-agent answers (`TestCases/test_folders/agent_fixture`). They differ in the runner and in where the result is stored.
+Both read the SAME cases (`TestCases/test_folders/Cases/<suite>/main.ts`) and the same recorded sub-agent answers (`TestCases/test_folders/agent_fixture`). They differ in the runner and in where the result is stored.
 
 | | 1st: fixture-mock runner | 2nd: Experiment (f1 multi-agent) |
 |---|---|---|
@@ -17,7 +17,7 @@ A UI run on the Flow/Test page never creates an Experiment session, and an Exper
 
 ## The common structure (what you author once)
 ```
-TestCases/test_folders/<suite>/main.ts       export const cases: Case[]
+TestCases/test_folders/Cases/<suite>/main.ts       export const cases: Case[]
   { id, title, tags, after?, needs?, turns: [ { user, expected: { context, expected_agents_res: ["<result id>"] } } ] }
 TestCases/test_folders/agent_fixture/
   results/<id>.ts      recorded sub-agent answer: match.keywords, run(req) writes files + returns the reply

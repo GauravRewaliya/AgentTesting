@@ -5,7 +5,10 @@ export interface ExpCase {
   id: string; title: string; after?: string; agents: string[]; distractors: string[]; turns: number;
   unsupported?: string; prompts: string[]; state: CaseState; task?: string; done: number; at?: number;
 }
-export interface ExpSuite { suite: string; cases: ExpCase[] }
+/** group = the group folder the suite is routed in ("cases" = Cases/ itself, else core_testing / real_usecases / subagents); about = what the suite is for (its route line in the group index.ts) */
+export interface ExpSuite { suite: string; group: string; about: string; cases: ExpCase[] }
+/** The route tree of Cases/index.ts: a group with its suites (what each is for, which case id prefixes) and the groups mounted under it. */
+export interface ExpGroup { id: string; title: string; about: string; suites: { name: string; about: string; ids: string[] }[]; groups: ExpGroup[] }
 
 export interface RunInfo {
   id: string; suite: string; cases: string[]; fake: boolean; rerun: boolean;
@@ -33,6 +36,8 @@ export interface CaseResultOut { case: string; task: string; suite: string; stat
 export interface ExperimentOverview {
   config: { f1: string; store: string; repo: string; storeExists: boolean };
   suites: ExpSuite[]; runs: RunInfo[];
+  /** the hierarchy: root group "cases" with its mounted groups (index.ts files) */
+  tree: ExpGroup;
 }
 export interface RunLog { run: RunInfo; log: string }
 

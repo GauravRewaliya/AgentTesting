@@ -3,7 +3,7 @@
 Rules from `../../CLAUDE.md`: fixture-first, spend few credits, free checks before and after (`bun test_harness/core/fixture_policy.ts`).
 
 ## Exists
-Suite `TestCases/test_folders/real_planning_prototype/main.ts` (REAL sub-agents, `allow_real_subAg: true`, `max_agent_calls: 8`; not for routine runs):
+Suite `TestCases/test_folders/Cases/real_usecases/real_planning_prototype/main.ts` (REAL sub-agents, `allow_real_subAg: true`, `max_agent_calls: 8`; not for routine runs):
 - `real_instagram_prototype`: Instagram-like app; flow only (sign up/log in, feed, posts, likes, comments, profiles, follow, stories, explore, DMs, notifications).
 - `real_composio_admin_prototype`: Composio-like admin dashboard; features only (integrations catalog, auth configs, connected accounts, tools, triggers, execution logs, API keys, projects/team, usage/billing).
 

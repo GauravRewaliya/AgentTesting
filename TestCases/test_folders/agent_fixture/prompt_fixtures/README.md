@@ -4,7 +4,7 @@ title: Plan catalog
 status: 15 plans
 ---
 # Plan catalog: how every plan looks
-> **These are plans, not products.** Each plan stands alone: everything a builder needs is in its folder (README, PHASES, `build_inputs/`, `CONTEXT.txt`); no plan refers to any other project's files. Cases in `TestCases/test_folders/test_prompt_planning/` give a plan to the lead and judge the build. Open any plan in the plan viewer (`docs/dev_exp/plan_viewer/`).
+> **These are plans, not products.** Each plan stands alone: everything a builder needs is in its folder (README, PHASES, `build_inputs/`, `CONTEXT.txt`); no plan refers to any other project's files. Cases in `TestCases/test_folders/Cases/real_usecases/test_prompt_planning/` give a plan to the lead and judge the build. Open any plan in the plan viewer (`docs/dev_exp/plan_viewer/`).
 
 ## The plans
 | plan | what it is | status |

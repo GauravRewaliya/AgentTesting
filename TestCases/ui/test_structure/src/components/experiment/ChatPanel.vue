@@ -88,7 +88,7 @@ async function cancel(id: string) { if (props.session) { await api.expCancel(pro
       <div class="row">
         <label class="opt"><input v-model="fake" type="checkbox" /> fake runner <span class="muted small">no model calls</span></label>
         <select v-model="caseId" class="casesel"><option value="">Test case (optional)</option>
-          <optgroup v-for="s in ov?.suites ?? []" :key="s.suite" :label="s.suite"><option v-for="c in s.cases" :key="c.id" :value="c.id" :disabled="!!c.unsupported">{{ c.id }}{{ c.unsupported ? " (not runnable here)" : "" }}</option></optgroup>
+          <optgroup v-for="s in ov?.suites ?? []" :key="s.suite" :label="`${s.group} › ${s.suite}`" :title="s.about"><option v-for="c in s.cases" :key="c.id" :value="c.id" :disabled="!!c.unsupported">{{ c.id }}{{ c.unsupported ? " (not runnable here)" : "" }}</option></optgroup>
         </select>
       </div>
       <div v-if="activeCase" class="muted small casebox"><b>{{ activeCase.id }}</b> · {{ activeCase.title }}<br>{{ activeCase.turns }} turn(s) · agents {{ activeCase.agents.join(", ") }}<template v-if="activeCase.distractors.length"> · distractor {{ activeCase.distractors.join(", ") }}</template></div>
