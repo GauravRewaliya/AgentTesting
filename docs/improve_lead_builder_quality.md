@@ -17,7 +17,7 @@ Runs read: `smwn7b6ch` (new, 1 builder, $0.74, QA removed on purpose) and `rs_sa
 5. The builder is told to do no more than the task (right for plans and clones), so it cannot cover a thin brief: the lead must carry scale and richness.
 
 ## What was changed (general, no use case in the wording)
-- `lead/chapters/page.md` rewritten: plan the parts, ONE shared contract (names, exports, ids, units, layout in one place), split when 2+ parts each need ~100+ lines, one builder when tiny or tightly coupled, 2-4 builders started together, rich brief with relative scale and a role per item, no "small/tiny" for the main subject, no blame on other agents.
+- `lead/chapters/page.md` rewritten: plan the parts, ONE shared contract (names, exports, ids, units, layout in one place), split when 2+ parts each need ~100+ lines, one builder when tiny or tightly coupled, 2 or 3 builders started together, rich brief with relative scale and a role per item, no "small/tiny" for the main subject, no blame on other agents.
 - `lead/.claude/CLAUDE.md` PAGE line: same rule in short; a demo video is never a page feature or a builder task.
 - `builder/.claude/CLAUDE.md`: start writing fast, the contract is law (exact names, no waiting for another builder), report your own choices as `CHOSE:`. Nothing about being generous: that is the lead's job.
 - Tests (lead, `master_test3.ts`): `ld_small_page_one_builder`, `ld_creative_ask_gets_a_rich_brief`, `ld_visual_brief_has_a_layout` adapted (ids kept); new `ld_open_ask_other_domain_splits_with_contract` (aquarium) and `ld_coupled_small_page_one_builder` (tip calculator) prove the rules are not tied to one scene. Builder: `bu_q1..q3` (not run yet, cost).
