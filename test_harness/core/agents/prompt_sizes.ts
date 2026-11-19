@@ -1,6 +1,8 @@
 // How big is every agent's prompt? ONE place for the numbers: the free check (`bun test_harness/scripts/check_prompts.ts`), the self-test and the UI server's start-up warning all use this.
 // STATIC prompt = the files named in agent.json `prompts` (default CLAUDE.md): it is sent on every turn of every call, so it must stay short and crisp: role, how it works, how it answers. Details go into
 // `chapters/<name>.md` (read once with `team chapter --name <name>`). Limit: PROMPT_LIMIT characters per static prompt and per chapter (and under 200 lines).
+// NOTE (the project owner, 2026-11-19): PROMPT_LIMIT (8000) and LAUNCH_LIMIT are only OUR WARNING limits, to keep prompts crisp. Nothing is cut or discarded at 8000: the real limit is about 40k characters.
+// So a prompt over 8000 still works in full; the warning is a nudge to move detail into a chapter, not a failure. Do not shorten a rule only to get under it when the rule matters.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 

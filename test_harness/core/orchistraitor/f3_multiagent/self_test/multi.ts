@@ -14,7 +14,7 @@ import { agentCall, costOf, defaultPolicy, markStalled, stopAgent, type CallReq,
 import { callAgent, checkAgents, claudeProfile, RealRunner, ScriptRunner, projectDirFor, transcriptExistsAnywhere, transcriptExistsIn, transcriptFor, type AgentDef, type RunCall } from "../harness/core/base.ts";
 import { MStore, boardStatus, inbox, noteContext, say, sessionStats } from "../harness/core/board.ts";
 import { runCallee, sharedContext } from "../harness/core/callee.ts";
-import { videoOffReason, appendRow, checkedOf, leftOf, memoryBlock, needsChangesOf, planChecks, projectStamp, readRows, renderQa, verdictOf, writeMemory } from "../harness/core/loops_ai.ts";
+import { leadSummary, videoOffReason, appendRow, checkedOf, leftOf, memoryBlock, needsChangesOf, planChecks, projectStamp, readRows, renderQa, verdictOf, writeMemory } from "../harness/core/loops_ai.ts";
 import { setupFailLines } from "../../../../infra/qa/web_dev_qa.ts";
 import { videoAfterRun } from "../../../../infra/qa/video.ts";
 import { sandboxable } from "../harness/core/base/docker_runner.ts";
@@ -863,6 +863,8 @@ async function protoKitSuite() {
   const foot = [...html.matchAll(/"to":"([\w-]+)"/g)].map((m) => m[1]!);
   t("PK8", "the footer and the header button link ONLY to real routes, and every route is in the footer or the header (no page without a way in)", foot.length >= 6 && foot.every((x) => ids.includes(x)) && ids.every((x) => foot.includes(x) || html.includes(`"id":"${x}"`)), foot.join(","));
   t("PK9", "the untouched site starter passes proto_check", protoCheck(sd).ok, protoCheck(sd).problems.join(" | "));
+  { const long = "I wrote things. ".repeat(200) + "\nVERIFIED:\n- node --check ok\nNOT VERIFIED:\n- never looked at the page\nFOUND: css/x.css line 4 has a bug\nREPORT: {}", ls = leadSummary(long);
+    t("LS1", "the lead's summary of a long builder report keeps its closing FOUND / NOT VERIFIED lines (a plain 600-character cut lost them) and stays short; a short answer is returned whole", ls.includes("FOUND: css/x.css") && ls.includes("NOT VERIFIED") && ls.length < 1900 && leadSummary("done: a, b") === "done: a, b" && leadSummary("x".repeat(5000) + "END").endsWith("END"), String(ls.length)); }
   const { statSync } = await import("node:fs"), BIN = join(import.meta.dirname, "..", "harness", "bin"), cmds = ["proto_check", "proto_init", "browse", "ref_compare", "ref_capture"];   // "preview" has no bin script any more (replaced by bg_start / get_public_url)
   t("PK10", "every team command is a real executable on the agents' PATH (harness/bin): builders no longer hunt for `bun .../tools.ts` (it cost them ~6 steps)", cmds.every((c) => existsSync(join(BIN, c)) && (statSync(join(BIN, c)).mode & 0o111) !== 0 && readFileSync(join(BIN, c), "utf8").includes(`tools.ts" ${c}`)), "");
   if (chromeBin()) {

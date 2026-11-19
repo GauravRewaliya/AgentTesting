@@ -63,6 +63,16 @@ export function imagesOn(runTest: string): boolean {
 
 /** PASS / FAIL / PARTIAL from the first non-empty line of a QA answer (markdown bold and quotes ignored); undefined when it did not say. */
 export const verdictOf = (reply: string): Verdict | undefined => { const first = reply.split("\n").map((l) => l.replace(/[*_`>#\s]+/g, " ").trim()).find(Boolean) ?? ""; const m = /^(PASS|FAIL|PARTIAL)\b/i.exec(first); return m ? (m[1]!.toUpperCase() as Verdict) : undefined; };
+/** The `QUALITY:` line of a QA answer: grade (good|decent|poor) and the score text after it, e.g. `decent (4/6: ...)`. */
+export const qualityOf = (reply: string): { grade: "good" | "decent" | "poor"; line: string } | undefined => { const m = /(?:^|\n)[ \t>*_`#-]*QUALITY\b[*_`]*:?[*_`]*\s*([^\n]*)/i.exec(reply); const g = m && /\b(good|decent|poor)\b/i.exec(m[1]!); return m && g ? { grade: g[1]!.toLowerCase() as "good" | "decent" | "poor", line: m[1]!.trim() } : undefined; };
+/** Mechanical rule: a build graded `QUALITY: poor` cannot be `PASS`. The first line is rewritten to PARTIAL and says why, so the lead and the recorded verdict agree; a PASS on an asked-for quality check with NO `QUALITY:` line at all is left alone (the case decides whether the line is required). */
+export function capVerdict(reply: string): { reply: string; capped: boolean } {
+  const v = verdictOf(reply), q = qualityOf(reply);
+  if (v !== "PASS" || q?.grade !== "poor") return { reply, capped: false };
+  const lines = reply.split("\n"), i = lines.findIndex((l) => l.trim());
+  lines[i] = lines[i]!.replace(/PASS/i, "PARTIAL") + "  (harness: PASS lowered to PARTIAL because QUALITY is poor)";
+  return { reply: lines.join("\n"), capped: true };
+}
 /** What the QA agent asked to be changed: the text after `NEEDS_CHANGES:` in its answer. */
 export const needsChangesOf = (reply: string): string => /NEEDS_CHANGES:?\**\s*([\s\S]*)$/i.exec(reply)?.[1]?.trim() ?? "";
 /** The part of a QA answer under `CHECKED:` (what it covered, with its evidence files) and under `NOT CHECKED:` (what is left or skipped, and why). */

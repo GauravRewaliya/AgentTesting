@@ -6,6 +6,8 @@ import type { TestTag } from "../../tags.ts";
 
 /** One thing to look for among the tool calls the agent made. */
 export interface CallMatch {
+  /** match against the call with the person's QUOTED words removed (a double-quoted span of 20+ characters, e.g. the verbatim request the lead copies into a hand-over): a quote is not an order */
+  unquoted?: true;
   /** tool name as the model sees it: "Agent", "SendMessage", "Bash", "Read", "Write", "Edit", "mcp__team__fork_all", "mcp__team__wait", "mcp__team__team_tool" ... */
   tool?: string;
   /** the callee: Agent `subagent_type`, a `--role` in a Bash command, a fork_all `role`, or a team_tool `command` */

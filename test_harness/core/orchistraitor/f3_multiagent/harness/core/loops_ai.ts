@@ -63,6 +63,23 @@ export function imagesOn(runTest: string): boolean {
 
 /** PASS / FAIL / PARTIAL from the first non-empty line of a QA answer (markdown bold and quotes ignored); undefined when it did not say. */
 export const verdictOf = (reply: string): Verdict | undefined => { const first = reply.split("\n").map((l) => l.replace(/[*_`>#\s]+/g, " ").trim()).find(Boolean) ?? ""; const m = /^(PASS|FAIL|PARTIAL)\b/i.exec(first); return m ? (m[1]!.toUpperCase() as Verdict) : undefined; };
+/** The `QUALITY:` line of a QA answer: grade (good|decent|poor) and the score text after it, e.g. `decent (4/6: ...)`. */
+export const qualityOf = (reply: string): { grade: "good" | "decent" | "poor"; line: string } | undefined => { const m = /(?:^|\n)[ \t>*_`#-]*QUALITY\b[*_`]*:?[*_`]*\s*([^\n]*)/i.exec(reply); const g = m && /\b(good|decent|poor)\b/i.exec(m[1]!); return m && g ? { grade: g[1]!.toLowerCase() as "good" | "decent" | "poor", line: m[1]!.trim() } : undefined; };
+/** Mechanical rule: a build graded `QUALITY: poor` cannot be `PASS`. The first line is rewritten to PARTIAL and says why, so the lead and the recorded verdict agree; a PASS on an asked-for quality check with NO `QUALITY:` line at all is left alone (the case decides whether the line is required). */
+export function capVerdict(reply: string): { reply: string; capped: boolean } {
+  const v = verdictOf(reply), q = qualityOf(reply);
+  if (v !== "PASS" || q?.grade !== "poor") return { reply, capped: false };
+  const lines = reply.split("\n"), i = lines.findIndex((l) => l.trim());
+  lines[i] = lines[i]!.replace(/PASS/i, "PARTIAL") + "  (harness: PASS lowered to PARTIAL because QUALITY is poor)";
+  return { reply: lines.join("\n"), capped: true };
+}
+/** What the lead sees of an agent's answer (the `summary`). A short answer is returned whole. A long one keeps its head (what was done) AND the closing blocks that decide what happens next (`FOUND:`, `NOT VERIFIED:`, `VERIFIED:`, `NEEDS_CHANGES:`), which used to be cut off by a plain 600-character slice. Total stays about 1700 characters; the full text is always in the ledger (`ledger_get`). */
+export function leadSummary(reply: string, head = 600, tail = 1100): string {
+  const t = reply.trim(); if (t.length <= head + tail) return t;
+  const i = t.slice(head).search(/(?:^|\n)[ \t>*_`#-]*(?:FOUND|NOT VERIFIED|VERIFIED|NEEDS_CHANGES)\b[*_`]*:/i);
+  const rest = i >= 0 ? t.slice(head + i).trimStart().slice(0, tail) : t.slice(-tail);
+  return t.slice(0, head).trimEnd() + "\n[... middle left out; the whole answer: ledger_get ...]\n" + rest;
+}
 /** What the QA agent asked to be changed: the text after `NEEDS_CHANGES:` in its answer. */
 export const needsChangesOf = (reply: string): string => /NEEDS_CHANGES:?\**\s*([\s\S]*)$/i.exec(reply)?.[1]?.trim() ?? "";
 /** The part of a QA answer under `CHECKED:` (what it covered, with its evidence files) and under `NOT CHECKED:` (what is left or skipped, and why). */

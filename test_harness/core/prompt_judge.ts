@@ -4,9 +4,10 @@ import type { CallMatch, PromptExpect } from "../../TestCases/test_folders/promp
 export interface Call { tool: string; input: Record<string, unknown>; id: string; turn: string }
 
 export const inputStr = (c: Call) => JSON.stringify(c.input);
+const unquote = (s: string) => s.replace(/\\"(?:(?!\\").){20,}?\\"/g, " ");   // the JSON text has the quotes as \" ... \"
 export const roleOf = (c: Call): string => String(c.input.subagent_type ?? c.input.role ?? /--role[ =]+([\w-]+)/.exec(String(c.input.command ?? ""))?.[1] ?? (c.tool === "mcp__team__team_tool" ? c.input.command : "") ?? "");
 export const weight = (c: Call) => (c.tool === "mcp__team__fork_all" && Array.isArray(c.input.tasks) ? c.input.tasks.length : 1);
-export const hit = (c: Call, m: CallMatch): boolean => m.any ? m.any.some((a) => hit(c, a)) : (!m.tool || c.tool === m.tool) && (!m.role || roleOf(c) === m.role) && (!m.match || new RegExp(m.match, "i").test(inputStr(c))) && (m.each ?? []).every((r) => new RegExp(r, "is").test(inputStr(c)));
+export const hit = (c: Call, m: CallMatch): boolean => m.any ? m.any.some((a) => hit(c, a)) : (!m.tool || c.tool === m.tool) && (!m.role || roleOf(c) === m.role) && (!m.match || new RegExp(m.match, "i").test(m.unquoted ? unquote(inputStr(c)) : inputStr(c))) && (m.each ?? []).every((r) => new RegExp(r, "is").test(inputStr(c)));
 /** how many calls of the transcript match: a fork_all counts one per entry of its `tasks` */
 export function count(calls: Call[], m: CallMatch): number { return m.any ? m.any.reduce((n, a) => n + count(calls, a), 0) : calls.filter((c) => hit(c, m)).reduce((n, c) => n + weight(c), 0); }
 export const desc = (m: CallMatch): string => m.any ? m.any.map(desc).join(" OR ") : [m.tool, m.role && `role=${m.role}`, m.match && `/${m.match}/`, m.each?.length && `each carries ${m.each.map((r) => `/${r}/`).join(" + ")}`, m.min && m.min > 1 ? `x${m.min}+` : "", m.max !== undefined ? `x${m.max} at most` : ""].filter(Boolean).join(" ") || "any call";

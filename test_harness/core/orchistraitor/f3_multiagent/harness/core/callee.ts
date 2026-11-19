@@ -2,7 +2,7 @@
 // Everything that touches the shared registry after the model call happens in ONE short transaction.
 import { randomUUID } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { appendRow, checkedOf, imagesOn, leftOf, memoryBlock, projectDirs, videoOffReason, projectStamp, verdictOf, writeMemory } from "./loops_ai.ts";
+import { appendRow, checkedOf, leadSummary, imagesOn, leftOf, memoryBlock, projectDirs, videoOffReason, projectStamp, verdictOf, capVerdict, writeMemory } from "./loops_ai.ts";
 import { join, sep } from "node:path";
 import { addPatch } from "./patches.ts";
 import { release } from "./locks.ts";
@@ -85,11 +85,12 @@ export async function runCallee(ctx: Omit<CallCtx, "store"> & { store: MStore },
       if (note) for (const d of dirs.length ? dirs : projectDirs(rt)) { appendRow(join(rt, d), { kind: "builder", by: aid, note, task, stamp: projectStamp(join(rt, d)) }); writeMemory(join(rt, d), { dir: d }); }
     } catch { /* the memory is a convenience */ }
   }
-  if (out.ok && def.name === "qa-reviewer" && out.reply.trim()) {   // what a QA agent found is written into the project's QA.md by the HARNESS (its first line is the verdict): it must not live only in a chat
+  if (out.ok && def.name === "qa-reviewer" && out.reply.trim()) {
+    out.reply = capVerdict(out.reply).reply;   // what a QA agent found is written into the project's QA.md by the HARNESS (its first line is the verdict): it must not live only in a chat
     try { const rt = join(o.cwd, "run_test"), verdict = verdictOf(out.reply); for (const d of projectDirs(rt)) { appendRow(join(rt, d), { kind: "review", by: aid, task, verdict, stamp: projectStamp(join(rt, d)), note: out.reply, checked: checkedOf(out.reply) || undefined, left: leftOf(out.reply) || undefined }); writeMemory(join(rt, d), { dir: d }); } } catch { /* the memory is a convenience */ }
   }
 
-  const result: CalleeOut = { ok: out.ok, reply: out.reply, summary: out.reply.slice(0, 600), mode: out.mode, violations, error: out.error, promoted: [] };
+  const result: CalleeOut = { ok: out.ok, reply: out.reply, summary: leadSummary(out.reply), mode: out.mode, violations, error: out.error, promoted: [] };
   const ask = out.ok ? /^\s*NEEDS_PARENT:\s*([\s\S]*)/i.exec(out.reply) : null;   // the agent stopped to ask its parent
   if (ask) result.needs_parent = ask[1]!.trim().slice(0, 1500);
   const stoppedRun = out.error === "stopped";   // its result is discarded: no report, no patch
