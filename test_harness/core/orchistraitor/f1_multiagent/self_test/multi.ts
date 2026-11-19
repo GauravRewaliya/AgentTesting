@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { mkRepo, results, rm, setSuite, t, writeReport } from "./lib.ts";
 import { agentCall, costOf, defaultPolicy, markStalled, stopAgent, type CallReq, type CallRes, type Policy } from "../harness/core/agent_call.ts";
-import { callAgent, checkAgents, RealRunner, ScriptRunner, projectDirFor, transcriptExistsAnywhere, transcriptExistsIn, transcriptFor, type AgentDef, type RunCall } from "../harness/core/base.ts";
+import { callAgent, checkAgents, claudeProfile, RealRunner, ScriptRunner, projectDirFor, transcriptExistsAnywhere, transcriptExistsIn, transcriptFor, type AgentDef, type RunCall } from "../harness/core/base.ts";
 import { MStore, boardStatus, inbox, noteContext, say, sessionStats } from "../harness/core/board.ts";
 import { runCallee, sharedContext } from "../harness/core/callee.ts";
 import { videoOffReason, appendRow, checkedOf, leftOf, memoryBlock, needsChangesOf, planChecks, projectStamp, readRows, renderQa, verdictOf, writeMemory } from "../harness/core/loops_ai.ts";
@@ -672,7 +672,7 @@ async function sessionsSuite() {
   wf(join(bin, "claude"), `#!/bin/sh\nexec bun --smol ${join(import.meta.dirname, "fake_claude.ts")} "$@"\n`); chmodSync(join(bin, "claude"), 0o755);
   process.env.HOME = home; delete process.env.CLAUDE_CONFIG_DIR; process.env.PATH = bin + ":" + process.env.PATH;   // the temp HOME only isolates if CLAUDE_CONFIG_DIR (which wins over HOME) is not set: otherwise the suite wrote its fake transcripts into the REAL session folder
   const dirs = ["A", "B", "C", "D"].map((n) => { const d = join(home, "work", n); mkdirSync(d, { recursive: true }); return d; });
-  const res = defs.get("researcher")!, root = join(home, ".claude", "projects");
+  const res = defs.get("researcher")!, root = join(claudeProfile(), "projects");   // the profile from CONFIG.claudeProfile (claudeProfile(), read under the temp HOME)
   const mk = (o: { strict?: boolean; fileCheck?: ((cwd: string, id: string) => boolean) | null } = {}) => {
     const w = world(); w.store.strict = o.strict ?? true; const row = w.store.addAgent("t", res, { level: 2, caller: "lead#1" });
     const fc = o.fileCheck === undefined ? (_c: string, id: string) => transcriptExistsAnywhere(id) : o.fileCheck ?? undefined;

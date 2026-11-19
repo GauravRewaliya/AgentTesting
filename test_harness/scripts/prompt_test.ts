@@ -18,6 +18,7 @@ import { loadAgents } from "../core/orchistraitor/f3_multiagent/harness/core/bas
 import { launchDef } from "../core/orchistraitor/f3_multiagent/harness/core/launch.ts";
 import { buildLead } from "../core/orchistraitor/f3_multiagent/approaches/a2_native_hook/adapter.ts";
 import { STATE_ROOT } from "../core/paths.ts";
+import { claudeEnv } from "../core/orchistraitor/f3_multiagent/harness/core/base.ts";
 import type { PromptCase, PromptSuite } from "../../TestCases/test_folders/prompt_test/types.ts";
 import { auditEfficiency, callLine, describeExpect, judge, roleOf, type Audit, type Call } from "../core/prompt_judge.ts";
 import { suitesFor } from "../../TestCases/test_folders/prompt_test/index.ts";
@@ -74,7 +75,7 @@ async function runTurn(c: PromptCase, L: Launch, hist: { user: string; text: str
   const settings = { hooks: { PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: `bun --smol ${HOOK}` }] }] } };
   const args = ["-p", compose(c, hist), "--model", model, "--output-format", "stream-json", "--verbose", "--no-session-persistence", "--max-turns", "1", "--setting-sources", "", "--strict-mcp-config",
     "--append-system-prompt-file", L.promptFile, "--tools", L.tools.join(","), "--permission-mode", "dontAsk", "--settings", JSON.stringify(settings), ...L.extra, "--allowedTools", ...L.allow];
-  const t0 = Date.now(), p = Bun.spawn(["claude", ...args], { cwd: dir, stdin: "ignore", stdout: "pipe", stderr: "pipe", env: { ...process.env, CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", PROMPT_TEST_RECORD: record } });
+  const t0 = Date.now(), p = Bun.spawn(["claude", ...args], { cwd: dir, stdin: "ignore", stdout: "pipe", stderr: "pipe", env: { ...process.env, ...claudeEnv(), CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", PROMPT_TEST_RECORD: record } });
   const out = await new Response(p.stdout).text(); await p.exited;
   const raw = out.split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean) as { type: string; message?: { id?: string; content?: { type: string; text?: string; id?: string }[] }; total_cost_usd?: number }[];
   const turnOf = new Map<string, string>(), streamed: { tool: string; input: Record<string, unknown>; id: string }[] = []; let text = "", cost = 0;

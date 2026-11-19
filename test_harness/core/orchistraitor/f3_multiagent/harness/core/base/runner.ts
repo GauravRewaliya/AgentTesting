@@ -8,16 +8,31 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { RunCall, RunResult, Runner } from "./types.ts";
+import { CONFIG } from "../../../../../config.ts";
 import { cliErrorText, isAccountFatal } from "./parse.ts";
 
 /** Set when a call fails because the account is out of credits / logged out: new calls fail at once (no process, no waiting) until it expires. */
 let fatal: { error: string; until: number } | null = null;
 
-/** Where the CLI keeps sessions. The CLI follows CLAUDE_CONFIG_DIR (e.g. ~/.claude-personal), else ~/.claude. A run started from a shell with that variable and a run started by the UI server without it use DIFFERENT profiles,
- *  so a session made by one cannot be resumed by the other ("No conversation found"). `claudeDirs()` lists every profile that may hold sessions; `profileOfSession(id)` finds the one that holds a given session, and a resume is run IN that profile. */
+/** THE Claude profile of every `claude` this harness starts: ~/.claude-personal (HARNESS_CLAUDE_PROFILE overrides). The shell's CLAUDE_CONFIG_DIR is NOT trusted: a server or shell started without it
+ *  silently ran on ~/.claude (another account: other limits, other credits, sessions split over two folders; seen in the sakura runs 740/741 and tj_*, 2026-11-18). Docker pins the same profile (infra/docker-compose.yml). */
 const homeDir = () => process.env.HOME || homedir();
-export const claudeDirs = (): string[] => [...new Set([process.env.CLAUDE_CONFIG_DIR, join(homeDir(), ".claude"), join(homeDir(), ".claude-personal")].filter((x): x is string => !!x))];
-export const projectsRoot = () => join(process.env.CLAUDE_CONFIG_DIR || join(homeDir(), ".claude"), "projects");   // where NEW sessions of this process go
+/** THE account of every `claude` this harness starts: `CONFIG.claudeProfile` in test_harness/core/config.ts (ONE static string: "default" = ~/.claude, "personal" = ~/.claude-personal, or an absolute folder; the comment there lists what else to check when it changes). Env HARNESS_CLAUDE_PROFILE (a folder) wins for one run. */
+export const claudeProfile = (): string => {
+  if (process.env.HARNESS_CLAUDE_PROFILE) return process.env.HARNESS_CLAUDE_PROFILE;
+  const want: string = CONFIG.claudeProfile;
+  return want === "default" ? join(homeDir(), ".claude") : want.startsWith("/") ? want : join(homeDir(), ".claude-personal");
+};
+let warned = false;
+export function claudeEnv(): Record<string, string> {   // add to the env of EVERY claude process
+  const want = claudeProfile();
+  if (!warned && process.env.CLAUDE_CONFIG_DIR && process.env.CLAUDE_CONFIG_DIR !== want) { warned = true; console.error(`[claude profile] shell has CLAUDE_CONFIG_DIR=${process.env.CLAUDE_CONFIG_DIR}; the harness uses ${want}`); }
+  return { CLAUDE_CONFIG_DIR: want };
+}
+/** Where the CLI keeps sessions: `claudeDirs()` lists the profile (first) and the old ones that may still hold OLD sessions (read and resume only, nothing new is written there);
+ *  `profileOfSession(id)` finds the one that holds a given session, and a resume is run IN that profile. */
+export const claudeDirs = (): string[] => [...new Set([claudeProfile(), process.env.CLAUDE_CONFIG_DIR, join(homeDir(), ".claude"), join(homeDir(), ".claude-personal")].filter((x): x is string => !!x))];
+export const projectsRoot = () => join(claudeProfile(), "projects");   // where NEW sessions go
 export function profileOfSession(id: string): string | undefined {
   for (const dir of claudeDirs()) { const root = join(dir, "projects"); try { if (readdirSync(root).some((d) => existsSync(join(root, d, id + ".jsonl")))) return dir; } catch { /* no projects folder in this profile */ } }
   return undefined;
@@ -82,7 +97,7 @@ export class RealRunner implements Runner {
     return new Promise((resolve) => {
       const resumeId = c.stateless ? undefined : c.session.fork_from ?? (c.session.resume ? c.session.id : undefined), profile = resumeId ? profileOfSession(resumeId) : undefined;   // continue a session IN the profile that holds it
       const p = spawn("claude", args, { cwd: c.cwd, stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", ...(profile ? { CLAUDE_CONFIG_DIR: profile } : {}), ...lspEnv(c), ...artifactEnv(c), ...binEnv(), ...(c.env ?? {}) } });
+        env: { ...process.env, CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1", ...claudeEnv(), ...(profile ? { CLAUDE_CONFIG_DIR: profile } : {}), ...lspEnv(c), ...artifactEnv(c), ...binEnv(), ...(c.env ?? {}) } });
       this.live.add(p); try { setPriority(p.pid!, 10); } catch { /* low priority is best effort */ }
       let out = "", err = "";
       p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (err += d));

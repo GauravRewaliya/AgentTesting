@@ -4,10 +4,16 @@
 //   approach       how the lead delegates (<orchestrator>/approaches/<name>); env APPROACH overrides for one run
 //   stateVersion   run data lives in test_harness/.state/<stateVersion>/ (a new version starts empty, the old one stays on disk)
 // AGENTS (same for every orchestrator and approach, below): AGENTS_DIR = the real team, TEST_AGENTS_DIR = test stand-ins.
-// Claude profile (not enforced here): Docker always uses ~/.claude-personal (infra/docker-compose.yml); local runs use your shell's CLAUDE_CONFIG_DIR, ~/.claude-personal recommended.
+// Claude profile: ENFORCED in the runner (`claudeEnv()`): every `claude` the harness starts gets CLAUDE_CONFIG_DIR from CONFIG.claudeProfile below (HARNESS_CLAUDE_PROFILE overrides), the shell's value is ignored (warning). Docker mounts the same profile (infra/docker-compose.yml).
 // This file must import NOTHING from the project (paths.ts imports it).
 import { join } from "node:path";
 export const CONFIG = {
+  // WHICH CLAUDE ACCOUNT every `claude` the harness starts uses (one static string, change it here only):
+  //   "default" = ~/.claude   "personal" = ~/.claude-personal   or an absolute folder.  Env HARNESS_CLAUDE_PROFILE (a folder) overrides for one run.
+  // IF YOU CHANGE IT ALSO CHECK: (1) Docker: infra/docker-compose.yml mounts ${CLAUDE_PROFILE_DIR:-~/.claude-personal} as the sandbox's login: set CLAUDE_PROFILE_DIR to the same folder when HARNESS_SANDBOX=docker;
+  //   (2) a shell that exports CLAUDE_CONFIG_DIR is ignored (the harness prints a warning); (3) old sessions stay in the other folder (claudeDirs() still finds them for resume);
+  //   (4) the account's usage limit is per account: a "hit your limit" failure of a run is the account, not the prompt.
+  claudeProfile: "default",
   orchestrator: "f3_multiagent",
   approach: "a1_team_cli",
   stateVersion: "v3",

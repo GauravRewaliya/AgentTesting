@@ -9,6 +9,7 @@ import { ARTIFACT_RUNS } from "@core/userhome.ts";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadSuites } from "./cases.ts";
+import { claudeEnv } from "../harness/core/base.ts";
 
 const OUT = ARTIFACT_RUNS; mkdirSync(OUT, { recursive: true });   // the user home (test_harness/.state/home/artifact_runs)
 const LINK = /https:\/\/claude\.ai\/(?:code\/)?artifact\/[A-Za-z0-9-]+/g;
@@ -41,7 +42,7 @@ export async function runArtifactCases(cases: any[]): Promise<number> {
     const prompt = c.turns[0].user + `\nWrite your page file under ${ws}.`;
     const p = Bun.spawn(["claude", "-p", prompt, "--model", "haiku", "--output-format", "stream-json", "--verbose", "--setting-sources", "", "--strict-mcp-config",
       "--tools", allowedTools.join(","), "--permission-mode", "dontAsk", "--allowedTools", ...allowedTools],
-      { cwd: ws, stdin: "ignore", stdout: "pipe", stderr: "pipe", env: { ...process.env, CLAUDE_CODE_ENTRYPOINT: "cli-interactive", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" } });
+      { cwd: ws, stdin: "ignore", stdout: "pipe", stderr: "pipe", env: { ...process.env, ...claudeEnv(), CLAUDE_CODE_ENTRYPOINT: "cli-interactive", CLAUDE_CODE_DISABLE_CLAUDE_MDS: "1" } });
     const timer = setTimeout(() => p.kill(9), 600_000);
     const raw = (await new Response(p.stdout).text()).split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
     await p.exited; clearTimeout(timer);

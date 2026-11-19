@@ -16,7 +16,7 @@ Stack: TypeScript on Bun, pnpm for packages.
 
 ## Claude profile
 - **Docker** (real sub-agents, `HARNESS_SANDBOX=docker`): ALWAYS `~/.claude-personal`. `test_harness/infra/docker-compose.yml` mounts it as the container's Claude config dir (`/claude`); it does not follow your shell's `CLAUDE_CONFIG_DIR` (`CLAUDE_PROFILE_DIR` overrides it).
-- **Local** (the lead and any `claude -p` the harness starts on the host): whatever profile your shell uses. `~/.claude-personal` is recommended (`export CLAUDE_CONFIG_DIR=$HOME/.claude-personal`); using the normal `~/.claude` by accident is fine for now. Nothing in the code enforces it.
+- **Local** (the lead and any `claude -p` the harness starts on the host): ALWAYS `~/.claude-personal` too. The harness sets `CLAUDE_CONFIG_DIR` itself on every `claude` it starts (`claudeEnv()` in `harness/core/base/runner.ts`), whatever the shell or the UI server has; it prints a warning when the shell has another one. Run your own shell with `CLAUDE_CONFIG_DIR="$HOME/.claude-personal" claude` as well. `HARNESS_CLAUDE_PROFILE` is the only override. Old sessions in `~/.claude` are still READ (history) and resumed in the profile that holds them; nothing new is written there.
 - A session is resumed in whichever profile holds it (`runner.ts` `profileOfSession`).
 
 ## How it will work

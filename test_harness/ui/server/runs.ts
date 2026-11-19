@@ -3,6 +3,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { HARNESS } from "@core/paths.ts";
+import { claudeEnv } from "@core/orchestrator.ts";
 import { loadSuites, readLast } from "./data.ts";
 import * as exp from "./experiment.ts";
 import type { CaseRuns, RunSummary, SessionRun, StateRun } from "../shared/types.ts";
@@ -52,7 +53,7 @@ export async function judgeRun(id: string, again = false): Promise<{ id: string;
   if (!again && existsSync(judgef(id))) return { id, verdict: readFileSync(judgef(id), "utf8") };
   const prompt = "You judge a test run of a multi-agent orchestrator. Below is the runner log. For each case compare the EXPECTED lines with what ACTUALLY happened (responders, calls, hand-over, files, lead reply). "
     + "Answer in plain text, no tools: one line per case `PASS <case> - reason` or `FAIL <case> - reason` (say what differs), then one line `ISSUE:` naming the most likely cause if anything failed (e.g. thin hand-over, wrong sub-agent, cached/not run, runner crash).\n\n" + log;
-  const p = Bun.spawn(["claude", "-p", "--model", "haiku", "--allowedTools", ""], { cwd: HARNESS, stdin: new Blob([prompt]), stdout: "pipe", stderr: "pipe" });
+  const p = Bun.spawn(["claude", "-p", "--model", "haiku", "--allowedTools", ""], { cwd: HARNESS, stdin: new Blob([prompt]), stdout: "pipe", stderr: "pipe", env: { ...process.env, ...claudeEnv() } });
   const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
   if (code !== 0 || !out.trim()) throw new Error("judge failed: " + (err.trim().slice(-300) || `exit ${code}`));
   writeFileSync(judgef(id), out.trim()); return { id, verdict: out.trim() };

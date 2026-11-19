@@ -9,7 +9,7 @@ export const ORCH_DIR = join(import.meta.dir, "orchistraitor", CONFIG.orchestrat
 
 export { MStore, say } from "./orchistraitor/f3_multiagent/harness/core/board.ts";
 export { FixtureGate } from "./orchistraitor/f3_multiagent/harness/core/fixture_gate.ts";
-export { claudeDirs } from "./orchistraitor/f3_multiagent/harness/core/base.ts";
+export { claudeDirs, claudeProfile, claudeEnv } from "./orchistraitor/f3_multiagent/harness/core/base.ts";
 export { activeMs, lastCall } from "./orchistraitor/f3_multiagent/harness/core/peek.ts";
 export { costOf, stopAgent } from "./orchistraitor/f3_multiagent/harness/core/agent_call.ts";
 export { locksFromEnv } from "./orchistraitor/f3_multiagent/harness/core/lockapi.ts";

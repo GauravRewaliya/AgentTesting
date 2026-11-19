@@ -3,7 +3,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { AGENTS_DIR } from "@core/config.ts";
-import { loadAgentsRaw } from "@core/orchestrator.ts";
+import { loadAgentsRaw, claudeEnv } from "@core/orchestrator.ts";
 import { AGENT_NAME, HOME_DIR, INTEGRATIONS, installedPlugins, pluginSupported, USER_AGENTS_DIR, USER_SKILLS_DIR, cloneAgent, readSettings, reaches, removeUserAgent, secretInfo, secretValue, setSecret, updateSettings, type IntegrationId } from "@core/userhome.ts";
 import { readdirSync } from "node:fs";
 
@@ -35,7 +35,7 @@ export interface Connector { name: string; url: string; status: string; supporte
 let connectors: Connector[] = [];
 export async function scanConnectors() {
   try {
-    const p = Bun.spawn(["claude", "mcp", "list"], { stdout: "pipe", stderr: "ignore", stdin: "ignore" }), timer = setTimeout(() => p.kill(), 45_000);
+    const p = Bun.spawn(["claude", "mcp", "list"], { stdout: "pipe", stderr: "ignore", stdin: "ignore", env: { ...process.env, ...claudeEnv() } }), timer = setTimeout(() => p.kill(), 45_000);
     const out = await new Response(p.stdout).text(); clearTimeout(timer);
     connectors = out.split("\n").map((l) => /^(.+?): (\S+) - (.+)$/.exec(l.trim())).filter((m): m is RegExpExecArray => !!m).map((m) => ({ name: m[1]!, url: m[2]!, status: m[3]!.replace(/^[^\w]+/, ""), supported: false as const }));
   } catch { connectors = []; }
