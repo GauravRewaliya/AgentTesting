@@ -23,7 +23,7 @@ export function loadAgentsRaw(roots: string[]): Map<string, AgentDef> {
     const tools = [...new Set(allow.map((a) => a.replace(/\(.*$/, "")))];
     m.set(name, {
       name, role: j.role ?? "", description: j.description ?? "", model: j.model ?? "haiku", session: j.session ?? "persistent",
-      writes: j.writes ?? false, max_children: j.max_children ?? 0, agents: j.agents ?? [], tiers: j.tiers ?? [], session_cap: j.session_cap, timeout_s: j.timeout_s, forbidden: j.forbidden, singleton: j.singleton, scratch: j.scratch, custom: j.custom, fixtures: j.fixtures, prompts: j.prompts, team_tools: j.team_tools,
+      writes: j.writes ?? false, max_children: j.max_children ?? 0, agents: j.agents ?? [], tiers: j.tiers ?? [], session_cap: j.session_cap, timeout_s: j.timeout_s, forbidden: j.forbidden, singleton: j.singleton, scratch: j.scratch, custom: j.custom, fixtures: j.fixtures, prompts: j.prompts, team_commands: j.team_commands ?? j.team_commands,
       allow, tools, dir, prompt_file: join(dir, ".claude", "CLAUDE.md"),
     });
   }
@@ -57,5 +57,7 @@ export function checkAgents(defs: Map<string, AgentDef>, maxDepth = 4): string[]
   return [...new Set(bad)];
 }
 
-/** Does this agent use the HOST's `team` commands (delegate, bg_start, browse, get_public_url ...)? Then it (1) is TOLD about them and (2) must run on the HOST, never in a Docker sandbox: the commands, the background tasks, Chrome and their ports live on the host, and inside a container `localhost:port` is the container's, not the machine's. An agent qualifies when it can call other agents, lists `team_tools`, works in a throwaway copy (`scratch`), or has `tools.ts` in its permissions. The lead and the pm are always host agents. */
-export const usesTeamTools = (a: { agents: string[]; team_tools?: string[]; scratch?: boolean; allow: string[] }): boolean => a.agents.length > 0 || !!a.team_tools?.length || !!a.scratch || a.allow.some((x) => x.includes("tools.ts"));
+/** Does this agent use the HOST's `team` commands (delegate, bg, browser, ...)? Then it (1) is TOLD about them and (2) must run on the HOST, never in a Docker sandbox: the commands, the background tasks, Chrome and their ports live on the host, and inside a container `localhost:port` is the container's, not the machine's. An agent qualifies when it can call other agents, lists `team_commands`, works in a throwaway copy (`scratch`), or has `tools.ts` in its permissions. The lead and the pm are always host agents. */
+/** may this agent run the `team` CLI in its shell? plain Bash, or an allow rule for it (`Bash(team ...)`, or the old long form `Bash(bun *tools.ts ...)`) */
+export const permitsTeamCli = (allow: string[]): boolean => allow.some((a) => a === "Bash" || a.includes("tools.ts") || /^Bash\(team\b/.test(a));
+export const usesTeamCommands = (a: { agents: string[]; team_commands?: string[]; scratch?: boolean; allow: string[] }): boolean => a.agents.length > 0 || !!a.team_commands?.length || !!a.scratch || a.allow.some((x) => x.includes("tools.ts") || /^Bash\(team\b/.test(x));

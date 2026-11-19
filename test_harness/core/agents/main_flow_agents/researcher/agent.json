@@ -1,6 +1,6 @@
 {
  "role": "researcher",
- "description": "Researcher: reads repositories, docs and the web, answers one focused factual question with evidence, writes the findings as a short .md report in run_test/research/ and reports to its parent (the lead or the planner). NOT for how a website LOOKS (a WebFetch is a model-written summary with no pictures or styles: use ref_capture and the lookup agents / site_build).",
+ "description": "Researcher: reads repositories, docs and the web, answers one focused factual question with evidence, writes the findings as a short .md report in run_test/research/ and reports to its parent (the lead or the planner). NOT for how a website LOOKS (a WebFetch is a model-written summary with no pictures or styles: use ref capture and the lookup agents / site build).",
  "model": "sonnet",
  "session": "persistent",
  "writes": false,

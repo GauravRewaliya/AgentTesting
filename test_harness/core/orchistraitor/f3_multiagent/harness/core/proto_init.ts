@@ -65,7 +65,7 @@ Replace every stub (it says "TODO"). Detail views live in the SAME screen: route
 ## Rules for every screen (a corporate, finished look)
 - A screen: \`Screens.Name = { template: \`...\`, data() { return {...} }, computed, methods }\`. Mock data goes INSIDE your file (believable names, numbers, dates, statuses; 8-15 rows; never lorem ipsum, never "TODO" or "coming soon").
 - Start with \`<div class="page-header"><div><h1>Title</h1><p>One line of purpose</p></div><div class="page-actions">buttons</div></div>\`. Then a \`.toolbar\` (search, filters), then the content. Every list: a search or filter that really filters, an empty state, a row that opens the detail view. Every button does something (opens \`ui-modal\`/\`ui-drawer\`, toasts, navigates). Forms validate (\`.field-error\`).
-- Only kit classes below; no inline \`style=\`; a class you need beyond the kit goes in YOUR \`css/pages-<file>.css\`. \`proto_check\` lists classes defined nowhere.
+- Only kit classes below; no inline \`style=\`; a class you need beyond the kit goes in YOUR \`css/pages-<file>.css\`. \`proto check\` lists classes defined nowhere.
 
 ## Design kit (classes)
 layout \`.page-header .page-actions .toolbar .filter-bar .spacer .stack .row .right .grid-2 .grid-3 .grid-4 .card-grid .divider\` · surfaces \`.card .card-header .card-body .card-footer .stat(.label .value .delta.up|.down) (a complete card by itself: never wrap it in .card)\` · table \`.table-wrap > table.table\` (\`th.num td.num\`, \`tr.row-link\`) \`.pagination\` · buttons \`.btn .btn-primary .btn-ghost .btn-danger .btn-sm\` · forms \`.form .form-field(label, .input|.select|.textarea) .form-hint .field-error .form-actions .switch\` · \`.badge .badge-success|warning|danger|info|neutral\` · \`.tabs > button.tab(.active)\` · \`.kv\` (dl: dt/dd) · \`.code\` · \`.chip\` · \`.bars > i\` (set \`:style="{height: n+'%'}"\`, the only inline style allowed) · \`.steps > .step(.active|.done)\` · \`.skeleton\` · \`.muted .mono .num\`.
@@ -75,7 +75,7 @@ Example table: \`<div class="table-wrap"><table class="table"><thead><tr><th>Nam
   appendKitReference(dir);
   written.push("index.html", "proto.json", "PROTO.md");
   return { ok: true, files: written, screens_files: Object.fromEntries(Object.entries(byFile).map(([f, i]) => [`js/screens/${f}.js`, i.map((x) => x.label)])),
-    next: `The shell already runs. Now ONE builder per screens file, all at once: fork_all (no --from) with one task per file, writes ["${o.rel ?? dir}/js/screens/<file>.js","${o.rel ?? dir}/css/pages-<file>.css"]; then wait, proto_check, preview. (Up to ~4 screens: ONE builder owning all files is enough.)` };
+    next: `The shell already runs. Now ONE builder per screens file, all at once: agent all (no --from) with one task per file, writes ["${o.rel ?? dir}/js/screens/<file>.js","${o.rel ?? dir}/css/pages-<file>.css"]; then wait, proto check, preview. (Up to ~4 screens: ONE builder owning all files is enough.)` };
 }
 
 // ---------------------------------------------------------------------------------------------------- SITE kind: a themeable marketing / blog WEBSITE (kits/site): header + footer + hash router built from the real route list, light/dark theme, scroll animations.
@@ -137,7 +137,7 @@ Buttons \`.btn .btn-primary .btn-lg .btn-ghost\`, \`.pill\`, \`.chip\`, \`.tag\`
   appendKitReference(dir);
   written.push("index.html", "proto.json", "PROTO.md");
   return { ok: true, files: written, screens_files: Object.fromEntries(Object.entries(byFile).map(([f, i]) => [`js/screens/${f}.js`, i.map((x) => x.label)])),
-    next: `The site shell already runs (header, footer, theme, router). Now ONE builder per pages file, ALL AT ONCE: fork_all with one task per file, writes ["${o.rel ?? dir}/js/screens/<file>.js","${o.rel ?? dir}/css/pages-<file>.css"] (the objective names the reference: run_test/_ref/<name>/REF.md and its section pictures); then wait, ref_compare, preview.` };
+    next: `The site shell already runs (header, footer, theme, router). Now ONE builder per pages file, ALL AT ONCE: agent all with one task per file, writes ["${o.rel ?? dir}/js/screens/<file>.js","${o.rel ?? dir}/css/pages-<file>.css"] (the objective names the reference: run_test/_ref/<name>/REF.md and its section pictures); then wait, ref compare, preview.` };
 }
 
 /** Append a generated KIT REFERENCE to PROTO.md: every CSS class, icon name and helper the kit offers. A builder used to find these with 3-5 grep calls (each one a model turn that re-reads the whole context); now one read of PROTO.md has them. Generated from the real files, so it cannot drift. */

@@ -1,0 +1,3 @@
+#!/bin/sh
+# on the PATH of every agent: `port_forward_url ...` = `team port_forward_url ...` (a group: `port_forward_url --help` lists its commands)
+exec bun --smol "$(dirname "$0")/../tools.ts" port_forward_url "$@"

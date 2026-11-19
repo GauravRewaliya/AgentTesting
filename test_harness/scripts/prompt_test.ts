@@ -43,7 +43,7 @@ const runs = Math.max(1, Number(val("runs") ?? 1));
 interface Launch { promptFile: string; tools: string[]; allow: string[]; extra: string[]; chars: number }
 async function launchFor(agent: string, c: PromptCase): Promise<Launch> {
   const def = defs.get(agent); if (!def) throw new Error(`unknown agent "${agent}"`);
-  if (agent === "lead") {   // exactly what the a2 approach launches (adapter.ts buildLead): native Agent/SendMessage + the typed team tools
+  if (agent === "lead") {   // exactly what the a2 approach launches (adapter.ts buildLead): native Agent/SendMessage + the typed team commands
     const L = await buildLead(defs, { agents: c.team, maxDepth: 2, mode: "intercept" }), f = join(dir, `lead.${c.id}.md`); writeFileSync(f, L.text);
     return { promptFile: f, tools: L.tools, allow: L.allow, chars: L.text.length,
       extra: ["--agents", JSON.stringify(L.agents), "--mcp-config", JSON.stringify({ mcpServers: { team: { command: "bun", args: ["--smol", TEAM_MCP], env: { HARNESS_TASK: "prompt_test" } } } })] };

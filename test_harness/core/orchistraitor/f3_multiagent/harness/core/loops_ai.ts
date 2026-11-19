@@ -131,7 +131,7 @@ export function renderReadme(pj: { name?: string; scripts?: Record<string, strin
     "## How to run", "", `1. \`cd run_test/${info.dir}\``, `2. \`pnpm install\` (pnpm only, version ${pnpm})`,
     sc.dev ? `3. \`pnpm run dev\` → \`${sc.dev}\`` : sc.start ? `3. \`pnpm run start\` → \`${sc.start}\`` : "3. see package.json for the start command",
     sc.build ? `4. build: \`pnpm run build\` → \`${sc.build}\`` : "4. no build script",
-    "Start it as a background task (`bg_start --cmd ... --port auto`) when something has to look at it; open it with `browse`.", "",
+    "Start it as a background task (`bg start --cmd ... --port auto`) when something has to look at it; open it with `browse`.", "",
     "## How to check it", "", `- type check: \`${sc.lint ?? "pnpm exec tsc --noEmit"}\``, "- what \"done\" means for each phase: `run_test/plan/PHASES.md` (Done when)",
     "- verification is the QA agent's job (the master delegates; one QA agent per task); it records its verdict in `.loopsAI/QA.md`", ""];
   if (info.phases?.length) lines.push("## Phases", "", info.phases.map((p) => `- phase ${p.phase}: ${p.state}`).join("\n"), "");

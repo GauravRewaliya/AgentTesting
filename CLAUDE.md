@@ -1,6 +1,6 @@
 # agent_testing
 
-Test cases for multi-agent harnesses. Shared cases live in `TestCases/test_folders/Cases/`, ROUTED by index files (`Cases/index.ts` mounts `core_testing/`, `real_usecases/` and `subagents/` index.ts; each route line says what a suite is for and which case ids it owns; read them first). Groups: `core_testing` (harness pitfalls + the plain lead cases solowork / artifact), `real_usecases` (pipedream, expo_go, planning, project checks), `subagents` (the SUB-AGENT is under test); harnesses in `test_harness/` run them (f1: `test_harness/core/orchistraitor/f1_multiagent`).
+Test cases for multi-agent harnesses. Shared cases live in `TestCases/test_folders/Cases/`, ROUTED by index files (`Cases/index.ts` mounts `core_testing/`, `real_usecases/` and `subagents/` index.ts; each route line says what a suite is for and which case ids it owns; read them first). Groups: `core_testing` (harness pitfalls + the plain lead cases solowork / artifact), `real_usecases` (pipedream, expo_go, planning, project checks), `subagents` (the SUB-AGENT is under test); harnesses in `test_harness/` run them (the LIVE one is f3: `test_harness/core/orchistraitor/f3_multiagent`, set in `test_harness/core/config.ts`; `f1_multiagent` is an older frozen copy, do not edit it).
 
 ## Goal: spend as few real AI credits as possible
 Only the LEAD agent is a real model call. Sub-agents are MOCKED by recorded fixtures, so tests judge the orchestrator (does it call the right sub-agent with a good hand-over?), not the sub-agent's work.
@@ -20,7 +20,7 @@ Before calling a missing case a loss: `git log -S"<case id>"`, grep the docs (RU
 Example: the four QA repair-loop cases (adv_5, adv_6, adv_6a, adv_6b) were removed on purpose together with `qa_check` (RUN_FINDINGS H20), but the commit message of f551fce did not say so, so it looked like a loss (TODO T-24).
 
 ## How a mocked call is served
-`FixtureGate` (`f1_multiagent/harness/core/fixture_gate.ts`, for agents with `"fixtures": true` in `agent.json`):
+`FixtureGate` (`f3_multiagent/harness/core/fixture_gate.ts`, for agents with `"fixtures": true` in `agent.json`):
 1. guard: `store/*_rules.json` (hand-over must name `run_test`, `PLAN.md`, min length);
 2. lookup: recorded result whose `match.keywords` are all in the hand-over (else NOTFOUND);
 3. serve: `result.run()` copies from `store/` (base + real patch via `store/expo_go/apply.ts`) into `run_test/`; no model call.
@@ -28,11 +28,11 @@ Gate order: known `--session` in the `fixture_sessions` table -> continue it; el
 Calls are capped by `max_agent_calls` (default 2); the call after the cap fails the case.
 
 ## test_expo_go (examples/)
-Not solo: lead (router on) delegates to ONE sub-agent `expo-go`, so it is a delegation/hand-over test, not a split-across-agents test. `router: false` / `lead: "solo"` marks solo cases; f1 refuses those. Every case is a plain object in `test_expo_go/{demos,examples}/*.ts` or `rework.ts` (no generators). Most results apply real commit patches (`phases.json`, `patches/`); `eg_tw_02`, `eg_tw_03` and the rework results are HAND-WRITTEN (the rework `_fix` ones reuse a real patch), so they are the weakest. Rework cases (`rework.ts`): bad fixture first, lead must notice, then the `_fix` fixture.
+Not solo: lead (router on) delegates to ONE sub-agent `expo-go`, so it is a delegation/hand-over test, not a split-across-agents test. `router: false` / `lead: "solo"` marks solo cases; the harness refuses those. Every case is a plain object in `test_expo_go/{demos,examples}/*.ts` or `rework.ts` (no generators). Most results apply real commit patches (`phases.json`, `patches/`); `eg_tw_02`, `eg_tw_03` and the rework results are HAND-WRITTEN (the rework `_fix` ones reuse a real patch), so they are the weakest. Rework cases (`rework.ts`): bad fixture first, lead must notice, then the `_fix` fixture.
 
 ## Cheap-run workflow
 1. `bun test_harness/scripts/check_fixtures.ts` first.
-2. `bun testrun/run.ts <suite> [case ids] --list` / `--fake` (no model calls; `--fake` cases show FAIL because the fake lead calls nothing, that is expected) from `f1_multiagent/`.
+2. `bun testrun/run.ts <suite> [case ids] --list` / `--fake` (no model calls; `--fake` cases show FAIL because the fake lead calls nothing, that is expected) from `f3_multiagent/`.
 3. Real run = haiku lead only, by case id (chains use cached `after` checkpoints; `--rerun` re-spends credits).
 4. Never use `--real` (real sub-agents) in routine runs; only for `allow_real_subAg` cases.
 5. New expo_go cases: take real patches via `store/expo_go/make_patches.py`, not hand-written results.

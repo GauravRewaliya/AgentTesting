@@ -53,9 +53,9 @@ const o3 = obs({ hook_event_name: "PreToolUse", tool_name: "Agent", tool_use_id:
 t("a2.13", "observe: an unknown role is refused by the shared policy", /^AGENT REFUSED/.test(o3), o3);
 const bgr = hook("Agent", { subagent_type: "researcher", prompt: "Find the latest Node version.", run_in_background: true });
 t("a2.14", "intercept: run_in_background starts the agent at once (AGENT STARTED + team wait hint)", /^AGENT STARTED/.test(bgr.permissionDecisionReason) && /team wait/.test(bgr.permissionDecisionReason), bgr.permissionDecisionReason);
-// typed team tools (MCP server over harness/tools.ts)
+// typed team commands (MCP server over harness/tools.ts)
 import { TEAM_TOOLS, listed, toArgv } from "../approaches/a2_native_hook/team_mcp.ts";
-t("a2.15", "team tools: delegate is NOT offered, wait/fork_all/plan_submit are", !TEAM_TOOLS.some((x) => x.name === "delegate") && ["wait", "fork_all", "plan_submit", "ls"].every((n) => TEAM_TOOLS.some((x) => x.name === n)));
+t("a2.15", "team commands: delegate is NOT offered, wait/fork_all/plan_submit are", !TEAM_TOOLS.some((x) => x.name === "delegate") && ["wait", "fork_all", "plan_submit", "ls"].every((n) => TEAM_TOOLS.some((x) => x.name === n)));
 const w = toArgv("wait", { agents: ["a#1", "b#2"], any: true, timeout: 30 }) as string[];
 t("a2.16", "typed args -> flags (array joined, bare flag, number)", w.join(" ") === "wait --agents a#1,b#2 --any --timeout 30", w.join(" "));
 const fa = toArgv("fork_all", { role: "builder", tasks: [{ title: "x", writes: ["run_test/p/a.js"], objective: "o" }] }) as string[];

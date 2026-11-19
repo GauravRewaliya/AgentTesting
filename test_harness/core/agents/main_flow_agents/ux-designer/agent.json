@@ -1,6 +1,6 @@
 {
  "role": "ux-designer",
- "description": "Plans the user flow of a NEW product from a short request and designs it: flow and screens (markdown), one or several designs (themes), and one page that shows the main screen in every design with the clickable prototype below it. 'Plan only' gives just the flow. NOT for cloning or matching a real website (the lookup agents and site_build do that from pictures).",
+ "description": "Plans the user flow of a NEW product from a short request and designs it: flow and screens (markdown), one or several designs (themes), and one page that shows the main screen in every design with the clickable prototype below it. 'Plan only' gives just the flow. NOT for cloning or matching a real website (the lookup agents and site build do that from pictures).",
  "model": "sonnet",
  "session": "persistent",
  "writes": true,

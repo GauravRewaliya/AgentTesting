@@ -43,5 +43,5 @@ export function protoCheck(dir: string): ProtoReport {
   if (noCss.length) problems.push(`CSS classes used but defined in no .css file (unstyled): ${noCss.slice(0, 12).join(", ")}${noCss.length > 12 ? ` ... +${noCss.length - 12} more` : ""}`);
   const ok = problems.length === 0;
   return { ok, files: all.length, screens: [...defScreens].sort(), components: [...defComps].sort(), problems: problems.slice(0, 25),
-    next: ok ? "Healthy: now `site_audit --dir <folder>`, then start it with `bg_start --port auto` (chapter preview_bg) and give the person its public_url." : "Give each problem to the agent that owns that file (continue the same agent), then run proto_check again." };
+    next: ok ? "Healthy: now `site audit --dir <folder>`, then start it with `bg start --port auto` (chapter preview_bg) and give the person its public_url." : "Give each problem to the agent that owns that file (continue the same agent), then run proto check again." };
 }

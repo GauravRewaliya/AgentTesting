@@ -20,10 +20,10 @@ export function attention(store: MStore, task: string, only?: string[], now = Da
     const ts = store.events.filter((e) => e.task_id === task && e.agent_id === a.agent_id && e.kind === "tool.used" && e.t >= (a.started_at ?? 0)).map((e) => e.t);
     const running = a.started_at ? Math.round((now - a.started_at) / 1000) : null, since = ts.length ? Math.round((now - Math.max(...ts)) / 1000) : (running ?? 0);
     const base = { agent_id: a.agent_id, role: a.role, title: a.title, running_s: running, last_tool_s_ago: since, tool_calls: ts.length };
-    const report = `Report it: report_bug --agent ${a.agent_id} --kind <kind> --text "<what you saw, what you did>".`;
-    if (since >= STALLED_AFTER_S) out.push({ ...base, level: "stalled", do: `No tool call for ${since}s: stuck, or it answered and the process hangs (the harness frees that case itself after 45 s of silence). Look once with agent_peek. If it is stuck: agent_stop, then CHECK its files yourself (read_file, proto_check, a check) before you start any replacement: it may already be complete. ${report}` });
-    else if (since >= SILENT_AFTER_S) out.push({ ...base, level: "silent", do: `No tool call for ${since}s. Look with agent_peek; if it stays silent for 5 minutes, stop it and verify its files yourself first.` });
-    else if (running !== null && running >= SLOW_AFTER_S) out.push({ ...base, level: "slow", do: `Running ${Math.round(running / 60)} min but still working (${ts.length} tool calls, last ${since}s ago). Look once with agent_peek to see WHAT it does: keep waiting unless it repeats the same step; say what you saw in your answer.` });
+    const report = `Report it: bug --agent ${a.agent_id} --kind <kind> --text "<what you saw, what you did>".`;
+    if (since >= STALLED_AFTER_S) out.push({ ...base, level: "stalled", do: `No tool call for ${since}s: stuck, or it answered and the process hangs (the harness frees that case itself after 45 s of silence). Look once with agent_peek. If it is stuck: agent stop, then CHECK its files yourself (read_file, proto check, a check) before you start any replacement: it may already be complete. ${report}` });
+    else if (since >= SILENT_AFTER_S) out.push({ ...base, level: "silent", do: `No tool call for ${since}s. Look with agent peek; if it stays silent for 5 minutes, stop it and verify its files yourself first.` });
+    else if (running !== null && running >= SLOW_AFTER_S) out.push({ ...base, level: "slow", do: `Running ${Math.round(running / 60)} min but still working (${ts.length} tool calls, last ${since}s ago). Look once with agent peek to see WHAT it does: keep waiting unless it repeats the same step; say what you saw in your answer.` });
   }
   return out;
 }

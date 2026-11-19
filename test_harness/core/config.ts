@@ -8,12 +8,15 @@
 // This file must import NOTHING from the project (paths.ts imports it).
 import { join } from "node:path";
 export const CONFIG = {
-  // WHICH CLAUDE ACCOUNT every `claude` the harness starts uses (one static string, change it here only):
-  //   "" = ~/.claude (default)   any other text is APPENDED to ~/.claude exactly as written: "-personal" = ~/.claude-personal, "_personal" = ~/.claude_personal, "-other" = ~/.claude-other   or an absolute folder.  Env HARNESS_CLAUDE_PROFILE (a folder) overrides for one run.
-  // IF YOU CHANGE IT ALSO CHECK: (1) Docker: nothing to do, the runner passes the same folder to infra/docker-compose.yml as CLAUDE_PROFILE_DIR;
-  //   (2) a shell that exports CLAUDE_CONFIG_DIR is ignored (the harness prints a warning); (3) old sessions stay in the other folder (claudeDirs() still finds them for resume);
-  //   (4) the account's usage limit is per account: a "hit your limit" failure of a run is the account, not the prompt.
-  claudeProfile: "-personal",
+  // Which Claude account every `claude` the harness starts uses (Docker follows it too). Change it here only.
+  //   ""          = ~/.claude (default)
+  //   "-personal" = ~/.claude-personal (any text is appended to ~/.claude as written), or an absolute folder
+  //   env HARNESS_CLAUDE_PROFILE (a folder) overrides it for one run.
+  // Good to know:
+  //   - a CLAUDE_CONFIG_DIR exported in your shell is ignored (the harness prints a warning);
+  //   - old sessions stay in their old folder and are still found for resume;
+  //   - the usage limit is per account: a "hit your limit" failure is the account, not the prompt.
+  claudeProfile: "",
   orchestrator: "f3_multiagent",
   approach: "a1_team_cli",
   stateVersion: "v3",

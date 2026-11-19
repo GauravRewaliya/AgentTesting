@@ -15,15 +15,9 @@
  "singleton": true,
  "scratch": true,
  "timeout_s": 900,
- "team_tools": [
-  "browse",
-  "tab",
-  "bg_start",
-  "bg_list",
-  "bg_log",
-  "bg_stop",
-  "bg_restart",
-  "get_public_url",
-  "proto_check"
+ "team_commands": [
+  "browser",
+  "bg",
+  "proto"
  ]
 }

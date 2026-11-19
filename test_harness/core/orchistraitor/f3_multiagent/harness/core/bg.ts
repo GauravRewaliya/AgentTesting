@@ -16,7 +16,7 @@ import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 
 export type BgStatus = "running" | "succeeded" | "failed" | "stopped" | "interrupted";
-export interface BgMeta { id: string; task: string; cmd: string; dir: string; pid: number; started: number; by: string; /** a short KIND shown in the UI next to the description: `server_run` (default), `preview`, `wireframe`, `backend` ... */ title?: string; label: string; port?: number; public_url?: string; timeout_s?: number; stopped_at?: number; stopped_by?: string; reaped_at?: number; reaped?: number; /** legacy rows only */ kind?: string; expires_at?: number; user_requested?: boolean; reviewed_at?: number }
+export interface BgMeta { id: string; task: string; cmd: string; dir: string; pid: number; started: number; by: string; /** a short KIND shown in the UI next to the description: `server_run` (default), `preview`, `wireframe`, `backend` ... */ title?: string; label: string; port?: number; public_url?: string; timeout_s?: number; stopped_at?: number; stopped_by?: string; /** agents that rely on this server (bg use): stopping it for them needs --force */ users?: string[]; /** why this is a SECOND server for the same thing (bg start --separate "<reason>") */ separate_reason?: string; reaped_at?: number; reaped?: number; /** legacy rows only */ kind?: string; expires_at?: number; user_requested?: boolean; reviewed_at?: number }
 export interface BgRow extends BgMeta { status: BgStatus; exit_code?: number; ended_at?: number; log_bytes: number }
 
 const bgDir = (storeDir: string) => join(storeDir, "bg");
@@ -28,7 +28,7 @@ export const freePort = (from: number, to: number): Promise<number> => new Promi
 });
 
 /** Start a command in the background. `{port}` in the command is replaced by `port`; the env also has PORT. `timeoutMin` is optional: without it the command runs until it ends or is stopped. Returns at once. */
-export function startBg(storeDir: string, o: { task: string; cmd: string; dir: string; by?: string; title?: string; label?: string; port?: number; publicHost?: string; env?: Record<string, string>; timeoutMin?: number }): BgMeta {
+export function startBg(storeDir: string, o: { task: string; cmd: string; dir: string; by?: string; title?: string; label?: string; separate_reason?: string; port?: number; publicHost?: string; env?: Record<string, string>; timeoutMin?: number }): BgMeta {
   const dir = resolve(o.dir); if (!existsSync(dir)) throw new Error(`not a folder: ${dir}`);
   mkdirSync(bgDir(storeDir), { recursive: true });
   const id = "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), cmd = o.cmd.replaceAll("{port}", String(o.port ?? ""));
@@ -37,7 +37,7 @@ export function startBg(storeDir: string, o: { task: string; cmd: string; dir: s
   const p = spawn("sh", ["-c", 'if [ "$BG_TIMEOUT" -gt 0 ]; then timeout -k 5 "$BG_TIMEOUT" sh -c "$BG_CMD"; else sh -c "$BG_CMD"; fi; c=$?; echo $c > "$BG_EXIT"; exit $c'], { cwd: dir, detached: true, stdio: ["ignore", fd, fd],
     env: { ...process.env, ...(o.env ?? {}), BG_ID: id, BG_CMD: cmd, BG_TIMEOUT: String(tmo), BG_EXIT: f(storeDir, id, "exit"), ...(o.port ? { PORT: String(o.port) } : {}) } });
   p.unref();
-  const meta: BgMeta = { id, task: o.task, cmd, dir, pid: p.pid ?? 0, started: Date.now(), by: o.by ?? "agent", title: o.title?.trim() || "server_run", label: o.label ?? cmd.slice(0, 60), port: o.port, timeout_s: tmo || undefined, public_url: o.port && o.publicHost ? `http://${o.publicHost}:${o.port}` : undefined };
+  const meta: BgMeta = { id, task: o.task, cmd, dir, pid: p.pid ?? 0, started: Date.now(), by: o.by ?? "agent", title: o.title?.trim() || "server_run", label: o.label ?? cmd.slice(0, 60), separate_reason: o.separate_reason, port: o.port, timeout_s: tmo || undefined, public_url: o.port && o.publicHost ? `http://${o.publicHost}:${o.port}` : undefined };
   writeFileSync(f(storeDir, id, "json"), JSON.stringify(meta, null, 1));
   return meta;
 }
@@ -114,4 +114,26 @@ export function linkPort(storeDir: string, id: string, port: number): BgRow | un
   const m = getBg(storeDir, id); if (!m) return undefined;
   const { status: _s, log_bytes: _l, exit_code: _e, ended_at: _a, ...meta } = m;
   writeFileSync(f(storeDir, id, "json"), JSON.stringify({ ...meta, port }, null, 1)); return getBg(storeDir, id);
+}
+
+/** the project a folder belongs to: `.../run_test/<project>/...` -> `<project>` (a QA agent works in a COPY under /tmp, so the same project has another absolute path), else the folder itself */
+const projectKey = (dir: string) => { const m = resolve(dir).match(/run_test\/([^/]+)/); return m ? m[1]! : resolve(dir); };
+/** the command with its port taken out, so `python3 -m http.server 5301` and `... $PORT` count as the same server */
+const cmdKey = (cmd: string) => cmd.replace(/\{port\}|\$PORT|\b\d{4,5}\b/g, "#").replace(/\s+/g, " ").trim();
+/** A running task that already serves the same thing (same project folder, same command) = the one to reuse instead of starting a 2nd, 3rd ... copy. */
+export function findSame(storeDir: string, o: { dir: string; cmd: string; task?: string }): BgRow | undefined {
+  const pk = projectKey(o.dir), ck = cmdKey(o.cmd);
+  return listBg(storeDir).find((r) => (!o.task || r.task === o.task) && r.port && projectKey(r.dir) === pk && cmdKey(r.cmd) === ck);
+}
+/** an agent says it depends on a running task (a video, a check): stopping it for them then needs --force */
+export function useBg(storeDir: string, id: string, by: string, as = ""): { ok: boolean; reason?: string; users?: string[] } {
+  const m = getBg(storeDir, id); if (!m || m.status !== "running") return { ok: false, reason: "no such running background task" };
+  const tag = as.trim() ? `${by} (${as.trim().slice(0, 40)})` : by, users = [...new Set([...(m.users ?? []).filter((u) => u !== by && !u.startsWith(by + " (")), tag])]; const meta: BgMeta = { ...m, users }; for (const k of ["status", "log_bytes", "exit_code", "ended_at"]) delete (meta as unknown as Record<string, unknown>)[k];
+  writeFileSync(f(storeDir, id, "json"), JSON.stringify(meta, null, 1)); return { ok: true, users };
+}
+/** stop, but not under somebody who still uses it: the others are named and must be asked (or --force) */
+export function stopGuard(storeDir: string, id: string, by: string): string | undefined {
+  const m = getBg(storeDir, id); if (!m || m.status !== "running") return undefined;
+  const others = (m.users ?? []).filter((u) => u !== by && !u.startsWith(by + " (")); if (m.by === by && !others.length) return undefined;
+  const who = [...new Set([...(m.by !== by ? [m.by] : []), ...others])]; return who.length ? `not stopped: ${who.join(", ")} started or uses this server (${m.label}, port ${m.port ?? "-"}). Ask them (or your parent) first; if you must, repeat with --force` : undefined;
 }

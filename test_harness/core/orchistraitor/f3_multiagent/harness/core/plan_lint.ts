@@ -39,8 +39,8 @@ export function lintPlan(dir: string, runTest?: string, opts: LintOpts = {}): Pl
     if (featureRows < 3) errors.push(`the feature catalog ("What you get") has ${featureRows} feature rows (| F1 | feature | what you see | phase | status |); a person cannot judge a plan with fewer than 3`);
     if (readme.length > 12_000) warnings.push(`README.md is ${Math.round(readme.length / 1000)} KB: the lead reads it in full on every build; move detail into its own file and link it (target under 12 KB)`);
     // the kit command must carry ALL brand tokens, else a builder has to edit the kit's theme file later (pp_statuspage)
-    const pi = /proto_init[^\n`]*--kind\s+site[^\n`]*/.exec(readme)?.[0] ?? "";
-    if (pi) for (const flag of ["--accent", "--font", "--bg-dark"]) if (!pi.includes(flag)) warnings.push(`the proto_init command has no ${flag}: give the kit every brand token (accent, font, dark background) or a builder must edit css/theme.css later`);
+    const pi = /proto[_ ]init[^\n`]*--kind\s+site[^\n`]*/.exec(readme)?.[0] ?? "";
+    if (pi) for (const flag of ["--accent", "--font", "--bg-dark"]) if (!pi.includes(flag)) warnings.push(`the proto init command has no ${flag}: give the kit every brand token (accent, font, dark background) or a builder must edit css/theme.css later`);
     if (/check the real names|if they differ|should be named|probably named/i.test(recipe)) warnings.push("the Build recipe hedges on file names: run the kit once mentally (see plan_format: 2 pages per file) and write the exact names");
   }
   // ---- stakeholder layer (docs/dev_exp/PLAN_STANDARD.md): advice only, so older plans still pass. The top of every page is for the person who decides; builder material sits in <!-- dev --> blocks.
@@ -79,7 +79,7 @@ export function lintPlan(dir: string, runTest?: string, opts: LintOpts = {}): Pl
     const owner: [string, string][] = [];
     for (const row of rowsT) {
       const id = /^\|\s*(T\d+)/.exec(row)![1]!;
-      if (/\|\s*(qa-reviewer|reviewer)\s*\|/i.test(row) || /\bqa-reviewer\b/i.test(row)) warnings.push(`${id} is given to a review agent: the lead runs the free checks itself (proto_check, preview, browse, site_audit); a paid audit agent plus its fix round cost about $0.7 on pp_statuspage`);
+      if (/\|\s*(qa-reviewer|reviewer)\s*\|/i.test(row) || /\bqa-reviewer\b/i.test(row)) warnings.push(`${id} is given to a review agent: the lead runs the free checks itself (proto check, preview, browse, site audit); a paid audit agent plus its fix round cost about $0.7 on pp_statuspage`);
       if (/\bfix\b/i.test(row)) continue;
       for (const m of row.matchAll(/`((?:[\w.-]+\/)*[\w.-]+(?:\.(?:js|ts|tsx|jsx|css|html|vue|json|py)|\/))`/g)) {
         const f = m[1]!;
@@ -99,7 +99,7 @@ export function lintPlan(dir: string, runTest?: string, opts: LintOpts = {}): Pl
     if (!rs.trim()) errors.push("no research: add a `## Research` section (or research.md) with at least 2 sources (URLs) you read about comparable products, constraints or the reference, and what each changed in the plan; or state `research: none (reason)`");
     else {
       if (rsUrls.length < 2) errors.push("the Research section cites fewer than 2 sources (URLs): look at 2 to 4 real sources, or state `research: none (reason)`");
-      if (rs.replace(/https?:\/\/\S+/g, "").replace(/\s+/g, " ").trim().length < 120) (/\bcaptured\b|ref_capture/i.test(everything) ? warnings : errors).push("the Research section lists URLs but says almost nothing about what each told you and what it changed in the plan");
+      if (rs.replace(/https?:\/\/\S+/g, "").replace(/\s+/g, " ").trim().length < 120) (/\bcaptured\b|ref[_ ]capture/i.test(everything) ? warnings : errors).push("the Research section lists URLs but says almost nothing about what each told you and what it changed in the plan");
       if (opts.fetched && rsUrls.length) {
         const got = new Set(opts.fetched.map(normUrl)), missing = rsUrls.filter((u) => ![...got].some((g) => g === u || g.startsWith(u) || u.startsWith(g)) && /^[a-z0-9-]+\.[a-z]/.test(u));
         if (missing.length >= 2 || (missing.length && !got.size)) warnings.push(`cited but never fetched in this run: ${missing.slice(0, 3).join(", ")}: a source you did not read is a made-up source`);

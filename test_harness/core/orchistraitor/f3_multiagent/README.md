@@ -10,7 +10,7 @@ Status: **approach 1 (`a1_team_cli`) started.** `harness/`, `testrun/`, `self_te
 
 Current engine / approach / run-data version: one file, `test_harness/core/config.ts` (`stateVersion` is `v3`, so run data is in `test_harness/.state/v3/`). Env `STATE_VERSION`, `APPROACH` or `--approach=` override for one run.
 
-Check: `bun self_test/multi.ts` (free, offline) gives 230/234, the same 4 failures as f1 (L4, NP2, PK10, MS4), which fail in f1 too and are not caused by the copy.
+Layout of the tools: `harness/tools.ts` (entry) -> `harness/tools/index.ts` (the index) -> one file per command group; `harness/bin/` has the executables on the agents' PATH (`team`, `browser`, `proto`, `tab`, ...). Check: `bun self_test/multi.ts` (free, offline), see `docs/RUN_FINDINGS.md` item 10 for the current result.
 
 Stack: TypeScript on Bun, pnpm for packages.
 

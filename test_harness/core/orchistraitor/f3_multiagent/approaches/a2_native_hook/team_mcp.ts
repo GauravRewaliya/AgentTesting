@@ -16,7 +16,7 @@ const b = (description: string): P => ({ type: "boolean", description });
 const ids = (description: string): P => ({ type: "array", items: { type: "string" }, description });
 
 export const TEAM_TOOLS: Tool[] = [
-  { name: "wait", description: "Collect the answers of background agents (started with Agent{run_in_background:true} or fork_all). Waits until they finish (or the first one with any:true).", props: { agents: ids("agent ids, e.g. researcher#1"), any: b("return as soon as the FIRST is done"), timeout: n("seconds, default 300") }, required: ["agents"] },
+  { name: "wait", description: "Collect the answers of background agents (started with Agent{run_in_background:true} or agent all). Waits until they finish (or the first one with any:true).", props: { agents: ids("agent ids, e.g. researcher#1"), any: b("return as soon as the FIRST is done"), timeout: n("seconds, default 300") }, required: ["agents"] },
   { name: "fork_all", description: "N tasks for N copies of one agent's memory, ALL STARTED AT ONCE; then ONE wait.", props: { from: s("agent id whose memory is copied"), role: s("agent role, e.g. builder"), tasks: { type: "array", items: { type: "object" }, description: "[{title, writes:[paths], objective, output?, boundaries?, model?}]" }, output: s("default output format"), boundaries: s("default limits") }, required: ["role", "tasks"] },
   { name: "plan_submit", description: "Submit a phased plan (phase n+1 waits for phase n).", props: { tasks: { type: "array", items: { type: "object" }, description: "[{id, role, objective, output, boundaries, deps?, writes?, phase}]" } }, required: ["tasks"] },
   { name: "plan_run", description: "Start a submitted plan.", props: { plan: s("plan id") }, required: ["plan"] },
@@ -47,7 +47,7 @@ export const TEAM_TOOLS: Tool[] = [
   { name: "bg_log", description: "Output of a background task.", props: { id: s("task id"), tail: n("lines") }, required: ["id"] },
   { name: "bg_stop", description: "End a background task.", props: { id: s("task id") }, required: ["id"] },
   { name: "get_public_url", description: "The address a person's browser can open for a port.", props: { port: n("port"), id: s("or a task id"), path: s("/x") } },
-  { name: "team_tool", description: "Any OTHER shared team command (ref_capture, ref_compare, ref_assets, ref_store, browse, tab, browser_*, bg_restart, proc_list, proc_stop ...). Flags as an object; true = a bare flag.", props: { command: s("command name"), flags: { type: "object", description: "{flag: value}" } }, required: ["command"] },
+  { name: "team_tool", description: "Any OTHER shared team command (ref_capture, ref_compare, ref_assets, ref_store, browse, tab, browser_*, bg_restart, proc list, proc stop ...). Flags as an object; true = a bare flag.", props: { command: s("command name"), flags: { type: "object", description: "{flag: value}" } }, required: ["command"] },
 ];
 /** The tools listed to the model: the few every lead uses. Every other command stays reachable through `team_tool` (its description carries the catalog), so the tool schemas stay small (each listed tool costs context on every turn). */
 export const CORE = new Set(["wait", "fork_all", "plan_submit", "plan_run", "plan_status", "phase_pass", "apply_patches", "ledger_get", "ls", "read_file", "grep", "agents_list", "board_status", "chapter", "team_tool"]);
@@ -61,7 +61,7 @@ export function toArgv(name: string, a: Record<string, unknown>): string[] | { e
   let cmd = name, flags = a;
   if (name === "team_tool") { cmd = String(a.command ?? ""); flags = (a.flags as Record<string, unknown>) ?? {}; if (!TEAM_TOOLS.some((t) => t.name === cmd) && !/^[a-z][a-z_]*$/.test(cmd)) return { error: `bad command "${cmd}"` }; }
   else if (!TEAM_TOOLS.some((t) => t.name === name && CORE.has(name))) return { error: `unknown tool ${name}` };
-  if (!cmd || BLOCKED.has(cmd) || cmd.startsWith("_")) return { error: `"${cmd}" is not available here (delegate with the Agent / SendMessage tools)` };
+  if (!cmd || BLOCKED.has(cmd) || cmd.startsWith("_")) return { error: `"${cmd}" is not available here (call sub-agents with the Agent / SendMessage tools)` };
   const argv = [cmd];
   for (const [k, v] of Object.entries(flags)) {
     if (v === undefined || v === null || v === false) continue;

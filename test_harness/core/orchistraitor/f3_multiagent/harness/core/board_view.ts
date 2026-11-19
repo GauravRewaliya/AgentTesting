@@ -10,12 +10,12 @@ const HDIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const iso = (t?: number | null) => (t ? new Date(t).toISOString().slice(11, 19) : "-");
 
 /** Keep a long block short: the PM sees this with every message, so its size is a token cost that must not grow with the team. */
-const capLines = (s: string, max: number) => { const l = s.split("\n"); return l.length <= max ? s : [...l.slice(0, max), `  ... ${l.length - max} more lines (ask with agents_list / plan_show)`].join("\n"); };
+const capLines = (s: string, max: number) => { const l = s.split("\n"); return l.length <= max ? s : [...l.slice(0, max), `  ... ${l.length - max} more lines (ask with agent list / plan show)`].join("\n"); };
 export function planTable(store: MStore, task: string): string {
   return store.plans.filter((p) => p.task_id === task).map((p) => {
     const head = `PLAN ${p.plan_id} v${p.version ?? 1} status=${p.status}${p.paused ? " PAUSED" : ""} (${p.tasks.filter((t) => t.status === "done").length}/${p.tasks.length} done)`;
     const rows = p.tasks.map((t) => { const a = t.agent_id ? store.agent(task, t.agent_id) : undefined;
-      return `  ${t.id.padEnd(8)} [${t.role}] ${t.status.padEnd(9)} ${(t.agent_id ?? "-").padEnd(13)} ${a ? `"${a.title}" ${a.activity}`.slice(0, 50) : ""} deps=[${(t.deps ?? []).join(",")}]${t.error ? " (" + t.error.slice(0, 50) + ")" : ""}${t.status === "blocked" && t.question ? `  << ASKS ITS PARENT: "${t.question.replace(/\s+/g, " ").slice(0, 100)}" (answer with plan_answer)` : ""}`; });
+      return `  ${t.id.padEnd(8)} [${t.role}] ${t.status.padEnd(9)} ${(t.agent_id ?? "-").padEnd(13)} ${a ? `"${a.title}" ${a.activity}`.slice(0, 50) : ""} deps=[${(t.deps ?? []).join(",")}]${t.error ? " (" + t.error.slice(0, 50) + ")" : ""}${t.status === "blocked" && t.question ? `  << ASKS ITS PARENT: "${t.question.replace(/\s+/g, " ").slice(0, 100)}" (answer with plan answer)` : ""}`; });
     const ph = phaseText(p), ch = (p.changes ?? []).slice(-3).map((c) => `  change ${c.summary} by ${c.by}: ${c.reason.slice(0, 80)}`);
     return [head, ...rows, ...(ph ? ["  phases:", ph] : []), ...ch].join("\n");
   }).join("\n");

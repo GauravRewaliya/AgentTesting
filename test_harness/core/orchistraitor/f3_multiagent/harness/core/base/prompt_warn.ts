@@ -11,8 +11,8 @@ export function warnBigPrompt(store: Store, def: AgentDef, userPrompt: string, t
   let sys = 0; try { sys = statSync(def.prompt_file).size; } catch { return null; }
   if (sys <= LAUNCH_LIMIT) return null;
   const key = `${task}/${def.name}`; if (seen.has(key)) return null; seen.add(key);
-  const msg = `launch prompt of ${def.name} is ${sys} chars (limit ${LAUNCH_LIMIT}, about ${Math.round(sys / 4)} tokens) plus ${userPrompt.length} chars of task text: shorten agents/${def.name}/.claude/CLAUDE.md, its team_tools list or its chapters`;
-  console.warn(`\x1b[33m[prompt]\x1b[0m ${msg}`);
+  const msg = `launch prompt of ${def.name} is ${sys} chars (limit ${LAUNCH_LIMIT}, about ${Math.round(sys / 4)} tokens) plus ${userPrompt.length} chars of task text: shorten agents/${def.name}/.claude/CLAUDE.md, its team_commands list or its chapters`;
+  if (!process.env.HARNESS_AGENT) console.warn(`\x1b[33m[prompt]\x1b[0m ${msg}`);   // inside an agent's tool call this text would be read BY the model (47 times in the v3 logs: "shorten CLAUDE.md" is no job for a lead); the admin row below keeps it
   try { store.tx(() => store.ev("prompt.big", task, agent_id, { chars: sys, user_chars: userPrompt.length, limit: LAUNCH_LIMIT })); } catch { /* a warning must never stop a call */ }
   const f = (store as unknown as { file?: string }).file;
   if (f) { try { appendFileSync(join(dirname(f), "admin_issues.jsonl"), JSON.stringify({ id: "iss_prompt_" + Date.now().toString(36), t: Date.now(), at: new Date().toISOString(), task, reporter: "harness", agent: agent_id, role: def.role, session_id: null, kind: "prompt_big", severity: "low", text: msg }) + "\n"); } catch { /* best effort */ } }

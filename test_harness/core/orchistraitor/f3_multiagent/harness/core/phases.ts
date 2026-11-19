@@ -18,7 +18,7 @@ export function gateBlock(p: PlanRow, t: { phase?: number }): { reason: string; 
     const dead = open.find((x) => x.status === "failed" || x.status === "skipped");
     if (dead) return { reason: `phase ${n} did not finish (${dead.id} ${dead.status})`, dead: true };
     if (open.length) return { reason: `phase ${n} is not finished (${open.map((x) => x.id).join(", ")})`, dead: false };
-    if (!p.gates?.[n]) return { reason: `phase ${n} is finished but its gate is not passed (run phase_pass --plan ${p.plan_id} --phase ${n} --evidence "<exit check result>")`, dead: false };
+    if (!p.gates?.[n]) return { reason: `phase ${n} is finished but its gate is not passed (run phase pass --plan ${p.plan_id} --phase ${n} --evidence "<exit check result>")`, dead: false };
   }
   return null;
 }

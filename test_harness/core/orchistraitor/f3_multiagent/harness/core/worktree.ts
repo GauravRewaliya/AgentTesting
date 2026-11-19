@@ -44,6 +44,12 @@ export function removeWorktree(repo: string, dir: string, branch: string) {
 export function scratchCopy(repo: string, label: string): { dir: string } {
   const dir = mkdtempSync(join(tmpdir(), `lfqa-${label.replace(/\W/g, "")}-`)), src = join(repo, "run_test");
   if (existsSync(src)) cpSync(src, join(dir, "run_test"), { recursive: true, filter: (p) => !/(^|\/)(node_modules|\.git|dist|_shots|_qa|\.vite|\.expo)(\/|$)/.test(p.slice(src.length)) });
+  // what changed, as the real `git diff` (the copy has no .git): CHANGES.diff next to run_test/ (tracked files; new files are listed), capped, so QA can review the code too
+  try {
+    const d = spawnSync("git", ["-C", repo, "diff", "HEAD", "--", "run_test"], { encoding: "utf8", maxBuffer: 20_000_000 }), u = spawnSync("git", ["-C", repo, "ls-files", "--others", "--exclude-standard", "--", "run_test"], { encoding: "utf8" });
+    const text = (d.stdout || "").replace(/^diff --git[^\n]*node_modules[^\n]*\n(?:(?!diff --git).*\n?)*/gm, "").slice(0, 200_000), fresh = (u.stdout || "").split("\n").filter((x) => x && !/node_modules|(^|\/)(dist|_shots|_qa)\//.test(x)).slice(0, 200);
+    if (text.trim() || fresh.length) writeFileSync(join(dir, "CHANGES.diff"), text + (fresh.length ? `\n# NEW FILES (not in git yet, read them in run_test/):\n${fresh.join("\n")}\n` : ""));
+  } catch { /* no git here: no diff, QA reads the files */ }
   return { dir };
 }
 export const removeScratch = (dir: string) => { try { rmSync(dir, { recursive: true, force: true }); } catch { /* best effort */ } };

@@ -1,0 +1,3 @@
+#!/bin/sh
+# on the PATH of every agent: `proto ...` = `team proto ...` (a group: `proto --help` lists its commands)
+exec bun --smol "$(dirname "$0")/../tools.ts" proto "$@"

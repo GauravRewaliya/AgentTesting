@@ -18,7 +18,7 @@ export function peekAgent(store: MStore, task: string, agentId: string, n = 8, n
   const silent = a.status === "running" && a.last_event_at ? Math.round((now - a.last_event_at) / 1000) : null;
   const stuck = silent !== null && silent > STUCK_AFTER_S;
   const hint = a.needs_parent ? "it is STOPPED and asks its parent a question: answer it (continue the same agent)"
-    : stuck ? `no tool call for ${silent}s: it may be stuck. Send a note (say), or agent_stop and hand the rest to a fresh agent`
+    : stuck ? `no tool call for ${silent}s: it may be stuck. Send a note (say), or agent stop and hand the rest to a fresh agent`
     : a.status === "running" ? "working normally: wait" : `not running (${a.status})`;
   const rep = store.reports.filter((r) => r.task_id === task && r.agent_id === a.agent_id);
   return { ok: true, agent_id: a.agent_id, role: a.role, title: a.title, status: a.status, activity: a.activity, running_s: started ? Math.round((now - started) / 1000) : null, silent_s: silent,

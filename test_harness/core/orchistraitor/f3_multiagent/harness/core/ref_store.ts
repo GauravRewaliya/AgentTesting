@@ -25,7 +25,7 @@ export function buildStore(dir: string, name: string): { ok: boolean; files: str
   const tree = [`# Mind map: ${ol?.title ?? name}`, `Source: ${ol?.url ?? "?"} · captured by the harness · theme ${ol?.theme.scheme ?? "?"} (bg ${ol?.theme.bg ?? "?"}, font ${ol?.theme.font ?? "?"}, accent ${ol?.theme.accent ?? "?"})`, "",
     "## Tree (site -> sections -> components -> pictures -> assets)", `- **${ol?.title ?? name}**`, `  - Navigation: ${(ol?.nav ?? []).slice(0, 12).join(" | ") || "(none)"}`,
     ...secs.flatMap((s) => [`  - **${s.i + 1}. <${s.tag}${s.id ? "#" + s.id : ""}> ${s.heading || "(no heading)"}** (${s.h}px high, bg ${s.bg}, heading ${s.h_size}/${s.h_weight})`, `    - components: ${comp(s)}`, `    - picture: \`${sectionPic(s.i)}\``, ...(s.text ? [`    - starts with: "${s.text.slice(0, 90)}"`] : [])]),
-    "", "## Assets by role", ...(byRole.size ? [...byRole].map(([r, l]) => `- **${r}** (${l.length}): ${l.slice(0, 6).map((a) => "`" + a.file + "`").join(", ")}${l.length > 6 ? " ..." : ""}`) : ["- (none pulled yet: run `ref_assets --name " + name + "`)"]),
+    "", "## Assets by role", ...(byRole.size ? [...byRole].map(([r, l]) => `- **${r}** (${l.length}): ${l.slice(0, 6).map((a) => "`" + a.file + "`").join(", ")}${l.length > 6 ? " ..." : ""}`) : ["- (none pulled yet: run `ref assets --name " + name + "`)"]),
     "", "## Layouts and briefs (written by the lookup agent)", ...(layouts.length ? layouts.map((f) => `- \`layouts/${f}\``) : ["- layouts: (not written yet)"]), ...(briefs.length ? briefs.map((f) => `- \`briefs/${f}\``) : ["- briefs: (not written yet)"]),
     "", "## Mermaid mind map (paste into any Mermaid viewer)", "```mermaid", "mindmap", `  root((${esc(ol?.title ?? name)}))`, ...secs.map((s) => `    ${s.i + 1} ${esc(s.heading || s.tag)}\n      ${esc(comp(s))}`), ...(byRole.size ? ["    Assets", ...[...byRole].map(([r, l]) => `      ${r} ${l.length}`)] : []), "```", ""].join("\n");
   writeFileSync(join(dir, "MAP.md"), tree);
@@ -37,7 +37,7 @@ Studied site: ${ol?.url ?? "?"} (${secs.length} sections, page height ${ol?.doc_
 |---|---|
 | \`MAP.md\` | the mind map: sections -> components -> pictures -> assets -> briefs, plus a Mermaid mindmap |
 | \`REF.md\` | design tokens (fonts, colours, radius, css variables), motion, header / footer links, the section list |
-| \`outline.json\` | the measured outline (sections, components, computed styles); \`ref_compare\` reads it |
+| \`outline.json\` | the measured outline (sections, components, computed styles); \`ref compare\` reads it |
 | \`pictures/\` | ${pics.length} pictures: ${pics.slice(0, 5).join(", ")}${pics.length > 5 ? " ..." : ""} (open with Read) |
 | \`assets/\` | ${assets.length} real files by role: ${[...byRole].map(([r, l]) => `${r}/ (${l.length})`).join(", ") || "(none yet)"}; manifest \`assets.json\` (source url, size, role) |
 | \`raw/\` | \`page.html\`, \`styles.css\` as served (for exact class names / keyframes) |

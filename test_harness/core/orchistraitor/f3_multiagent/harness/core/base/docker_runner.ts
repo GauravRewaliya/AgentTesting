@@ -8,13 +8,13 @@
 //   - an agent that needs the HOST's tools.ts (it delegates: agents[] not empty, or an allow entry for tools.ts), the lead runs on the host exactly as before.
 //   - a timeout or killAll() kills the container by name (stopping the docker client alone would leave it running).
 import { spawn, spawnSync } from "node:child_process";
-import { usesTeamTools } from "./agents.ts";
+import { usesTeamCommands } from "./agents.ts";
 import { dirname, resolve } from "node:path";
 import { LSP_PLUGIN_DIR, RealRunner, claudeProfile, lspArgs, wantsLsp } from "./runner.ts";
 import type { RunCall, RunResult } from "./types.ts";
 import { cliErrorText } from "./parse.ts";
 
-export const sandboxable = (c: RunCall) => c.agent.role !== "lead" && !usesTeamTools(c.agent);   // an agent that uses the host's team tools runs on the host (see usesTeamTools)
+export const sandboxable = (c: RunCall) => c.agent.role !== "lead" && !usesTeamCommands(c.agent);   // an agent that uses the host's team commands runs on the host (see usesTeamCommands)
 
 export const COMPOSE_FILE = resolve(import.meta.dir, "../../../../../../infra/docker-compose.yml");   // test_harness/infra/docker-compose.yml: the ONE place that declares image, limits, security and volumes
 

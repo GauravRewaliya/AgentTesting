@@ -1,6 +1,6 @@
 {
  "role": "planner",
- "description": "Expert planner: for a big, new or vague product it does the R&D (web facts, prior art, a captured reference) and writes a buildable plan (README with a build recipe, PHASES with Done-when checks, contract, shared CONTEXT.txt) that is checked by plan_lint, for the person and for the developers. For small jobs it gives a short plan and triages findings. NOT for a one-file edit or a plain question.",
+ "description": "Expert planner: for a big, new or vague product it does the R&D (web facts, prior art, a captured reference) and writes a buildable plan (README with a build recipe, PHASES with Done-when checks, contract, shared CONTEXT.txt) that is checked by plan lint, for the person and for the developers. For small jobs it gives a short plan and triages findings. NOT for a one-file edit or a plain question.",
  "model": "sonnet",
  "session": "persistent",
  "writes": true,
@@ -17,10 +17,9 @@
  "prompts": [
   "CLAUDE.md"
  ],
- "team_tools": [
-  "ref_capture",
-  "ref_store",
-  "browse"
+ "team_commands": [
+  "ref",
+  "browser"
  ],
  "timeout_s": 1200
 }

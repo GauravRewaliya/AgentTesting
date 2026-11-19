@@ -24,7 +24,7 @@ export async function buildLead(defs: Map<string, AgentDef>, o: { agents?: strin
   const NAME = o.name ?? "a2_native_hook", mode = o.mode, def = defs.get("lead") as AgentDef, roles = o.agents ? { ...def, agents: o.agents } : def, t = launchTools(roles, 1, o.maxDepth);
   const shared = (await Bun.file(def.prompt_file).text()).trimEnd();
   const text = (await Bun.file(resolve(mode === "observe" ? "prompts/lead_native.md" : "prompts/lead.md", NAME).path).text()).trimEnd() + "\n\n# Team rules (same for every approach)\n" + shared + (t.delegate ? `\n\n# Agent types you may call (subagent_type)\n${declarations(roles, defs)}\n` : "\n\nYou have no sub-agents: answer without calling any.\n");
-  const teamAllow = mode === "observe" ? [...new Set(roles.agents.flatMap((n) => defs.get(n)?.allow ?? []).filter((a) => !/tools\.ts|delegate/.test(a)))] : [];
+  const teamAllow = mode === "observe" ? [...new Set(roles.agents.flatMap((n) => defs.get(n)?.allow ?? []).filter((a) => !/tools\.ts|delegate|^Bash\(team\b/.test(a)))] : [];
   const allow = [...new Set([...NATIVE_TOOLS, ...TEAM_ALLOW, ...teamAllow])];
   const agents = mode === "observe" ? (t.delegate ? nativeAgentsJson(roles, defs) : {}) : Object.fromEntries((t.delegate ? roles.agents : []).flatMap((n) => { const d = defs.get(n); return d ? [[n, { description: d.description, prompt: "unused" }]] : []; }));
   return { text, allow, tools: [...new Set(allow.map((a) => a.replace(/\(.*$/, "")))], agents, roles, delegate: t.delegate, def };
@@ -38,7 +38,7 @@ const makeRunLead = (NAME: string, mode: Mode) => async function runLead(ctx: Ca
   const dir = join(tmpdir(), "lf-launch"); mkdirSync(dir, { recursive: true });
   const prompt_file = join(dir, `lead.${NAME}.${Date.now().toString(36)}.md`); writeFileSync(prompt_file, L.text);
   const ld: AgentDef = { ...def, prompt_file, tools: L.tools, allow: L.allow }, agents = L.agents;
-  const env = { HARNESS_STORE: store.file!, HARNESS_TASK: o.task_id, HARNESS_AGENT: row.agent_id, HARNESS_CWD: o.repo, HARNESS_MAX_DEPTH: String(o.maxDepth), HARNESS_RUNNER: o.runner, HARNESS_WRITER_MODE: o.writerMode ?? "shared", HARNESS_MODELS: JSON.stringify(o.models ?? {}), HARNESS_MAX_INSTANCES: "12", ...(o.agents ? { HARNESS_LEAD_AGENTS: o.agents.join(",") } : {}), A2_MODE: mode, ...(mode === "observe" ? nativeEnv(o.maxDepth) : {}) };
+  const env = { HARNESS_STORE: store.file!, HARNESS_TASK: o.task_id, MASTER_SESSION_ID: o.task_id, HARNESS_AGENT: row.agent_id, HARNESS_CWD: o.repo, HARNESS_MAX_DEPTH: String(o.maxDepth), HARNESS_RUNNER: o.runner, HARNESS_WRITER_MODE: o.writerMode ?? "shared", HARNESS_MODELS: JSON.stringify(o.models ?? {}), HARNESS_MAX_INSTANCES: "12", ...(o.agents ? { HARNESS_LEAD_AGENTS: o.agents.join(",") } : {}), A2_MODE: mode, ...(mode === "observe" ? nativeEnv(o.maxDepth) : {}) };
   const hk = [{ matcher: "Agent|Task|SendMessage", hooks: [{ type: "command", command: `bun --smol ${HOOK}` }] }];
   const settings = { hooks: { PreToolUse: hk, ...(mode === "observe" ? { PostToolUse: hk, SubagentStop: [{ hooks: [{ type: "command", command: `bun --smol ${HOOK}` }] }] } : {}) } };
   const request = [`TASK ${o.task_id}`, conversationBlock(store, o.task_id, o.request), `REQUEST FROM THE PERSON:\n${o.request}`].filter(Boolean).join("\n\n");

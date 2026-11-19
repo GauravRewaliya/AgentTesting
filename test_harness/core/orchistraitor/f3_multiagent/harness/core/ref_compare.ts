@@ -7,7 +7,7 @@ import { par, browse, type Outline } from "./browse.ts";
 const rgb = (c: string) => (/rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(c) ?? []).slice(1, 4).map(Number);
 const lum = (c: string) => { const [r = 0, g = 0, b = 0] = rgb(c); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
 export async function refCompare(o: { refDir: string; url: string; outDir: string }): Promise<Record<string, unknown>> {
-  const refFile = join(o.refDir, "outline.json"); if (!existsSync(refFile)) return { ok: false, reason: `no ${refFile}: run ref_capture first` };
+  const refFile = join(o.refDir, "outline.json"); if (!existsSync(refFile)) return { ok: false, reason: `no ${refFile}: run ref capture first` };
   const ref = JSON.parse(readFileSync(refFile, "utf8")) as Outline;
   const [L, D, M] = await par([() => browse({ url: o.url, outDir: o.outDir, scheme: "light", sectionShots: 3, tag: "clone-light" }), () => browse({ url: o.url, outDir: o.outDir, scheme: "dark", steps: [{ outline: true }] }), () => browse({ url: o.url, outDir: o.outDir, scheme: "light", mobile: true, steps: [{ outline: true }, { shot: "clone-mobile.png", full: true }] })]);
   if (!L.ok || !L.outline) return { ok: false, reason: L.reason ?? "the clone did not render", console: L.console };
@@ -28,6 +28,6 @@ export async function refCompare(o: { refDir: string; url: string; outDir: strin
   const dead = me.links.filter((l) => !l.href || l.href === "#" || /^javascript:/i.test(l.href)); if (dead.length) gaps.push(`dead links (href="#"): ${dead.slice(0, 5).map((l) => `"${l.text}"`).join(", ")}`);
   const mob = M.outline; if (mob && mob.doc_h < 600) gaps.push("mobile: the page is almost empty at 390px width"); if (mob && L.outline && mob.sections.length < 2) gaps.push("mobile: sections collapsed");
   const score = Math.max(0, Math.round(100 - gaps.length * 9));
-  return { ok: true, browser: L.via === "connected" ? "connected Chrome" : "private headless Chrome", score, verdict: gaps.length === 0 ? "MATCHES the reference structure" : gaps.length <= 2 ? "close: fix the gaps" : "NOT there yet: fix the gaps, then run ref_compare again", gaps, matches: good, console_errors: L.console, clone_pictures: [...L.shots, ...M.shots].map((f) => f.split("/").pop()!),
-    next: gaps.length ? "Fix each gap in the files you own, then ref_compare again. LOOK at clone-light-section-NN.png next to the reference's desktop-light-section-NN.png (Read)." : "Structure matches. Look at the pictures once more for spacing and polish, then report." };
+  return { ok: true, browser: L.via === "connected" ? "connected Chrome" : "private headless Chrome", score, verdict: gaps.length === 0 ? "MATCHES the reference structure" : gaps.length <= 2 ? "close: fix the gaps" : "NOT there yet: fix the gaps, then run ref compare again", gaps, matches: good, console_errors: L.console, clone_pictures: [...L.shots, ...M.shots].map((f) => f.split("/").pop()!),
+    next: gaps.length ? "Fix each gap in the files you own, then ref compare again. LOOK at clone-light-section-NN.png next to the reference's desktop-light-section-NN.png (Read)." : "Structure matches. Look at the pictures once more for spacing and polish, then report." };
 }

@@ -71,7 +71,7 @@ ${fmt(by("medium"))}
 ${fmt(by("low"))}
 `;
   writeFileSync(join(o.outDir, "AUDIT.md"), md); writeFileSync(join(o.outDir, "audit.json"), JSON.stringify({ score, issues: list }, null, 1));
-  return { ok: true, browser: results.some((x) => x.r.via === "connected") ? "connected Chrome" : "private headless Chrome", score, high: by("high").length, medium: by("medium").length, low: by("low").length, pages_checked: checked, top: [...by("high"), ...by("medium")].slice(0, 6).map((x) => `${x.sev}: ${x.what} [${x.pages.slice(0, 2).join(", ")}]`), report: `run_test/_audit/${o.name}/AUDIT.md`, next: list.length ? "Hand each HIGH and MEDIUM item to the builder that owns the page (the page list tells which file), then run site_audit again." : "Clean: nothing to improve in what the audit checks." };
+  return { ok: true, browser: results.some((x) => x.r.via === "connected") ? "connected Chrome" : "private headless Chrome", score, high: by("high").length, medium: by("medium").length, low: by("low").length, pages_checked: checked, top: [...by("high"), ...by("medium")].slice(0, 6).map((x) => `${x.sev}: ${x.what} [${x.pages.slice(0, 2).join(", ")}]`), report: `run_test/_audit/${o.name}/AUDIT.md`, next: list.length ? "Hand each HIGH and MEDIUM item to the builder that owns the page (the page list tells which file), then run site audit again." : "Clean: nothing to improve in what the audit checks." };
 }
 export const projectRoutes = (dir: string): { id: string; file?: string }[] => { try { return JSON.parse(readFileSync(join(dir, "proto.json"), "utf8")).routes; } catch { return []; } };
 export { existsSync };

@@ -23,6 +23,10 @@ try {
   if (input.tool_name === "Bash" && process.env.HARNESS_TRACE_BASH === "1" && process.env.HARNESS_STORE) {   // diagnostics: every shell command an agent attempts (a command the permission list then refuses is otherwise invisible)
     try { const st0 = new MStore(process.env.HARNESS_STORE); st0.tx(() => st0.ev("bash.attempt", task, agent, { command: String(input.tool_input?.command ?? "").slice(0, 300) })); } catch { /* diagnostics never change the decision */ }
   }
+  if (input.tool_name === "Bash" && /^lead/.test(agent!)) {   // the lead may use plain file commands on ../store (settings.json allow-list matches the TEXT only, and `*` also matches `..`): any other `..` segment is an escape out of the store folder, so it is refused
+    const cmd = String(input.tool_input?.command ?? "").replace(/\.\.\/store(?=[\/\s"';|&]|$)/g, "STORE");
+    if (/(^|[\s\/="'(])\.\.(?=$|[\/\s"';|&)])/.test(cmd)) deny("PATH ESCAPE: only `../store/...` may be named with `..` (your store folder next to the workspace). Use `team ls|read_file|grep` for the workspace.");
+  }
   if (input.tool_name === "Bash") {
     for (const r of resourcesFor(String(input.tool_input?.command ?? ""))) { const g = await api.guard(task!, agent!, r); if (!g.allow) deny(g.reason, api.kind === "redis" ? { task: task!, agent: agent!, target: r, holder: g.holder } : undefined); }
   } else {

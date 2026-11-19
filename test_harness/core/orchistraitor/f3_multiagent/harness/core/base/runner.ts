@@ -61,6 +61,8 @@ export const wantsLsp = (c: RunCall) => c.agent.tools.includes("LSP");
 export const lspArgs = (c: RunCall): string[] => wantsLsp(c) ? ["--plugin-dir", LSP_PLUGIN_DIR] : [];
 export const lspEnv = (c: RunCall): Record<string, string> => wantsLsp(c) ? { ENABLE_LSP_TOOL: "1" } : {};
 
+/** The lead and the QA agent work on the session's evidence in `<session>/store` (qa/ clips, pictures, problems.json; bg/ logs) with plain shell commands (ls, cat, mv, rm). That folder sits next to the workspace, outside the agent's working directory, and in dontAsk mode a command that touches a path outside the working directories is refused even when its pattern is allowed (checked with the real CLI: ls/cat/mv/rm on ../store were DENIED until the folder was added). So it is added: no handicap. Builders and the others do not get it. */
+const storeDirArgs = (c: RunCall): string[] => { const f = c.env?.HARNESS_STORE ?? process.env.HARNESS_STORE; return f && (c.agent.role === "lead" || c.agent.role === "qa-reviewer" || c.agent.name === "lead" || c.agent.name === "qa-reviewer") ? ["--add-dir", dirname(f)] : []; };
 /** The team commands (`proto_check`, `browse`, `ref_compare`, `ref_capture`, `proto_init`) are real executables in harness/bin on every agent's PATH: no agent has to find `bun .../tools.ts` first (they lost ~6 steps on it). */
 const BIN = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "bin");
 export const binEnv = (): Record<string, string> => ({ PATH: BIN + ":" + (process.env.PATH ?? "") });
@@ -92,7 +94,7 @@ export class RealRunner implements Runner {
       ...(c.stateless ? ["--no-session-persistence"]
         : c.session.fork_from ? ["--resume", c.session.fork_from, "--fork-session", "--session-id", c.session.id]
         : [c.session.resume ? "--resume" : "--session-id", c.session.id]),
-      ...(c.extraArgs ?? []), ...lspArgs(c),
+      ...(c.extraArgs ?? []), ...lspArgs(c), ...storeDirArgs(c),
       "--allowedTools", ...c.agent.allow];
     return new Promise((resolve) => {
       const resumeId = c.stateless ? undefined : c.session.fork_from ?? (c.session.resume ? c.session.id : undefined), profile = resumeId ? profileOfSession(resumeId) : undefined;   // continue a session IN the profile that holds it
