@@ -17,11 +17,11 @@ let fatal: { error: string; until: number } | null = null;
 /** THE Claude profile of every `claude` this harness starts: ~/.claude-personal (HARNESS_CLAUDE_PROFILE overrides). The shell's CLAUDE_CONFIG_DIR is NOT trusted: a server or shell started without it
  *  silently ran on ~/.claude (another account: other limits, other credits, sessions split over two folders; seen in the sakura runs 740/741 and tj_*, 2026-11-18). Docker pins the same profile (infra/docker-compose.yml). */
 const homeDir = () => process.env.HOME || homedir();
-/** THE account of every `claude` this harness starts: `CONFIG.claudeProfile` in test_harness/core/config.ts (ONE static string: "default" = ~/.claude, "personal" = ~/.claude-personal, or an absolute folder; the comment there lists what else to check when it changes). Env HARNESS_CLAUDE_PROFILE (a folder) wins for one run. */
+/** THE account of every `claude` this harness starts: `CONFIG.claudeProfile` in test_harness/core/config.ts (ONE static string: "" = ~/.claude, a suffix appended to ~/.claude as written (e.g. "-personal", "_other"), or an absolute folder; the comment there lists what else to check when it changes). Env HARNESS_CLAUDE_PROFILE (a folder) wins for one run. */
 export const claudeProfile = (): string => {
   if (process.env.HARNESS_CLAUDE_PROFILE) return process.env.HARNESS_CLAUDE_PROFILE;
   const want: string = CONFIG.claudeProfile;
-  return want === "default" ? join(homeDir(), ".claude") : want.startsWith("/") ? want : join(homeDir(), ".claude-personal");
+  return want === "" ? join(homeDir(), ".claude") : want.startsWith("/") ? want : join(homeDir(), ".claude" + want);   // suffix appended as written: "-personal" = ~/.claude-personal, "_x" = ~/.claude_x
 };
 let warned = false;
 export function claudeEnv(): Record<string, string> {   // add to the env of EVERY claude process

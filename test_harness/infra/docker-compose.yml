@@ -20,7 +20,7 @@ services:
   # REAL agents (HARNESS_SANDBOX=docker, harness/core/base/docker_runner.ts): Claude Code is BUILT INTO the image, nothing is installed at run time.
   # Not started by `up` (profile): each agent call is ONE throwaway container,  docker compose -f test_harness/infra/docker-compose.yml run --rm -T sandbox claude ...
   # (we never restart a container: a job mounts the volumes, ends, and the next job mounts them again).   Build once:  docker compose -f test_harness/infra/docker-compose.yml build sandbox
-  # CLAUDE PROFILE: the container ALWAYS uses your claude-personal profile: host ~/.claude-personal is mounted as the container's Claude config dir (CLAUDE_CONFIG_DIR=/claude inside): no new login.
+  # CLAUDE PROFILE: the container uses the profile of CONFIG.claudeProfile (the runner sets CLAUDE_PROFILE_DIR; run by hand without it = ~/.claude): that host folder is mounted as the container's Claude config dir (CLAUDE_CONFIG_DIR=/claude inside): no new login.
   # It does NOT follow the CLAUDE_CONFIG_DIR of your shell; to use another profile for Docker set CLAUDE_PROFILE_DIR=<dir>. KNOWN RISK: an agent with Bash can read it (docs/SANDBOX.md).
   sandbox:
     profiles: ["sandbox"]
@@ -41,7 +41,7 @@ services:
       npm_config_store_dir: /pnpm/store
       COREPACK_HOME: /pnpm/corepack
     volumes:
-      - ${CLAUDE_PROFILE_DIR:-${HOME}/.claude-personal}:/claude
+      - ${CLAUDE_PROFILE_DIR:-${HOME}/.claude}:/claude
       - pnpm-store:/pnpm
 
 volumes:

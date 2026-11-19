@@ -9,11 +9,11 @@
 import { join } from "node:path";
 export const CONFIG = {
   // WHICH CLAUDE ACCOUNT every `claude` the harness starts uses (one static string, change it here only):
-  //   "default" = ~/.claude   "personal" = ~/.claude-personal   or an absolute folder.  Env HARNESS_CLAUDE_PROFILE (a folder) overrides for one run.
-  // IF YOU CHANGE IT ALSO CHECK: (1) Docker: infra/docker-compose.yml mounts ${CLAUDE_PROFILE_DIR:-~/.claude-personal} as the sandbox's login: set CLAUDE_PROFILE_DIR to the same folder when HARNESS_SANDBOX=docker;
+  //   "" = ~/.claude (default)   any other text is APPENDED to ~/.claude exactly as written: "-personal" = ~/.claude-personal, "_personal" = ~/.claude_personal, "-other" = ~/.claude-other   or an absolute folder.  Env HARNESS_CLAUDE_PROFILE (a folder) overrides for one run.
+  // IF YOU CHANGE IT ALSO CHECK: (1) Docker: nothing to do, the runner passes the same folder to infra/docker-compose.yml as CLAUDE_PROFILE_DIR;
   //   (2) a shell that exports CLAUDE_CONFIG_DIR is ignored (the harness prints a warning); (3) old sessions stay in the other folder (claudeDirs() still finds them for resume);
   //   (4) the account's usage limit is per account: a "hit your limit" failure of a run is the account, not the prompt.
-  claudeProfile: "default",
+  claudeProfile: "-personal",
   orchestrator: "f3_multiagent",
   approach: "a1_team_cli",
   stateVersion: "v3",
