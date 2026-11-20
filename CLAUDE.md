@@ -27,6 +27,13 @@ Example: the four QA repair-loop cases (adv_5, adv_6, adv_6a, adv_6b) were remov
 Gate order: known `--session` in the `fixture_sessions` table -> continue it; else fixture lookup; no fixture -> `allow_real_subAg` ? real call (with the session id) : error "FIXTURE NOT FOUND".
 Calls are capped by `max_agent_calls` (default 2); the call after the cap fails the case.
 
+## Approaches: how the lead delegates (a1 / a2 / mod)
+Only the LEAD's way of calling sub-agents differs; the core (store, locks, FixtureGate, skills, monitor) is shared. Files: `test_harness/core/orchistraitor/f3_multiagent/approaches/` (README there), one class per approach on `BaseApproach` (`approach_port.ts`), shared lead code in `harness/leadkit/`. The current one is `CONFIG.approach` in `test_harness/core/config.ts`; `APPROACH=<name>` or `--approach=<name>` overrides for one run.
+- `a1_team_cli`: the lead types `team agent <role> ...` in Bash. `a2_native_hook` (default): the lead uses `Agent` / `SendMessage`; a hook turns them into the same `delegate`, so FixtureGate still mocks the sub-agent. `a2_native_observe`: Claude's own engine runs sub-agents (no fixtures, no locks).
+- Never name an approach in shared code (`harness/`, `testrun/`): ask `currentApproach()`. A tool is declared in ONE place (`harness/tools/route.ts` + its group file + `core/help.ts`); an agent's tools/skills/sub-agents in `core/agents/` (`agent.json`, `.claude/settings.json`, `skills.json`: a skill is mounted only for the agents it is declared for).
+- Hooks (what a2 uses) vs MODS (Claude Code's plugin runtime: `plugin.json` + `hooks/hooks.json` + `register.ts`, loaded with `--plugin-dir`): mods can also rewrite inputs, change the system prompt, register tools and agent types, draw UI. Not used yet; plan and facts in `approaches/README.md`.
+- For a small change do not re-run the self-test suites; check once after a bigger piece of work (`self_test/approach_a2.ts`, `self_test/skills.ts`, `self_test/multi.ts`: 4 old failures are known).
+
 ## test_expo_go (examples/)
 Not solo: lead (router on) delegates to ONE sub-agent `expo-go`, so it is a delegation/hand-over test, not a split-across-agents test. `router: false` / `lead: "solo"` marks solo cases; the harness refuses those. Every case is a plain object in `test_expo_go/{demos,examples}/*.ts` or `rework.ts` (no generators). Most results apply real commit patches (`phases.json`, `patches/`); `eg_tw_02`, `eg_tw_03` and the rework results are HAND-WRITTEN (the rework `_fix` ones reuse a real patch), so they are the weakest. Rework cases (`rework.ts`): bad fixture first, lead must notice, then the `_fix` fixture.
 
