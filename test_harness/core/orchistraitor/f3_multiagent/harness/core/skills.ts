@@ -4,6 +4,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { buildPlugin } from "../leadkit/build.ts";
+import { DEFAULT_GUARD, type GuardPolicy } from "../leadkit/guard.ts";
 import { AGENTS_DIR, TEST_AGENTS_DIR } from "@core/config.ts";
 
 export const SKILLS_JSON = join(AGENTS_DIR, "..", "skills.json"), SHARED_SKILLS = join(AGENTS_DIR, "..", "skills");
@@ -29,12 +30,13 @@ export function skillsFor(agent: string, handover: string, mounts = loadMounts()
   return [...out].sort();
 }
 
-/** `--plugin-dir` for the skills of one call (empty when none match): a plugin folder built in core/.build by the shared builder (harness/leadkit/build.ts), once per set of skills. */
+/** `--plugin-dir` for one sub-agent call: ONE plugin folder built in core/.build by the shared builder (harness/leadkit/build.ts), once per set of skills: the secrets guard (agent_mod/) plus the skills
+ *  declared for this agent (none = the guard alone). Free: no model call. `names` = the skills mounted. */
 export function skillArgs(agent: string, handover: string): { args: string[]; names: string[] } {
-  const lib = skillLibrary(), names = skillsFor(agent, handover, loadMounts(), lib);
-  if (!names.length) return { args: [], names };
-  const dir = buildPlugin(`skills-${agent}`, null, { ".claude-plugin/plugin.json": JSON.stringify({ name: "team-skills", version: "1.0.0", description: "Skills mounted for one agent call (core/agents/skills.json)" }) },
-    Object.fromEntries(names.map((n) => [`skills/${n}`, lib.get(n)!])));
+  const lib = skillLibrary(), names = skillsFor(agent, handover, loadMounts(), lib), H = join(import.meta.dir, "..", "leadkit");
+  const guard: GuardPolicy = { ...DEFAULT_GUARD, jailToWorkspace: false };   // a builder may read outside the workspace (docs, node_modules of a parent); secrets only
+  const dir = buildPlugin(`agent-${agent}`, join(H, "agent_mod"), { "hooks/config.ts": `export const CFG = ${JSON.stringify({ guard })} as const\n` },
+    { "hooks/guard.ts": join(H, "guard.ts"), ...Object.fromEntries(names.map((n) => [`skills/${n}`, lib.get(n)!])) });
   return { args: ["--plugin-dir", dir], names };
 }
 

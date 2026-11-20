@@ -1,0 +1,1 @@
+{ "name": "team-agent", "version": "0.1.0", "description": "A sub-agent's plugin: the secrets guard (and, copied in beside it, the skills declared for it in core/agents/skills.json)" }

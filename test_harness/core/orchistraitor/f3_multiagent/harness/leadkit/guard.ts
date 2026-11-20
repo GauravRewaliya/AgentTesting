@@ -20,7 +20,8 @@ export type Verdict = { allow: true } | { allow: false; reason: string };
 const SUBCOMMANDS = "wait|all|list|info|peek|stop|update|patches";
 const norm = (p: string): string => { const out: string[] = []; for (const seg of p.split("/")) { if (!seg || seg === ".") continue; if (seg === "..") out.pop(); else out.push(seg); } return (p.startsWith("/") ? "/" : "") + out.join("/"); };
 const globRe = (g: string) => new RegExp("^" + g.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*\*/g, "\u0000").replace(/\*/g, "[^/]*").replace(/\u0000/g, ".*") + "$");
-const isPrivate = (path: string, deny: string[]) => deny.some((g) => globRe(g).test(g.includes("/") ? path : path.split("/").pop() ?? path));
+const TEMPLATE = /\.(example|sample|template|dist)$/i;   // `.env.example` holds no secret: reading it is fine
+const isPrivate = (path: string, deny: string[]) => !TEMPLATE.test(path) && deny.some((g) => globRe(g).test(g.includes("/") ? path : path.split("/").pop() ?? path));
 
 /** The path(s) a call touches (empty for tools that touch none). */
 function pathsOf(c: ToolCall): string[] {

@@ -15,8 +15,8 @@ t("sk.2", "builder + an Expo hand-over gets the expo-* skills", expo.includes("e
 t("sk.3", "builder + a plain web hand-over gets NO skill (small context)", skillsFor("builder", "Make a landing page in plain HTML", mounts, lib).length === 0);
 t("sk.4", "an agent that is not listed gets no skill, even for Expo", skillsFor("researcher", "Expo react native", mounts, lib).length === 0 && skillsFor("lead", "expo", mounts, lib).length === 0);
 const a = skillArgs("builder", "an expo app");
-t("sk.5", "the call gets --plugin-dir with a plugin.json and a copy of exactly those skills", a.args[0] === "--plugin-dir" && existsSync(join(a.args[1]!, ".claude-plugin", "plugin.json")) && readdirSync(join(a.args[1]!, "skills")).sort().join() === a.names.join() && existsSync(join(a.args[1]!, "skills", "expo-go", "SKILL.md")));
-t("sk.6", "no match = no args", skillArgs("builder", "plain html").args.length === 0);
+t("sk.5", "the call gets --plugin-dir with a plugin.json and a copy of exactly those skills", a.args[0] === "--plugin-dir" && existsSync(join(a.args[1]!, ".claude-plugin", "plugin.json")) && readdirSync(join(a.args[1]!, "skills")).sort().join() === a.names.join() && existsSync(join(a.args[1]!, "hooks", "guard.ts")) && existsSync(join(a.args[1]!, "skills", "expo-go", "SKILL.md")));
+const g = skillArgs("builder", "plain html"); t("sk.6", "no skill matches: the plugin is the guard alone (every sub-agent gets it)", g.names.length === 0 && g.args[0] === "--plugin-dir" && existsSync(join(g.args[1]!, "hooks", "register.ts")) && !existsSync(join(g.args[1]!, "skills")));
 const c = { agent: defs.get("researcher")!, extraArgs: ["--plugin-dir", "/tmp/x"], cwd: "/w", env: {} } as never;
 t("sk.7", "docker mounts a --plugin-dir read-only", dockerArgs(c, "n", [], "1:1").join(" ").includes("-v /tmp/x:/tmp/x:ro"));
 console.log(`\n${results.filter((r) => r.ok).length}/${results.length} passed`); process.exit(results.some((r) => !r.ok) ? 1 : 0);

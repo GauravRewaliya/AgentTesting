@@ -7,7 +7,7 @@ export const ROUTE: Record<string, string> = {
   // agent_calling/plans.ts
   plan_submit: "agent_calling/plans", plan_run: "agent_calling/plans", _plan: "agent_calling/plans", plan_replan: "agent_calling/plans", plan_answer: "agent_calling/plans", plan_pause: "agent_calling/plans", plan_resume: "agent_calling/plans", plan_show: "agent_calling/plans", plan_status: "agent_calling/plans", phase_status: "agent_calling/plans", phase_pass: "agent_calling/plans", plan_lint: "agent_calling/plans",
   // board.ts
-  report_bug: "board", admin_issues: "board", agent_peek: "board", cost: "board", agents_list: "board", agent_info: "board", agent_update: "board", say: "board", inbox: "board", board_status: "board", ledger_get: "board", ls: "board", read_file: "board", chapter: "board", grep: "board",
+  _context: "board", _pending: "board", report_bug: "board", admin_issues: "board", agent_peek: "board", cost: "board", agents_list: "board", agent_info: "board", agent_update: "board", say: "board", inbox: "board", board_status: "board", ledger_get: "board", ls: "board", read_file: "board", chapter: "board", grep: "board",
   // browser.ts
   browser_status: "browser", browser_connect: "browser", browser_disconnect: "browser", browser_launch: "browser", browser_toggle: "browser", browse: "browser", tab: "browser",
   // bg.ts

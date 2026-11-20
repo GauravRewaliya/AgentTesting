@@ -2,12 +2,13 @@
 import { dirname, join } from "node:path";
 import { boardStatus, inbox, say, sessionStats } from "../core/board.ts";
 import { peekAgent } from "../core/peek.ts";
+import { turnContext } from "../core/turn_context.ts";
 import { AGENTS_DIR } from "@core/config.ts";
 import { wsGrep, wsLs, wsRead } from "../core/workspace_read.ts";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { cmd, cwd, file, flag, locks, logIssue, me, out, policy, rest, store, task } from "./ctx.ts";
 
-export const COMMANDS = ["report_bug", "admin_issues", "agent_peek", "cost", "agents_list", "agent_info", "agent_update", "say", "inbox", "board_status", "ledger_get", "ls", "read_file", "chapter", "grep"];
+export const COMMANDS = ["_context", "_pending", "report_bug", "admin_issues", "agent_peek", "cost", "agents_list", "agent_info", "agent_update", "say", "inbox", "board_status", "ledger_get", "ls", "read_file", "chapter", "grep"];
 /** ls / read_file / grep read the WORKSPACE (run_test/), and also this session's evidence: `--path store/qa/<agent>/...` or `store/bg/...` (read only; transcripts and the board stay closed). */
 const where = (p?: string): { root: string; path?: string } | { error: string } => {
   if (p && /^store([\\/]|$)/.test(p)) { const rest = p.replace(/^store[\\/]?/, "") || "qa"; if (!/^(qa|bg)([\\/]|$)/.test(rest)) return { error: "only store/qa (evidence) and store/bg (server logs) can be read" }; return { root: dirname(file), path: rest }; }
@@ -60,6 +61,8 @@ if (cmd === "say") {
 }
 if (cmd === "inbox") { out(store.tx(() => inbox(store, task, me)).map((n) => ({ from: n.from, text: n.text })));
 }
+if (cmd === "_context") { store.reload(); out({ ok: true, text: turnContext(store, task, me, file, { first: rest.includes("--first") }) }); }   // internal: the per-turn context the a3 mod injects
+if (cmd === "_pending") { store.reload(); const since = Number(flag("since") ?? 0); out({ ok: true, notes: store.notes.filter((n) => n.task_id === task && n.from !== me && (n.to === me || n.to === "all") && !n.read_by.includes(me)).length, running: store.agentsOf(task).filter((a) => a.name !== "lead" && a.status === "running").length, done: store.events.filter((e) => e.task_id === task && e.kind === "agent.done" && e.agent_id !== me && e.t > since).map((e) => e.agent_id) }); }   // internal: what the a3 wake-up timer looks at (nothing is marked read)
 if (cmd === "board_status") { store.reload(); out(locks.kind === "redis" ? boardStatus(store, task, await locks.holders(task), await locks.waiting(task)) : boardStatus(store, task));
 }
 if (cmd === "ledger_get") { store.reload(); const r = store.reports.find((x) => x.id === flag("report")); out(r ? { id: r.id, agent: r.agent_id, text: r.reply ?? r.summary, files: r.files } : { ok: false, reason: "no such report" });
