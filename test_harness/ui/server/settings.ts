@@ -57,7 +57,7 @@ export function setRules(b: Partial<Rules> & { reset?: boolean }) {
 export function state() {
   const skills = existsSync(USER_SKILLS_DIR) ? readdirSync(USER_SKILLS_DIR).filter((n) => existsSync(join(USER_SKILLS_DIR, n, "SKILL.md"))) : [];
   const ps = readSettings().plugins;
-  return { home: HOME_DIR, rules: { ...DEFAULT_RULES, ...readSettings().rules } as Rules, defaults: DEFAULT_RULES, agents: agents(), integrations: integrations(), skills, plugins: installedPlugins().map((p) => ({ name: p.name, version: p.version, scope: p.scope, supported: true, agents: ps[p.name] ?? [], servers: p.servers.map((n) => ({ name: n, agents: ps[`${p.name}:${n}`] ?? [] })) })), connectors };
+  return { ticks: readSettings().plugins, home: HOME_DIR, rules: { ...DEFAULT_RULES, ...readSettings().rules } as Rules, defaults: DEFAULT_RULES, agents: agents(), integrations: integrations(), skills, plugins: installedPlugins().map((p) => ({ name: p.name, version: p.version, scope: p.scope, supported: true, agents: ps[p.name] ?? [], servers: p.servers.map((n) => ({ name: n, agents: ps[`${p.name}:${n}`] ?? [] })) })), connectors };
 }
 const find = (name: string) => agents().find((a) => a.name === name);
 const fail = (reason: string) => ({ ok: false as const, reason });

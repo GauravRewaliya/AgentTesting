@@ -1,0 +1,10 @@
+# Tools baked into the Shell terminal's image (like a Gitpod workspace image): ONE package name per line, `#` starts a comment.
+# Add a line, then rebuild once:  docker compose -f test_harness/infra/docker-compose.yml build shell
+# (git, ripgrep, curl, node, pnpm, bun, claude and gh come from the layers above; gh from GitHub's own apt repo in the Dockerfile.)
+jq
+less
+nano
+tree
+openssh-client
+procps
+unzip

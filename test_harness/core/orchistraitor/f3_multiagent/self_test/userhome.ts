@@ -53,5 +53,8 @@ if (withSrv) {   // the lead can be ticked; only the ticked agent gets --plugin-
   t("uh.23", "ticked for the lead only: the lead gets the plugin dir, the marker and the server's allow entry; the builder gets nothing", r.ok === true && l.args.includes("--plugin-dir") && l.args.includes(uh.LOOSE_MCP) && l.allow.includes(`mcp__plugin_${tn(withSrv.name)}_${tn(withSrv.servers[0]!)}`) && bl.args.length === 0 && bl.allow.length === 0);
   st.setPlugin(key, []); t("uh.24", "unticked = nothing again", uh.toolsLaunch("lead").args.length === 0); delete process.env.HARNESS_USER_HOME;
 }
+{ process.env.HARNESS_USER_HOME = "1"; const rc = st.setPlugin("claude.ai:Claude Docs", ["lead"]), lc = uh.toolsLaunch("lead");
+  t("uh.26", "a claude.ai connector can be ticked for the lead: only the allow entry and the no-strict marker, no plugin dir; other agents get nothing", rc.ok === true && lc.allow.includes("mcp__claude_ai_Claude_Docs") && lc.args.includes(uh.LOOSE_MCP) && !lc.args.includes("--plugin-dir") && uh.toolsLaunch("builder").allow.length === 0 && st.setPlugin("claude.ai:../x", ["lead"]).ok === false);
+  st.setPlugin("claude.ai:Claude Docs", []); delete process.env.HARNESS_USER_HOME; }
 t("uh.25", "connectors are listed (never supported) and the state has the key", Array.isArray(st.state().connectors) && st.state().connectors.every((c) => c.supported === false));
 const bad = results.filter((x) => !x.ok).length; console.log(`\n${results.length - bad}/${results.length} passed`); process.exit(bad ? 1 : 0);

@@ -4,6 +4,8 @@ export interface SettingsIntegration { id: string; label: string; about: string;
 export interface SettingsPlugin { name: string; version: string; scope: string; supported: boolean; agents: string[]; servers: { name: string; agents: string[] }[] }
 export interface SettingsConnector { name: string; url: string; status: string; supported: false }
 export interface SettingsRules { noForcePush: boolean; noDeleteBranch: boolean; noMerge: boolean; noPushProtected: boolean; protectedBranches: string[]; noPush: boolean; jiraReadOnly: boolean }
-export interface SettingsState { rules: SettingsRules; defaults: SettingsRules; home: string; plugins: SettingsPlugin[]; connectors: SettingsConnector[]; agents: SettingsAgent[]; integrations: SettingsIntegration[]; skills: string[]; ok?: boolean; reason?: string }
+export interface McpRow { name: string; kind: "plugin" | "connector" | "server"; plugin?: string; server: string; url: string; state: "connected" | "needs_login" | "failed" | "off" | "pending"; detail: string; key?: string }
+export interface PluginRow { id: string; name: string; marketplace: string; version: string; scope: string; enabled: boolean }
+export interface SettingsState { ticks: Record<string, string[]>; rules: SettingsRules; defaults: SettingsRules; home: string; plugins: SettingsPlugin[]; connectors: SettingsConnector[]; agents: SettingsAgent[]; integrations: SettingsIntegration[]; skills: string[]; ok?: boolean; reason?: string }
 export interface UsageRow { date: string; model: string; input: number; output: number; cache_read: number; cache_create: number }
 export interface UsageState { days: number; rows: UsageRow[]; sessions: number; totals: { input: number; output: number; cache_read: number; cache_create: number }; link: string; profiles: string[] }

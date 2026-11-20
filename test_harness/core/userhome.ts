@@ -50,7 +50,7 @@ export function integrationHints(): string {
   if (!userHomeOn()) return "";
   const s = readSettings(), rows = INTEGRATIONS.filter((d) => s.integrations[d.id]?.enabled && secretValue(d.id) && s.integrations[d.id]!.agents.length)
     .map((d) => `- ${d.label} (${HINT[d.id]}): ${s.integrations[d.id]!.agents.join(", ")}`);
-  for (const [key, ags] of Object.entries(s.plugins)) if (ags.length && key.includes(":") && pluginSupported(key)) rows.push(`- ${key.replace(":", " / ")} (plugin): ${ags.join(", ")}`);
+  for (const [key, ags] of Object.entries(s.plugins)) if (ags.length && key.includes(":") && pluginSupported(key)) rows.push(`- ${key.replace(":", " / ")} (${CONNECTOR_KEY.test(key) ? "connector" : "plugin"}): ${ags.join(", ")}`);
   return rows.length ? `# Connected tools\nAsk the listed agent for work on these (the lead may use its own, for a quick look):\n${rows.join("\n")}` : "";
 }
 /** The rules every agent launch gets: the defaults, plus what the person set in Settings (only on runs the dashboard starts). */
@@ -117,7 +117,8 @@ export function installedPlugins(): InstalledPlugin[] {
   return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 /** A plugin (or one of its MCP servers) can be ticked when it is installed in the profile. The tick key is `<plugin>` or `<plugin>:<server>`. */
-export const pluginSupported = (key: string): boolean => installedPlugins().some((p) => p.name === key.split(":")[0] && (!key.includes(":") || p.servers.includes(key.slice(key.indexOf(":") + 1))));
+export const CONNECTOR_KEY = /^claude\.ai:[\w .&()-]{1,60}$/;   // a connector added on claude.ai (shown as `claude.ai <Name>` in `claude mcp list`)
+export const pluginSupported = (key: string): boolean => CONNECTOR_KEY.test(key) || installedPlugins().some((p) => p.name === key.split(":")[0] && (!key.includes(":") || p.servers.includes(key.slice(key.indexOf(":") + 1))));
 /** The runner drops this marker from the arguments; it means "do not pass --strict-mcp-config" (a ticked plugin's MCP server must be allowed to start). Every tool not allowed by name stays denied. */
 export const LOOSE_MCP = "--harness-plugin-mcp";
 const toolName = (s: string) => s.replace(/@.*$/, "").replace(/[^A-Za-z0-9_-]/g, "_");
@@ -126,10 +127,11 @@ export function pluginLaunch(agent: string): { args: string[]; allow: string[] }
   const s = readSettings(), have = new Map(installedPlugins().map((p) => [p.name, p])), dirs = new Set<string>(), allow: string[] = [];
   for (const [key, ags] of Object.entries(s.plugins)) {
     if (!ags.includes(agent) || !pluginSupported(key)) continue;
+    if (CONNECTOR_KEY.test(key)) { allow.push(`mcp__claude_ai_${toolName(key.slice(10))}`); continue; }   // the account's connector: the login lives on claude.ai, nothing to load
     const [n, srv] = [key.split(":")[0]!, key.includes(":") ? key.slice(key.indexOf(":") + 1) : ""];
     dirs.add(have.get(n)!.dir); if (srv) allow.push(`mcp__plugin_${toolName(n)}_${toolName(srv)}`);
   }
-  return dirs.size ? { args: [...[...dirs].flatMap((d) => ["--plugin-dir", d]), ...(allow.length ? [LOOSE_MCP] : [])], allow } : { args: [], allow: [] };
+  return allow.length || dirs.size ? { args: [...[...dirs].flatMap((d) => ["--plugin-dir", d]), ...(allow.length ? [LOOSE_MCP] : [])], allow } : { args: [], allow: [] };
 }
 /** Integrations + ticked plugins for ONE agent, without the user's own skills (the lead uses this). */
 export function toolsLaunch(agent: string): { args: string[]; allow: string[] } {

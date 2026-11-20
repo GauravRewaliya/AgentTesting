@@ -1,4 +1,6 @@
 // API for the dashboard. Run: bun server/index.ts  (port 5189; Vite proxies /api here). Reads the real files; no database.
+import * as cli from "./claude_cli.ts";
+import * as term from "./term.ts";
 import { agentDefs, loadSuites } from "./data.ts";
 import { branchWarnings } from "../../../TestCases/branch.ts";
 import { buildCards, caseOut } from "./chains.ts";
@@ -26,10 +28,15 @@ const send = (v: unknown, status = 200) => Response.json(v, { status });
 Bun.serve({
   port: Number(process.env.API_PORT ?? 5189),
   hostname: "127.0.0.1",
-  websocket: hub.websocket,
+  websocket: {   // two kinds of socket: the hub (live data) and a terminal (/term)
+    open: (ws: any) => (ws.data.term ? term.websocket.open(ws) : hub.websocket.open(ws)),
+    message: (ws: any, m: any) => (ws.data.term ? term.websocket.message(ws, m) : hub.websocket.message(ws, m)),
+    close: (ws: any) => (ws.data.term ? term.websocket.close(ws) : hub.websocket.close(ws)),
+  } as never,
   async fetch(req, server) {
     const u = new URL(req.url), p = u.pathname.replace(/^\/api/, ""), m = req.method;
     try {
+      if (p === "/term") return term.allowed(req) && server.upgrade(req, { data: { term: true, kind: u.searchParams.get("kind") === "shell" ? "shell" : "claude", cols: Math.max(20, Math.min(500, Number(u.searchParams.get("cols")) || 100)), rows: Math.max(5, Math.min(200, Number(u.searchParams.get("rows")) || 30)) } }) ? undefined : send({ error: "terminal refused" }, 403);
       if (p === "/ws") return server.upgrade(req, { data: hub.newClient() }) ? undefined : send({ error: "websocket upgrade failed" }, 400);
       if (p === "/cards") return send(buildCards(await buildModel()));
       let r: RegExpMatchArray | null;
@@ -90,6 +97,14 @@ Bun.serve({
       if (p === "/settings/scan-connectors" && m === "POST") return send(await st.scanConnectors());
       if ((r = p.match(/^\/settings\/plugins\/([^/]+)$/)) && m === "PUT") return send(st.setPlugin(decodeURIComponent(r[1]!), ((await req.json()) as { agents?: string[] }).agents ?? []));
       if ((r = p.match(/^\/settings\/plugins\/([^/]+)$/)) && m === "PUT") return send(st.setPlugin(decodeURIComponent(r[1]!), ((await req.json()) as { agents: string[] }).agents ?? []));
+      if (p === "/settings/claude" && m === "GET") return send(await cli.claudeWho());
+      if (p === "/settings/claude/run" && m === "POST") return send(await cli.runCli(String(((await req.json()) as { line: string }).line ?? "")));
+      if (p === "/settings/mcp" && m === "GET") return send(await cli.mcpList());
+      if (p === "/settings/mcp/login" && m === "POST") return send(await cli.mcpLoginStart(String(((await req.json()) as { name: string }).name)));
+      if (p === "/settings/mcp/login/paste" && m === "POST") { const b = (await req.json()) as { name: string; url: string }; return send(await cli.mcpLoginPaste(String(b.name), String(b.url))); }
+      if (p === "/settings/mcp/logout" && m === "POST") return send(await cli.mcpLogout(String(((await req.json()) as { name: string }).name)));
+      if (p === "/settings/plugins/installed" && m === "GET") return send(await cli.pluginsInstalled());
+      if (p === "/settings/plugins/act" && m === "POST") { const b = (await req.json()) as { act: string; id: string }; return send(["enable", "disable"].includes(b.act) ? await cli.pluginAct(b.act as "enable", String(b.id)) : { ok: false, out: "bad action" }); }
       if (p === "/settings/rules" && m === "PUT") return send(st.setRules((await req.json()) as never));
       if ((r = p.match(/^\/settings\/integrations\/(\w+)$/)) && m === "PUT") return send(st.setIntegration(r[1]!, (await req.json()) as never));
       if ((r = p.match(/^\/settings\/integrations\/(\w+)\/test$/)) && m === "POST") return send(await st.testIntegration(r[1]!));

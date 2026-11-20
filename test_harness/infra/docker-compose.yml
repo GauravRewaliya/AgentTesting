@@ -44,6 +44,34 @@ services:
       - ${CLAUDE_PROFILE_DIR:-${HOME}/.claude}:/claude
       - pnpm-store:/pnpm
 
+  # THE SHELL TERMINAL (Settings > Integrations > Claude CLI > Shell): a bash in a container whose tools are declared in ./shell (tools.apt + Dockerfile), like a Gitpod workspace image.
+  # The HOME is a named volume that is never thrown away, so `gh auth login`, git config, shell history and Claude's files persist. We never restart a container: each terminal is one throwaway container that mounts the same volumes.
+  # First start: `gh` and git are copied from the host (read-only mounts under /host) so you are logged in at once. /workspace = this repo. The Claude profile is the same one the agents use.
+  shell:
+    profiles: ["shell"]
+    image: agent-testing-shell:1
+    build:
+      context: ./shell
+    working_dir: /workspace
+    mem_limit: 4g
+    cpus: 2
+    pids_limit: 1024
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      HOME: /home/node
+      CLAUDE_CONFIG_DIR: /claude
+      TERM: xterm-256color
+      COREPACK_HOME: /home/node/.cache/corepack   # pnpm comes from corepack; its cache lives in the persisted home
+      npm_config_store_dir: /home/node/.local/share/pnpm/store
+    volumes:
+      - agent-testing-home:/home/node
+      - ${CLAUDE_PROFILE_DIR:-${HOME}/.claude}:/claude
+      - ${AT_SHELL_WORKDIR:-../..}:/workspace
+      - ${HOME}/.config/gh:/host/gh:ro
+      - ${HOME}/.gitconfig:/host/gitconfig:ro
+
 volumes:
+  agent-testing-home:
+    name: agent-testing-home
   pnpm-store:
     name: agent-testing-pnpm-store

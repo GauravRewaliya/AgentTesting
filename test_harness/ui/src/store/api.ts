@@ -14,6 +14,7 @@ async function send<T>(method: string, path: string, body?: unknown): Promise<T>
   const j = await r.json(); if (!r.ok) throw new Error(j.error ?? r.statusText); return j as T;
 }
 type SR = import("../../shared/settings").SettingsState;
+type McpRow = import("../../shared/settings").McpRow; type PluginRow = import("../../shared/settings").PluginRow;
 
 export interface BrowserTab { id: string; title: string; url: string }
 export interface BrowserOverview { ok?: false; reason?: string; mode: "attached" | "headless"; saved?: string | null; endpoint?: string; browser?: string; reachable?: boolean; since?: string; tabs?: BrowserTab[]; note: string; chrome: boolean; display: boolean; profile: string | null; defaultPort: number; howto: string[] }
@@ -35,6 +36,14 @@ export const api = {
   settingsAgentDisconnect: (from: string, to: string) => send<SR>("POST", `/settings/agents/disconnect`, { from, to }),
   settingsAgentResetLines: () => send<SR>("POST", `/settings/agents/reset-lines`, {}),
   settingsAgentMove: (n: string, b: { parent?: string; x?: number; y?: number }) => send<SR>("POST", `/settings/agents/${n}/move`, b),
+  claudeWho: () => send<{ profile: string; profileFull: string; loggedIn: boolean; email: string; org: string; plan: string; method: string; interactive: string }>("GET", "/settings/claude"),
+  claudeRun: (line: string) => send<{ ok: boolean; out: string }>("POST", "/settings/claude/run", { line }),
+  mcpList: () => send<{ ok: boolean; rows: McpRow[]; reason?: string }>("GET", "/settings/mcp"),
+  mcpLogin: (name: string) => send<{ ok: boolean; out: string; url?: string }>("POST", "/settings/mcp/login", { name }),
+  mcpLoginPaste: (name: string, url: string) => send<{ ok: boolean; out: string }>("POST", "/settings/mcp/login/paste", { name, url }),
+  mcpLogout: (name: string) => send<{ ok: boolean; out: string }>("POST", "/settings/mcp/logout", { name }),
+  pluginsInstalled: () => send<PluginRow[]>("GET", "/settings/plugins/installed"),
+  pluginAct: (act: "enable" | "disable", id: string) => send<{ ok: boolean; out: string }>("POST", "/settings/plugins/act", { act, id }),
   settingsRules: (b: Record<string, unknown>) => send<SR>("PUT", "/settings/rules", b),
   settingsIntegration: (id: string, b: Record<string, unknown>) => send<SR>("PUT", `/settings/integrations/${id}`, b),
   settingsPlugin: (name: string, agents: string[]) => send<SR>("PUT", `/settings/plugins/${encodeURIComponent(name)}`, { agents }),

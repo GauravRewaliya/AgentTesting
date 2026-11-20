@@ -16,7 +16,7 @@ export const CONFIG = {
   //   - a CLAUDE_CONFIG_DIR exported in your shell is ignored (the harness prints a warning);
   //   - old sessions stay in their old folder and are still found for resume;
   //   - the usage limit is per account: a "hit your limit" failure is the account, not the prompt.
-  claudeProfile: "",
+  claudeProfile: "-personal",
   orchestrator: "f3_multiagent",
   approach: "a3_native_mod",
   stateVersion: "v3",

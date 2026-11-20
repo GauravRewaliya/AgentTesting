@@ -22,7 +22,7 @@ const GH_WRITE = ["merge_pull_request", "push_files", "create_or_update_file", "
 const JIRA_WRITE = ["createJiraIssue", "editJiraIssue", "transitionJiraIssue", "addCommentToJiraIssue", "addWorklogToJiraIssue", "createIssueLink", "createConfluencePage", "updateConfluencePage", "createConfluenceFooterComment", "createConfluenceInlineComment"];
 /** The tools the guard hook is registered for: the file tools and Bash, plus the watched MCP tools when rules are on. */
 /** The same tools by every name they can have: the token integrations (`mcp__github__`, `mcp__jira__`) and the Claude plugins (`mcp__plugin_<plugin>_<server>__`: the github plugin, the design plugin's atlassian). */
-const GH_PREFIX = ["mcp__github__", "mcp__plugin_github_github__"], JIRA_PREFIX = ["mcp__jira__", "mcp__plugin_design_atlassian__", "mcp__plugin_atlassian_atlassian__"];
+const GH_PREFIX = ["mcp__github__", "mcp__plugin_github_github__", "mcp__claude_ai_GitHub__"], JIRA_PREFIX = ["mcp__jira__", "mcp__plugin_design_atlassian__", "mcp__plugin_atlassian_atlassian__", "mcp__claude_ai_Atlassian__", "mcp__claude_ai_Jira__"];
 export const guardTools = (p: GuardPolicy): string[] => ["Read", "Glob", "Grep", "Bash", ...(p.rules ? [...GH_PREFIX.flatMap((x) => GH_WRITE.map((n) => x + n)), ...JIRA_PREFIX.flatMap((x) => JIRA_WRITE.map((n) => x + n))] : [])];
 export const DEFAULT_GUARD: GuardPolicy = { denyRead: [".env", ".env.*", "*.pem", "id_rsa*", "id_ed25519*", ".npmrc", ".netrc", "credentials.json"], jailToWorkspace: true };
 
