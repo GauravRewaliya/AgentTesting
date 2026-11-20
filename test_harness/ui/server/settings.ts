@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { AGENTS_DIR } from "@core/config.ts";
 import { loadAgentsRaw, claudeEnv } from "@core/orchestrator.ts";
+import { DEFAULT_RULES, type Rules } from "../../core/orchistraitor/f3_multiagent/harness/leadkit/guard.ts";
 import { AGENT_NAME, HOME_DIR, INTEGRATIONS, installedPlugins, pluginSupported, USER_AGENTS_DIR, USER_SKILLS_DIR, cloneAgent, readSettings, reaches, removeUserAgent, secretInfo, secretValue, setSecret, updateSettings, type IntegrationId } from "@core/userhome.ts";
 import { readdirSync } from "node:fs";
 
@@ -41,10 +42,22 @@ export async function scanConnectors() {
   } catch { connectors = []; }
   return ok();
 }
+const RULE_FLAGS = ["noForcePush", "noDeleteBranch", "noMerge", "noPushProtected", "noPush", "jiraReadOnly"] as const;
+/** Safety rules: only these keys, booleans and a clean branch list are saved; "reset" goes back to the defaults. */
+export function setRules(b: Partial<Rules> & { reset?: boolean }) {
+  updateSettings((s) => {
+    if (b.reset) { delete s.rules; return; }
+    const cur = { ...(s.rules ?? {}) } as Record<string, unknown>;
+    for (const k of RULE_FLAGS) if (typeof b[k] === "boolean") cur[k] = b[k];
+    if (Array.isArray(b.protectedBranches)) cur.protectedBranches = [...new Set(b.protectedBranches.map((x) => String(x).trim()).filter((x) => /^[\w./-]{1,80}$/.test(x)))].slice(0, 20);
+    s.rules = cur as Partial<Rules>;
+  });
+  return ok();
+}
 export function state() {
   const skills = existsSync(USER_SKILLS_DIR) ? readdirSync(USER_SKILLS_DIR).filter((n) => existsSync(join(USER_SKILLS_DIR, n, "SKILL.md"))) : [];
   const ps = readSettings().plugins;
-  return { home: HOME_DIR, agents: agents(), integrations: integrations(), skills, plugins: installedPlugins().map((p) => ({ name: p.name, version: p.version, scope: p.scope, supported: pluginSupported(p.name), agents: pluginSupported(p.name) ? ps[p.name] ?? [] : [] })), connectors };
+  return { home: HOME_DIR, rules: { ...DEFAULT_RULES, ...readSettings().rules } as Rules, defaults: DEFAULT_RULES, agents: agents(), integrations: integrations(), skills, plugins: installedPlugins().map((p) => ({ name: p.name, version: p.version, scope: p.scope, supported: true, agents: ps[p.name] ?? [], servers: p.servers.map((n) => ({ name: n, agents: ps[`${p.name}:${n}`] ?? [] })) })), connectors };
 }
 const find = (name: string) => agents().find((a) => a.name === name);
 const fail = (reason: string) => ({ ok: false as const, reason });
@@ -108,11 +121,11 @@ export function remove(name: string) {
   removeUserAgent(name); updateSettings((s) => { delete s.positions[name]; s.disabled = s.disabled.filter((x) => x !== name); for (const i of Object.values(s.integrations)) if (i) i.agents = i.agents.filter((x) => x !== name); }); return ok();
 }
 
-export function setPlugin(name: string, agentsOn: string[]) {
-  if (!installedPlugins().some((p) => p.name === name)) return fail("that plugin is not installed in your Claude profile");
-  if (!pluginSupported(name) && agentsOn.length) return fail("not supported yet: it stays off and is never used. Only Figma, GitHub and Jira can be switched on for now");
+/** `key` = `<plugin>` (the plugin's skills) or `<plugin>:<server>` (one of its MCP servers). Only the ticked agents get it; the lead may be ticked. */
+export function setPlugin(key: string, agentsOn: string[]) {
+  if (!pluginSupported(key)) return fail("that plugin (or server) is not installed in your Claude profile");
   const names = new Set(agents().map((a) => a.name));
-  updateSettings((s) => { const l = agentsOn.filter((n) => names.has(n) && n !== "lead" && n !== "pm"); if (l.length) s.plugins[name] = l; else delete s.plugins[name]; }); return ok();
+  updateSettings((s) => { const l = agentsOn.filter((n) => names.has(n) && n !== "pm"); if (l.length) s.plugins[key] = l; else delete s.plugins[key]; }); return ok();
 }
 export function setIntegration(id: string, b: { enabled?: boolean; agents?: string[]; site?: string; email?: string; token?: string }) {
   const d = INTEGRATIONS.find((x) => x.id === id); if (!d) return fail("unknown integration");
@@ -120,7 +133,7 @@ export function setIntegration(id: string, b: { enabled?: boolean; agents?: stri
   const names = new Set(agents().map((a) => a.name));
   updateSettings((s) => {
     const cur = s.integrations[d.id] ?? { enabled: false, agents: [] };
-    s.integrations[d.id] = { ...cur, ...(b.enabled !== undefined ? { enabled: b.enabled } : {}), ...(b.agents ? { agents: b.agents.filter((n) => names.has(n) && n !== "lead" && n !== "pm") } : {}), ...(b.site !== undefined ? { site: b.site.trim() } : {}), ...(b.email !== undefined ? { email: b.email.trim() } : {}) };
+    s.integrations[d.id] = { ...cur, ...(b.enabled !== undefined ? { enabled: b.enabled } : {}), ...(b.agents ? { agents: b.agents.filter((n) => names.has(n) && n !== "pm") } : {}), ...(b.site !== undefined ? { site: b.site.trim() } : {}), ...(b.email !== undefined ? { email: b.email.trim() } : {}) };
     if (b.token === "") s.integrations[d.id]!.enabled = false;
   });
   return ok();

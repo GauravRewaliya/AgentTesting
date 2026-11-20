@@ -9,6 +9,7 @@
 //   - a timeout or killAll() kills the container by name (stopping the docker client alone would leave it running).
 import { spawn, spawnSync } from "node:child_process";
 import { usesTeamCommands } from "./agents.ts";
+import { LOOSE_MCP } from "../../../../../userhome.ts";
 import { dirname, resolve } from "node:path";
 import { LSP_PLUGIN_DIR, RealRunner, claudeProfile, lspArgs, wantsLsp } from "./runner.ts";
 import type { RunCall, RunResult } from "./types.ts";
@@ -30,10 +31,10 @@ export class DockerRunner extends RealRunner {
   override killAll() { for (const n of this.names) spawnSync("docker", ["kill", n], { timeout: 20_000 }); super.killAll(); }
   protected override spawnOne(c: RunCall): Promise<RunResult> {
     if (!sandboxable(c)) return super.spawnOne(c);   // lead / delegating agents: host, as before
-    const claudeArgs = ["-p", c.prompt, "--output-format", "json", "--model", c.agent.model, "--setting-sources", "", "--strict-mcp-config", "--append-system-prompt-file", c.agent.prompt_file,
+    const claudeArgs = ["-p", c.prompt, "--output-format", "json", "--model", c.agent.model, "--setting-sources", "", ...(c.extraArgs?.includes(LOOSE_MCP) ? [] : ["--strict-mcp-config"]), "--append-system-prompt-file", c.agent.prompt_file,
       "--tools", c.agent.tools.join(","), "--permission-mode", "dontAsk",
       ...(c.stateless ? ["--no-session-persistence"] : c.session.fork_from ? ["--resume", c.session.fork_from, "--fork-session", "--session-id", c.session.id] : [c.session.resume ? "--resume" : "--session-id", c.session.id]),
-      ...(c.extraArgs ?? []), ...lspArgs(c), "--allowedTools", ...c.agent.allow];
+      ...(c.extraArgs ?? []).filter((x) => x !== LOOSE_MCP), ...lspArgs(c), "--allowedTools", ...c.agent.allow];
     const name = `claude-${c.agent.name}-${Date.now().toString(36)}`; this.names.add(name);
     return new Promise((resolve) => {
       const p = spawn("docker", dockerArgs(c, name, claudeArgs), { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, CLAUDE_PROFILE_DIR: claudeProfile() } })   /* compose mounts the SAME profile as the host runs (CONFIG.claudeProfile) */;

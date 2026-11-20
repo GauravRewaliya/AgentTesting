@@ -10,7 +10,7 @@ import { registerContext } from './context'
 import { registerDelegate } from './delegate'
 import { registerTeam, registerTools } from './team'
 import { armWake } from './wake'
-import { liteGuard } from './guard'
+import { guardTools, liteGuard } from './guard'
 
 export const register: Register = on => {
   registerDelegate(on)
@@ -22,7 +22,7 @@ export const register: Register = on => {
     return next(e)
   })
   registerCompose(on)
-  for (const tool of ['Read', 'Glob', 'Grep', 'Bash'] as const)
+  for (const tool of guardTools(CFG.guard as any))
     on('tool.call', { tool } as any, async ($: any, e: any, next: any) => {
       const v = liteGuard({ tool_name: tool, tool_input: e }, CFG.guard as any, { workspace: (await $.env.get('HARNESS_CWD')) ?? '' })
       return v.allow ? next(e) : { deny: v.reason }

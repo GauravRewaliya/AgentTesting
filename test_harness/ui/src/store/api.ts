@@ -35,6 +35,7 @@ export const api = {
   settingsAgentDisconnect: (from: string, to: string) => send<SR>("POST", `/settings/agents/disconnect`, { from, to }),
   settingsAgentResetLines: () => send<SR>("POST", `/settings/agents/reset-lines`, {}),
   settingsAgentMove: (n: string, b: { parent?: string; x?: number; y?: number }) => send<SR>("POST", `/settings/agents/${n}/move`, b),
+  settingsRules: (b: Record<string, unknown>) => send<SR>("PUT", "/settings/rules", b),
   settingsIntegration: (id: string, b: Record<string, unknown>) => send<SR>("PUT", `/settings/integrations/${id}`, b),
   settingsPlugin: (name: string, agents: string[]) => send<SR>("PUT", `/settings/plugins/${encodeURIComponent(name)}`, { agents }),
   promptCatalog: () => call<import("../../shared/prompttests").PtCatalog>("/prompt-tests"),

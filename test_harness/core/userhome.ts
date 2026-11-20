@@ -24,18 +24,37 @@ export const chromeProfile = (): string => { const h = join(HOME_DIR, "chrome-pr
 /** Output of the Artifact runs (moved here from test_harness/.state/artifact_runs). */
 export const ARTIFACT_RUNS = join(HOME_DIR, "artifact_runs");
 
+import { DEFAULT_RULES, type Rules } from "./orchistraitor/f3_multiagent/harness/leadkit/guard.ts";
 export type IntegrationId = "github" | "jira" | "figma";
 export interface IntegrationSetting { enabled: boolean; agents: string[]; site?: string; email?: string }
 /** `plugins`: name of an installed Claude plugin -> the agents it is loaded for (nothing ticked = not loaded) */
 export interface HomeSettings { disabled: string[]; positions: Record<string, { parent?: string; x?: number; y?: number }>; integrations: Partial<Record<IntegrationId, IntegrationSetting>>; plugins: Record<string, string[]>;
   /** the lines the person drew on the agents page (free like Vue Flow: any agent may call any agent, several parents allowed, loops allowed): `add` = a call the defaults do not have, `remove` = a default call switched off */
-  edges?: { add: [string, string][]; remove: [string, string][] } }
+  edges?: { add: [string, string][]; remove: [string, string][] };
+  /** safety rules for git / GitHub / Jira (what an agent may NOT do); missing keys = the defaults */
+  rules?: Partial<Rules> }
 const EMPTY = (): HomeSettings => ({ disabled: [], positions: {}, integrations: {}, plugins: {}, edges: { add: [], remove: [] } });
 
 export function readSettings(): HomeSettings {
   try { return { ...EMPTY(), ...JSON.parse(readFileSync(SETTINGS_FILE, "utf8")) }; } catch { return EMPTY(); }
 }
 export function writeSettings(s: HomeSettings) { mkdirSync(HOME_DIR, { recursive: true }); writeFileSync(SETTINGS_FILE, JSON.stringify(s, null, 1)); }
+/** One short block for the LEAD's prompt, built on the fly: only integrations that are added, switched on and ticked for at least one agent show up (nothing connected = no text at all).
+ *  `what` is the hint per integration; edit it here. The lead then knows what is connected and whom to ask. */
+const HINT: Record<IntegrationId, string> = {
+  github: "repos, pull requests and branches (clone, review, fix in the same PR, branch from a branch, open a PR)",
+  jira: "tickets and tasks (what is left, who has what); read-only",
+  figma: "design files and frames (read-only)",
+};
+export function integrationHints(): string {
+  if (!userHomeOn()) return "";
+  const s = readSettings(), rows = INTEGRATIONS.filter((d) => s.integrations[d.id]?.enabled && secretValue(d.id) && s.integrations[d.id]!.agents.length)
+    .map((d) => `- ${d.label} (${HINT[d.id]}): ${s.integrations[d.id]!.agents.join(", ")}`);
+  for (const [key, ags] of Object.entries(s.plugins)) if (ags.length && key.includes(":") && pluginSupported(key)) rows.push(`- ${key.replace(":", " / ")} (plugin): ${ags.join(", ")}`);
+  return rows.length ? `# Connected tools\nAsk the listed agent for work on these (the lead may use its own, for a quick look):\n${rows.join("\n")}` : "";
+}
+/** The rules every agent launch gets: the defaults, plus what the person set in Settings (only on runs the dashboard starts). */
+export const guardRules = (): Rules => ({ ...DEFAULT_RULES, ...(process.env.HARNESS_USER_HOME === "1" ? readSettings().rules : {}) });
 export const updateSettings = (f: (s: HomeSettings) => void): HomeSettings => { const s = readSettings(); f(s); writeSettings(s); return s; };
 
 // ---- secrets: written 600, read only by `integrationLaunch` and the connection test; `secretInfo` is all an API may show
@@ -78,23 +97,45 @@ export function integrationLaunch(agent: string): { args: string[]; allow: strin
   return Object.keys(servers).length ? { args: ["--mcp-config", JSON.stringify({ mcpServers: servers })], allow } : { args: [], allow: [] };
 }
 // ---- the user's own Claude plugins (installed through Claude itself, kept in the Claude profile = the volume): listed here, loaded per agent with --plugin-dir
-export interface InstalledPlugin { name: string; version: string; scope: string; dir: string; profile: string }
+export interface InstalledPlugin { name: string; version: string; scope: string; dir: string; profile: string; /** MCP servers the plugin brings (its .mcp.json): each can be ticked on its own */ servers: string[] }
+/** the MCP servers a plugin folder declares (.mcp.json, either `{mcpServers:{..}}` or `{..}`) */
+const pluginServers = (dir: string): string[] => { try { const j = JSON.parse(readFileSync(join(dir, ".mcp.json"), "utf8")); return Object.keys(j.mcpServers ?? j); } catch { return []; } };
 const profiles = (): string[] => [...new Set([process.env.CLAUDE_CONFIG_DIR, join(homedir(), ".claude"), join(homedir(), ".claude-personal")].filter((x): x is string => !!x))];
 export function installedPlugins(): InstalledPlugin[] {
   const out = new Map<string, InstalledPlugin>();
   for (const prof of profiles()) {
     let d: { plugins?: Record<string, { scope?: string; version?: string; installPath?: string }[]> }; try { d = JSON.parse(readFileSync(join(prof, "plugins", "installed_plugins.json"), "utf8")); } catch { continue; }
-    for (const [name, v] of Object.entries(d.plugins ?? {})) { const x = v[0]; if (x?.installPath && existsSync(x.installPath) && !out.has(name)) out.set(name, { name, version: x.version ?? "", scope: x.scope ?? "user", dir: x.installPath, profile: prof }); }
+    for (const [name, v] of Object.entries(d.plugins ?? {})) { const x = v[0]; if (x?.installPath && existsSync(x.installPath) && !out.has(name)) out.set(name, { name, version: x.version ?? "", scope: x.scope ?? "user", dir: x.installPath, profile: prof, servers: pluginServers(x.installPath) }); }
+    // plugins your Claude account syncs to this profile (plugins/synced/<org>/<id>/.claude-plugin/plugin.json): they are not in installed_plugins.json
+    const sy = join(prof, "plugins", "synced");
+    const subdirs = (d: string): string[] => { try { return readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name); } catch { return []; } };
+    for (const a of subdirs(sy)) for (const b of subdirs(join(sy, a))) {
+      const dir = join(sy, a, b); let j: { name?: string; version?: string }; try { j = JSON.parse(readFileSync(join(dir, ".claude-plugin", "plugin.json"), "utf8")); } catch { continue; }
+      if (j.name && !out.has(j.name)) out.set(j.name, { name: j.name, version: j.version ?? "", scope: "synced", dir, profile: prof, servers: pluginServers(dir) });
+    }
   }
   return [...out.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
-/** Which of the user's Claude plugins may be switched ON. EMPTY for now: everything the user has is listed in Settings but stays OFF and is never used (the only things that can be enabled are the integrations: Figma, GitHub, Jira). Add a name here to open one up. */
-export const SUPPORTED_PLUGINS = new Set<string>();
-export const pluginSupported = (name: string): boolean => SUPPORTED_PLUGINS.has(name);
-/** `--plugin-dir` for the installed plugins ticked for this agent (only supported ones). */
-export function pluginArgs(agent: string): string[] {
-  const s = readSettings(), have = new Map(installedPlugins().map((p) => [p.name, p]));
-  return Object.entries(s.plugins).filter(([n, ags]) => ags.includes(agent) && have.has(n) && pluginSupported(n)).flatMap(([n]) => ["--plugin-dir", have.get(n)!.dir]);
+/** A plugin (or one of its MCP servers) can be ticked when it is installed in the profile. The tick key is `<plugin>` or `<plugin>:<server>`. */
+export const pluginSupported = (key: string): boolean => installedPlugins().some((p) => p.name === key.split(":")[0] && (!key.includes(":") || p.servers.includes(key.slice(key.indexOf(":") + 1))));
+/** The runner drops this marker from the arguments; it means "do not pass --strict-mcp-config" (a ticked plugin's MCP server must be allowed to start). Every tool not allowed by name stays denied. */
+export const LOOSE_MCP = "--harness-plugin-mcp";
+const toolName = (s: string) => s.replace(/@.*$/, "").replace(/[^A-Za-z0-9_-]/g, "_");
+/** What the plugins ticked for this agent add: `--plugin-dir`, the marker when a server is ticked, and one allow entry per ticked server (`mcp__plugin_<plugin>_<server>`); nothing ticked = nothing. */
+export function pluginLaunch(agent: string): { args: string[]; allow: string[] } {
+  const s = readSettings(), have = new Map(installedPlugins().map((p) => [p.name, p])), dirs = new Set<string>(), allow: string[] = [];
+  for (const [key, ags] of Object.entries(s.plugins)) {
+    if (!ags.includes(agent) || !pluginSupported(key)) continue;
+    const [n, srv] = [key.split(":")[0]!, key.includes(":") ? key.slice(key.indexOf(":") + 1) : ""];
+    dirs.add(have.get(n)!.dir); if (srv) allow.push(`mcp__plugin_${toolName(n)}_${toolName(srv)}`);
+  }
+  return dirs.size ? { args: [...[...dirs].flatMap((d) => ["--plugin-dir", d]), ...(allow.length ? [LOOSE_MCP] : [])], allow } : { args: [], allow: [] };
+}
+/** Integrations + ticked plugins for ONE agent, without the user's own skills (the lead uses this). */
+export function toolsLaunch(agent: string): { args: string[]; allow: string[] } {
+  if (!userHomeOn()) return { args: [], allow: [] };
+  const i = integrationLaunch(agent), p = pluginLaunch(agent);
+  return { args: [...i.args, ...p.args], allow: [...i.allow, ...p.allow] };
 }
 
 /** The user's skills as a Claude plugin (`--plugin-dir`): a plugin.json is written on the fly the first time there is a skill. */
@@ -108,8 +149,8 @@ export const userHomeOn = (): boolean => process.env.HARNESS_USER_HOME === "1";
 /** Everything the launch of agent `name` takes from the user home (empty when the layer is off). */
 export function homeLaunch(name: string): { args: string[]; allow: string[] } {
   if (!userHomeOn()) return { args: [], allow: [] };
-  const i = integrationLaunch(name);
-  return { args: [...i.args, ...skillsPlugin(), ...pluginArgs(name)], allow: i.allow };
+  const t = toolsLaunch(name);
+  return { args: [...t.args, ...skillsPlugin()], allow: t.allow };
 }
 
 // ---- the agent layer

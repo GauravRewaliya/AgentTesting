@@ -3,6 +3,7 @@
 // The `.claude` (the plugin folder) is built on the fly by harness/leadkit/build.ts into test_harness/core/.build/. The lead has NO Bash: its tools are the typed team tools + Agent / SendMessage + Read / Glob / Grep.
 // Everything else (prompt pieces, `--agents`, fixtures, locks, budget, the CLI) is the a2 / core code: A3 extends A2. Sub-agents stay `claude -p` (their skills and guard come from agentPlugin below).
 import { join } from "node:path";
+import { guardRules, integrationHints, toolsLaunch } from "@core/userhome.ts";
 import type { AgentDef } from "../../harness/core/base.ts";
 import { declarations, launchTools } from "../../harness/core/launch.ts";
 import { buildPlugin } from "../../harness/leadkit/build.ts";
@@ -19,7 +20,7 @@ const SPEC: ApproachSpec = { name: "a3_native_mod", delegate: "native-mod", hook
 
 /** The lead's plugin folder: the mod template + a generated config.ts + copies of the shared pure files (guard, team tool list). `agents` = the text of the agent list (a section of the system prompt). */
 export const buildLeadMod = (agents = ""): string => buildPlugin("team-lead", join(HERE, "mod"),
-  { "hooks/config.ts": `export const CFG = ${JSON.stringify({ tools: join(H, "tools.ts"), guard: GUARD, agents })} as const\n` },
+  { "hooks/config.ts": `export const CFG = ${JSON.stringify({ tools: join(H, "tools.ts"), guard: { ...GUARD, rules: guardRules() }, agents })} as const\n` },
   { "hooks/guard.ts": join(H, "leadkit", "guard.ts"), "hooks/team_tools.ts": join(H, "leadkit", "team_tools.ts") });
 
 export class A3 extends A2 {
@@ -30,13 +31,14 @@ export class A3 extends A2 {
   async describeLaunch(defs: Map<string, AgentDef>, o: Pick<LeadRun, "agents" | "maxDepth">): Promise<LeadLaunch> {
     const L = await super.describeLaunch(defs, o), def = defs.get("lead") as AgentDef, roles = o.agents ? { ...def, agents: o.agents } : def, t = launchTools(roles, 1, o.maxDepth);
     const agents = t.delegate ? `# Agent types you may call (subagent_type)\n${declarations(roles, defs)}` : "";
-    const mod = buildLeadMod(agents);
+    const mod = buildLeadMod([agents, integrationHints()].filter(Boolean).join("\n\n"));
     // the lead has no shell: drop every Bash rule, add the typed team tools (plugin tools are `mcp__team__*`, allowed as a rule, not listed in --tools)
-    const allow = [...new Set([...L.allow.filter((a) => !/^Bash\b/.test(a)), "mcp__team"])], tools = [...new Set(allow.filter((a) => !a.startsWith("mcp__")).map((a) => a.replace(/\(.*$/, "")))];
+    const home = toolsLaunch("lead");   // Settings > Integrations: the integrations and plugins ticked for the lead (nothing ticked = nothing)
+    const allow = [...new Set([...L.allow.filter((a) => !/^Bash\b/.test(a)), "mcp__team", ...home.allow])], tools = [...new Set(allow.filter((a) => !a.startsWith("mcp__")).map((a) => a.replace(/\(.*$/, "")))];
     const text = L.text.replace(/\n\n# Agent types you may call[\s\S]*$/, "\n");   // the agent list is a prompt section now (prompt.compose); a lead without sub-agents keeps a2's "no sub-agents" line
     // from a2 keep --agents; replace its hook settings by the shared activity hook only (the mod does the rest) and load the plugin
     const settings = { hooks: { PostToolUse: [{ matcher: "*", hooks: [{ type: "command", command: `bun --smol ${join(H, "hooks", "activity.ts")}` }] }] } };
-    return { ...L, text, allow, tools, extra: (env) => { const a = L.extra(env), i = a.indexOf("--settings"); a.splice(i, 2, "--settings", JSON.stringify(settings)); return [...a, "--plugin-dir", mod]; } };
+    return { ...L, text, allow, tools, extra: (env) => { const a = L.extra(env), i = a.indexOf("--settings"); a.splice(i, 2, "--settings", JSON.stringify(settings)); return [...a, "--plugin-dir", mod, ...home.args]; } };
   }
 
   /** What the lead reads each turn: the shared pieces only (the command list is the tools' schemas now; notes, running agents and bg tasks come from the mod's context hook). */

@@ -90,6 +90,7 @@ Bun.serve({
       if (p === "/settings/scan-connectors" && m === "POST") return send(await st.scanConnectors());
       if ((r = p.match(/^\/settings\/plugins\/([^/]+)$/)) && m === "PUT") return send(st.setPlugin(decodeURIComponent(r[1]!), ((await req.json()) as { agents?: string[] }).agents ?? []));
       if ((r = p.match(/^\/settings\/plugins\/([^/]+)$/)) && m === "PUT") return send(st.setPlugin(decodeURIComponent(r[1]!), ((await req.json()) as { agents: string[] }).agents ?? []));
+      if (p === "/settings/rules" && m === "PUT") return send(st.setRules((await req.json()) as never));
       if ((r = p.match(/^\/settings\/integrations\/(\w+)$/)) && m === "PUT") return send(st.setIntegration(r[1]!, (await req.json()) as never));
       if ((r = p.match(/^\/settings\/integrations\/(\w+)\/test$/)) && m === "POST") return send(await st.testIntegration(r[1]!));
       if (p === "/browser") return send(await br.overview());

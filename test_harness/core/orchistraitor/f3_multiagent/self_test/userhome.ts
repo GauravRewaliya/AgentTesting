@@ -28,7 +28,7 @@ const r0 = st.setIntegration("github", { token: "ghp_abcdefgh1234", enabled: tru
 const json = JSON.stringify(st.state());
 t("uh.11", "a token is stored, shown only as has_token + last4, never returned", r0.ok === true && json.includes('"last4":"1234"') && !json.includes("ghp_abcdefgh"));
 t("uh.12", "secrets.json is mode 600 and settings.json holds no token", (statSync(uh.SECRETS_FILE).mode & 0o777) === 0o600 && !readFileSync(uh.SETTINGS_FILE, "utf8").includes("ghp_"));
-t("uh.13", "lead/unknown agents cannot be ticked", JSON.stringify(uh.readSettings().integrations.github!.agents) === '["builder"]');
+t("uh.13", "the lead can be ticked, unknown agents cannot", JSON.stringify(uh.readSettings().integrations.github!.agents) === '["builder","lead"]');
 process.env.HARNESS_USER_HOME = "1";
 const lb = uh.homeLaunch("builder"), lr = uh.homeLaunch("researcher");
 t("uh.14", "only the ticked agent gets the MCP server + allow entry", lb.args[0] === "--mcp-config" && lb.allow[0] === "mcp__github" && lr.args.length === 0 && lr.allow.length === 0);
@@ -44,10 +44,14 @@ t("uh.19", "figma = local stdio server (pnpm dlx) with the key in its env only",
 t("uh.20", "jira = remote http server with Basic base64(email:token); github = remote http with a bearer token", lj.jira.type === "http" && lj.jira.headers.Authorization === "Basic " + Buffer.from("a@b.c:atl_tok_12345678").toString("base64") && uh.INTEGRATIONS.find((d) => d.id === "github")!.server({ enabled: true, agents: [] }, "tok") ["url" as never] === "https://api.githubcopilot.com/mcp/");
 t("uh.21", "the three integrations are offered, and none of them returns a token through the API", uh.INTEGRATIONS.map((d) => d.id).join() === "figma,github,jira" && !JSON.stringify(st.state()).includes("figd_testtoken99") && !JSON.stringify(st.state()).includes("atl_tok_"));
 delete process.env.HARNESS_USER_HOME;
-const plug = uh.installedPlugins();
-t("uh.22", "NOTHING of the user's own plugins can be switched on for now: listed, supported:false, tick refused", st.state().plugins.every((p) => p.supported === false && p.agents.length === 0) && (plug.length === 0 || st.setPlugin(plug[0]!.name, ["builder"]).ok === false));
-{ // even a hand-edited settings.json cannot make an agent load a plugin
-  if (plug.length) { uh.updateSettings((x) => { x.plugins[plug[0]!.name] = ["builder"]; }); process.env.HARNESS_USER_HOME = "1"; t("uh.23", "a plugin written into settings.json by hand is still NOT loaded (only SUPPORTED_PLUGINS are)", !uh.homeLaunch("builder").args.includes("--plugin-dir") || uh.homeLaunch("builder").args.filter((a) => a === "--plugin-dir").length === (uh.skillsPlugin().length ? 1 : 0)); delete process.env.HARNESS_USER_HOME; }
-  t("uh.24", "connectors are listed (never supported) and the state has the key", Array.isArray(st.state().connectors) && st.state().connectors.every((c) => c.supported === false));
+const plug = uh.installedPlugins(), withSrv = plug.find((p) => p.servers.length);
+t("uh.22", "every installed plugin is listed and can be ticked; an unknown plugin or server is refused", st.state().plugins.every((p) => p.supported === true) && st.setPlugin("no-such-plugin:x", ["builder"]).ok === false && (!withSrv || st.setPlugin(withSrv.name + ":no-such-server", ["builder"]).ok === false));
+if (withSrv) {   // the lead can be ticked; only the ticked agent gets --plugin-dir, the no-strict marker and the allow entry of THAT server
+  const key = withSrv.name + ":" + withSrv.servers[0]!, tn = (x: string) => x.replace(/@.*$/, "").replace(/[^A-Za-z0-9_-]/g, "_");
+  process.env.HARNESS_USER_HOME = "1"; const r = st.setPlugin(key, ["lead"]);
+  const l = uh.toolsLaunch("lead"), bl = uh.toolsLaunch("builder");
+  t("uh.23", "ticked for the lead only: the lead gets the plugin dir, the marker and the server's allow entry; the builder gets nothing", r.ok === true && l.args.includes("--plugin-dir") && l.args.includes(uh.LOOSE_MCP) && l.allow.includes(`mcp__plugin_${tn(withSrv.name)}_${tn(withSrv.servers[0]!)}`) && bl.args.length === 0 && bl.allow.length === 0);
+  st.setPlugin(key, []); t("uh.24", "unticked = nothing again", uh.toolsLaunch("lead").args.length === 0); delete process.env.HARNESS_USER_HOME;
 }
+t("uh.25", "connectors are listed (never supported) and the state has the key", Array.isArray(st.state().connectors) && st.state().connectors.every((c) => c.supported === false));
 const bad = results.filter((x) => !x.ok).length; console.log(`\n${results.length - bad}/${results.length} passed`); process.exit(bad ? 1 : 0);

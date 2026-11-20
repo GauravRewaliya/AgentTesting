@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { buildPlugin } from "../leadkit/build.ts";
 import { DEFAULT_GUARD, type GuardPolicy } from "../leadkit/guard.ts";
 import { AGENTS_DIR, TEST_AGENTS_DIR } from "@core/config.ts";
-import { HOME_DIR, userHomeOn } from "@core/userhome.ts";
+import { guardRules, HOME_DIR, userHomeOn } from "@core/userhome.ts";
 
 export const SKILLS_JSON = join(AGENTS_DIR, "..", "skills.json"), SHARED_SKILLS = join(AGENTS_DIR, "..", "skills");
 export interface SkillMount { skills: string[]; agents: string[]; when?: string }
@@ -38,7 +38,7 @@ export function skillsFor(agent: string, handover: string, mounts = loadMounts()
  *  declared for this agent (none = the guard alone). Free: no model call. `names` = the skills mounted. */
 export function skillArgs(agent: string, handover: string): { args: string[]; names: string[] } {
   const lib = skillLibrary(), names = skillsFor(agent, handover, loadMounts(), lib), H = join(import.meta.dir, "..", "leadkit");
-  const guard: GuardPolicy = { ...DEFAULT_GUARD, jailToWorkspace: false };   // a builder may read outside the workspace (docs, node_modules of a parent); secrets only
+  const guard: GuardPolicy = { ...DEFAULT_GUARD, jailToWorkspace: false, rules: guardRules() };   // a builder may read outside the workspace (docs, node_modules of a parent); secrets only
   const dir = buildPlugin(`agent-${agent}`, join(H, "agent_mod"), { "hooks/config.ts": `export const CFG = ${JSON.stringify({ guard })} as const\n` },
     { "hooks/guard.ts": join(H, "guard.ts"), ...Object.fromEntries(names.map((n) => [`skills/${n}`, lib.get(n)!])) });
   return { args: ["--plugin-dir", dir], names };

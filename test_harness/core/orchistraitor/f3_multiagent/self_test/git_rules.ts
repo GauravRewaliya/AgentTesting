@@ -1,0 +1,22 @@
+// FREE check (no model call) of the git / GitHub / Jira safety rules in harness/leadkit/guard.ts.  bun git_rules.ts
+import { DEFAULT_RULES, DEFAULT_GUARD, guardTools, liteGuard } from "../harness/leadkit/guard.ts";
+let bad = 0; const t = (n: string, ok: boolean) => { console.log((ok ? "PASS  " : "FAIL  ") + n); if (!ok) bad++; };
+const G = { ...DEFAULT_GUARD, jailToWorkspace: false, rules: DEFAULT_RULES }, ctx = { workspace: "/w" };
+const bash = (command: string, g = G) => liteGuard({ tool_name: "Bash", tool_input: { command } }, g, ctx).allow;
+const tool = (n: string, input: Record<string, unknown> = {}, g = G) => liteGuard({ tool_name: n, tool_input: input }, g, ctx).allow;
+t("force push (--force, -f, +ref) is blocked", !bash("git push --force origin feat") && !bash("git push -f origin feat") && !bash("git push origin +feat") && !bash("git push --force-with-lease origin feat"));
+t("a normal push of a feature branch is allowed", bash("git push -u origin feat/login"));
+t("push to a protected branch is blocked (main, HEAD:main, origin main)", !bash("git push origin main") && !bash("git push origin HEAD:main") && !bash("git add a && git push origin master"));
+t("a branch named like main (maintenance, domain) is not mistaken for it", bash("git push origin maintenance") && bash("git push origin feat/main-menu"));
+t("deleting a branch is blocked (local, remote, :ref, gh api DELETE, repo delete)", !bash("git branch -D old") && !bash("git push origin --delete old") && !bash("git push origin :old") && !bash("gh api -X DELETE repos/o/r/git/refs/heads/x") && !bash("gh repo delete o/r --yes"));
+t("merging a PR is blocked, creating one is not", !bash("gh pr merge 12 --squash") && bash("gh pr create --base main --head feat --title t --body b") && bash("gh pr view 12"));
+t("reading git stays free (status, log, diff, clone, switch -c)", bash("git status && git log -3") && bash("git clone https://github.com/o/r") && bash("git switch -c fix/a origin/feat"));
+t("noPush blocks every push", !bash("git push origin feat", { ...G, rules: { ...DEFAULT_RULES, noPush: true } }));
+t("a rule switched off lets the command through", bash("git push --force origin feat", { ...G, rules: { ...DEFAULT_RULES, noForcePush: false } }));
+t("no rules in the policy = nothing checked", liteGuard({ tool_name: "Bash", tool_input: { command: "git push -f origin main" } }, { ...DEFAULT_GUARD }, ctx).allow);
+t("GitHub tools: merge and writes to main are blocked, a feature branch write is allowed", !tool("mcp__github__merge_pull_request", {}) && !tool("mcp__github__push_files", { branch: "main" }) && tool("mcp__github__push_files", { branch: "feat/x" }) && tool("mcp__github__get_pull_request"));
+t("Jira is read-only: create / edit / transition blocked, search allowed", !tool("mcp__jira__createJiraIssue") && !tool("mcp__jira__transitionJiraIssue") && tool("mcp__jira__searchJiraIssuesUsingJql"));
+t("Jira writes pass when read-only is switched off", tool("mcp__jira__createJiraIssue", {}, { ...G, rules: { ...DEFAULT_RULES, jiraReadOnly: false } }));
+t("the hook watches the MCP write tools only when rules are on", guardTools(G).includes("mcp__github__merge_pull_request") && !guardTools(DEFAULT_GUARD).some((n) => n.startsWith("mcp__")));
+t("the same rules hold for the Claude plugins' tool names (github plugin, design plugin atlassian)", !tool("mcp__plugin_github_github__merge_pull_request") && !tool("mcp__plugin_design_atlassian__createJiraIssue") && tool("mcp__plugin_design_atlassian__getJiraIssue") && guardTools(G).includes("mcp__plugin_design_atlassian__editJiraIssue"));
+console.log(bad ? `${bad} FAILED` : "all passed"); process.exit(bad ? 1 : 0);

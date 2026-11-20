@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { RunCall, RunResult, Runner } from "./types.ts";
 import { CONFIG } from "../../../../../config.ts";
+import { LOOSE_MCP } from "../../../../../userhome.ts";
 import { cliErrorText, isAccountFatal } from "./parse.ts";
 
 /** Set when a call fails because the account is out of credits / logged out: new calls fail at once (no process, no waiting) until it expires. */
@@ -89,12 +90,12 @@ export class RealRunner implements Runner {
   }
   protected spawnOne(c: RunCall): Promise<RunResult> {   // protected: DockerRunner (docker_runner.ts) starts the same claude call inside a container
     const args = ["-p", c.prompt, "--output-format", "json", "--model", c.agent.model,
-      "--setting-sources", "", "--strict-mcp-config", "--append-system-prompt-file", c.agent.prompt_file,
+      "--setting-sources", "", ...(c.extraArgs?.includes(LOOSE_MCP) ? [] : ["--strict-mcp-config"]), "--append-system-prompt-file", c.agent.prompt_file,   // a ticked plugin MCP server may start (LOOSE_MCP); tools not allowed by name stay denied
       "--tools", c.agent.tools.join(","), "--permission-mode", "dontAsk",
       ...(c.stateless ? ["--no-session-persistence"]
         : c.session.fork_from ? ["--resume", c.session.fork_from, "--fork-session", "--session-id", c.session.id]
         : [c.session.resume ? "--resume" : "--session-id", c.session.id]),
-      ...(c.extraArgs ?? []), ...lspArgs(c), ...storeDirArgs(c),
+      ...(c.extraArgs ?? []).filter((x) => x !== LOOSE_MCP), ...lspArgs(c), ...storeDirArgs(c),
       "--allowedTools", ...c.agent.allow];
     return new Promise((resolve) => {
       const resumeId = c.stateless ? undefined : c.session.fork_from ?? (c.session.resume ? c.session.id : undefined), profile = resumeId ? profileOfSession(resumeId) : undefined;   // continue a session IN the profile that holds it
