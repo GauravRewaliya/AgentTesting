@@ -1,4 +1,5 @@
 .*/
+!.claude-plugin/
 # agent prompts are code: keep every harness agent's .claude/CLAUDE.md + settings.json in git (vendored skills/ stay out)
 !test_harness/core/agents/main_flow_agents/*/.claude/
 test_harness/core/agents/main_flow_agents/*/.claude/skills/

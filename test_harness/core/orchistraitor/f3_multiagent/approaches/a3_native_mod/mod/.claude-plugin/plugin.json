@@ -1,0 +1,1 @@
+{ "name": "team", "version": "0.1.0", "description": "The lead's team mod: the Agent / SendMessage tools are answered by the shared delegate (fixtures, locks, budget), a lite guard for reads, a monitor while a call waits" }
