@@ -179,3 +179,46 @@ The lead uses Claude's own `Agent` / `SendMessage` tools, but they never reach C
 
 ### a3_native_mod and the build folder (2026-11-20)
 New approach `a3_native_mod` (see `approaches/README.md`): the lead's `.claude` (a plugin folder with a mod) is built on the fly into `test_harness/core/.build/` (git-ignored) by `harness/leadkit/build.ts`; sub-agent skills use the same builder. Probe + first real run done, offline check `self_test/approach_a3.ts` 5/5. `orchistraitor/` cleanup analysis: `f1_multiagent` (189 files), `f2_stages` and `loop_ferry_f_1` are imported by no live code (only docs mention them); `harness_own_custom` is still imported (`TestCases/types.ts`, `core/types.ts`, `paths.ts`, `fixtures.ts`, `fixture_gate.ts`), keep it. Nothing was deleted: moving the three unused folders to a legacy place is waiting for the person's yes (CLAUDE.md calls f1 frozen).
+
+## Mods: what we use, what the engine offers, the gaps (study 2026-11-20, `CONFIG.approach` = a3_native_mod)
+Source: the mod API of the installed Claude Code 2.1.328 (`plugin-authoring` skill: `reference.md`, `types/claude-code.d.ts`). A web search was NOT done: the declaration file of the build we run is the authority, and the API is marked "early access, moves between releases" (regenerate the types after an update). Evidence of what works: `self_test/mod_probe/`, `self_test/approach_a3.ts`, `test_web_setup` (both cases PASS on a3).
+
+### Do we still need the `team` tools?
+Yes, but only as the CONTROL SURFACE OF OUR CORE, not as an interface the lead must type. The `team` commands (`harness/tools/*`) are how anything reaches the store, locks, worktrees, patches, plans and phases, background tasks, the browser, cost, fixtures and notes. A mod runs inside Claude Code and cannot see our store: it can only call the CLI (`$.process`). So the CLI/core stays. What the mod changes is HOW the lead reaches it:
+| | a1 | a2 | a3 now | a3 next |
+|---|---|---|---|---|
+| start / continue a sub-agent | Bash `team agent ...` | `Agent` + hook | `Agent` / `SendMessage` + mod, real result | same |
+| wait, plans, phases, patches, bg, browser, bug, say, peek, cost, ls/read_file/grep | Bash `team ...` + a 3 KB command list in every turn | the same | the same (Bash `team ...`) | typed tools registered by the mod (`$.tool.register`, served by `tool.run` through the same CLI): no Bash for the lead, no command list per turn (schemas load on demand), no shell quoting |
+So "team tools" shrink to a thin, typed layer over the same CLI; they do not disappear. Sub-agents are still `claude -p` with Bash `team` (the planner calls researcher / lookup / ux-designer that way); they could get their own built plugin (typed tools, guard, skills) the same way.
+
+### What the engine gives a mod, and where we stand
+| Power (event / noun) | Used by a3 now | Use for |
+|---|---|---|
+| `tool.call` (rewrite input, answer with a real result, deny) | YES: Agent, SendMessage, Read/Glob/Grep/Bash guard | done |
+| `$.process.run` / `spawn` (stream), `$.env`, `$.clock.every` | YES: delegate stream, monitor tick, HARNESS_CWD | done |
+| `.catch` gates (refuse when the mod fails) | YES on Agent / SendMessage / guard | done |
+| `$.tool.register` + `tool.run` (typed tools the model calls) | no | the `team` commands as tools (see above) |
+| `tool.offer` / `tool.list` (what tools the model sees) | no | hide Bash / Read from the lead, offer only the team tools; stronger than a deny |
+| `prompt.compose` (system prompt sections) | no | move the 3 KB command list and the agent list out of the static prompt, one section per approach, with cache boundaries |
+| `prompt.context` (blocks on the first user message), `prompt.submit` (rewrite every prompt) | no | inject, on EVERY turn, the team digest, running sub-agents (ids, role, what each does, silent for how long), background tasks (`bg list`), unread notes and the person's new messages; a1/a2 give the digest only on the first turn |
+| `turn.start` / `turn.step` / `turn.complete` | no | interrupts (stop a turn when a note arrives), a per-step budget, a Stop-like check that background agents are done |
+| `$.prompt.submit` | no | wake a quiet lead when a background agent finishes (instead of the lead polling `wait`) |
+| `session.start` / `session.end` / `session.stop` | no | register tools once, load state, tidy up the build folder, stop the sub-agents when the lead stops |
+| `$.agent.list()` (native agents with ids, status, parent) and `agent.spawn` / `agent.offer` events | no | show our agents next to native ones; refuse a native spawn (`agent.spawn`), so a failure of the mod never starts a real sub-agent (today the `.catch` gate does it) |
+| `$.session`, `$.store` (kept across sessions), `$.state` (per session) | no | remember the task id / plan id across a resume, session create / continue / fork |
+| `$.model.complete` / `fork` | no | a cheap side check (is the sub-agent stuck?) without a turn of the lead |
+| `$.command.register` (slash commands), `$.ui.*` (status line, panes, toast) | no | `/status`, `/peek`, a team pane; only useful in an interactive session, not in `claude -p` |
+| `$.skill` / plugin `skills/`, `agents/*.md`, `commands/` (loaded by the engine from the plugin folder) | sub-agent skills only (`core/agents/skills.json` -> `core/.build/skills-<agent>`) | the lead's own skills, native agent files |
+| `claude plugin validate` / `claude plugin test` | validate in `self_test/approach_a3.ts` | add `*.test.ts` for the mod (no model call) |
+
+### Gaps, in the order I would close them
+1. Per-turn context (digest, running sub-agents, bg, notes) through `prompt.submit` / `prompt.context`: the biggest quality gain, cheap.
+2. The `team` commands as typed tools + `tool.offer` to take Bash away from the lead: the biggest context and safety gain, medium.
+3. `prompt.compose` for the lead prompt (lead.md + the shared CLAUDE.md become sections).
+4. Interrupt and wake-up: `turn.step`, `$.prompt.submit`, the Stop-like check; today `Stop` exists only in the a2 hook and is off.
+5. One built plugin per sub-agent (skills, guard, typed tools) in `core/.build`, so sub-agents stop using Bash `team agent ...` for the planner's calls.
+6. Mod tests (`claude plugin test`) so a change is checked without a model call.
+Not possible / not wanted: running the real sub-agents inside Claude's own engine (`next(e)` on `Agent`) while keeping fixtures, locks and budget: those live in our core (a2_native_observe is that mode, without them).
+
+### Status 2026-11-20 (late): a3 is the default
+`CONFIG.approach` = `a3_native_mod`. Passing on a3 with fixture sub-agents (the lead is the only model call): `test_basic` 3/3, `test_basic_2` 4/4, `test_web_setup` 2/2. Not re-run on a3 yet: `test_handover` (a2: 8/9, `ho_5` failed), `test_expo_*` chains (a2: `expo_p1_plan` failed, the rest skipped). Back to a2: `"a2_native_hook"` in `test_harness/core/config.ts`, or `APPROACH=a2_native_hook` / `--approach=` for one run.
