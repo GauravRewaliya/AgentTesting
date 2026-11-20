@@ -98,7 +98,7 @@ const IDLE_CAP = 1.2;
 function encodeVideo(frames: { t: number; file: string }[], outDir: string, name = "session"): { video?: string; note?: string; len?: number } {
   if (!frames.length) return { note: "no frames: the page never painted" };
   if (spawnSync("which", ["ffmpeg"]).status !== 0) return { note: "ffmpeg is not installed on this machine: no video (screenshots still work)" };
-  const dur = (i: number) => Math.min(IDLE_CAP, Math.max(0.04, ((frames[i + 1]?.t ?? frames[i]!.t + 800) - frames[i]!.t) / 1000));
+  const dur = (i: number) => Math.min(IDLE_CAP, Math.max(0.001, ((frames[i + 1]?.t ?? frames[i]!.t + 800) - frames[i]!.t) / 1000));
   const list = frames.map((f, i) => `file '${f.file}'\nduration ${dur(i).toFixed(3)}`).join("\n") + `\nfile '${frames[frames.length - 1]!.file}'\n`;
   const vdir = dirname(frames[0]!.file), lf = join(vdir, "list.txt"); writeFileSync(lf, list);
   const out = join(outDir, `${name}.webm`), seg = join(vdir, "seg.webm"), q = (x: string) => `'${x.replace(/'/g, "'\\''")}'`;
@@ -246,14 +246,14 @@ export async function browse(o: BrowseOpts): Promise<{ ok: boolean; reason?: str
     if (o.sectionShots && outline) {   // one full-page shot + one picture per section (what a person scrolls through)
       const tag = o.tag ?? "page"; await ev("window.scrollTo(0, 0)");
       await save(`${tag}-full.png`, { x: 0, y: 0, width: w, height: Math.min(outline.doc_h, 9000) });
-      for (const sec of outline.sections.slice(0, o.sectionShots)) await save(`${tag}-section-${String(sec.i + 1).padStart(2, "0")}.png`, { x: 0, y: sec.y, width: w, height: Math.min(sec.h, 2400) });
+      if (outline.doc_h > h * 1.25) for (const sec of outline.sections.slice(0, o.sectionShots)) await save(`${tag}-section-${String(sec.i + 1).padStart(2, "0")}.png`, { x: 0, y: sec.y, width: w, height: Math.min(sec.h, 2400) });
     }
     if (recName) { await finalize(); vtotal = clipTotals.session ?? vtotalPrior; }   // a clip still on stays on: the next script carries on in the same file (`rec stop` ends it)
     if (failed) {   // evidence for later, for people and for agents that were not there: what failed, the picture (the failed row's), the console, and the page as it was
       const snap = [...results].reverse().find((r) => (r as { snapshot?: unknown }).snapshot) as { snapshot?: unknown } | undefined;
       try { writeFileSync(join(o.outDir, "failure.json"), JSON.stringify({ failed, picture: rows.find((r) => r.n === failed!.n)?.shot, not_run: notRun, console: [...new Set(logs)], page: snap?.snapshot ?? null, at: new Date().toISOString() }, null, 1)); } catch { /* evidence is best effort */ }
     }
-    const report = numbered ? writeReport(o.outDir, o.tag ?? "QA run", [...prior, ...rows], [...new Set(logs)].slice(0, 6), vtotal || vtotalPrior) : undefined; if (report) { try { const rj = join(o.outDir, "report.json"), j = JSON.parse(readFileSync(rj, "utf8")); j.video_totals = clipTotals; writeFileSync(rj, JSON.stringify(j, null, 1)); } catch { /* ok */ } }
+    const report = numbered ? writeReport(o.outDir, o.tag ?? "QA run", [...prior, ...rows], [...new Set(logs)].slice(0, 6), vtotal || vtotalPrior) : undefined; if (report) { try { const rj = join(o.outDir, "report.json"), j = JSON.parse(readFileSync(rj, "utf8")); j.video_totals = clipTotals; j.video_total = Math.round(Object.values(clipTotals).reduce((a, b) => a + b, 0) * 10) / 10; writeFileSync(rj, JSON.stringify(j, null, 1)); } catch { /* ok */ } }
     return { ok: !failed, reason: failed ? `step ${failed.n} "${failed.name}" failed: ${failed.reason}; ${notRun} later step(s) did NOT run (the page state is in the snapshot)` : undefined, failed, not_run: notRun, report, steps: numbered ? rows : undefined, video, video_note, recording: recName || undefined, clips: clipsDone.length ? clipsDone : undefined, shots, outline, results, console: [...new Set(logs)].slice(0, 6), cleaned, via };
   } catch (e) { return { ok: false, reason: String((e as Error).message).slice(0, 200), shots, results, console: logs }; }
   finally { if (o.freeze && cdp) await cdp.send("Page.setWebLifecycleState", { state: "frozen" }).catch(() => 0); cdp?.close(); proc?.kill("SIGKILL"); if (vdirOf) rmSync(vdirOf, { recursive: true, force: true }); if (dir) rmSync(dir, { recursive: true, force: true }); if (ownTab && ep) { await fetch(ep + "/json/close/" + ownTab).catch(() => 0); for (let i = 0; i < 12; i++) { const gone = await fetch(ep + "/json/list").then((r) => r.json() as Promise<Tab[]>).then((l) => !l.some((t) => t.id === ownTab)).catch(() => true); if (gone) break; await sleep(150); } } }   // the person's browser is left exactly as it was: wait until our tab is really gone
