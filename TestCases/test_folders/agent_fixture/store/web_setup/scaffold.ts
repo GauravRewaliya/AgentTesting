@@ -19,9 +19,13 @@ const NEG_PLAIN = String.raw`\b(?:no|skip|without|exclude|excluding|never)\s(?:[
 const NEG_VERB = String.raw`\b(?:not|don't|dont)\s(?:(?:add|use|include|install)\s)?(?:(?!(?:add|use|include|with|plus|but|yes)\b)[\w-]+(?:,\s*|[\s/]\s?)){0,5}`;
 /** Sentences that are NOT a choice, cut out before any word is looked for (found in a real run: "NOT wanted: JSX, E2E/Playwright/Cypress, ESLint, Prettier ..." was read as five chosen options):
  *  - a list that is negated as a whole: "NOT wanted: ...", "unwanted / excluded / not needed / don't want: ..." up to the end of the sentence;
+ *  - an ACCEPTANCE section (checks to run afterwards, "No eslint, prettier, playwright in package.json": the a3 lead wrote it and --cypress --playwright --prettier were added), cut to the end of the text;
+ *  - "none of eslint, prettier, playwright, cypress" (an ACCEPTANCE line of a hand-over: the a3 run read it as four chosen options, 2026-11-20);
  *  - a note about the PAST or a check, not an order: "You enabled jsx, cypress ...", "verify that no cypress, eslint ... remain". */
-const NOT_A_CHOICE = /\b(?:(?:do(?:es)? not|don't|dont) want|not (?:wanted|needed|required)|unwanted|excluded?|skipped)\b[^.\n]*|\b(?:you (?:enabled|added|turned on|used)|verify|check that|make sure|ensure)\b[^.\n]*/gi;
-const chosen = (t: string, word: string) => new RegExp(`(?<!${NEG_PLAIN})(?<!${NEG_VERB})\\b(?:${word})\\b`, "i").test(t.replace(NOT_A_CHOICE, " "));
+const NOT_A_CHOICE = /\bACCEPTANCE\b[\s\S]*|\b(?:(?:do(?:es)? not|don't|dont) want|not (?:wanted|needed|required)|unwanted|excluded?|skipped|none of)\b[^.\n]*|\b(?:you (?:enabled|added|turned on|used)|verify|check that|make sure|ensure)\b[^.\n]*/gi;
+/** A word followed by its answer: "ESLint NO; Prettier NO" (the a3 lead wrote its options as a table, 2026-11-20), "eslint: no", "prettier=off". An upper-case NO right after a word only, so "with no JSX" still goes to NEG_PLAIN. */
+const POSTFIX_NO = /\b[\w-]+\s*[:=]\s*(?:no|off|false)(?=\s*(?:[;,.)\n]|$))|\b[\w-]+\s+NO(?=\s*(?:[;,.)\n]|$))/g;   // the answer must END the clause: "ACCEPTANCE: no eslint/prettier" is a negator, not an answer
+const chosen = (t: string, word: string) => new RegExp(`(?<!${NEG_PLAIN})(?<!${NEG_VERB})\\b(?:${word})\\b`, "i").test(t.replace(NOT_A_CHOICE, " ").replace(POSTFIX_NO, " "));
 /** When the hand-over states the exact command (`create vue@latest shop-ui --ts --router`), those flags are the order: nothing is guessed from the words around it. */
 const statedFlags = (t: string): string[] | undefined => { const m = t.match(/create\s+vue@latest\s+[\w.-]+((?:\s+--[a-z-]+)+)/i); return m ? m[1]!.trim().split(/\s+/) : undefined; };
 /** create-vue feature flags from the words of the hand-over. [] + no "default/nothing else" = the options were never given. */

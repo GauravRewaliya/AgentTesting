@@ -1,3 +1,5 @@
+> **DEPRECATED (2026-11-20)**: see DEPRECATED.md in this folder. The live engine is ../f3_multiagent.
+
 # f1_multiagent
 
 ## Two engines live here (read this first)

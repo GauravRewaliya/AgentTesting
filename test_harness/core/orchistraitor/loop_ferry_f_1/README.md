@@ -1,3 +1,5 @@
+> **DEPRECATED (2026-11-20)**: see DEPRECATED.md in this folder. The live engine is ../f3_multiagent.
+
 # loop_ferry_f_1: the new harness WITHOUT multi-agent (test 1)
 
 Prototype + test of the architecture in `handbook/PLANS/20261105_ARCHITECTURE_PLAN.md`, the flow every task uses by default:

@@ -1,3 +1,5 @@
+> **DEPRECATED (2026-11-20)**: see DEPRECATED.md in this folder. The live engine is ../f3_multiagent.
+
 # f2_stages: f1 stages + an E2B runner (`--e2b`)
 
 Copy of `loop_ferry_f_1`. The loop/sessions/ledger stay here; `harness/core/e2b_runner.ts` runs `claude -p` inside an E2B sandbox, reusing loopferry (`~/projects/loopferry`, or `LOOPFERRY_DIR`): `claude-coding.ts` helpers, the `e2b` SDK, `E2B_API_KEY`/`E2B_TEMPLATE` from its `.env`.
