@@ -25,9 +25,9 @@ export type HookEvent = "PreToolUse" | "PostToolUse" | "UserPromptSubmit" | "Sto
 export interface ApproachSpec {
   name: string;
   /** shell-cli (a1): `team agent ...` in Bash. native-hook (a2): the Agent / SendMessage tools, answered by a hook. native-observe (a2): the native engine runs, hooks only watch. */
-  delegate: "shell-cli" | "native-hook" | "native-observe";
+  delegate: "shell-cli" | "native-hook" | "native-observe" | "native-mod";
   /** The hook events this approach turns on (a handler is code in the approach's hook file, never a per-command declaration). Stop and SessionStart are written but OFF until a real run shows they help. */
-  hooks: HookEvent[];
+  hooks: (HookEvent | string)[];   // a2: Claude Code hook events; a3: mod events (tool.call ...)
   /** The lite guard of the lead (harness/leadkit/guard.ts). Not a sandbox: it stops wrong moves such as reading .env. */
   guard: GuardPolicy | null;
   capabilities: Capabilities;

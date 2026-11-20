@@ -2,7 +2,7 @@
 // (reading .env / keys, leaving the workspace, starting a sub-agent through a shell command when a hook does that).
 // Pure, so it is free to test (self_test/approach_a2.ts). Called by the approach hooks (a2: approaches/a2_native_hook/hook.ts).
 // The policy is data: the approach's spec (approach_port.ts) names it, the adapter passes it to the hook as env HARNESS_GUARD (JSON).
-import { dirname, isAbsolute, join, resolve } from "node:path";
+// NO Node imports on purpose: a mod (approaches/a3_native_mod) runs this file in an engine without Node, and the a2 hook runs the same copy.
 
 export interface GuardPolicy {
   /** Names the lead may never read or print: a glob without "/" matches the file name anywhere, with "/" the whole path. */
@@ -18,6 +18,7 @@ export interface ToolCall { tool_name: string; tool_input: Record<string, unknow
 export type Verdict = { allow: true } | { allow: false; reason: string };
 
 const SUBCOMMANDS = "wait|all|list|info|peek|stop|update|patches";
+const norm = (p: string): string => { const out: string[] = []; for (const seg of p.split("/")) { if (!seg || seg === ".") continue; if (seg === "..") out.pop(); else out.push(seg); } return (p.startsWith("/") ? "/" : "") + out.join("/"); };
 const globRe = (g: string) => new RegExp("^" + g.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*\*/g, "\u0000").replace(/\*/g, "[^/]*").replace(/\u0000/g, ".*") + "$");
 const isPrivate = (path: string, deny: string[]) => deny.some((g) => globRe(g).test(g.includes("/") ? path : path.split("/").pop() ?? path));
 
@@ -32,9 +33,9 @@ function pathsOf(c: ToolCall): string[] {
 
 export function liteGuard(call: ToolCall, policy: GuardPolicy, ctx: { workspace: string }): Verdict {
   const deny = (reason: string): Verdict => ({ allow: false, reason: "GUARD: " + reason });
-  const ws = resolve(ctx.workspace), roots = [ws, join(dirname(ws), "store")];
+  const ws = norm(ctx.workspace), roots = [ws, norm(ws + "/../store")];
   for (const p of pathsOf(call)) {
-    const abs = isAbsolute(p) ? resolve(p) : resolve(ws, p);
+    const abs = norm(p.startsWith("/") ? p : ws + "/" + p);
     if (isPrivate(abs, policy.denyRead)) return deny(`${p.split("/").pop()} is private (keys and secrets). Ask the person for what you need instead of reading it.`);
     const wild = abs.search(/[*?[{]/), base = wild < 0 ? abs : abs.slice(0, wild).replace(/\/[^/]*$/, "") || "/";   // a glob is judged by the folder before its first wildcard
     if (policy.jailToWorkspace && !roots.some((r) => base === r || base.startsWith(r + "/"))) return deny(`${p} is outside the workspace. Read files with \`team ls | read_file | grep\` inside run_test/.`);

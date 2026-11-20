@@ -29,12 +29,14 @@ const SPEC_OBSERVE: ApproachSpec = { name: "a2_native_observe", delegate: "nativ
 export class A2 extends BaseApproach {
   readonly spec: ApproachSpec = SPEC;
   readonly promptDir = join(import.meta.dir, "prompts");
+  /** The approach's own lead prompt (a3 overrides it). */
+  protected headFile(observe: boolean): string { return resolve(observe ? "prompts/lead_native.md" : "prompts/lead.md", NAME).path; }
   protected get observe() { return this.spec.delegate === "native-observe"; }
 
   async describeLaunch(defs: Map<string, AgentDef>, o: Pick<LeadRun, "agents" | "maxDepth">): Promise<LeadLaunch> {
     const def = defs.get("lead") as AgentDef, roles = o.agents ? { ...def, agents: o.agents } : def, t = launchTools(roles, 1, o.maxDepth), observe = this.observe;
     const shared = (await Bun.file(def.prompt_file).text()).trimEnd();
-    const head = (await Bun.file(resolve(observe ? "prompts/lead_native.md" : "prompts/lead.md", NAME).path).text()).trimEnd();
+    const head = (await Bun.file(this.headFile(observe)).text()).trimEnd();
     const text = head + "\n\n# Team rules (same for every approach)\n" + shared
       + (t.delegate ? `\n\n# Agent types you may call (subagent_type)\n${declarations(roles, defs)}\n` : "\n\nYou have no sub-agents: answer without calling any.\n");
     // the lead's own settings.json (Bash(team *), Read ...) + the native tools; observe mode also lets the sub-agents' own tools run (their allow rules, without the team shell commands)

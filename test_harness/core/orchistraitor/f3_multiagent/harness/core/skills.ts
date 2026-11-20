@@ -1,10 +1,9 @@
-// SKILLS MOUNTED ON THE FLY: which skill goes to which agent is declared in ONE file, core/agents/skills.json. For each call the harness copies just the matching skills into a throwaway
-// plugin folder and the agent starts with `--plugin-dir <it>` (the same way the LSP plugin is loaded, runner.ts). An agent that is not listed, or whose hand-over does not match `when`,
+// SKILLS MOUNTED ON THE FLY: which skill goes to which agent is declared in ONE file, core/agents/skills.json. For each call the harness builds just the matching skills into a plugin
+// folder in core/.build and the agent starts with `--plugin-dir <it>` (the same way the LSP plugin is loaded, runner.ts). An agent that is not listed, or whose hand-over does not match `when`,
 // sees no skill at all, so its context holds only what it needs. Free: no model call. The mounted names are written as an event (skills.mounted) so a run shows what was offered.
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { createHash } from "node:crypto";
-import { tmpdir } from "node:os";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { buildPlugin } from "../leadkit/build.ts";
 import { AGENTS_DIR, TEST_AGENTS_DIR } from "@core/config.ts";
 
 export const SKILLS_JSON = join(AGENTS_DIR, "..", "skills.json"), SHARED_SKILLS = join(AGENTS_DIR, "..", "skills");
@@ -30,16 +29,12 @@ export function skillsFor(agent: string, handover: string, mounts = loadMounts()
   return [...out].sort();
 }
 
-/** `--plugin-dir` for the skills of one call (empty when none match). The plugin folder is a copy, made once per set of names. */
-export function skillArgs(agent: string, handover: string, tmp = join(tmpdir(), "lf-skills")): { args: string[]; names: string[] } {
+/** `--plugin-dir` for the skills of one call (empty when none match): a plugin folder built in core/.build by the shared builder (harness/leadkit/build.ts), once per set of skills. */
+export function skillArgs(agent: string, handover: string): { args: string[]; names: string[] } {
   const lib = skillLibrary(), names = skillsFor(agent, handover, loadMounts(), lib);
   if (!names.length) return { args: [], names };
-  const dir = join(tmp, `${agent}.${createHash("sha1").update(names.join(",")).digest("hex").slice(0, 8)}`);
-  if (!existsSync(join(dir, ".claude-plugin", "plugin.json"))) {
-    mkdirSync(join(dir, ".claude-plugin"), { recursive: true });
-    for (const n of names) cpSync(lib.get(n)!, join(dir, "skills", n), { recursive: true });
-    writeFileSync(join(dir, ".claude-plugin", "plugin.json"), JSON.stringify({ name: "team-skills", version: "1.0.0", description: "Skills mounted for one agent call (agents/skills.json)" }));
-  }
+  const dir = buildPlugin(`skills-${agent}`, null, { ".claude-plugin/plugin.json": JSON.stringify({ name: "team-skills", version: "1.0.0", description: "Skills mounted for one agent call (core/agents/skills.json)" }) },
+    Object.fromEntries(names.map((n) => [`skills/${n}`, lib.get(n)!])));
   return { args: ["--plugin-dir", dir], names };
 }
 

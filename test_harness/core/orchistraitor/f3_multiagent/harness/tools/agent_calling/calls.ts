@@ -12,7 +12,7 @@ export const COMMANDS = ["delegate", "fork_all", "_run", "_tick", "wait", "apply
 export async function run(): Promise<void> {
 if (cmd === "delegate") {
   const asyncMode = rest.includes("--async");
-  const req: CallReq = { task_id: task, caller_agent_id: me, role: flag("role") ?? "", session_arg: flag("session"), mode: flag("mode") === "ask" ? "ask" : "work",
+  const req: CallReq = { task_id: task, caller_agent_id: me, role: flag("role") ?? store.agent(task, flag("session") ?? "")?.name ?? "", session_arg: flag("session"), mode: flag("mode") === "ask" ? "ask" : "work",
     objective: flag("objective"), output: flag("output"), boundaries: flag("boundaries"), writes: flag("writes")?.split(",").filter(Boolean), title: flag("title"), model: flag("model") };
   const mp = modelProblem(req.role, req.model); if (mp) { out({ ok: false, reason: mp }); process.exit(0); }
   const sg = siteGuard(withWrites(req)); if (sg) { out({ ok: false, reason: sg }); process.exit(0); }
