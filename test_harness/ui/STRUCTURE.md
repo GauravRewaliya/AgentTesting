@@ -57,3 +57,7 @@ Files: `ui/server/prompttests.ts` (data), `server/hub.ts` (topic `prompttests`),
   5. No stale marker yet: a result stays after the case or the prompt changed (T-40: hash of the definition not built). Re-read the stamp (folder time) before you trust a pass or a fail.
 - **A run from the page** (`POST /prompt-tests/run`, one at a time, real credits) spawns `bun test_harness/scripts/prompt_test.ts <suite> <ids> --review`; the same folders are written as by a CLI run, so a CLI run and a page run show up the same way (and either one may overwrite the other's newest result).
 - **Do not judge "the page shows something different" without reading `results()` rules above and listing the newest folders (`ls -t .state/v3/prompt_tests`).** The marks (`mark fixed`, `known issue`) are kept in `.state/home/prompt_marks.json`; they do not change a result.
+
+
+## Settings > Team page
+`src/pages/settings/TeamSection.vue` (tabs Agents / Skills / Mod), data from `server` routes `/api/team*` (one load per click, no socket topic: nothing here changes by itself), contract in `shared/team.ts`, logic in `test_harness/core/orchistraitor/f3_multiagent/harness/core/team_view.ts`. Skills you add are saved in `<home>/team/` (the user home), never in the repo.

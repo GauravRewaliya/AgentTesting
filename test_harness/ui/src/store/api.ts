@@ -19,6 +19,13 @@ export interface BrowserTab { id: string; title: string; url: string }
 export interface BrowserOverview { ok?: false; reason?: string; mode: "attached" | "headless"; saved?: string | null; endpoint?: string; browser?: string; reachable?: boolean; since?: string; tabs?: BrowserTab[]; note: string; chrome: boolean; display: boolean; profile: string | null; defaultPort: number; howto: string[] }
 export interface BrowserTry { ok: boolean; reason?: string; ms?: number; via?: string; image?: string | null; title?: string; theme?: { scheme: string; bg: string; font: string; accent: string }; sections?: { i: number; tag: string; heading: string; cards: number; buttons: number; images: number; animated: boolean }[]; console?: string[] }
 export const api = {
+  team: () => call<import("../../shared/team").TeamOverview>("/team"),
+  teamMod: () => call<import("../../shared/team").TeamMod>("/team/mod"),
+  teamPrompt: (agent: string) => call<{ text: string; chars: number; note: string }>(`/team/prompt?agent=${encodeURIComponent(agent)}`),
+  teamTools: (agent: string) => call<import("../../shared/team").TeamTools>(`/team/tools?agent=${encodeURIComponent(agent)}`),
+  teamSkillNew: (b: { name: string; description: string; body: string }) => send<import("../../shared/team").TeamOverview>("POST", "/team/skills", b),
+  teamSkillMount: (b: { skill: string; agents: string[]; when?: string }) => send<import("../../shared/team").TeamOverview>("POST", "/team/skills/mount", b),
+  teamSkillUnmount: (b: { skill: string; agent: string }) => send<import("../../shared/team").TeamOverview>("POST", "/team/skills/unmount", b),
   cards: () => call<CardOut[]>("/cards"),
   settingsAgentNew: (b: Record<string, unknown>) => send<SR>("POST", "/settings/agents", b),
   settingsAgentEdit: (n: string, b: Record<string, unknown>) => send<SR>("PUT", `/settings/agents/${n}`, b),

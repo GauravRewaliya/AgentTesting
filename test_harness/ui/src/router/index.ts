@@ -19,6 +19,7 @@ export const router = createRouter({
     { path: "/browser", redirect: "/settings/browser" },   // moved into Settings
     { path: "/settings", name: "settings", component: SettingsPage, redirect: "/settings/agents", children: [
       { path: "agents", component: () => import("@/pages/settings/AgentsSection.vue") },
+      { path: "team", component: () => import("@/pages/settings/TeamSection.vue") },
       { path: "integrations", component: () => import("@/pages/settings/IntegrationsSection.vue") },
       { path: "browser", component: BrowserPage },
       { path: "usage", component: () => import("@/pages/settings/UsageSection.vue") },

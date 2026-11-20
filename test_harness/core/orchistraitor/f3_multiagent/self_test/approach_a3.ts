@@ -22,4 +22,6 @@ const tt = spawnSync("claude", ["plugin", "test", built], { encoding: "utf8", ti
 t("a3.6", "claude plugin test (no model call): the mod's guard refuses a secret and a shell `team agent <role>`, lets a normal file through", /2 pass/.test(tout) && /0 fail/.test(tout), tout.split("\n").slice(-6).join(" | "));
 const { listed, toArgv } = await import("../harness/leadkit/team_tools.ts");
 t("a3.7", "typed tools: the registered set is the core list, every tool maps to a CLI argv, delegate and internals are refused", listed().length >= 10 && listed().every((x) => !("error" in (toArgv(x.name, x.name === "team_tool" ? { command: "cost" } : {}) as object))) && "error" in (toArgv("team_tool", { command: "delegate" }) as object) && "error" in (toArgv("team_tool", { command: "_run" }) as object));
+import { MOD_CONTEXT } from "../approaches/a3_native_mod/info.ts";
+t("a3.8", "the dashboard info (approaches/a3_native_mod/info.ts) names only files that exist, and the team view lists every mod hook file", MOD_CONTEXT.every((c) => existsSync(join(import.meta.dir, "..", c.file))) && (await import("../harness/core/team_view.ts")).modInfo().hooks.length >= 6);
 console.log(`\n${results.filter((r) => r.ok).length}/${results.length} passed`); process.exit(results.some((r) => !r.ok) ? 1 : 0);

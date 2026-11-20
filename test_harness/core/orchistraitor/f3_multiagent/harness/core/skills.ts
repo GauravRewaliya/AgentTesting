@@ -6,16 +6,20 @@ import { join } from "node:path";
 import { buildPlugin } from "../leadkit/build.ts";
 import { DEFAULT_GUARD, type GuardPolicy } from "../leadkit/guard.ts";
 import { AGENTS_DIR, TEST_AGENTS_DIR } from "@core/config.ts";
+import { HOME_DIR, userHomeOn } from "@core/userhome.ts";
 
 export const SKILLS_JSON = join(AGENTS_DIR, "..", "skills.json"), SHARED_SKILLS = join(AGENTS_DIR, "..", "skills");
 export interface SkillMount { skills: string[]; agents: string[]; when?: string }
 
-export const loadMounts = (file = SKILLS_JSON): SkillMount[] => { try { return (JSON.parse(readFileSync(file, "utf8")).mounts ?? []) as SkillMount[]; } catch { return []; } };
+/** The PERSON's layer (the dashboard, Settings > Team): `<home>/team/skills.json` (mounts) and `<home>/team/skills/<name>/SKILL.md` (new skills). The repo files above are never written; this layer is read only when HARNESS_USER_HOME=1 (the dashboard sets it), so a test never changes with someone's settings. */
+export const TEAM_HOME = join(HOME_DIR, "team"), USER_MOUNTS = join(TEAM_HOME, "skills.json"), USER_LIBRARY = join(TEAM_HOME, "skills");
+export const readMounts = (file: string): SkillMount[] => { try { return (JSON.parse(readFileSync(file, "utf8")).mounts ?? []) as SkillMount[]; } catch { return []; } };
+export const loadMounts = (file = SKILLS_JSON, user = userHomeOn()): SkillMount[] => [...readMounts(file), ...(user ? readMounts(USER_MOUNTS) : [])];
 
 /** Every skill we have: name -> its folder. A skill kept in an agent's own folder can be mounted for another agent too (declare it in skills.json). */
-export function skillLibrary(roots = [AGENTS_DIR, TEST_AGENTS_DIR], shared = SHARED_SKILLS): Map<string, string> {
+export function skillLibrary(roots = [AGENTS_DIR, TEST_AGENTS_DIR], shared = SHARED_SKILLS, user = userHomeOn()): Map<string, string> {
   const lib = new Map<string, string>(), add = (dir: string) => { if (!existsSync(dir)) return; for (const n of readdirSync(dir)) if (existsSync(join(dir, n, "SKILL.md")) && !lib.has(n)) lib.set(n, join(dir, n)); };
-  add(shared); for (const r of roots) if (existsSync(r)) for (const a of readdirSync(r)) add(join(r, a, ".claude", "skills"));
+  add(shared); if (user) add(USER_LIBRARY); for (const r of roots) if (existsSync(r)) for (const a of readdirSync(r)) add(join(r, a, ".claude", "skills"));
   return lib;
 }
 const globRe = (g: string) => new RegExp("^" + g.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*") + "$");

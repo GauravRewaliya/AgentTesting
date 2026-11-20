@@ -27,3 +27,4 @@ export { currentApproach } from "./orchistraitor/f3_multiagent/approaches/index.
 import { currentApproach as _approach } from "./orchistraitor/f3_multiagent/approaches/index.ts";
 /** What the lead of the CHOSEN approach (CONFIG.approach, env APPROACH) is started with, without starting it: prompt text, tools, extra CLI args. Prompt tests and size checks use this. */
 export const describeLead = (defs: Parameters<ReturnType<typeof _approach>["describeLaunch"]>[0], o: { agents?: string[]; maxDepth: number; approach?: string }) => _approach(o.approach).describeLaunch(defs, o);
+export * as teamView from "./orchistraitor/f3_multiagent/harness/core/team_view.ts";   // the team as the dashboard shows it (Settings > Team)

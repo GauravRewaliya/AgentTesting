@@ -11,6 +11,7 @@ import * as pv from "./preview.ts";
 import * as hub from "./hub.ts";
 import * as br from "./browser.ts";
 import * as st from "./settings.ts";
+import { teamView as tv } from "@core/orchestrator.ts";
 import * as pt from "./prompttests.ts";
 import { usage } from "./usage.ts";
 import { PROMPT_LIMIT, emphasisWarnings, promptWarnings } from "@core/agents/prompt_sizes.ts";
@@ -71,6 +72,14 @@ Bun.serve({
       if (p === "/case-marks" && m === "GET") return send(pt.marks());
       if (p === "/case-marks" && m === "POST") { const b = (await req.json()) as { caseId: string; mark: string | null }; return send(pt.setMark(b.caseId, b.mark)); }
       if (p === "/settings" && m === "GET") return send(st.state());
+      // Settings > Team: one load per click (agents, skills, mod), prompt and tools on demand; skills you add or mount go to your own layer (<home>/team), never to the repo
+      if (p === "/team" && m === "GET") return send(tv.overview());
+      if (p === "/team/mod" && m === "GET") return send(tv.modInfo());
+      if (p === "/team/prompt" && m === "GET") return send(await tv.agentPrompt(u.searchParams.get("agent") ?? ""));
+      if (p === "/team/tools" && m === "GET") return send(await tv.agentTools(u.searchParams.get("agent") ?? ""));
+      if (p === "/team/skills" && m === "POST") return send(tv.addSkill((await req.json()) as never));
+      if (p === "/team/skills/mount" && m === "POST") return send(tv.mountSkill((await req.json()) as never));
+      if (p === "/team/skills/unmount" && m === "POST") return send(tv.unmountSkill((await req.json()) as never));
       if (p === "/usage") return send(usage());
       if (p === "/settings/agents" && m === "POST") { const b = (await req.json()) as { clone?: string; name: string; parent?: string; description: string; model?: string; prompt?: string; tools?: string[]; writes?: boolean }; return send(b.clone ? st.clone(b.clone, b.name, b.parent) : st.create(b)); }
       if ((r = p.match(/^\/settings\/agents\/([\w-]+)$/))) { const n = r[1]!; if (m === "PUT") return send(st.edit(n, (await req.json()) as never)); if (m === "DELETE") return send(st.remove(n)); }

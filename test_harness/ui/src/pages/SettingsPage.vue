@@ -5,7 +5,7 @@ import { useLive } from "@/store/live";
 import { onMounted, onUnmounted } from "vue";
 import { useRoute } from "vue-router";
 const live = useLive(), route = useRoute();
-const items = [{ to: "agents", label: "Agents" }, { to: "integrations", label: "Integrations" }, { to: "browser", label: "Browser" }, { to: "usage", label: "Usage" }];
+const items = [{ to: "agents", label: "Agents" }, { to: "team", label: "Team" }, { to: "integrations", label: "Integrations" }, { to: "browser", label: "Browser" }, { to: "usage", label: "Usage" }];
 onMounted(() => { live.start(); live.watch({ settings: true, usage: true }); });
 onUnmounted(() => { live.watch({}); live.stop(); });
 </script>
