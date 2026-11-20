@@ -1,6 +1,7 @@
 // Runs of the f1 runner (the same command as the CLI and the Experiment page). The panel and the Run button always follow the SELECTED node: its chain, which steps already ran, and only the runs that touch that chain.
 // One run at a time (two runs share a session store), so the button is disabled while ANY run goes, but "running" is shown only on the chain it belongs to.
 import { computed, reactive, watch } from "vue";
+import { useLive } from "./live";
 import type { CaseRuns, SessionRun, StateRun } from "@/types";
 import { api } from "./api";
 import { loadCards, state } from "./dashboard";
@@ -11,7 +12,8 @@ export const runState = reactive({
   all: [] as SessionRun[],             // latest runs (the CLI's and the UI's)
   caseId: "" as string,
 });
-let timer: ReturnType<typeof setInterval> | undefined;
+const live = useLive();   // runs, their logs and the selected case's runs arrive over the ONE socket (topic `runs`): nothing here polls
+let following = false;
 const touches = (r: { cases: string[] }, chain: string[]) => r.cases.some((c) => chain.includes(c));
 const chainNow = () => runState.caseRuns?.chain ?? [];
 
@@ -19,19 +21,25 @@ export async function loadCaseRuns(caseId: string) { runState.caseId = caseId; t
 export async function loadAllRuns() { try { runState.all = await api.runs(); } catch (e) { runState.error = (e as Error).message; } }
 const refreshLists = async () => { await Promise.all([loadCards(), loadAllRuns(), runState.caseId ? loadCaseRuns(runState.caseId) : Promise.resolve()]); };
 
-/** While any run goes: refresh the lists and the open run's log every 1.5 s; when the last one ends reload the cards (status of every node). */
-const tick = async () => {
-  try {
-    await loadAllRuns();
-    if (runState.caseId) await loadCaseRuns(runState.caseId);
-    if (runState.run) { const x = await api.runLog(runState.run.id); runState.run = x.run; runState.log = x.log; }
-    if (!runState.all.some((r) => r.status === "running")) { clearInterval(timer); timer = undefined; await refreshLists(); }
-  } catch (e) { runState.error = (e as Error).message; clearInterval(timer); timer = undefined; }
-};
-const follow = () => { if (!timer) timer = setInterval(tick, 1500); void tick(); };
+/** Tell the server what this page looks at (all runs; the open run's log; the selected case's runs). The server pushes when one of them changes. */
+const rewatch = () => live.runsWatch({ runs: true, runLog: runState.run?.id, runCase: runState.caseId || undefined });
+const follow = () => { if (!following) { following = true; live.start(); } rewatch(); };
+/** The page is gone: close our use of the socket. */
+export function pauseRuns() { if (following) { following = false; live.runsWatch({}); live.stop(); } }
+
+let wasRunning = false;
+watch(live.runs, (d) => {   // a push: take the lists, the open run and the selected case from it; when the last run ended reload the cards (the status of every node)
+  if (!d) return;
+  if (Array.isArray(d.all)) runState.all = d.all;
+  if (d.log && "run" in d.log && runState.run && d.log.run.id === runState.run.id) { runState.run = d.log.run; runState.log = d.log.log; }
+  if (d.caseRuns && runState.caseId && d.caseRuns.chain !== undefined) runState.caseRuns = d.caseRuns;
+  const now = runState.all.some((r) => r.status === "running");
+  if (wasRunning && !now) void loadCards();
+  wasRunning = now;
+});
 
 /** Pick up a run that is already going (page reload, or a run started from the CLI). */
-export async function resumeRuns() { try { await loadAllRuns(); if (runState.all.some((r) => r.status === "running")) follow(); } catch { /* the API may be down */ } }
+export async function resumeRuns() { follow(); try { await loadAllRuns(); } catch { /* the API may be down */ } }
 
 export async function runCase(caseId: string) {
   runState.error = ""; runState.log = "";
@@ -40,13 +48,13 @@ export async function runCase(caseId: string) {
 /** Show a finished (or running) run's log. */
 export async function viewRun(id: string) {
   runState.error = "";
-  try { const x = await api.runLog(id); runState.run = x.run; runState.log = x.log; if (x.run.status === "running") follow(); } catch (e) { runState.error = (e as Error).message; }
+  try { const x = await api.runLog(id); runState.run = x.run; runState.log = x.log; follow(); } catch (e) { runState.error = (e as Error).message; }
 }
 export async function stopRun() { const r = runState.run ?? runHere.value; if (r) { try { runState.run = await api.runStop(r.id); await refreshLists(); } catch (e) { runState.error = (e as Error).message; } } }
 
 /** Another node was picked: nothing of the previous one stays (log, details, "running"). A run that touches the new chain is picked up again once its chain is known. */
 watch(() => state.selectedCaseId, (id) => {
-  runState.run = null; runState.log = ""; runState.error = ""; runState.caseRuns = null; runState.caseId = id ?? "";
+  runState.run = null; runState.log = ""; runState.error = ""; runState.caseRuns = null; runState.caseId = id ?? ""; if (following) rewatch();
   if (id) void loadCaseRuns(id).then(() => { const r = runState.all.find((x) => x.status === "running" && touches(x, chainNow())); if (r) void viewRun(r.id); });
 });
 

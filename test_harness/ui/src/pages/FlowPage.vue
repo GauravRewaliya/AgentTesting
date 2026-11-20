@@ -1,16 +1,17 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, onUnmounted } from "vue";
 import { activeHead, loadCards, loadSubagents, selectHead, state } from "@/store/dashboard";
 import DebugFrame from "@/components/common/DebugFrame.vue";
 import HeadPicker from "@/components/flow/HeadPicker.vue";
 import FlowCanvas from "@/components/flow/FlowCanvas.vue";
 import SubAgentPanel from "@/components/panels/SubAgentPanel.vue";
-import { busyElsewhere, chainPlan, isRunning, resumeRuns, runCase, runsHere } from "@/store/runs";
+import { busyElsewhere, chainPlan, isRunning, pauseRuns, resumeRuns, runCase, runsHere } from "@/store/runs";
 import { computed, watch } from "vue";
 import type { Status } from "@/types";
 const props = defineProps<{ group: "real" | "core" }>();
 watch(() => props.group, (g) => { state.group = g; state.head = "__first"; state.selectedCaseId = null; state.readyFilter.clear(); if (activeHead.value) selectHead(activeHead.value); }, { immediate: true });
 const picked = computed(() => state.cards.flatMap((c) => c.cases).find((r) => r.caseId === state.selectedCaseId) ?? null);
+onUnmounted(pauseRuns);   // the runs topic is closed with the page
 onMounted(async () => { await loadCards(); loadSubagents(); void resumeRuns(); if (!state.selectedCaseId && activeHead.value) selectHead(activeHead.value); });   // the first head is picked at start: its first node is selected
 const statuses: Status[] = ["pass", "fail", "skipped", "never_run"];
 const toggle = (s: Status) => (state.statusFilter.has(s) ? state.statusFilter.delete(s) : state.statusFilter.add(s));

@@ -1,16 +1,17 @@
 // WebSocket hub: the page opens ONE socket (/api/ws) and never polls. The files the runners write cannot notify us,
 // so ONE server-side loop (not one per browser) re-reads them while at least one page is connected and pushes a topic only when its JSON changed.
 // Client -> server: {sub:{task?,detail?,transcript?}} (what this page looks at) or {kick:1} (re-check now, e.g. after a POST).
-// Server -> client: {t:"overview"|"live"|"chat"|"result"|"bg"|"bugs"|"evidence"|"detail"|"transcript", data}
+// Server -> client: {t:"overview"|"live"|"chat"|"result"|"bg"|"bugs"|"evidence"|"detail"|"transcript"|"runs"|..., data}
 import type { ServerWebSocket } from "bun";
 import * as exp from "./experiment.ts";
 import * as pv from "./preview.ts";
 import * as br from "./browser.ts";
 import * as st from "./settings.ts";
 import * as pt from "./prompttests.ts";
+import * as runs from "./runs.ts";
 import { usage } from "./usage.ts";
 
-interface Sub { task?: string; detail?: string; transcript?: string; settings?: boolean; usage?: boolean; browser?: boolean; prompttests?: boolean }
+interface Sub { task?: string; detail?: string; transcript?: string; settings?: boolean; usage?: boolean; browser?: boolean; prompttests?: boolean; runs?: boolean; runLog?: string; runCase?: string }
 export interface Client { sub: Sub; sent: Map<string, string> }
 type Ws = ServerWebSocket<Client>;
 
@@ -34,9 +35,10 @@ async function tick(force = false) {
     if (force || n++ % OVERVIEW_EVERY === 0) ovCache = await exp.overview();
     const lv = exp.live(), results = new Map<string, unknown>();
     // Settings topics: computed ONCE per tick for everybody, and only when some page asked (the files are re-read on our own tick: they cannot notify us; usage parses a transcript once per mtime+size)
-    const want = (k: "settings" | "usage" | "browser" | "prompttests") => [...clients].some((c) => c.data.sub[k]);
+    const want = (k: "settings" | "usage" | "browser" | "prompttests" | "runs") => [...clients].some((c) => c.data.sub[k]);
     const settingsNow = want("settings") ? safe(() => st.state()) : undefined, usageNow = want("usage") && (!usageCache || n % 4 === 1) ? safe(() => usage()) : undefined, browserNow = want("browser") ? await br.overview().catch((e) => ({ error: String(e) })) : undefined;
     const ptNow = want("prompttests") ? safe(() => pt.live()) : undefined;
+    const runsNow = want("runs") ? safe(() => runs.sessionRuns()) : undefined;   // the runs list: pushed when it changes (it replaces the page's own 1.5 s polling)
     if (usageNow) usageCache = usageNow;
     for (const ws of clients) {
       const { task, detail, transcript } = ws.data.sub, s = task ? lv.find((x) => x.task === task) : undefined;
@@ -45,6 +47,7 @@ async function tick(force = false) {
       if (ws.data.sub.usage && (usageNow ?? usageCache)) emit(ws, "usage", usageNow ?? usageCache);
       if (ws.data.sub.browser && browserNow) emit(ws, "browser", browserNow);
       if (ws.data.sub.prompttests && ptNow) emit(ws, "prompttests", ptNow);
+      if (ws.data.sub.runs && runsNow) { const { runLog, runCase } = ws.data.sub; emit(ws, "runs", { all: runsNow, log: runLog ? safe(() => runs.runLog(runLog)) : null, caseRuns: runCase ? await runs.caseRuns(runCase).catch(() => null) : null }); }
       if (!task) continue;
       emit(ws, "chat", safe(() => exp.chat(task)));
       emit(ws, "bg", safe(() => pv.bgOf(task)));
@@ -62,7 +65,7 @@ export const websocket = {
   message(ws: Ws, raw: string | Buffer) {
     try {
       const m = JSON.parse(String(raw)) as { sub?: Sub; kick?: number };
-      if (m.sub) { console.log("[hub] <- client now listens to", JSON.stringify(m.sub)); ws.data.sub = { task: m.sub.task || undefined, detail: m.sub.detail || undefined, transcript: m.sub.transcript || undefined, settings: !!m.sub.settings, usage: !!m.sub.usage, browser: !!m.sub.browser, prompttests: !!m.sub.prompttests }; ws.data.sent.clear(); }
+      if (m.sub) { console.log("[hub] <- client now listens to", JSON.stringify(m.sub)); ws.data.sub = { task: m.sub.task || undefined, detail: m.sub.detail || undefined, transcript: m.sub.transcript || undefined, settings: !!m.sub.settings, usage: !!m.sub.usage, browser: !!m.sub.browser, prompttests: !!m.sub.prompttests, runs: !!m.sub.runs, runLog: m.sub.runLog || undefined, runCase: m.sub.runCase || undefined }; ws.data.sent.clear(); }
       void tick(true);
     } catch { /* ignore junk */ }
   },

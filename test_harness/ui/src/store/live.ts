@@ -3,22 +3,25 @@
 import { ref, shallowRef } from "vue";
 import type { SettingsState, UsageState } from "../../shared/settings";
 import type { PtLive } from "../../shared/prompttests";
+import type { CaseRuns, SessionRun, StateRun } from "@/types";
 import type { BrowserOverview } from "./api";
 import type { BugsOut, EvidenceOut, Transcript, AgentDetail, CaseResultOut, ChatOut, ExperimentOverview, LiveSession } from "../../shared/experiment";
 
 export interface BgInfo { scripts: AgentDetail["scripts"] }
-export type Sub = { task?: string; detail?: string; transcript?: string; settings?: boolean; usage?: boolean; browser?: boolean; prompttests?: boolean };
+export type Sub = { task?: string; detail?: string; transcript?: string; settings?: boolean; usage?: boolean; browser?: boolean; prompttests?: boolean; runs?: boolean; runLog?: string; runCase?: string };
+/** The runs topic: every run (the CLI's and the UI's), the open run's log and the selected case's runs. */
+export interface RunsLive { all: SessionRun[] | { error: string }; log: { run: StateRun; log: string } | { error: string } | null; caseRuns: CaseRuns | null }
 
 const ov = shallowRef<ExperimentOverview | null>(null), sessions = shallowRef<LiveSession[]>([]), chat = shallowRef<ChatOut | null>(null),
   result = shallowRef<CaseResultOut | null>(null), bg = shallowRef<BgInfo | null>(null), bugs = shallowRef<BugsOut | null>(null), evidence = shallowRef<EvidenceOut | null>(null), detail = shallowRef<AgentDetail | { error: string } | null>(null), transcript = shallowRef<Transcript | { error: string } | null>(null),
-  settings = shallowRef<SettingsState | null>(null), prompttests = shallowRef<PtLive | null>(null), usage = shallowRef<UsageState | null>(null), browser = shallowRef<BrowserOverview | null>(null),
+  settings = shallowRef<SettingsState | null>(null), prompttests = shallowRef<PtLive | null>(null), usage = shallowRef<UsageState | null>(null), runs = shallowRef<RunsLive | null>(null), browser = shallowRef<BrowserOverview | null>(null),
   up = ref(false), ready = ref(false);   // ready: the first live list has arrived
 
-let sock: WebSocket | undefined, sub: Sub = {}, always: Sub = {}, users = 0, retry = 0, wait: ReturnType<typeof setTimeout> | undefined;
+let sock: WebSocket | undefined, sub: Sub = {}, always: Sub = {}, runsSub: Sub = {}, users = 0, retry = 0, wait: ReturnType<typeof setTimeout> | undefined;
 const sink: Record<string, (d: never) => void> = {
   overview: (d) => (ov.value = d), live: (d) => { sessions.value = d; ready.value = true; }, chat: (d) => (chat.value = d),
   result: (d) => (result.value = d), bg: (d) => (bg.value = d), bugs: (d) => (bugs.value = d), evidence: (d) => (evidence.value = d), detail: (d) => (detail.value = d), transcript: (d) => (transcript.value = d),
-  settings: (d) => (settings.value = d), prompttests: (d) => (prompttests.value = d), usage: (d) => (usage.value = d), browser: (d) => (browser.value = d),
+  settings: (d) => (settings.value = d), prompttests: (d) => (prompttests.value = d), usage: (d) => (usage.value = d), browser: (d) => (browser.value = d), runs: (d) => (runs.value = d),
 };
 // EVERY socket event is printed, so useless traffic is easy to spot: `[live] ← topic size (#count)` for what we receive, `[live] → ...` for what we send.
 // live.stats() (also window.liveStats()) prints a table per topic: how many times, total bytes. A topic that arrives often with a big size is the one to look at.
@@ -31,7 +34,7 @@ const tx = (m: object) => { if (sock?.readyState === WebSocket.OPEN) { const s =
 function connect() {
   if (sock || !users) return;
   const s = (sock = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/ws`));
-  s.onopen = () => { up.value = true; retry = 0; console.log("[live] socket open, listening to:", JSON.stringify(sub)); tx({ sub: { ...always, ...sub } }); };
+  s.onopen = () => { up.value = true; retry = 0; console.log("[live] socket open, listening to:", JSON.stringify(sub)); tx({ sub: { ...always, ...runsSub, ...sub } }); };
   s.onmessage = (e) => {
     const m = JSON.parse(e.data) as { t: string; data: never }, bytes = String(e.data).length, st = seenStat.get(m.t) ?? { n: 0, bytes: 0 };
     st.n++; st.bytes += bytes; seenStat.set(m.t, st);
@@ -43,9 +46,9 @@ function connect() {
 
 export function useLive() {
   return {
-    ov, sessions, chat, result, bg, bugs, evidence, detail, transcript, settings, prompttests, usage, browser, up, ready,
+    ov, sessions, chat, result, bg, bugs, evidence, detail, transcript, settings, prompttests, usage, runs, browser, up, ready,
     /** topics every page wants (the header's browser chip): merged into each watch() */
-    always(next: Sub) { always = next; tx({ sub: { ...always, ...sub } }); },
+    always(next: Sub) { always = next; tx({ sub: { ...always, ...runsSub, ...sub } }); },
     /** open the socket for as long as the page is mounted */
     start() { if (!users++) connect(); },
     stop() { if (!--users) { clearTimeout(wait); sock?.close(); sock = undefined; } },
@@ -54,8 +57,10 @@ export function useLive() {
       if (next.task !== sub.task) { chat.value = null; result.value = null; bg.value = null; bugs.value = null; evidence.value = null; }
       if (next.detail !== sub.detail) detail.value = null;
       if (next.transcript !== sub.transcript || next.task !== sub.task) transcript.value = null;
-      sub = next; tx({ sub: { ...always, ...sub } });
+      sub = next; tx({ sub: { ...always, ...runsSub, ...sub } });
     },
+    /** the runs topic (Flow page): which case's runs and which run's log to push, merged into every watch() */
+    runsWatch(next: Sub) { runsSub = next; tx({ sub: { ...always, ...runsSub, ...sub } }); },
     /** re-check now (after a POST) */
     kick: () => tx({ kick: 1 }),
     /** console table of what arrived so far, per topic */

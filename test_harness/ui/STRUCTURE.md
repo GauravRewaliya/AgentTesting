@@ -61,3 +61,6 @@ Files: `ui/server/prompttests.ts` (data), `server/hub.ts` (topic `prompttests`),
 
 ## Settings > Team page
 `src/pages/settings/TeamSection.vue` (tabs Agents / Skills / Mod), data from `server` routes `/api/team*` (one load per click, no socket topic: nothing here changes by itself), contract in `shared/team.ts`, logic in `test_harness/core/orchistraitor/f3_multiagent/harness/core/team_view.ts`. Skills you add are saved in `<home>/team/` (the user home), never in the repo.
+
+## Live topic `runs` (Flow page)
+`server/hub.ts` pushes `{all, log, caseRuns}` when a client subscribed with `{runs:true, runLog?, runCase?}`; the client side is `live.runsWatch()` (`src/store/live.ts`) used by `src/store/runs.ts`, closed with `pauseRuns()` when the Flow page unmounts. It replaced a 1.5 s `setInterval` (CLAUDE.md: live data goes over the socket).
