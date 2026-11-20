@@ -8,7 +8,7 @@ import { RealRunner, ScriptRunner, loadAgents, transcriptExistsAnywhere } from "
 import { MStore, say } from "../harness/core/board.ts";
 import { SESSION_CAP } from "../harness/core/session_run.ts";
 import { runSlash, slashName } from "../harness/core/slash.ts";
-import { runLead } from "../harness/lead.ts";
+import { currentApproach } from "../approaches/index.ts";   // the chosen approach (CONFIG.approach, env APPROACH, --approach=<name>), the same one run.ts uses
 import { STATE_BASE, STATE_VERSION } from "@core/paths.ts";
 import { declareGateLimit, loadSuites, readExp, reconcileDead, writeExp } from "./cases.ts";
 import { readdirSync } from "node:fs";
@@ -59,7 +59,7 @@ if (caseId) { let ent = known.find((e) => e.case === caseId); if (!ent) ent = { 
    ent.marks[turn] = store.calls.filter((x) => x.task_id === task).length; ent.started[turn] = sentAt; ent.at = sentAt; mkdirSync(EXP_DIR, { recursive: true }); writeFileSync(expFile(caseId), JSON.stringify(ent)); }
 if (!process.argv.includes("--no-say")) store.tx(() => { const n = say(store, task, "user", "lead", text, process.argv.includes("--auto") ? ["auto_run"] : [], Infinity); n.t = sentAt; store.save(); });
 if (boundCase) declareGateLimit(store, task, boundCase);   // the same call limit / allow_real_subAg as run.ts
-const out = await runLead({ ...ctx, store } as never, { task_id: task, repo: REPO, request: text, maxDepth: 4, runner: fake ? "fake" : "real", writerMode: WRITER, ...(useAgents ? { agents: useAgents } : {}) });
+const out = await currentApproach(process.argv.find((a) => a.startsWith("--approach="))?.split("=")[1]).runLead({ ...ctx, store } as never, { task_id: task, repo: REPO, request: text, maxDepth: 4, runner: fake ? "fake" : "real", writerMode: WRITER, ...(useAgents ? { agents: useAgents } : {}) });
 store.reload();
 store.tx(() => { say(store, task, "lead", "user", out.ok ? out.reply : `(the lead could not answer: ${out.error})`, process.argv.includes("--auto") ? ["auto_run"] : [], Infinity); });
 if (caseId) { try { const ent = JSON.parse(readFileSync(expFile(caseId), "utf8")) as Ent; ent.done = Math.max(ent.done, turn + 1); writeFileSync(expFile(caseId), JSON.stringify(ent)); } catch { /* no entry */ } }

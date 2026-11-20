@@ -18,7 +18,7 @@ export const CONFIG = {
   //   - the usage limit is per account: a "hit your limit" failure is the account, not the prompt.
   claudeProfile: "",
   orchestrator: "f3_multiagent",
-  approach: "a1_team_cli",
+  approach: "a2_native_hook",
   stateVersion: "v3",
 } as const;
 

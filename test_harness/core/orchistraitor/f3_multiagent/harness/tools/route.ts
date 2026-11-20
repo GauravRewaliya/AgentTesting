@@ -1,7 +1,7 @@
 // WHICH FILE RUNS WHICH COMMAND (pure data; index.ts routes with it and `team --help` lists it). A new command = one line here + its block in that group file.
 export const ROUTE: Record<string, string> = {
   // agent_calling/calls.ts
-  delegate: "agent_calling/calls", fork_all: "agent_calling/calls", _run: "agent_calling/calls", wait: "agent_calling/calls", apply_patches: "agent_calling/calls", agent_stop: "agent_calling/calls",
+  delegate: "agent_calling/calls", fork_all: "agent_calling/calls", _run: "agent_calling/calls", _tick: "agent_calling/calls", wait: "agent_calling/calls", apply_patches: "agent_calling/calls", agent_stop: "agent_calling/calls",
   // ref.ts
   site_build: "agent_calling/site_build", ref_capture: "ref", site_audit: "ref", ref_compare: "ref", proto_init: "ref", proto_check: "ref",
   // agent_calling/plans.ts

@@ -16,6 +16,7 @@ import { gateBlock } from "../../core/phases.ts";
 import { customDef } from "../../core/custom.ts";
 import { FixtureGate } from "../../core/fixture_gate.ts";
 import { homeLaunch } from "@core/userhome.ts";
+import { skillArgs } from "../../core/skills.ts";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { E, HDIR, MAX_WAVE, TOOLS, cmd, cwd, defs, file, flag, locks, me, out, policy, realCwd, sleep, store, task } from "../ctx.ts";
 
@@ -45,13 +46,15 @@ export async function runCall(call_id: string) {
   if (!defs.has(req.role)) defs.set(req.role, customDef(req.role, req.title ?? req.role, !!req.writes?.length));   // a custom agent: rebuilt here from the call record
   const def = launchDef(req.model ? { ...defs.get(req.role)!, model: req.model } : defs.get(req.role)!, defs, res.level, policy.agentMaxDepth, join(tmpdir(), "lf-launch"), "team");
   { const h = homeLaunch(req.role); if (h.allow.length) { def.allow = [...def.allow, ...h.allow]; } }   // user integrations ticked for THIS agent (Settings): nothing ticked, nothing added
+  const sk = real ? skillArgs(req.role, req.objective ?? "") : { args: [] as string[], names: [] as string[] };   // skills.json: only the skills declared for THIS agent (and matching its hand-over) are mounted
+  if (sk.names.length) store.tx(() => store.ev("skills.mounted", task, agent.agent_id, { skills: sk.names }));
   const epoch0 = agent.epoch ?? 0;
   const guard = setInterval(() => { store.reload(); if (store.aborted() || (store.agent(call.task_id, call.callee_agent_id!)?.epoch ?? 0) !== epoch0) runner.killAll?.(); }, 1000);   // the watchdog flag, or a stop (replan / cancel), ends this callee at once
   const r = await runCallee({ store, runner, defs: new Map(defs).set(req.role, def), sessionCap: SESSION_CAP, transcriptExists: real ? (_c, id) => transcriptExistsAnywhere(id) : undefined }, policy, res, req, def,
     { locks: locks.kind === "redis" ? locks : undefined, cwd, writerMode: E.HARNESS_WRITER_MODE === "worktree" ? "worktree" : "shared",
       env: { HARNESS_STORE: file, HARNESS_MAX_DEPTH: String(policy.agentMaxDepth), HARNESS_RUNNER: E.HARNESS_RUNNER ?? "fake", HARNESS_MODELS: E.HARNESS_MODELS ?? "{}",
         HARNESS_WRITER_MODE: E.HARNESS_WRITER_MODE ?? "shared", HARNESS_MAX_INSTANCES: E.HARNESS_MAX_INSTANCES ?? "4", HARNESS_FAKE_DELAY_MS: E.HARNESS_FAKE_DELAY_MS ?? "0", HARNESS_LOCKS_URL: E.HARNESS_LOCKS_URL ?? "", HARNESS_LOCKS_PREFIX: E.HARNESS_LOCKS_PREFIX ?? "lf", HARNESS_LOCK_TTL_MS: E.HARNESS_LOCK_TTL_MS ?? "120000", HARNESS_STRICT: E.HARNESS_STRICT ?? "0", HARNESS_CANARY: E.HARNESS_CANARY ?? "0" },
-      extraArgs: () => (real ? [...hookArgs(HDIR), ...homeLaunch(req.role).args] : []) });
+      extraArgs: () => (real ? [...hookArgs(HDIR), ...homeLaunch(req.role).args, ...sk.args] : []) });
   clearInterval(guard);
   for (const pc of r.promoted) spawnRun(pc);   // the queue driver: a finished writer starts the next waiting one
   return { res, r };

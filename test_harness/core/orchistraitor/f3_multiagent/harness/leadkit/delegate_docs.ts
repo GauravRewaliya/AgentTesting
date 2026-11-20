@@ -1,4 +1,4 @@
-// HOW A CALLER STARTS A SUB-AGENT in approach 1 (a1_team_cli): the `team agent <name> / agent all / agent wait / agent list` shell commands. This text is part of the APPROACH, not of the shared launch
+// HOW A SUB-AGENT STARTS OTHERS (the same in every approach: sub-agents are `claude -p` with Bash `team`): the `team agent <name> / agent all / agent wait / agent list` shell commands. This text is part of the APPROACH, not of the shared launch
 // code: another approach (a2 native Agent tool, a3) tells its callers something else. launch.ts takes it as a parameter (default: this one) and appends it after the sub-agent list.
 export const delegateDocs = (teamCmd: string): string => `
 

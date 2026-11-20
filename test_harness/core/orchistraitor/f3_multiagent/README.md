@@ -70,3 +70,109 @@ f3_multiagent/
 | `docs/08_MIGRATION_STEPS.md` | ordered steps and files to fix |
 | `docs/09_RISKS_AND_STATE.md` | clashes when running approaches side by side |
 | `docs/10_OPEN_DECISIONS.md` | questions, none answered |
+
+## Direction: a2 becomes the standard, a1 becomes an override (PLAN, not built yet; written 2026-11-20)
+
+Why: a2 uses Claude Code's own `Agent` / `SendMessage` tools and its hook events, which is the shape of the real product. a1 (shell `team agent ...`) stays as a second approach for comparison.
+
+### Capability check BEFORE the refactor (read from the code, nothing run; the status section below is current)
+
+| Power | a1 (Bash `team`) | a2 intercept (hook + MCP) | Gap in a2 |
+|---|---|---|---|
+| Start / continue a sub-agent | `team agent <role>` | `Agent{subagent_type}` / `SendMessage`, hook turns it into `delegate` | none |
+| Mock sub-agent (fixtures) | FixtureGate in `runCall` | same: the hook calls `tools.ts delegate`, so the same FixtureGate answers | none |
+| Locks, worktrees, patches, budget, depth, fan-out | `agentCall` + `runCallee` | same code | none |
+| Background start and wait | `--async`, `agent wait` | `run_in_background:true` and `mcp__team__wait` | none |
+| Every other team command | `team <cmd>` | typed MCP tools, the rest through `team_tool{command, flags}`; every `ROUTE` command is reachable | small: `agent_stop`, `agent_info`, `inbox` only via `team_tool` |
+| See sub-agents and bg tasks | `team agent list / peek`, `bg list` | `agents_list`, `agent_peek`, `bg_list`, `bg_log`, `board_status` | none |
+| Lead request block | conversation so far + `THE TEAM RIGHT NOW` digest + project memory (`.loopsAI`) | conversation so far only | add digest and `memoryBlock` |
+| Lead file reads | `team ls / read_file / grep`, jailed to `run_test/` | native `Read` / `Glob` / `Grep`, NOT jailed | add a jail in the hook or use the team tools |
+| Lead path-escape guard (`..`) | `hooks/guard.ts` | none | add |
+| Notes and user messages mid-run | `activity.ts` (PostToolUse) and `wait` ending early | neither lead gets `activity.ts` in a2 (lead.ts does not pass `hookArgs` either, so check a1 too) | verify, then add |
+| Block a long call | n/a (a call is a shell command) | the hook waits up to 30 min but no `timeout` is set in the hook settings | set `timeout`, check Claude Code's default |
+| Native follow-up (`SendMessage`) | `--session <agent_id>` | hook maps it, offline-tested only | one real run |
+
+### Hook events a2 can use that a1 cannot
+`PreToolUse` and `PostToolUse` (used now), `SubagentStop` (observe mode only), plus `UserPromptSubmit` (inject the team digest and unread notes before each turn), `Stop` (refuse to end while a background agent still runs, or run a "before answer" check) and `SessionStart` (inject the request block once). The last three are NOT used yet. Confirm event names and payloads against the installed Claude Code version before relying on them.
+
+### Target structure
+- `harness/` stays common: tools, core, hooks, bin. Nothing in it names an approach.
+- `harness/core/lead_common.ts` (new): run record, lead row, env block, request block, `personReply`. `harness/core/delegate_docs.ts` (moved out of `a1_team_cli/`): how a SUB-agent calls others, the same in every approach.
+- `approaches/approach_port.ts`: `interface Approach` plus `abstract class BaseApproach` with one `runLead` (template method). A subclass overrides only `leadLaunch()` (prompt text, tools, extra args, `--agents`, MCP), `leadRequest(first)`, `hooks(mode)` and `afterRun()`.
+- `a2_native_hook/` is written first and defines the shape. `a1_team_cli/` is one `adapter.ts` (its command list is `leadkit/common.ts teamCommands("cli")`) and overrides only what differs. `harness/lead.ts` is removed (2026-11-20): callers use `currentApproach().runLead(...)`.
+- Outside code asks the approach (`orchestrator.ts` exports `leadLaunch(name)`), so `prompt_test.ts` and `launch_sizes.ts` follow the chosen approach instead of importing a2 directly.
+- Custom overrides stay in `approaches/custom/<approach>/` or `custom/_all/`; `resolve()` already maps `agents/` paths.
+
+### Steps
+1. Baseline, free: `check_fixtures.ts`, `self_test/multi.ts` (230/234, same 4 failures), `self_test/approach_a2.ts`.
+2. Extract `lead_common.ts`, move `delegate_docs.ts`, delete `lead.ts` (done); re-run the baseline.
+3. Add `BaseApproach`; port a2 onto it and close the gaps in the table above (request block, jail, guard, `activity.ts`, hook `timeout`).
+4. Port a1 onto it by moving its command list into `a1_team_cli/lead_prompt.ts`; check its launch text is unchanged.
+5. Add `self_test/approach_contract.ts`: the same offline scenario through both approaches must give the same call rows, the same fixture served and the same refusals.
+6. Read `testrun/cases.ts` for anything that treats Bash `team` calls and `Agent` calls differently (case field `tools: ["Agent"]`).
+7. Set `CONFIG.approach` to `a2_native_hook`; re-run all free checks.
+8. Paid check only when asked: one haiku run of `web_vue_setup` (`test_web_setup`) and one follow-up case on a2.
+9. Update this README and `docs/04` with what was built.
+
+### Status 2026-11-20: built (offline-tested only, no real run yet)
+- `approaches/approach_port.ts` holds the `ApproachSpec` (data) and `BaseApproach` (one `runLead`); a1 and a2 are classes that override `describeLaunch()` / `request()` (`a1_team_cli/adapter.ts`, `a2_native_hook/adapter.ts`). `harness/lead.ts` is gone: `testrun/run.ts` and `testrun/chat.ts` call `currentApproach().runLead(...)`; the a1 self tests pin `currentApproach("a1_team_cli")`.
+- `harness/leadkit/`: `common.ts` (run start, env, request pieces, the `team` command list for `cli` and `native`, `personReply`), `guard.ts` (lite guard), `delegate_docs.ts` (the sub-agent protocol, same in every approach).
+- a2 lead = `Agent` + `SendMessage` + the lead's own `.claude/settings.json` rules (Bash(team *), Read ...) + Glob/Grep. MCP typed tools are OFF (`USE_MCP` in the adapter, phase 3); `team_mcp.ts` is kept and tested.
+- a2 hooks, all in `hook.ts`: lite guard (Read/Glob/Grep/Bash), Agent/SendMessage -> delegate (1800 s timeout set), UserPromptSubmit (unread notes), Stop (written, OFF), SubagentStop (observe). `activity.ts` runs after every tool of the lead.
+- `orchestrator.ts` exports `describeLead()`; `prompt_test.ts` and `launch_sizes.ts` follow the chosen approach.
+- Agents (`agent.json` + `.claude/{CLAUDE.md,settings.json,skills,plugins}`) stay in ONE place, `core/agents/`; an approach never copies them. Override per approach through `approaches/custom/<approach>/agents/<name>/...` (resolve.ts).
+- `CONFIG.approach` is now `a2_native_hook`. Back to a1: set it to `"a1_team_cli"` or run with `--approach=a1_team_cli`.
+- Not done: guard for the a1 lead and for sub-agents, a real a2 run, `SendMessage` follow-up on a real run, grouping the 70 files of `harness/core/` into folders.
+
+### Powers: a1 vs a2 now (read from the code; offline-tested, no real a2 run yet)
+
+| Power | a1 | a2 | Note |
+|---|---|---|---|
+| Start a sub-agent (new / continue) | `team agent <role> --session new|<id>` | `Agent{subagent_type,prompt}` / `SendMessage{to}` | same `delegate` path, same FixtureGate |
+| Background start + wait | `--async`, `team agent wait` | `run_in_background:true`, `team agent wait` | same |
+| Many at once | `team agent all` | `team agent all` or several background `Agent` calls | same |
+| Plans, phases, patches, bg, browser, bug, say, peek, cost, chapter, ls/read_file/grep | `team <cmd>` in Bash | the same `team <cmd>` in Bash (same list, same `tools.ts`) | MCP typed tools OFF (phase 3) |
+| Locks, worktrees, budget, depth, fan-out, QA guard, site guard | core | core | shared |
+| Request block (conversation, team digest, project memory) | yes | yes (same `requestPieces`) | |
+| Lead guard (.env, outside workspace, no `team agent <role>` in a shell) | none | lite guard hook | a1 lead has no guard yet |
+| Notes / the person's messages mid-run | `wait` ends early | `activity.ts` after each tool + `UserPromptSubmit` | |
+| Block the end of a turn while agents run | no | `Stop` hook written, OFF | |
+| **Gaps in a2** | | | |
+| `--session fork:<id>` for ONE call | yes | no (only `team agent all --from <id>`) | |
+| `--mode ask`, `--output`, `--boundaries`, `--title` (custom agent name), `--model` | all flags | `Agent` has no such fields: the hook fills output/boundaries with a generic text, only `model` sonnet|haiku is passed | put them in the prompt |
+| Sub-agent answer shape | one JSON line | `AGENT RESULT ...` text as the hook's deny reason | not Claude's own tool result |
+
+So a2 has the powers of a1 except those four rows; none of them is needed by the current cases, but a case that uses a custom agent name (`--title`) or `fork:` works on a1 only.
+
+### Where a2 is defined (there is no "mod" folder yet)
+- Hook wiring: `approaches/a2_native_hook/adapter.ts`, `describeLaunch()` builds the `--settings` JSON (matchers, 1800 s timeout) and `--agents` JSON; `USE_MCP` is the switch for MCP.
+- Hook code, one function per event: `approaches/a2_native_hook/hook.ts` (observe mode: `observe.ts`).
+- Guard rule and policy: `harness/leadkit/guard.ts` (`DEFAULT_GUARD`); a2 adds `denyDelegateCommand` in the adapter and passes it as env `HARNESS_GUARD`.
+- Lead prompt: `approaches/a2_native_hook/prompts/lead.md` (+ the lead's shared `.claude/CLAUDE.md`).
+- Agents, tools, skills: `core/agents/<group>/<name>/` (`agent.json` + `.claude/{CLAUDE.md,settings.json,skills,plugins}`), shared by every approach.
+- A Loopferry-style mod (a plugin folder with `.claude-plugin/plugin.json`, `hooks/hooks.json`, e.g. `loopferry/.idea/.claude/dev-plugins/plugins/guard-rails`) is NOT used: the lost `.claude/mods/interrupt` mod is replaced by these hooks, which a stock `claude -p` runs without any plugin API. TODO (optional): ship the same hooks as a plugin folder `approaches/a2_native_hook/plugin/` and load it with `--plugin-dir` (the harness already does that for the LSP plugin, `harness/plugins/ts-lsp`), so the hooks live in a `hooks.json` instead of the adapter.
+
+### Skills on the fly (2026-11-20)
+One declaration, `core/agents/skills.json`: `{ skills: ["expo-*"], agents: ["builder","expo-go"], when: "<regex on the hand-over>" }`. For each call `harness/core/skills.ts` copies only the matching skills into a throwaway plugin folder and the agent starts with `--plugin-dir` (the way the LSP plugin loads); `runCall` records an event `skills.mounted`. An agent not listed, or a hand-over that does not match `when`, sees no skill. The library is every `<agent>/.claude/skills/*` plus `core/agents/skills/*` (the builder's vendored expo skills stay where they are; that folder is git-ignored). Before this nothing mounted an agent's `.claude/skills` and the builder prompt pointed at a path that does not exist in the workspace. Free check: `bun self_test/skills.ts` (7/7). VERIFIED live (haiku, $0.002): a real `claude -p --setting-sources "" --plugin-dir <mounted>` shows the 17 expo skills (named `team-skills:expo-go` ...) for an Expo hand-over and none of ours for a plain one (the account's own skills still appear in both).
+
+### First real run on a2 (2026-11-20, test_web_setup / web_vue_setup)
+PASS. The lead (the only model call, $0.17) asked for name and options first, then called `web-setup` once; the recorded fixture was served (`fixture.call` verdict `served`, then one free `extra` verify), the real `bun create vue` generator ran in Docker, `run_test/shop-ui` exists. No real sub-agent ran. The call went through the a2 hook (no `guard.denied`, so no `team agent` shell attempt); `activity.ts` logged the lead's 4 Bash calls. Not exercised: the guard denying something, `UserPromptSubmit`, `Stop`, `SendMessage` as the follow-up (the second call is a continuation of `web-setup#1`; check `calls` to see which tool made it).
+Note: the a2 lead prompt is 12.6k chars (the team command list moved from the request into the system prompt); it is only a size WARNING, shorten the lead `CLAUDE.md` or its chapters when convenient.
+
+### Hooks (a2) vs what a1 did vs Loopferry mods (read from the code and from `loopferry/.idea/.claude`, 2026-11-20)
+
+| | a1 (before) | a2 (now) | Loopferry mod / plugin |
+|---|---|---|---|
+| How the lead delegates | a Bash command `team agent ...`: the command IS the control point, no hook needed | native `Agent` / `SendMessage`, caught by a PreToolUse hook and sent to the same `delegate` | n/a (the mod can do either) |
+| Hooks on the LEAD | none: `lead.ts` passed only env. Its only limits were the allow rules in `settings.json` (`Bash(team *)`, `../store` commands). `hooks/guard.ts` has a lead branch (no `..` paths) but the a1 lead launch never loaded it | PreToolUse (guard + delegate), PostToolUse (`activity.ts`), UserPromptSubmit, Stop (off), SubagentStop (observe) | any hook event, as plugin `hooks/hooks.json` |
+| Hooks on SUB-agents | `guard.ts` (locks) + `activity.ts` through `hookArgs` | the same (shared `runCall`) | |
+| Lead file guard (.env, outside workspace) | no | yes, lite guard | `guard-rails` mod: blocks git push, PR creation, commits on main, secret printing |
+| Stalled-agent checks | monitor ticks inside `team agent wait` / `plan status` | the same, and ALSO during a plain foreground `Agent` call: the hook runs one monitor tick (`tools.ts _tick`) every 15 s while it waits, so the 6-min nudge and the 10-min silent auto-stop work there too (self_test a2.41) | `agent-monitor` mod |
+| Changes the INTERFACE (status line, bottom bar, phase band, panels, toasts, slash commands, themes) | no | no | yes: `statusLine`, `bottom_bar`, `phase-band`, `agent-flow` ... |
+| Needs | nothing special | stock `claude -p`, hooks passed with `--settings` | the mod runtime of Claude Code itself (CORRECTED 2026-11-20: it is in the installed CLI, 2.1.328, not only the Loopferry build): `.claude-plugin/plugin.json` + `hooks/hooks.json` with `modules: ["./register.ts"]`, loaded with `--plugin-dir`; under `claude -p` nobody can be asked to enable it, so `--plugin-dir <mod folder>` is the way to start with it loaded (NOT tried yet) |
+
+What stock hooks (our a2 way) can do: allow or deny a tool call and say why, run our code before or after any tool, add context to a turn, refuse the end of a turn, answer a tool call themselves (as the deny reason). What a MOD can do on top (from the mod docs of this CLI build, `plugin-authoring`; not used by us yet): hooks that sit in a chain (`next(e)` rewrites the input the rest sees, wraps the result, or answers with a real result, no deny-reason trick), `prompt.compose` (change the system prompt), `prompt.submit`, register our own TOOLS the model calls (`$.tool`: the team commands as typed tools) and SUBAGENT types (`$.agent`), model calls, files and processes (`$.fs`, `$.process`), a timer (`$.clock`), slash commands, state kept across sessions (`$.store`), and the UI (panes, bands above the prompt, toasts, status line, themes, tool-row cards, context menu), with `claude plugin validate` / `claude plugin test`. So the gap is not only UI.
+Not verified: whether a stock `claude -p --plugin-dir` runs a plugin's `hooks/hooks.json` (the LSP plugin proves `--plugin-dir` works for `lspServers`); so shipping the a2 hooks as a plugin folder stays a TODO.
+
+### How a2 calls agents (short)
+The lead uses Claude's own `Agent` / `SendMessage` tools, but they never reach Claude's sub-agent engine: the PreToolUse hook (`hook.ts`) turns each call into the shared `bun harness/tools.ts delegate ...` (the same CLI path a1 types by hand), the core checks it (`agent_call.ts`), serves a fixture or starts the callee as its own `claude -p`, and the answer goes back to the lead as the hook's `AGENT RESULT ...` reply. So: native tool on the lead's side, shared CLI/core underneath. Only `a2_native_observe` lets Claude's own engine run the sub-agents (no fixtures, no locks). While a foreground call waits, the hook also runs the monitor tick and ends with `AGENT STOPPED` if the harness or the person stopped the agent.

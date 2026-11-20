@@ -1,7 +1,7 @@
 // What `launch` builds for one agent (plan sections 19, 20, 21): its tools (the delegate tool is REMOVED at the last level),
 // its run-time sub-agent declarations (from agent.json agents[]; .claude/agents stays empty), and the native-backend equivalents.
 import { groupsOf } from "./help.ts";
-import { delegateDocs as a1DelegateDocs } from "../../approaches/a1_team_cli/delegate_docs.ts";
+import { delegateDocs as subAgentProtocol } from "../leadkit/delegate_docs.ts";   // how a SUB-agent starts others: the same for every approach
 import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { permitsTeamCli, usesTeamCommands } from "./base/agents.ts";
 import { randomUUID } from "node:crypto";
@@ -24,8 +24,8 @@ export function declarations(def: AgentDef, defs: Map<string, AgentDef>): string
     .map((d) => `- ${d.name} (${d.writes ? "can write; must declare --writes" : "read-only"}; ${d.tools.some((t) => /^Web/.test(t)) ? "has web access" : "NO web access"}; tools: ${d.tools.join(", ")}): ${d.description}`).join("\n");
 }
 /** A launch-time copy of the definition: filtered tools, and a prompt file = CLAUDE.md + the declarations. */
-/** `delegateDocs`: how the approach tells a caller to start sub-agents (default: approach 1, the `team` shell commands). */
-export function launchDef(def: AgentDef, defs: Map<string, AgentDef>, level: number, agentMaxDepth: number, tmpDir: string, teamCmd?: string, delegateDocs: (teamCmd: string) => string = a1DelegateDocs): AgentDef {
+/** `delegateDocs`: how the approach tells a caller to start sub-agents (default: the `team agent ...` shell commands every sub-agent uses). */
+export function launchDef(def: AgentDef, defs: Map<string, AgentDef>, level: number, agentMaxDepth: number, tmpDir: string, teamCmd?: string, delegateDocs: (teamCmd: string) => string = subAgentProtocol): AgentDef {
   const t = launchTools(def, level, agentMaxDepth);
   mkdirSync(tmpDir, { recursive: true });
   const decl = t.delegate ? declarations(def, defs) + (teamCmd ? delegateDocs(teamCmd) : "") : "";

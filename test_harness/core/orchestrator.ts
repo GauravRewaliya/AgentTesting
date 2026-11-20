@@ -23,4 +23,7 @@ export { judgeTurn, loadSuites, reconcileDead, readExp, statusOf, unsupported, w
 export type { ExpEntry, SuiteCase } from "./orchistraitor/f3_multiagent/testrun/cases.ts";
 export { loadAgentsRaw } from "./orchistraitor/f3_multiagent/harness/core/base/agents.ts";
 export { launchDef } from "./orchistraitor/f3_multiagent/harness/core/launch.ts";
-export { buildLead } from "./orchistraitor/f3_multiagent/approaches/a2_native_hook/adapter.ts";
+export { currentApproach } from "./orchistraitor/f3_multiagent/approaches/index.ts";
+import { currentApproach as _approach } from "./orchistraitor/f3_multiagent/approaches/index.ts";
+/** What the lead of the CHOSEN approach (CONFIG.approach, env APPROACH) is started with, without starting it: prompt text, tools, extra CLI args. Prompt tests and size checks use this. */
+export const describeLead = (defs: Parameters<ReturnType<typeof _approach>["describeLaunch"]>[0], o: { agents?: string[]; maxDepth: number; approach?: string }) => _approach(o.approach).describeLaunch(defs, o);

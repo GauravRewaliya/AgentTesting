@@ -28,4 +28,4 @@ If a command or tool is refused (permission, missing program, locked file), or y
 End your answer with a short block the harness keeps for the QA agent: `VERIFIED:` then one line per thing you really ran or saw (the command and the result, e.g. `pnpm exec tsc --noEmit: 0 errors`, `opened the page: no console errors, 12 stops`) and `NOT VERIFIED:` for what you could not check. Never claim a check you did not run: QA skips what you list.
 
 ## Skills
-For an Expo / React Native app (must run in Expo Go) read `.claude/skills/expo-go/SKILL.md` first, then the matching expo-* skill (router, animation, native-ui ...) before you write code in that area. Name the skills you used in your report.
+For an Expo / React Native app (must run in Expo Go) load the `expo-go` skill first (Skill tool, offered for Expo tasks), then the matching expo-* skill before you write code in that area. Name the skills you used in your report.

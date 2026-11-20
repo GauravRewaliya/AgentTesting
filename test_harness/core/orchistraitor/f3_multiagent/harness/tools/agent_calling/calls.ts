@@ -8,7 +8,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { attentionSpread, cmd, cwd, file, flag, locks, me, monitorTick, out, policy, rest, sleep, store, task, writerRanInTask } from "../ctx.ts";
 import { applyPatchesCmd, grant, lastReport, runCall, siteGuard, spawnRun, withWrites } from "./core.ts";
 
-export const COMMANDS = ["delegate", "fork_all", "_run", "wait", "apply_patches", "agent_stop"];
+export const COMMANDS = ["delegate", "fork_all", "_run", "_tick", "wait", "apply_patches", "agent_stop"];
 export async function run(): Promise<void> {
 if (cmd === "delegate") {
   const asyncMode = rest.includes("--async");
@@ -41,6 +41,9 @@ if (cmd === "fork_all") {   // N tasks for N agents, ALL STARTED AT ONCE (async)
   const ids = started.filter((x) => x.ok).map((x) => String(x.agent_id));
   if (ids.length > 1) store.tx(() => { for (const id of ids) say(store, task, "harness", id, `TEAM (started together): ${ids.filter((x) => x !== id).map((x) => { const t = started.find((y) => y.agent_id === x); return x + (t?.title ? ` (${t.title})` : ""); }).join(", ")}. Each owns its own files; reach one with team say --to <agent_id>.`); });   // every starter learns who its neighbours are (a builder that began before the others were granted would not see them)
   out({ ok: started.every((x) => x.ok), started, next: ids.length ? `All started together. Now agent wait --any --agents ${ids.join(",")}: it returns as soon as ONE finishes, with a browser check of its pages; fix that builder at once if needed, then agent wait --any again with the ones still running (a timeout is NOT a failure: still_running shows each agent last_tool_s_ago; keep waiting while it is under 120 s, a big builder can write for 6+ minutes; answer the person only when an agent shows no tool use for 5 minutes).` : "Nothing started: fix the reasons above." });
+}
+if (cmd === "_tick") {   // internal: one monitor tick (core/monitor.ts: a nudge to an agent over 6 min, a stop for one silent 10 min). The a2 hook calls it while a plain Agent call blocks, because `wait` (which ticks) is not running then
+  out({ ok: true, attention: (await monitorTick()) });
 }
 if (cmd === "_run") {
   await runCall(flag("call")!);

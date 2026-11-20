@@ -45,7 +45,8 @@ import { contactSheets } from "../harness/core/ref_capture.ts";
 import { applyQueue } from "../harness/core/patches.ts";
 import { addWorktree, auditWrites, patchOf, removeWorktree } from "../harness/core/worktree.ts";
 import { HARNESS_DIR, loadDefs } from "../harness/main.ts";
-import { runLead } from "../harness/lead.ts";
+import { currentApproach } from "../approaches/index.ts";
+const runLead = (ctx: Parameters<ReturnType<typeof currentApproach>["runLead"]>[0], o: Parameters<ReturnType<typeof currentApproach>["runLead"]>[1]) => currentApproach("a1_team_cli").runLead(ctx, o);   // these checks are about the a1 lead (Bash `team` commands)
 import { InvariantViolation, Store as BaseStore } from "../harness/core/base/store.ts";
 import { canaryFor } from "../harness/core/base/call.ts";
 import { startWatchdog } from "../harness/core/base/watchdog.ts";
@@ -1326,11 +1327,11 @@ async function contextSuite() {
   // ---- no prompt, doc line or command list may name a command that no longer exists (the master's list once still offered qa_give_up)
   { const removed = ["qa_check", "qa_record", "qa_give_up", "report_issue_to_admin", "preview_list", "preview_stop", "preview_restart", "team preview", "preview --dir"], files: string[] = [];
     const walkMd = (d: string) => { for (const e of readdirSync(d, { withFileTypes: true })) { const f = join(d, e.name); if (e.isDirectory()) { if (e.name !== "skills" && e.name !== "node_modules") walkMd(f); } else if (/\.(md|json)$/.test(e.name)) files.push(f); } };
-    walkMd(AGENTS_DIR); files.push(join(H, "lead.ts"), join(H, "core", "launch.ts"), join(H, "core", "proto_check.ts"), join(H, "core", "monitor.ts"));
+    walkMd(AGENTS_DIR); files.push(join(H, "leadkit", "common.ts"), join(H, "core", "launch.ts"), join(H, "core", "proto_check.ts"), join(H, "core", "monitor.ts"));
     const bad = files.flatMap((f) => removed.filter((w) => readFileSync(f, "utf8").includes(w) && !(w === "qa_check" && /config\.json|qa_check: false|"qa_check"|qa_check false|`qa_check`/.test(readFileSync(f, "utf8")))).map((w) => `${f.split("/harness/")[1]} names ${w}`));
     t("CX35", "no agent prompt, chapter, tool doc or hint names a command that no longer exists (qa_give_up, preview ..., report_issue_to_admin, the QA commands); the only 'qa_check' left is the config switch name", bad.length === 0 && !existsSync(join(H, "bin", "preview")), JSON.stringify(bad.slice(0, 6))); }
   // memory reaches every agent on every call, informs and never invites QA
-  const mb = memoryBlock(join(lp, "run_test")), calleeSrc = readFileSync(join(H, "core", "callee.ts"), "utf8"), leadSrc = readFileSync(join(H, "lead.ts"), "utf8");
+  const mb = memoryBlock(join(lp, "run_test")), calleeSrc = readFileSync(join(H, "core", "callee.ts"), "utf8"), leadSrc = readFileSync(join(H, "leadkit", "common.ts"), "utf8");
   t("CX24", "project memory reaches every agent on every call: the compact block (latest QA verdict, what QA asked for, builder notes, under 1.5 KB) is labelled information only, never tells anyone to run QA, is put in front of the prompt of ANY agent (readers, QA agent, resumed calls) and of every lead turn, and is empty when no project has a memory",
     /PROJECT MEMORY/.test(mb) && /information only/.test(mb) && /QA is not to be started because of it/.test(mb) && /last QA review PASS/.test(mb) && /builder builder#1 verified: .*tsc/.test(mb) && !/qa_check|team qa/.test(mb) && mb.length <= 1500 && memoryBlock(join(lp, "nothing")) === ""
     && /memoryBlock\(join\(o\.cwd, "run_test"\)\) \+ callPrompt/.test(calleeSrc) && !/first && isWriter \? memoryBlock/.test(calleeSrc) && /memoryBlock\(join\(o\.repo, "run_test"\)\)/.test(leadSrc), mb.slice(0, 200));

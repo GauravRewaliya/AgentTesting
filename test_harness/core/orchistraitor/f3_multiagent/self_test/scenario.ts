@@ -11,7 +11,8 @@ import { mkRepo, rm } from "./lib.ts";
 import { loadDefs as loadStagedDefs, loadPipeline } from "../harness/main.ts";
 import { RealRunner, Store, projectDirFor, runTask, trace } from "../harness/core/base.ts";
 import { MStore } from "../harness/core/board.ts";
-import { runLead } from "../harness/lead.ts";
+import { currentApproach } from "../approaches/index.ts";
+const runLead = (ctx: Parameters<ReturnType<typeof currentApproach>["runLead"]>[0], o: Parameters<ReturnType<typeof currentApproach>["runLead"]>[1]) => currentApproach("a1_team_cli").runLead(ctx, o);   // these checks are about the a1 lead (Bash `team` commands)
 import { checkRegistry, checkSessionFiles } from "../harness/core/invariants.ts";
 import { loadDefs as loadMultiDefs } from "../harness/main.ts";
 

@@ -1,0 +1,6 @@
+{
+  "_doc": "THE ONE PLACE that says which skill is mounted for which agent. A skill is a folder with SKILL.md; the library is every agents/<group>/<agent>/.claude/skills/<name> plus agents/skills/<name>. An agent gets ONLY the skills listed for it, and only when `when` (a regex on the hand-over text, optional) matches: the model sees just those skills' names, so the context stays small. Mounted on the fly as a plugin (--plugin-dir) for that one call. `skills` entries may end in * (expo-*). Nothing listed = nothing mounted.",
+  "mounts": [
+    { "skills": ["expo-*"], "agents": ["builder", "expo-go"], "when": "expo|react.?native|\\bRN\\b" }
+  ]
+}

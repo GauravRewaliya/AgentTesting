@@ -8,7 +8,8 @@ import { mkRepo, rm } from "./lib.ts";
 import { loadDefs as loadPipeDefs, loadPipeline } from "../harness/main.ts";
 import { RealRunner, Store, projectDirFor, runTask, type AgentDef } from "../harness/core/base.ts";
 import { MStore } from "../harness/core/board.ts";
-import { runLead } from "../harness/lead.ts";
+import { currentApproach } from "../approaches/index.ts";
+const runLead = (ctx: Parameters<ReturnType<typeof currentApproach>["runLead"]>[0], o: Parameters<ReturnType<typeof currentApproach>["runLead"]>[1]) => currentApproach("a1_team_cli").runLead(ctx, o);   // these checks are about the a1 lead (Bash `team` commands)
 import { loadDefs as loadMultiDefs } from "../harness/main.ts";
 
 const args = process.argv.slice(2), arg = (k: string, d?: string) => { const i = args.indexOf("--" + k); return i >= 0 ? args[i + 1]! : d; };

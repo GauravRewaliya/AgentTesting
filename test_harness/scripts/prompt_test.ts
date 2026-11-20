@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadAgents } from "../core/orchistraitor/f3_multiagent/harness/core/base/agents.ts";
 import { launchDef } from "../core/orchistraitor/f3_multiagent/harness/core/launch.ts";
-import { buildLead } from "../core/orchistraitor/f3_multiagent/approaches/a2_native_hook/adapter.ts";
+import { describeLead } from "../core/orchestrator.ts";
 import { STATE_ROOT } from "../core/paths.ts";
 import { claudeEnv } from "../core/orchistraitor/f3_multiagent/harness/core/base.ts";
 import type { PromptCase, PromptSuite } from "../../TestCases/test_folders/prompt_test/types.ts";
@@ -37,16 +37,17 @@ if (flags.has("--list")) {
 }
 
 const defs = loadAgents(), dir = join(tmpdir(), "prompt-test"); mkdirSync(dir, { recursive: true });
-const HOOK = join(import.meta.dir, "prompt_test_hook.ts"), TEAM_MCP = join(import.meta.dir, "..", "core", "orchistraitor", "f3_multiagent", "approaches", "a2_native_hook", "team_mcp.ts");
+const HOOK = join(import.meta.dir, "prompt_test_hook.ts");
 const runs = Math.max(1, Number(val("runs") ?? 1));
 
+/** The args without one flag and its value (the approach's own --settings would clash with the recording hook). */
+const dropFlag = (a: string[], flag: string) => a.flatMap((x, i) => (x === flag || a[i - 1] === flag ? [] : [x]));
 interface Launch { promptFile: string; tools: string[]; allow: string[]; extra: string[]; chars: number }
 async function launchFor(agent: string, c: PromptCase): Promise<Launch> {
   const def = defs.get(agent); if (!def) throw new Error(`unknown agent "${agent}"`);
-  if (agent === "lead") {   // exactly what the a2 approach launches (adapter.ts buildLead): native Agent/SendMessage + the typed team commands
-    const L = await buildLead(defs, { agents: c.team, maxDepth: 2, mode: "intercept" }), f = join(dir, `lead.${c.id}.md`); writeFileSync(f, L.text);
-    return { promptFile: f, tools: L.tools, allow: L.allow, chars: L.text.length,
-      extra: ["--agents", JSON.stringify(L.agents), "--mcp-config", JSON.stringify({ mcpServers: { team: { command: "bun", args: ["--smol", TEAM_MCP], env: { HARNESS_TASK: "prompt_test" } } } })] };
+  if (agent === "lead") {   // exactly what the CHOSEN approach launches (approaches/<name>/adapter.ts describeLaunch): its tools, prompt, hooks args
+    const L = await describeLead(defs, { agents: c.team, maxDepth: 2 }), f = join(dir, `lead.${c.id}.md`); writeFileSync(f, L.text);
+    return { promptFile: f, tools: L.tools, allow: L.allow, chars: L.text.length, extra: dropFlag(L.extra({ HARNESS_TASK: "prompt_test" }), "--settings") };   // the test records and blocks every tool call with its own hook (HOOK below), not the approach's hooks
   }
   const ld = launchDef(def, defs, 2, 4, dir, "team");   // a called agent at level 2: its CLAUDE.md + the team-tool docs, as the harness launches it
   return { promptFile: ld.prompt_file, tools: ld.tools, allow: ld.allow, chars: readFileSync(ld.prompt_file, "utf8").length, extra: [] };

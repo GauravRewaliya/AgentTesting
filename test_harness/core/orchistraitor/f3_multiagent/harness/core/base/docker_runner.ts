@@ -22,7 +22,7 @@ export const COMPOSE_FILE = resolve(import.meta.dir, "../../../../../../infra/do
 export function dockerArgs(c: RunCall, name: string, claudeArgs: string[], uid = `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`): string[] {
   const env = c.env ?? {};
   return ["compose", "-f", COMPOSE_FILE, "run", "--rm", "-T", "--name", name, "--user", uid, ...Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]),
-    "-v", `${c.cwd}:${c.cwd}`, "-v", `${dirname(c.agent.prompt_file)}:${dirname(c.agent.prompt_file)}:ro`, ...(wantsLsp(c) ? ["-v", `${LSP_PLUGIN_DIR}:${LSP_PLUGIN_DIR}:ro`, "-e", "ENABLE_LSP_TOOL=1"] : []), "-w", c.cwd, "sandbox", "claude", ...claudeArgs];
+    "-v", `${c.cwd}:${c.cwd}`, "-v", `${dirname(c.agent.prompt_file)}:${dirname(c.agent.prompt_file)}:ro`, ...(c.extraArgs ?? []).flatMap((x, i, a) => (a[i - 1] === "--plugin-dir" ? ["-v", `${x}:${x}:ro`] : [])), ...(wantsLsp(c) ? ["-v", `${LSP_PLUGIN_DIR}:${LSP_PLUGIN_DIR}:ro`, "-e", "ENABLE_LSP_TOOL=1"] : []), "-w", c.cwd, "sandbox", "claude", ...claudeArgs];
 }
 
 export class DockerRunner extends RealRunner {
