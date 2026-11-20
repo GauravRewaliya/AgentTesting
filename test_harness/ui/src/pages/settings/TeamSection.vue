@@ -36,6 +36,7 @@ async function act(fn: () => Promise<TeamOverview>) { busy.value = true; err.val
 const addSkill = () => act(async () => { const r = await api.teamSkillNew({ ...nf }); Object.assign(nf, { name: "", description: "", body: "" }); return r; });
 const mount = (skill: string) => mountTo[skill] ? act(() => api.teamSkillMount({ skill, agents: [mountTo[skill]!], ...(when[skill] ? { when: when[skill] } : {}) })) : undefined;
 const unmount = (skill: string, agent: string) => act(() => api.teamSkillUnmount({ skill, agent }));
+const yours = (skill: string, agent: string) => (data.value?.mounts ?? []).some((m) => m.by === "you" && m.skills.includes(skill) && m.agents.includes(agent));   // a repo mount is changed in core/agents/skills.json, not here
 const mountedBy = (agent: string) => (data.value?.mounts ?? []).filter((m) => m.agents.includes(agent));
 const byWhen = computed(() => { const g = new Map<string, TeamMod["context"]>(); for (const c of mod.value?.context ?? []) g.set(c.when, [...(g.get(c.when) ?? []), c]); return [...g]; });
 onMounted(load);
@@ -92,7 +93,7 @@ onMounted(load);
             <tr v-for="s in data?.skills ?? []" :key="s.name">
               <td><b class="mono">{{ s.name }}</b><div class="mute small">{{ s.by === "you" ? "yours" : "from " + s.from }}</div></td>
               <td class="mute small">{{ s.description }}</td>
-              <td><span v-for="a in [...new Set(s.mountedFor)]" :key="a" class="chip">{{ a }} <button class="x" title="remove (your mounts only)" @click="unmount(s.name, a)">×</button></span><span v-if="!s.mountedFor.length" class="mute">nobody</span></td>
+              <td><span v-for="a in [...new Set(s.mountedFor)]" :key="a" class="chip">{{ a }} <button v-if="yours(s.name, a)" class="x" title="remove your mount" @click="unmount(s.name, a)">×</button></span><span v-if="!s.mountedFor.length" class="mute">nobody</span></td>
               <td class="mount"><select v-model="mountTo[s.name]"><option value="">agent…</option><option v-for="a in agents" :key="a.name" :value="a.name">{{ a.name }}</option></select><input v-model="when[s.name]" placeholder="only when… (regex, optional)" /><button :disabled="busy || !mountTo[s.name]" @click="mount(s.name)">Mount</button></td>
             </tr>
           </tbody>

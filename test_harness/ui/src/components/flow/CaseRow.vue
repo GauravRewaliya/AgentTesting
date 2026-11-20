@@ -19,7 +19,7 @@ const agentOf = (e: string) => (e.startsWith("session:") ? agentOfLabel(e.slice(
         <strong class="ell">{{ row.title.replace(/^\[[^\]]+\]\s*/, "") }}</strong>
         <StatusBadge :status="row.status" />
         <span v-for="t in row.tags.filter((x) => x in MARK_LABEL)" :key="t" class="mkb" :class="t" :title="MARK_LABEL[t]">{{ MARK_LABEL[t]!.replace(" (one init prompt)", "") }}</span>
-        <button class="go" :disabled="isRunning" :title="runsCase(row.caseId) ? 'running…' : 'run all steps of this chain (same runner as the CLI)'" @click.stop="runCase(row.caseId, row.ran)">{{ runsCase(row.caseId) ? "…" : "▶" }}</button>
+        <button class="go" :disabled="isRunning" :title="runsCase(row.caseId) ? 'running…' : 'run all steps of this chain (same runner as the CLI)'" @click.stop="runCase(row.caseId)">{{ runsCase(row.caseId) ? "…" : "▶" }}</button>
         <button class="go" title="open test page" @click.stop="open">↗</button>
       </div>
       <div class="meta mono muted ell">

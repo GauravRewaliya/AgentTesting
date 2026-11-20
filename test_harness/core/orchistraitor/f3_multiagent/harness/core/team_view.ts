@@ -95,7 +95,7 @@ export function unmountSkill(b: { skill: string; agent: string }) {
 export function modInfo() {
   const dir = join(F3, "approaches", "a3_native_mod", "mod", "hooks"), files = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".ts") && !f.includes(".test.") && f !== "config.ts").sort() : [];
   const hooks = files.map((f) => {
-    const src = readFileSync(join(dir, f), "utf8"), what = (/^\/\/\s*(.+)$/m.exec(src)?.[1] ?? "").slice(0, 220), loopTools = /for \(const tool of \[([^\]]+)\]/.exec(src)?.[1]?.replace(/['\s]/g, "").split(",").join("|");
+    const src = readFileSync(join(dir, f), "utf8"), what = src.split("\n").filter((l) => l.startsWith("//")).slice(0, 3).map((l) => l.replace(/^\/\/\s*/, "")).join(" ").slice(0, 300), loopTools = /for \(const tool of \[([^\]]+)\]/.exec(src)?.[1]?.replace(/['\s]/g, "").split(",").join("|");
     const events = [...src.matchAll(/\bon\(\s*'([\w.]+)'(?:\s*,\s*\{\s*(?:tool(?::\s*'([^']+)'(\s*\+)?)?)?)?/g)].map((m) => ({ event: m[1]!, matcher: m[2] ? m[2] + (m[3] ? "*" : "") : /\{ tool \}/.test(m[0] + src.slice(m.index! + m[0].length, m.index! + m[0].length + 14)) ? loopTools ?? "" : "" }));
     return { file: f, what, events, guarded: /\.catch\(/.test(src) };
   });

@@ -127,4 +127,4 @@ export function helpFor(argv: string[]): string | undefined {
   return (one ? [one] : all).join("\n");
 }
 /** the prompt lists a group line when the agent may use any of its commands (agent.json team_commands lists group names: browser, bg, proto, ref; single command names also work) */
-export const groupsOf = (only: string[]): Set<string> => new Set(only.map((t) => GROUP_OF(t)).filter((x): x is string => !!x));
+export const groupsOf = (only: string[]): Set<string> => new Set<string>(only.map((t) => GROUP_OF(t) as string | undefined).filter((x): x is string => !!x));
